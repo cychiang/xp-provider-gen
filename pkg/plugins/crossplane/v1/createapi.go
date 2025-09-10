@@ -9,22 +9,19 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
+
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/templates/api"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/templates/controllers"
 )
 
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
 
 type createAPISubcommand struct {
-	// Standard kubebuilder flags
-	Group     string
-	Version   string
-	Kind      string
-	Resource  string
-	Namespaced bool
-
 	// Crossplane-specific flags
-	ExternalName string
-	ProviderType string
+	ExternalName   string
+	ProviderType   string
 	GenerateClient bool
+	Force          bool
 
 	// Injected dependencies
 	config   config.Config
@@ -56,34 +53,15 @@ external client scaffolding.
 
 // BindFlags binds the subcommand flags
 func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
-	// Standard flags
-	fs.StringVar(&p.Group, "group", "", "API group name for the resource")
-	fs.StringVar(&p.Version, "version", "", "API version for the resource")
-	fs.StringVar(&p.Kind, "kind", "", "Kind name for the resource")
-	fs.StringVar(&p.Resource, "resource", "", "Resource name (plural of kind, auto-generated if not specified)")
-	fs.BoolVar(&p.Namespaced, "namespaced", true, "whether the resource is namespaced")
-
-	// Crossplane-specific flags
+	// Crossplane-specific flags only - core flags are handled by kubebuilder CLI
 	fs.StringVar(&p.ExternalName, "external-name", "", "external resource name (defaults to lowercase kind)")
 	fs.StringVar(&p.ProviderType, "provider-type", "custom", "provider type (aws, gcp, azure, custom)")
 	fs.BoolVar(&p.GenerateClient, "generate-client", true, "generate external client interface")
+	fs.BoolVar(&p.Force, "force", false, "overwrite existing files if they exist")
 }
 
 // InjectConfig injects the project configuration
 func (p *createAPISubcommand) InjectConfig(c config.Config) error {
-	// Validate required flags
-	if p.Group == "" || p.Version == "" || p.Kind == "" {
-		return fmt.Errorf("group, version, and kind are required")
-	}
-
-	// Set defaults
-	if p.Resource == "" {
-		p.Resource = strings.ToLower(p.Kind) + "s"
-	}
-	if p.ExternalName == "" {
-		p.ExternalName = strings.ToLower(p.Kind)
-	}
-
 	// Validate provider type
 	validProviderTypes := []string{"aws", "gcp", "azure", "custom"}
 	isValid := false
@@ -97,10 +75,7 @@ func (p *createAPISubcommand) InjectConfig(c config.Config) error {
 		return fmt.Errorf("invalid provider type: %s (must be one of: %v)", p.ProviderType, validProviderTypes)
 	}
 
-	// Store API metadata for scaffolding (note: we'll use the resource injection instead)
-	// Config in kubebuilder v4 is more structured, so we store these as fields
 	p.config = c
-
 	return nil
 }
 
@@ -108,22 +83,24 @@ func (p *createAPISubcommand) InjectConfig(c config.Config) error {
 func (p *createAPISubcommand) InjectResource(res *resource.Resource) error {
 	p.resource = res
 
-	// Update our flags from the resource if they were set via resource
+	// Set defaults based on the resource information
 	if res != nil {
-		if p.Group == "" {
-			p.Group = res.Group
+		if p.ExternalName == "" {
+			p.ExternalName = strings.ToLower(res.Kind)
 		}
-		if p.Version == "" {
-			p.Version = res.Version
+		
+		// Set the resource path using the repository from config
+		// This is essential for proper import paths in generated code
+		res.Path = resource.APIPackagePath(p.config.GetRepository(), res.Group, res.Version, p.config.IsMultiGroup())
+		
+		// Mark this as having an API
+		res.API = &resource.API{
+			CRDVersion: "v1",
+			Namespaced: true, // Crossplane managed resources are typically namespaced
 		}
-		if p.Kind == "" {
-			p.Kind = res.Kind
-		}
-		if p.Resource == "" {
-			p.Resource = res.Plural
-		}
-		// Note: Kubebuilder v4 doesn't have Namespaced in resource model
-		// We keep our own flag for Crossplane-specific logic
+		
+		// Mark that we have a controller
+		res.Controller = true
 	}
 
 	return nil
@@ -137,30 +114,57 @@ func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 
 // Scaffold scaffolds the managed resource API
 func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
-	// TODO: Implement Crossplane managed resource scaffolding
-	// This should generate:
-	// - apis/<group>/<version>/<kind>_types.go with Crossplane patterns
-	// - apis/<group>/<version>/doc.go
-	// - apis/<group>/<version>/groupversion_info.go  
-	// - internal/controller/<group>/<kind>.go with crossplane-runtime patterns
-	// - internal/clients/<group>/<kind>.go (if generateClient is true)
-	// - examples/<group>/<kind>.yaml
+	fmt.Printf("Creating Crossplane managed resource API %s/%s %s\n", p.resource.Group, p.resource.Version, p.resource.Kind)
 
-	fmt.Printf("Creating Crossplane managed resource API %s/%s %s\n", p.Group, p.Version, p.Kind)
-	fmt.Printf("External name: %s\n", p.ExternalName)
-	fmt.Printf("Provider type: %s\n", p.ProviderType)
-	fmt.Printf("Generate client: %t\n", p.GenerateClient)
-	fmt.Println("TODO: Implement Crossplane managed resource scaffolding")
+	// Initialize the machinery.Scaffold that will write the files to disk
+	scaffold := machinery.NewScaffold(fs,
+		machinery.WithConfig(p.config),
+		machinery.WithBoilerplate(`/*
+Copyright 2025 The Crossplane Authors.
 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/`),
+		machinery.WithResource(p.resource),
+	)
+
+	// Execute the scaffolding templates
+	if err := scaffold.Execute(
+		&api.CrossplaneGroup{
+			ProviderDomain: p.ProviderType,
+		},
+		&api.CrossplaneTypes{
+			ProviderType: p.ProviderType,
+			ExternalName: p.ExternalName,
+			Force:        p.Force,
+		},
+		&controllers.CrossplaneController{
+			ExternalName: p.ExternalName,
+			Force:        p.Force,
+		},
+	); err != nil {
+		return fmt.Errorf("error scaffolding Crossplane managed resource: %w", err)
+	}
+
+	fmt.Printf("Successfully scaffolded Crossplane managed resource %s\n", p.resource.Kind)
 	return nil
 }
 
 // PostScaffold runs after scaffolding
 func (p *createAPISubcommand) PostScaffold() error {
 	// TODO: Add post-scaffolding logic
-	fmt.Printf("Crossplane managed resource %s created successfully!\n", p.Kind)
+	fmt.Printf("Crossplane managed resource %s created successfully!\n", p.resource.Kind)
 	fmt.Printf("Next steps:\n")
-	fmt.Printf("  1. Customize the %sParameters and %sObservation structs\n", p.Kind, p.Kind)
+	fmt.Printf("  1. Customize the %sParameters and %sObservation structs\n", p.resource.Kind, p.resource.Kind)
 	fmt.Printf("  2. Implement the external client logic\n")
 	fmt.Printf("  3. Update controller reconciliation logic\n")
 	fmt.Printf("  4. Run 'make manifests' to generate CRDs\n")

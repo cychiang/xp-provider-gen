@@ -10,7 +10,7 @@ const pluginName = "crossplane." + golang.DefaultNameQualifier
 
 var (
 	pluginVersion            = plugin.Version{Number: 1}
-	supportedProjectVersions = []config.Version{{Number: 4}}
+	supportedProjectVersions = []config.Version{{Number: 3}}
 )
 
 // Plugin implements the kubebuilder plugin interface for Crossplane providers
@@ -44,14 +44,14 @@ func (p Plugin) GetCreateAPISubcommand() plugin.CreateAPISubcommand {
 	return &createAPISubcommand{}
 }
 
-// GetCreateWebhookSubcommand returns the create webhook subcommand for this plugin
+// GetCreateWebhookSubcommand returns nil as webhooks are not supported
 func (p Plugin) GetCreateWebhookSubcommand() plugin.CreateWebhookSubcommand {
-	return &createWebhookSubcommand{}
+	return nil
 }
 
-// GetEditSubcommand returns the edit subcommand for this plugin
+// GetEditSubcommand returns nil as edit is not supported
 func (p Plugin) GetEditSubcommand() plugin.EditSubcommand {
-	return &editSubcommand{}
+	return nil
 }
 
 // DeprecationWarning returns any deprecation warning for this plugin

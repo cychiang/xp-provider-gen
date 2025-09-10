@@ -8,13 +8,13 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 
-# Plugin metadata
-PLUGIN_NAME=crossplane.go.kubebuilder.io
-PLUGIN_VERSION=v1
 
 # Build directories
 BUILD_DIR=bin
 COVERAGE_DIR=coverage
+
+# Binary names
+BINARY=crossplane-provider-gen
 
 .PHONY: help build clean test test-verbose coverage fmt vet lint mod-tidy mod-verify validate
 
@@ -22,9 +22,10 @@ help: ## Show this help message
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
-build: ## Build the plugin library
-	@echo "Building Crossplane kubebuilder plugin..."
-	$(GOBUILD) ./pkg/plugins/crossplane/v1/
+build: ## Build the standalone Crossplane provider generator
+	@echo "Building Crossplane provider generator..."
+	@mkdir -p $(BUILD_DIR)
+	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY) ./cmd/crossplane-provider-gen
 
 clean: ## Clean build artifacts and temporary files
 	$(GOCLEAN)
@@ -61,20 +62,13 @@ validate: fmt vet lint test ## Run all validation checks (format, vet, lint, tes
 	@echo "All validation checks passed!"
 
 # Development helpers
-.PHONY: dev-setup dev-check plugin-info
+.PHONY: dev-setup dev-check
 
 dev-setup: mod-tidy ## Set up development environment
 	@echo "Development environment setup complete!"
-	@echo "Plugin: $(PLUGIN_NAME)/$(PLUGIN_VERSION)"
 
 dev-check: validate ## Quick development check
 	@echo "Development check complete!"
-
-plugin-info: ## Show plugin information
-	@echo "Plugin Name: $(PLUGIN_NAME)"
-	@echo "Plugin Version: $(PLUGIN_VERSION)" 
-	@echo "Supported Project Versions: [4]"
-	@echo "Supported Commands: init, create api, create webhook, edit"
 
 # CI/CD targets
 .PHONY: ci-test ci-lint
