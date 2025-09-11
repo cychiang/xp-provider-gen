@@ -25,6 +25,7 @@ import (
 
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/internal/templates"
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/internal/templates/apis"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/internal/templates/cluster"
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/internal/templates/controllers"
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/internal/templates/hack"
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/internal/templates/pkg"
@@ -87,14 +88,16 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	if err := scaffold.Execute(
 		// Basic project structure
 		&templates.GoMod{},
-		&templates.Main{},
+		&templates.Main{
+			ProviderName: providerName,
+		},
 		&templates.Makefile{},
-		&templates.Dockerfile{},
 		&templates.ReadMe{},
 		&templates.GitIgnore{},
 		&templates.GitModules{},
 		&templates.ControllerTemplate{
 			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+			ProviderName: providerName,
 		},
 		
 		// APIs registration
@@ -161,6 +164,18 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 			TemplateMixin: machinery.TemplateMixin{},
 			DomainMixin: machinery.DomainMixin{Domain: s.config.GetDomain()},
 			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+		},
+		
+		// Cluster build configuration
+		&cluster.ClusterDockerfile{
+			TemplateMixin: machinery.TemplateMixin{},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+			ProviderName: providerName,
+		},
+		&cluster.ClusterMakefile{
+			TemplateMixin: machinery.TemplateMixin{},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+			ProviderName: providerName,
 		},
 	); err != nil {
 		return fmt.Errorf("error scaffolding Crossplane provider project: %w", err)

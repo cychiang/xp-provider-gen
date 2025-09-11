@@ -24,17 +24,20 @@ import (
 
 var _ machinery.Template = &ControllerTemplate{}
 
-// ControllerTemplate scaffolds the template.go file for controller registration
+// ControllerTemplate scaffolds the register.go file for controller registration
 type ControllerTemplate struct {
 	machinery.TemplateMixin
 	machinery.BoilerplateMixin
 	machinery.RepositoryMixin
+	
+	// ProviderName is the name extracted from the repository
+	ProviderName string
 }
 
 // SetTemplateDefaults implements machinery.Template
 func (f *ControllerTemplate) SetTemplateDefaults() error {
 	if f.Path == "" {
-		f.Path = filepath.Join("internal", "controller", "template.go")
+		f.Path = filepath.Join("internal", "controller", "register.go")
 	}
 
 	f.TemplateBody = controllerTemplateTemplate
@@ -54,7 +57,7 @@ import (
 	"{{ .Repo }}/internal/controller/config"
 )
 
-// Setup creates all Template controllers with the supplied logger and adds them to
+// Setup creates all {{ .ProviderName }} controllers with the supplied logger and adds them to
 // the supplied manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{

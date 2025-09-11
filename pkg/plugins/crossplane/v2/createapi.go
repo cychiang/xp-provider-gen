@@ -2,6 +2,7 @@ package v2
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
@@ -109,6 +110,18 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	// Ensure utilities are initialized
 	p.ensureUtilities()
 	
+	// Extract provider name from repository
+	var providerName string
+	if p.config.GetRepository() != "" {
+		parts := strings.Split(p.config.GetRepository(), "/")
+		if len(parts) > 0 {
+			providerName = parts[len(parts)-1]
+		}
+	}
+	if providerName == "" {
+		providerName = "provider-example"
+	}
+	
 	// Initialize the machinery.Scaffold that will write the files to disk
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(p.config),
@@ -128,8 +141,9 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 			DomainMixin: machinery.DomainMixin{Domain: p.config.GetDomain()},
 		},
 		&templates.TemplateUpdater{
-			Force: true, // Always update template.go to include new controller
+			Force: true, // Always update register.go to include new controller
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
+			ProviderName: providerName,
 		},
 	); err != nil {
 		return fmt.Errorf("error scaffolding Crossplane managed resource: %w", err)
