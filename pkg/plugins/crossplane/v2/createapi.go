@@ -11,6 +11,7 @@ import (
 
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/templates/api"
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/templates/controllers"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/templates"
 )
 
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
@@ -123,6 +124,12 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		},
 		&controllers.CrossplaneController{
 			Force: p.Force,
+			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
+			DomainMixin: machinery.DomainMixin{Domain: p.config.GetDomain()},
+		},
+		&templates.TemplateUpdater{
+			Force: true, // Always update template.go to include new controller
+			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
 		},
 	); err != nil {
 		return fmt.Errorf("error scaffolding Crossplane managed resource: %w", err)

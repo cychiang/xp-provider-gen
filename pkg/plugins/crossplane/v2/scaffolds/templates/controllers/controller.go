@@ -31,6 +31,8 @@ type CrossplaneController struct {
 	machinery.MultiGroupMixin
 	machinery.BoilerplateMixin
 	machinery.ResourceMixin
+	machinery.RepositoryMixin
+	machinery.DomainMixin
 
 	// Crossplane-specific fields
 	Force bool
@@ -69,7 +71,6 @@ package {{ lower .Resource.Kind }}
 
 import (
 	"context"
-	"fmt"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
@@ -86,21 +87,20 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/statemetrics"
 
 {{- if .Resource.Group }}
-	{{ .Resource.Version }} "{{ .Resource.Path }}/apis/{{ .Resource.Group }}/{{ .Resource.Version }}"
+	{{ .Resource.Version }} "{{ .Repo }}/apis/{{ .Resource.Group }}/{{ .Resource.Version }}"
 {{- else }}
-	{{ .Resource.Version }} "{{ .Resource.Path }}/apis/{{ .Resource.Version }}"
+	{{ .Resource.Version }} "{{ .Repo }}/apis/{{ .Resource.Version }}"
 {{- end }}
-	apisv1alpha1 "{{ .Resource.Path }}/apis/v1alpha1"
+	apisv1alpha1 "{{ .Repo }}/apis/v1alpha1"
 )
 
 const (
-	errNot{{ .Resource.Kind }}    = "managed resource is not a {{ .Resource.Kind }} custom resource"
-	errTrackPCUsage = "cannot track ProviderConfig usage"
-	errGetPC        = "cannot get ProviderConfig"
-	errGetCPC       = "cannot get ClusterProviderConfig"
-	errGetCreds     = "cannot get credentials"
-
-	errNewClient = "cannot create new Service"
+	errNot{{ .Resource.Kind }}         = "managed resource is not a {{ .Resource.Kind }} custom resource"
+	errTrackProviderConfigUsage = "cannot track ProviderConfig usage"
+	errGetProviderConfig        = "cannot get ProviderConfig"
+	errGetClusterProviderConfig = "cannot get ClusterProviderConfig"  
+	errGetCredentials          = "cannot get credentials"
+	errCreateExternalClient    = "cannot create external client"
 )
 
 // A NoOpService does nothing.
@@ -111,6 +111,18 @@ var (
 )
 
 // Setup adds a controller that reconciles {{ .Resource.Kind }} managed resources.
+{{- if .Resource.Group }}
+// +kubebuilder:rbac:groups={{ .Resource.Group }}.{{ .Domain }},resources={{ lower .Resource.Kind }}s,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups={{ .Resource.Group }}.{{ .Domain }},resources={{ lower .Resource.Kind }}s/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups={{ .Resource.Group }}.{{ .Domain }},resources={{ lower .Resource.Kind }}s/finalizers,verbs=update
+{{- else }}
+// +kubebuilder:rbac:groups={{ .Domain }},resources={{ lower .Resource.Kind }}s,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups={{ .Domain }},resources={{ lower .Resource.Kind }}s/status,verbs=get;update;patch  
+// +kubebuilder:rbac:groups={{ .Domain }},resources={{ lower .Resource.Kind }}s/finalizers,verbs=update
+{{- end }}
+// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName({{ .Resource.Version }}.{{ .Resource.Kind }}GroupKind)
 
@@ -175,7 +187,7 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 	}
 
 	if err := c.usage.Track(ctx, cr); err != nil {
-		return nil, errors.Wrap(err, errTrackPCUsage)
+		return nil, errors.Wrap(err, errTrackProviderConfigUsage)
 	}
 
 	var cd apisv1alpha1.ProviderCredentials
@@ -188,13 +200,13 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 	case "ProviderConfig":
 		pc := &apisv1alpha1.ProviderConfig{}
 		if err := c.kube.Get(ctx, types.NamespacedName{Name: ref.Name, Namespace: m.GetNamespace()}, pc); err != nil {
-			return nil, errors.Wrap(err, errGetPC)
+			return nil, errors.Wrap(err, errGetProviderConfig)
 		}
 		cd = pc.Spec.Credentials
 	case "ClusterProviderConfig":
 		cpc := &apisv1alpha1.ClusterProviderConfig{}
 		if err := c.kube.Get(ctx, types.NamespacedName{Name: ref.Name}, cpc); err != nil {
-			return nil, errors.Wrap(err, errGetCPC)
+			return nil, errors.Wrap(err, errGetClusterProviderConfig)
 		}
 		cd = cpc.Spec.Credentials
 	default:
@@ -203,12 +215,12 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 
 	data, err := resource.CommonCredentialExtractor(ctx, cd.Source, c.kube, cd.CommonCredentialSelectors)
 	if err != nil {
-		return nil, errors.Wrap(err, errGetCreds)
+		return nil, errors.Wrap(err, errGetCredentials)
 	}
 
 	svc, err := c.newServiceFn(data)
 	if err != nil {
-		return nil, errors.Wrap(err, errNewClient)
+		return nil, errors.Wrap(err, errCreateExternalClient)
 	}
 
 	return &external{service: svc}, nil
@@ -237,8 +249,8 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNot{{ .Resource.Kind }})
 	}
 
-	// These fmt statements should be removed in the real implementation.
-	fmt.Printf("Observing: %+v", cr)
+	// TODO: Implement actual external resource observation logic here
+	// Use the external client to check if the resource exists and is up to date
 
 	// Simulate external resource doesn't exist, and enter to create the flow
 	// For simplicity, we'll use a simple condition to determine if resource exists
@@ -283,7 +295,8 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errNot{{ .Resource.Kind }})
 	}
 
-	fmt.Printf("Creating: %+v", cr)
+	// TODO: Implement actual external resource creation logic here
+	// Use the external client to create the resource in the external system
 
 	// Copy ConfigurableField to AtProvider and complete the creation.
 	cr.Status.AtProvider.ConfigurableField = cr.Spec.ForProvider.ConfigurableField
@@ -303,7 +316,8 @@ func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalUpdate{}, errors.New(errNot{{ .Resource.Kind }})
 	}
 
-	fmt.Printf("Updating: %+v", cr)
+	// TODO: Implement actual external resource update logic here
+	// Use the external client to update the resource in the external system
 
 	// Copy ConfigurableField to AtProvider and complete the update.
 	cr.Status.AtProvider.ConfigurableField = cr.Spec.ForProvider.ConfigurableField
@@ -322,7 +336,8 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalDelete{}, errors.New(errNot{{ .Resource.Kind }})
 	}
 
-	fmt.Printf("Deleting: %+v", cr)
+	// TODO: Implement actual external resource deletion logic here
+	// Use the external client to delete the resource from the external system
 
 	return managed.ExternalDelete{}, nil
 }

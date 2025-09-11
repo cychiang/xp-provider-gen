@@ -93,6 +93,9 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 		&templates.ReadMe{},
 		&templates.GitIgnore{},
 		&templates.GitModules{},
+		&templates.ControllerTemplate{
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+		},
 		
 		// APIs registration
 		&apis.APIs{

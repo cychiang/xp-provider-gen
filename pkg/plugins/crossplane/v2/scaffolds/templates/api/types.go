@@ -82,6 +82,10 @@ type {{ .Resource.Kind }}Parameters struct {
 	// TODO: Add fields for configuring the external resource.
 	// These fields will be used to configure the desired state
 	// of the external resource via the provider's API.
+	
+	// ConfigurableField is a required configuration parameter for the {{ .Resource.Kind }}.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	ConfigurableField string ` + "`" + `json:"configurableField"` + "`" + `
 }
 
@@ -97,6 +101,7 @@ type {{ .Resource.Kind }}Observation struct {
 // A {{ .Resource.Kind }}Spec defines the desired state of a {{ .Resource.Kind }}.
 type {{ .Resource.Kind }}Spec struct {
 	xpv2.ManagedResourceSpec ` + "`" + `json:",inline"` + "`" + `
+	// +kubebuilder:validation:Required
 	ForProvider              {{ .Resource.Kind }}Parameters ` + "`" + `json:"forProvider"` + "`" + `
 }
 
@@ -114,7 +119,7 @@ type {{ .Resource.Kind }}Status struct {
 // +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed}
+// +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed},shortName={{ lower .Resource.Kind }}
 type {{ .Resource.Kind }} struct {
 	metav1.TypeMeta   ` + "`" + `json:",inline"` + "`" + `
 	metav1.ObjectMeta ` + "`" + `json:"metadata,omitempty"` + "`" + `
