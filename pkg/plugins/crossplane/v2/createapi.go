@@ -2,6 +2,7 @@ package v2
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -80,9 +81,12 @@ func (p *createAPISubcommand) InjectResource(res *resource.Resource) error {
 
 	// Set defaults based on the resource information
 	if res != nil {
-		// Set the resource path using the repository from config
-		// This is essential for proper import paths in generated code
-		res.Path = resource.APIPackagePath(p.config.GetRepository(), res.Group, res.Version, p.config.IsMultiGroup())
+		// Set the resource path for Crossplane project structure (uses /apis/ not /api/)
+		// Crossplane providers always use multi-group structure under apis/
+		res.Path = fmt.Sprintf("%s/apis/%s/%s", p.config.GetRepository(), res.Group, res.Version)
+		
+		// Set the domain from config
+		res.Domain = p.config.GetDomain()
 		
 		// Mark this as having an API
 		res.API = &resource.API{
@@ -155,7 +159,16 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 // PostScaffold runs after scaffolding
 func (p *createAPISubcommand) PostScaffold() error {
-	// TODO: Add post-scaffolding logic
+	// Add the resource to the project configuration for tracking
+	if err := p.config.AddResource(*p.resource); err != nil {
+		return fmt.Errorf("error adding resource to project config: %w", err)
+	}
+	
+	// Explicitly persist the PROJECT file since it's not done automatically for plugins
+	if err := p.saveProjectFile(); err != nil {
+		return fmt.Errorf("error saving PROJECT file: %w", err)
+	}
+
 	fmt.Printf("Crossplane managed resource %s created successfully!\n", p.resource.Kind)
 	fmt.Printf("Next steps:\n")
 	fmt.Printf("  1. Customize the %sParameters and %sObservation structs\n", p.resource.Kind, p.resource.Kind)
@@ -163,6 +176,22 @@ func (p *createAPISubcommand) PostScaffold() error {
 	fmt.Printf("  3. Update controller reconciliation logic\n")
 	fmt.Printf("  4. Run 'make manifests' to generate CRDs\n")
 
+	return nil
+}
+
+// saveProjectFile persists the project configuration to the PROJECT file
+func (p *createAPISubcommand) saveProjectFile() error {
+	// Marshal the config to YAML
+	configBytes, err := p.config.MarshalYAML()
+	if err != nil {
+		return fmt.Errorf("error marshaling config to YAML: %w", err)
+	}
+	
+	// Write to PROJECT file
+	if err := os.WriteFile("PROJECT", configBytes, 0644); err != nil {
+		return fmt.Errorf("error writing PROJECT file: %w", err)
+	}
+	
 	return nil
 }
 
