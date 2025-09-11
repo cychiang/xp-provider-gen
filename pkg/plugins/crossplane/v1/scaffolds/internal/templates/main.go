@@ -47,102 +47,79 @@ const mainTemplate = `{{ .Boilerplate }}
 package main
 
 import (
-	"context"
-	"flag"
-	"fmt"
 	"os"
-	"path/filepath"
 
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"github.com/alecthomas/kingpin/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
-)
 
-var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	"{{ .Repo }}/apis"
+	"{{ .Repo }}/internal/controller/config"
+	"{{ .Repo }}/internal/version"
 )
-
-func init() {
-	_ = clientgoscheme.AddToScheme(scheme)
-	_ = xpv1.AddToScheme(scheme)
-}
 
 func main() {
 	var (
-		metricsAddr          = flag.String("metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-		probeAddr            = flag.String("health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-		enableLeaderElection = flag.Bool("leader-elect", false, "Enable leader election for controller manager.")
-		maxReconcileRate     = flag.Int("max-reconcile-rate", 10, "The global maximum rate of reconciliations per controller.")
+		app          = kingpin.New("provider", "Crossplane provider.").DefaultEnvars()
+		debug        = app.Flag("debug", "Run with debug logging.").Short('d').Bool()
+		pollInterval = app.Flag("poll", "How often individual resources will be checked for drift from the desired state").Default("1m").Duration()
+		maxReconcileRate = app.Flag("max-reconcile-rate", "The global maximum rate per second at which resources may checked for drift from the desired state.").Default("10").Int()
+		leaderElection = app.Flag("leader-election", "Use leader election for the controller manager.").Short('l').Default("false").Bool()
 	)
-	flag.Parse()
+	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	zl := zap.New(zap.UseDevMode(*debug))
+	log := logging.NewLogrLogger(zl.WithName("provider"))
+	ctrl.SetLogger(zl)
 
-	cfg := ctrl.GetConfigOrDie()
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme: scheme,
-		Metrics: server.Options{
-			BindAddress: *metricsAddr,
-		},
-		WebhookServer: webhook.NewServer(webhook.Options{
-			Port: 9443,
-		}),
-		HealthProbeBindAddress: *probeAddr,
-		LeaderElection:         *enableLeaderElection,
-		LeaderElectionID:       "crossplane-provider-leader-election",
-		Cache: cache.Options{
-			SyncPeriod: nil,
-		},
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		log.Info("Cannot get API server rest config", "error", err)
+		os.Exit(1)
+	}
+
+	mgr, err := ctrl.NewManager(ratelimiter.LimitRESTConfig(cfg, *maxReconcileRate), ctrl.Options{
+		LeaderElection:   *leaderElection,
+		LeaderElectionID: "crossplane-leader-election-provider",
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		log.Info("Cannot create controller manager", "error", err)
+		os.Exit(1)
+	}
+
+	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
+		log.Info("Cannot add APIs to scheme", "error", err)
 		os.Exit(1)
 	}
 
 	o := controller.Options{
-		Logger:                  logging.NewLogrLogger(ctrl.Log.WithName("provider")),
+		Logger:                  log,
 		MaxConcurrentReconciles: *maxReconcileRate,
-		PollInterval:            1 * controller.DefaultPollInterval,
+		PollInterval:            *pollInterval,
 		GlobalRateLimiter:       ratelimiter.NewGlobal(*maxReconcileRate),
 		Features:                &feature.Flags{},
 	}
 
-	// TODO: Add your managed resource controllers here
+	if err := config.Setup(mgr, o); err != nil {
+		log.Info("Cannot setup ProviderConfig controller", "error", err)
+		os.Exit(1)
+	}
+
+	// TODO: Setup your managed resource controllers here
 	// Example:
-	// if err = (mytype.NewMyTypeController(mgr, o)).SetupWithManager(mgr); err != nil {
-	//     setupLog.Error(err, "unable to create controller", "controller", "MyType")
+	// if err := mytype.Setup(mgr, o); err != nil {
+	//     log.Error(err, "Cannot setup MyType controller")
 	//     os.Exit(1)
 	// }
 
-	//+kubebuilder:scaffold:builder
-
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
-	}
-
-	setupLog.Info("starting manager")
+	log.Info("Starting manager", "version", version.Version)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
+		log.Info("Cannot start controller manager", "error", err)
 		os.Exit(1)
 	}
 }

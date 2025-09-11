@@ -47,12 +47,15 @@ const goModTemplate = `module {{ .Repo }}
 
 go 1.24
 
+tool sigs.k8s.io/controller-tools/cmd/controller-gen
+
+tool github.com/crossplane/crossplane-tools/cmd/angryjet
+
 require (
+	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/crossplane/crossplane-runtime/v2 v2.0.0
-	k8s.io/api v0.31.0
 	k8s.io/apimachinery v0.31.0
 	k8s.io/client-go v0.31.0
 	sigs.k8s.io/controller-runtime v0.19.0
-	github.com/pkg/errors v0.9.1
 )
 `

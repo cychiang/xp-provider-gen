@@ -24,7 +24,9 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates/apis"
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates/controllers"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates/hack"
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates/pkg"
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates/providerconfig"
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates/version"
@@ -91,6 +93,26 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 		&templates.ReadMe{},
 		&templates.GitIgnore{},
 		&templates.GitModules{},
+		
+		// APIs registration
+		&apis.APIs{
+			TemplateMixin: machinery.TemplateMixin{},
+			DomainMixin: machinery.DomainMixin{Domain: s.config.GetDomain()},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+			ProviderName: providerName,
+		},
+		
+		// Code generation files
+		&apis.Generate{
+			TemplateMixin: machinery.TemplateMixin{},
+			DomainMixin: machinery.DomainMixin{Domain: s.config.GetDomain()},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+		},
+		&hack.Boilerplate{
+			TemplateMixin: machinery.TemplateMixin{},
+			DomainMixin: machinery.DomainMixin{Domain: s.config.GetDomain()},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+		},
 		
 		// ProviderConfig APIs - critical for Crossplane providers
 		&providerconfig.ProviderConfigTypes{
