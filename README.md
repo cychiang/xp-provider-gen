@@ -234,13 +234,128 @@ This plugin uses kubebuilder's internal plugin system:
 
 ## Contributing
 
-The plugin currently has working `create api` functionality. Areas for contribution:
+Thank you for your interest in contributing to the Crossplane Provider Generator! This project provides scaffolding templates for generating complete Crossplane providers following v2 patterns.
 
-1. **Init subcommand**: Bootstrap complete provider projects 
-2. **Provider-specific templates**: Enhance templates for AWS/GCP/Azure specifics
-3. **Testing**: Add comprehensive test coverage
-4. **Documentation**: Improve examples and use cases
-5. **CLI enhancements**: Better validation and user experience
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/crossplane/xp-kubebuilder-plugin
+cd xp-kubebuilder-plugin
+
+# Build the generator
+make build
+
+# Test the generator
+mkdir test-provider && cd test-provider
+../bin/crossplane-provider-gen init --domain=example.com --repo=github.com/example/provider-test
+make submodules && go mod tidy && make generate && make reviewable
+```
+
+### Adding New Templates
+
+The plugin uses a structured template system for scaffolding files. Here's how to add new templates:
+
+#### Template Structure
+
+Templates are organized under `pkg/plugins/crossplane/v2/scaffolds/`:
+
+```
+pkg/plugins/crossplane/v2/scaffolds/
+├── init.go                    # Init command scaffolder
+├── internal/templates/        # Init command templates
+│   ├── apis/                 # API registration templates
+│   ├── controllers/          # Controller templates
+│   ├── hack/                 # Build system templates
+│   ├── pkg/                  # Package metadata templates
+│   ├── providerconfig/       # ProviderConfig API templates
+│   └── version/              # Version management templates
+└── templates/                # Create API command templates
+    ├── api/                  # Managed resource API templates
+    └── controllers/          # Managed resource controller templates
+```
+
+#### Creating a New Template
+
+1. **Create the template file** in the appropriate directory:
+
+```go
+// pkg/plugins/crossplane/v2/scaffolds/internal/templates/myfeature/myfile.go
+package myfeature
+
+import (
+    "path/filepath"
+    "sigs.k8s.io/kubebuilder/v4/pkg/machinery"
+)
+
+var _ machinery.Template = &MyFile{}
+
+type MyFile struct {
+    machinery.TemplateMixin
+    machinery.DomainMixin
+    machinery.RepositoryMixin
+    
+    // Custom fields for template substitution
+    ProviderName string
+    CustomField  string
+}
+
+func (f *MyFile) SetTemplateDefaults() error {
+    if f.Path == "" {
+        f.Path = filepath.Join("path", "to", "myfile.ext")
+    }
+    f.TemplateBody = myFileTemplate
+    f.IfExistsAction = machinery.OverwriteFile
+    return nil
+}
+
+const myFileTemplate = `// Template content here
+// Use {{ .Repo }}, {{ .Domain }}, {{ .ProviderName }} for substitution
+package mypackage
+
+// Your template content with Go template syntax
+`
+```
+
+2. **Add template to scaffolder** in `init.go` or `createapi.go`:
+
+```go
+// Add to the Execute() call in the appropriate scaffolder
+&myfeature.MyFile{
+    TemplateMixin: machinery.TemplateMixin{},
+    DomainMixin: machinery.DomainMixin{Domain: domain},
+    RepositoryMixin: machinery.RepositoryMixin{Repo: repo},
+    ProviderName: providerName,
+    CustomField: "value",
+},
+```
+
+#### Template Guidelines
+
+- **Follow Crossplane v2 patterns**: Use `crossplane-runtime/v2` imports and patterns
+- **Use proper kubebuilder annotations**: Include necessary `+kubebuilder:` annotations
+- **Template substitution**: Use `{{ .Repo }}`, `{{ .Domain }}`, `{{ .ProviderName }}` for dynamic values
+- **File organization**: Group related templates in logical directories
+- **Consistent naming**: Use descriptive names matching the generated file purpose
+- **Error handling**: Ensure templates are syntactically correct and handle edge cases
+
+#### Testing Templates
+
+Always test new templates by:
+
+1. **Building the generator**: `make build`
+2. **Generating a test provider**: Create a temporary directory and run init
+3. **Verifying the workflow**: Ensure `make submodules && go mod tidy && make generate && make reviewable` passes
+4. **Checking output**: Verify generated files match expected structure and content
+
+### Areas for Contribution
+
+1. **Enhanced Templates**: Improve existing templates with better defaults and patterns
+2. **Provider-specific Templates**: Add cloud-specific templates (AWS, GCP, Azure patterns)
+3. **GitHub Workflows**: Add CI/CD pipeline templates for generated providers
+4. **Examples**: Add template generation for example resources and documentation
+5. **Testing**: Expand test coverage for template generation and validation
+6. **CLI Enhancements**: Improve user experience with better validation and help text
 
 ## Resources
 

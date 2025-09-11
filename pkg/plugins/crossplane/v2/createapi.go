@@ -1,4 +1,4 @@
-package v1
+package v2
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 
-	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/templates/api"
-	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/templates/controllers"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/templates/api"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/templates/controllers"
 )
 
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}

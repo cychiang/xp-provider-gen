@@ -1,4 +1,4 @@
-package v1
+package v2
 
 import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
@@ -9,7 +9,7 @@ import (
 const pluginName = "crossplane." + golang.DefaultNameQualifier
 
 var (
-	pluginVersion            = plugin.Version{Number: 1}
+	pluginVersion            = plugin.Version{Number: 2}
 	supportedProjectVersions = []config.Version{{Number: 3}}
 )
 

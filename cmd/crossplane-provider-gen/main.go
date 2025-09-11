@@ -22,18 +22,18 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/cli"
 	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
 	
-	crossplanev1 "github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1"
+	crossplanev2 "github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2"
 )
 
 func main() {
 	// Create a simplified CLI that only exposes init and create api
 	cli, err := cli.New(
 		cli.WithCommandName("crossplane-provider-gen"),
-		cli.WithVersion("v1.0.0"),
+		cli.WithVersion("v2.0.0"),
 		cli.WithDescription("Crossplane Provider Generator - A tool for scaffolding Crossplane providers and managed resources"),
 		cli.WithDefaultProjectVersion(cfgv3.Version),
-		cli.WithPlugins(&crossplanev1.Plugin{}),
-		cli.WithDefaultPlugins(cfgv3.Version, &crossplanev1.Plugin{}),
+		cli.WithPlugins(&crossplanev2.Plugin{}),
+		cli.WithDefaultPlugins(cfgv3.Version, &crossplanev2.Plugin{}),
 		cli.WithCompletion(),
 	)
 	if err != nil {
