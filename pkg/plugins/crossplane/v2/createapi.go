@@ -19,133 +19,86 @@ import (
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
 
 type createAPISubcommand struct {
-	// Crossplane-specific flags
 	GenerateClient bool
 	Force          bool
 
-	// Injected dependencies
-	config   config.Config
-	resource *resource.Resource
-	
-	// Utility dependencies
-	pluginConfig    *PluginConfig
-	stringUtils     *StringUtils
-	validationUtils *ValidationUtils
-	metadataUtils   *MetadataUtils
+	config       config.Config
+	resource     *resource.Resource
+	pluginConfig *PluginConfig
 }
 
-// UpdateMetadata updates the plugin metadata
 func (p *createAPISubcommand) UpdateMetadata(cliMeta plugin.CLIMetadata, subcmdMeta *plugin.SubcommandMetadata) {
-	// Initialize utilities if not already done
-	p.ensureUtilities()
+	p.ensureConfig()
 	
 	subcmdMeta.Description = `Create a new Crossplane managed resource API.
 
 This command scaffolds a new Crossplane managed resource with the necessary
-controller implementation using crossplane-runtime patterns. The generated
-API will include proper Crossplane annotations, status conditions, and
-external client scaffolding.
-`
-	subcmdMeta.Examples = p.metadataUtils.GetCreateAPIExamples(cliMeta.CommandName)
+controller implementation using crossplane-runtime patterns.`
+	
+	subcmdMeta.Examples = fmt.Sprintf(`  # Create a basic managed resource
+  %s create api --group=compute --version=v1alpha1 --kind=Instance
+
+  # Create a storage resource
+  %s create api --group=storage --version=v1beta1 --kind=Bucket`, 
+		cliMeta.CommandName, cliMeta.CommandName)
 }
 
-// BindFlags binds the subcommand flags
 func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
-	// Initialize utilities if not already done
-	p.ensureUtilities()
+	p.ensureConfig()
 	
-	help := p.pluginConfig.GetFlagHelp()
 	defaults := p.pluginConfig.Defaults
-	
-	// Crossplane-specific flags using centralized defaults and help text
-	fs.BoolVar(&p.GenerateClient, "generate-client", defaults.GenerateClient, help.GenerateClient)
-	fs.BoolVar(&p.Force, "force", defaults.Force, help.Force)
+	fs.BoolVar(&p.GenerateClient, "generate-client", defaults.GenerateClient, "generate external client interface")
+	fs.BoolVar(&p.Force, "force", defaults.Force, "overwrite existing files if they exist")
 }
 
-// InjectConfig injects the project configuration
 func (p *createAPISubcommand) InjectConfig(c config.Config) error {
-	// Initialize utilities
-	p.ensureUtilities()
-	
-	// No validation needed for simplified provider
 	p.config = c
 	return nil
 }
 
-// InjectResource injects the resource model
 func (p *createAPISubcommand) InjectResource(res *resource.Resource) error {
 	p.resource = res
 
-	// Ensure utilities are initialized
-	p.ensureUtilities()
-
-	// Set defaults based on the resource information
 	if res != nil {
-		// Set the resource path for Crossplane project structure (uses /apis/ not /api/)
-		// Crossplane providers always use multi-group structure under apis/
 		res.Path = fmt.Sprintf("%s/apis/%s/%s", p.config.GetRepository(), res.Group, res.Version)
-		
-		// Set the domain from config
 		res.Domain = p.config.GetDomain()
-		
-		// Mark this as having an API
 		res.API = &resource.API{
 			CRDVersion: "v1",
-			Namespaced: true, // Crossplane managed resources are typically namespaced
+			Namespaced: true,
 		}
-		
-		// Mark that we have a controller
 		res.Controller = true
 	}
 
 	return nil
 }
 
-// PreScaffold runs before scaffolding
 func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
-	// TODO: Add validation logic, check if project is initialized, etc.
 	return nil
 }
 
-// Scaffold scaffolds the managed resource API
 func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Creating Crossplane managed resource API %s/%s %s\n", p.resource.Group, p.resource.Version, p.resource.Kind)
 
-	// Ensure utilities are initialized
-	p.ensureUtilities()
+	p.ensureConfig()
 	
-	// Extract provider name from repository
-	var providerName string
-	if p.config.GetRepository() != "" {
-		parts := strings.Split(p.config.GetRepository(), "/")
-		if len(parts) > 0 {
-			providerName = parts[len(parts)-1]
-		}
-	}
-	if providerName == "" {
-		providerName = "provider-example"
-	}
+	providerName := p.extractProviderName()
 	
-	// Initialize the machinery.Scaffold that will write the files to disk
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(p.config),
 		machinery.WithBoilerplate(p.pluginConfig.GetBoilerplate()),
 		machinery.WithResource(p.resource),
 	)
 
-	// Execute the scaffolding templates
 	if err := scaffold.Execute(
 		&api.CrossplaneGroup{},
-		&api.CrossplaneTypes{
-			Force: p.Force,
-		},
+		&api.CrossplaneTypes{Force: p.Force},
 		&controllers.CrossplaneController{
 			Force: p.Force,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
 			DomainMixin: machinery.DomainMixin{Domain: p.config.GetDomain()},
 		},
 		&templates.TemplateUpdater{
-			Force: true, // Always update register.go to include new controller
+			Force: true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
 			ProviderName: providerName,
 		},
@@ -157,14 +110,11 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	return nil
 }
 
-// PostScaffold runs after scaffolding
 func (p *createAPISubcommand) PostScaffold() error {
-	// Add the resource to the project configuration for tracking
 	if err := p.config.AddResource(*p.resource); err != nil {
 		return fmt.Errorf("error adding resource to project config: %w", err)
 	}
 	
-	// Explicitly persist the PROJECT file since it's not done automatically for plugins
 	if err := p.saveProjectFile(); err != nil {
 		return fmt.Errorf("error saving PROJECT file: %w", err)
 	}
@@ -179,15 +129,12 @@ func (p *createAPISubcommand) PostScaffold() error {
 	return nil
 }
 
-// saveProjectFile persists the project configuration to the PROJECT file
 func (p *createAPISubcommand) saveProjectFile() error {
-	// Marshal the config to YAML
 	configBytes, err := p.config.MarshalYAML()
 	if err != nil {
 		return fmt.Errorf("error marshaling config to YAML: %w", err)
 	}
 	
-	// Write to PROJECT file
 	if err := os.WriteFile("PROJECT", configBytes, 0644); err != nil {
 		return fmt.Errorf("error writing PROJECT file: %w", err)
 	}
@@ -195,12 +142,18 @@ func (p *createAPISubcommand) saveProjectFile() error {
 	return nil
 }
 
-// ensureUtilities initializes utility dependencies if they haven't been created yet
-func (p *createAPISubcommand) ensureUtilities() {
+func (p *createAPISubcommand) ensureConfig() {
 	if p.pluginConfig == nil {
 		p.pluginConfig = NewPluginConfig()
-		p.stringUtils = NewStringUtils()
-		p.validationUtils = NewValidationUtils(p.pluginConfig)
-		p.metadataUtils = NewMetadataUtils(p.pluginConfig)
 	}
+}
+
+func (p *createAPISubcommand) extractProviderName() string {
+	if p.config.GetRepository() != "" {
+		parts := strings.Split(p.config.GetRepository(), "/")
+		if len(parts) > 0 {
+			return parts[len(parts)-1]
+		}
+	}
+	return "provider-example"
 }

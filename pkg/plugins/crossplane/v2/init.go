@@ -14,66 +14,46 @@ import (
 var _ plugin.InitSubcommand = &initSubcommand{}
 
 type initSubcommand struct {
-	// Standard kubebuilder fields
 	config config.Config
 	
-	// Standard init flags
 	domain string
 	repo   string
 	owner  string
 	
-	// Utility dependencies
 	pluginConfig *PluginConfig
-	gitUtils     *GitUtils
-	stringUtils  *StringUtils
-	metadataUtils *MetadataUtils
 }
 
-// UpdateMetadata updates the plugin metadata
 func (p *initSubcommand) UpdateMetadata(cliMeta plugin.CLIMetadata, subcmdMeta *plugin.SubcommandMetadata) {
-	// Initialize utilities if not already done
-	p.ensureUtilities()
-	
 	subcmdMeta.Description = `Initialize a new Crossplane provider project.
 
 This command initializes a new Crossplane provider project with the necessary
 scaffolding to develop and build a Kubernetes controller to manage external
-resources following Crossplane patterns.
-`
-	subcmdMeta.Examples = p.metadataUtils.GetInitExamples(cliMeta.CommandName)
+resources following Crossplane patterns.`
+	
+	subcmdMeta.Examples = fmt.Sprintf(`  # Initialize a basic Crossplane provider project
+  %s init --domain=example.com --repo=github.com/example/provider-example`, cliMeta.CommandName)
 }
 
-// BindFlags binds the subcommand flags
 func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {
-	// Initialize utilities if not already done
-	p.ensureUtilities()
+	p.ensureConfig()
 	
-	help := p.pluginConfig.GetFlagHelp()
-	
-	// Standard kubebuilder init flags with centralized help text and defaults
-	fs.StringVar(&p.domain, "domain", p.pluginConfig.Defaults.Domain, help.Domain)
-	fs.StringVar(&p.repo, "repo", "", help.Repo)
-	fs.StringVar(&p.owner, "owner", p.pluginConfig.Defaults.Owner, help.Owner)
+	fs.StringVar(&p.domain, "domain", p.pluginConfig.Defaults.Domain, "domain for API groups")
+	fs.StringVar(&p.repo, "repo", "", "name to use for go module (e.g., github.com/user/repo)")
+	fs.StringVar(&p.owner, "owner", p.pluginConfig.Defaults.Owner, "owner to add to the copyright")
 }
 
-// InjectConfig injects the project configuration  
 func (p *initSubcommand) InjectConfig(c config.Config) error {
 	p.config = c
+	p.ensureConfig()
 	
-	// Initialize utilities
-	p.ensureUtilities()
-	
-	// Set domain if provided
 	if p.domain != "" {
 		if err := p.config.SetDomain(p.domain); err != nil {
 			return fmt.Errorf("error setting domain: %w", err)
 		}
 	}
 	
-	// Set repository - use provided value or generate default
 	repo := p.repo
 	if repo == "" {
-		// Generate default repository name using centralized logic
 		repo = p.pluginConfig.GenerateDefaultRepo()
 		fmt.Printf("No --repo flag provided, using default: %s\n", repo)
 	}
@@ -85,13 +65,10 @@ func (p *initSubcommand) InjectConfig(c config.Config) error {
 	return nil
 }
 
-// PreScaffold runs before scaffolding
 func (p *initSubcommand) PreScaffold(machinery.Filesystem) error {
-	// TODO: Add any pre-scaffolding logic
 	return nil
 }
 
-// Scaffold scaffolds the initial project structure
 func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Scaffolding Crossplane provider project...\n")
 	
@@ -99,22 +76,18 @@ func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 	return scaffolder.Scaffold(fs)
 }
 
-// PostScaffold runs after scaffolding
 func (p *initSubcommand) PostScaffold() error {
-	// Ensure utilities are initialized
-	p.ensureUtilities()
+	p.ensureConfig()
+	gitUtils := NewGitUtils(p.pluginConfig)
 	
-	// Initialize git repository if not already initialized
-	if err := p.gitUtils.InitRepo(); err != nil {
+	if err := gitUtils.InitRepo(); err != nil {
 		fmt.Printf("Warning: Could not initialize git repository: %v\n", err)
 	} else {
-		// Add initial files and create first commit
-		if err := p.gitUtils.CreateInitialCommit(); err != nil {
+		if err := gitUtils.CreateInitialCommit(); err != nil {
 			fmt.Printf("Warning: Could not create initial commit: %v\n", err)
 		}
 		
-		// Add the build submodule as required by provider-template pattern
-		if err := p.gitUtils.AddBuildSubmodule(); err != nil {
+		if err := gitUtils.AddBuildSubmodule(); err != nil {
 			fmt.Printf("Warning: Could not add build submodule: %v\n", err)
 			fmt.Printf("You can manually add it later with: git submodule add %s build\n", 
 				p.pluginConfig.Git.BuildSubmoduleURL)
@@ -134,12 +107,8 @@ func (p *initSubcommand) PostScaffold() error {
 	return nil
 }
 
-// ensureUtilities initializes utility dependencies if they haven't been created yet
-func (p *initSubcommand) ensureUtilities() {
+func (p *initSubcommand) ensureConfig() {
 	if p.pluginConfig == nil {
 		p.pluginConfig = NewPluginConfig()
-		p.gitUtils = NewGitUtils(p.pluginConfig)
-		p.stringUtils = NewStringUtils()
-		p.metadataUtils = NewMetadataUtils(p.pluginConfig)
 	}
 }
