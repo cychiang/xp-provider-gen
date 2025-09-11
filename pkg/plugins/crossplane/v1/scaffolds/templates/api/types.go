@@ -33,9 +33,7 @@ type CrossplaneTypes struct {
 	machinery.ResourceMixin
 
 	// Crossplane-specific fields
-	ProviderType string
-	ExternalName string
-	Force        bool
+	Force bool
 }
 
 // SetTemplateDefaults implements machinery.Template

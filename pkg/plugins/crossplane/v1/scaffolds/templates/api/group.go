@@ -31,9 +31,6 @@ type CrossplaneGroup struct {
 	machinery.MultiGroupMixin
 	machinery.BoilerplateMixin
 	machinery.ResourceMixin
-
-	// Crossplane-specific fields
-	ProviderDomain string
 }
 
 // SetTemplateDefaults implements machinery.Template

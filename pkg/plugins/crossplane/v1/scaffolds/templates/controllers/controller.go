@@ -33,8 +33,7 @@ type CrossplaneController struct {
 	machinery.ResourceMixin
 
 	// Crossplane-specific fields
-	ExternalName string
-	Force        bool
+	Force bool
 }
 
 // SetTemplateDefaults implements machinery.Template
@@ -74,7 +73,6 @@ import (
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -225,10 +223,10 @@ type external struct {
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	// If the managed resource is marked for deletion then deleted it.
+	// If the managed resource is marked for deletion then delete it.
 	// Because there is no external resource to observe, we return false for
 	// ResourceExists.
-	if meta.WasDeleted(mg) {
+	if mg.GetDeletionTimestamp() != nil {
 		return managed.ExternalObservation{
 			ResourceExists: false,
 		}, nil
@@ -243,7 +241,8 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	fmt.Printf("Observing: %+v", cr)
 
 	// Simulate external resource doesn't exist, and enter to create the flow
-	if meta.GetExternalName(cr) == "" {
+	// For simplicity, we'll use a simple condition to determine if resource exists
+	if cr.Status.AtProvider.ConfigurableField == "" {
 		return managed.ExternalObservation{
 			ResourceExists: false,
 		}, nil
@@ -288,7 +287,8 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	// Copy ConfigurableField to AtProvider and complete the creation.
 	cr.Status.AtProvider.ConfigurableField = cr.Spec.ForProvider.ConfigurableField
-	meta.SetExternalName(cr, "my-external-name")
+	// Set a simple observable field to indicate resource was created
+	cr.Status.AtProvider.ObservableField = "created-successfully"
 
 	return managed.ExternalCreation{
 		// Optionally return any details that may be required to connect to the

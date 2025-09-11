@@ -18,11 +18,16 @@ package scaffolds
 
 import (
 	"fmt"
+	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates/controllers"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates/pkg"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates/providerconfig"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v1/scaffolds/internal/templates/version"
 )
 
 
@@ -58,6 +63,18 @@ limitations under the License.
 func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Scaffolding Crossplane provider project structure...\n")
 
+	// Extract provider name from repository
+	var providerName string
+	if s.config.GetRepository() != "" {
+		parts := strings.Split(s.config.GetRepository(), "/")
+		if len(parts) > 0 {
+			providerName = parts[len(parts)-1]
+		}
+	}
+	if providerName == "" {
+		providerName = "provider-example"
+	}
+
 	// Initialize the machinery.Scaffold that will write the files to disk
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(s.config),
@@ -66,6 +83,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 
 	// Execute scaffolding templates for Crossplane provider
 	if err := scaffold.Execute(
+		// Basic project structure
 		&templates.GoMod{},
 		&templates.Main{},
 		&templates.Makefile{},
@@ -73,6 +91,52 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 		&templates.ReadMe{},
 		&templates.GitIgnore{},
 		&templates.GitModules{},
+		
+		// ProviderConfig APIs - critical for Crossplane providers
+		&providerconfig.ProviderConfigTypes{
+			TemplateMixin: machinery.TemplateMixin{},
+			DomainMixin: machinery.DomainMixin{Domain: s.config.GetDomain()},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+			Domain: s.config.GetDomain(),
+			ProviderName: providerName,
+		},
+		&providerconfig.ProviderConfigRegister{
+			TemplateMixin: machinery.TemplateMixin{},
+			DomainMixin: machinery.DomainMixin{Domain: s.config.GetDomain()},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+			Domain: s.config.GetDomain(),
+			ProviderName: providerName,
+		},
+		&providerconfig.ProviderConfigDoc{
+			TemplateMixin: machinery.TemplateMixin{},
+			DomainMixin: machinery.DomainMixin{Domain: s.config.GetDomain()},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+			Domain: s.config.GetDomain(),
+			ProviderName: providerName,
+		},
+		
+		// Package metadata for Crossplane
+		&pkg.CrossplanePackage{
+			TemplateMixin: machinery.TemplateMixin{},
+			DomainMixin: machinery.DomainMixin{Domain: s.config.GetDomain()},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+			ProviderName: providerName,
+		},
+		
+		// Config controller
+		&controllers.ConfigController{
+			TemplateMixin: machinery.TemplateMixin{},
+			DomainMixin: machinery.DomainMixin{Domain: s.config.GetDomain()},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+			ProviderName: providerName,
+		},
+		
+		// Version management
+		&version.Version{
+			TemplateMixin: machinery.TemplateMixin{},
+			DomainMixin: machinery.DomainMixin{Domain: s.config.GetDomain()},
+			RepositoryMixin: machinery.RepositoryMixin{Repo: s.config.GetRepository()},
+		},
 	); err != nil {
 		return fmt.Errorf("error scaffolding Crossplane provider project: %w", err)
 	}
