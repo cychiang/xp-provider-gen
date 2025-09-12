@@ -46,20 +46,33 @@ func (p *initSubcommand) InjectConfig(c config.Config) error {
 	p.config = c
 	p.ensureConfig()
 	
+	validator := NewValidator()
+	
+	// Validate domain if provided
 	if p.domain != "" {
+		if err := validator.ValidateDomain(p.domain); err != nil {
+			return InitError("domain validation", err)
+		}
+		
 		if err := p.config.SetDomain(p.domain); err != nil {
-			return fmt.Errorf("error setting domain: %w", err)
+			return InitError("configuration", err)
 		}
 	}
 	
+	// Handle repository - validate if provided, generate default if not
 	repo := p.repo
 	if repo == "" {
 		repo = p.pluginConfig.GenerateDefaultRepo()
 		fmt.Printf("No --repo flag provided, using default: %s\n", repo)
 	}
 	
+	// Always validate the repository (whether provided or generated)
+	if err := validator.ValidateRepository(repo); err != nil {
+		return InitError("repository validation", err)
+	}
+	
 	if err := p.config.SetRepository(repo); err != nil {
-		return fmt.Errorf("error setting repository: %w", err)
+		return InitError("configuration", err)
 	}
 	
 	return nil
@@ -81,6 +94,7 @@ func (p *initSubcommand) PostScaffold() error {
 	gitUtils := NewGitUtils(p.pluginConfig)
 	
 	if err := gitUtils.InitRepo(); err != nil {
+		// Git init failures are warnings, not hard errors - maintain kubebuilder flexibility
 		fmt.Printf("Warning: Could not initialize git repository: %v\n", err)
 	} else {
 		if err := gitUtils.CreateInitialCommit(); err != nil {
