@@ -59,7 +59,7 @@ func (v *Validator) ValidateDomain(domain string) error {
 	if err != nil {
 		return fmt.Errorf("error validating domain: %w", err)
 	}
-	
+
 	if !matched {
 		return FieldValidationError{
 			Field:   "domain",
@@ -148,7 +148,7 @@ func (v *Validator) ValidateResource(res *resource.Resource) error {
 		return err
 	}
 
-	// Validate version - follows kubebuilder patterns  
+	// Validate version - follows kubebuilder patterns
 	if err := v.validateVersion(res.Version); err != nil {
 		return err
 	}
@@ -262,7 +262,7 @@ func (v *Validator) validateKind(kind string) error {
 
 	// Prevent common reserved words
 	reservedKinds := []string{
-		"Node", "Pod", "Service", "Deployment", "ConfigMap", 
+		"Node", "Pod", "Service", "Deployment", "ConfigMap",
 		"Secret", "Namespace", "CustomResourceDefinition",
 	}
 	for _, reserved := range reservedKinds {

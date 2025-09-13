@@ -1,6 +1,6 @@
 # Crossplane Provider Generator
 
-A standalone CLI tool for scaffolding Crossplane providers with kubebuilder patterns and crossplane-runtime integration.
+A standalone CLI tool for scaffolding Crossplane providers with kubebuilder patterns and crossplane-runtime v2 integration. Features a revolutionary single-responsibility template architecture with comprehensive test framework for Test-Driven Development.
 
 ## Installation
 
@@ -8,16 +8,16 @@ A standalone CLI tool for scaffolding Crossplane providers with kubebuilder patt
 ```bash
 git clone https://github.com/crossplane/xp-kubebuilder-plugin
 cd xp-kubebuilder-plugin
-go build -o bin/crossplane-provider-gen ./cmd/crossplane-provider-gen
+make build
 ```
 
-## Usage
+## Quick Start
 
 ### Create a new provider project
 
 ```bash
 mkdir my-provider && cd my-provider
-crossplane-provider-gen init --domain=example.com --repo=github.com/example/my-provider
+../bin/crossplane-provider-gen init --domain=example.com --repo=github.com/example/my-provider
 
 # Initialize dependencies (required after init)
 make submodules
@@ -30,11 +30,12 @@ make reviewable
 
 ```bash
 # Create managed resources
-crossplane-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
-crossplane-provider-gen create api --group=storage --version=v1alpha1 --kind=Bucket
+../bin/crossplane-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
+../bin/crossplane-provider-gen create api --group=storage --version=v1alpha1 --kind=Bucket
 
-# Build the provider
+# Build and test
 make build
+make test
 ```
 
 ## Commands
@@ -95,12 +96,62 @@ mkdir test-provider && cd test-provider
 make submodules && go mod tidy && make generate && make reviewable
 ```
 
-### Adding Templates
+## Architecture
 
-Templates are located in `pkg/plugins/crossplane/v2/scaffolds/`. Each template implements the `machinery.Template` interface and supports Go template substitution with `{{ .Repo }}`, `{{ .Domain }}`, and `{{ .ProviderName }}`.
+### Single-Responsibility Template System
+
+This project features a revolutionary template architecture where **each template has its own file** following Single Responsibility Principle:
+
+```
+pkg/plugins/crossplane/v2/templates/
+├── factory.go              # Clean factory pattern (122 lines)
+├── base.go                 # Template infrastructure
+├── boilerplate.go          # Centralized Apache 2.0 license
+├── templates_test.go       # Comprehensive test framework (18 tests)
+├── gomod_template.go       # go.mod template only
+├── makefile_template.go    # Makefile template only
+├── readme_template.go      # README.md template only
+├── gitignore_template.go   # .gitignore template only
+├── main_go_template.go     # cmd/provider/main.go only
+├── api_types_template.go   # CRD types only
+├── controller_template.go  # Controller implementation only
+├── provider_config_*.go    # ProviderConfig types & registration
+├── crossplane_package.go   # package/crossplane.yaml only
+├── cluster_*.go           # Container build files only
+├── license.go             # LICENSE file only
+└── [17 more single-purpose templates]
+```
+
+### Test-Driven Development Ready
+
+The test framework enables TDD for template development:
+
+```bash
+# Test all templates
+make test
+
+# Run specific template validation
+go test -v ./pkg/plugins/crossplane/v2/templates/
+
+# TDD workflow example:
+# 1. Write test for new template first
+# 2. Run tests (should fail)
+# 3. Implement template
+# 4. Run tests (should pass)
+```
+
+### Template Development
+
+Each template implements the `machinery.Template` interface with Go template substitution supporting `{{ .Repo }}`, `{{ .Domain }}`, and `{{ .ProviderName }}`.
+
+**Adding a new template:**
+1. Create `new_feature_template.go` with single template function
+2. Add factory method in `factory.go`
+3. Write test in `templates_test.go`
+4. Run `make test` to validate
 
 Key areas for contribution:
-- Enhanced API/controller templates
+- Enhanced API/controller templates  
 - Cloud-specific patterns (AWS, GCP, Azure)
 - CI/CD workflow templates
 - Documentation and examples

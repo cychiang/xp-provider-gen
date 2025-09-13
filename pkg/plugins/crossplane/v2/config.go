@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/templates"
 )
 
 type PluginConfig struct {
@@ -48,7 +50,7 @@ func NewPluginConfig() *PluginConfig {
 	return &PluginConfig{
 		Name:    pluginName,
 		Version: "v1.0.0",
-		
+
 		Defaults: DefaultValues{
 			Domain:         "",
 			RepoPrefix:     "github.com/crossplane-contrib",
@@ -56,7 +58,7 @@ func NewPluginConfig() *PluginConfig {
 			GenerateClient: true,
 			Force:          false,
 		},
-		
+
 		Git: GitConfig{
 			BuildSubmoduleURL: "https://github.com/crossplane/build",
 			DefaultAuthor:     "Crossplane Provider Generator",
@@ -70,11 +72,11 @@ func (c *PluginConfig) GenerateDefaultRepo() string {
 	if err != nil {
 		return fmt.Sprintf("%s/provider-example", c.Defaults.RepoPrefix)
 	}
-	
+
 	dirName := filepath.Base(wd)
 	dirName = strings.ToLower(dirName)
 	dirName = strings.ReplaceAll(dirName, "_", "-")
-	
+
 	if !strings.HasPrefix(dirName, "provider-") {
 		if strings.HasPrefix(dirName, "crossplane-") {
 			dirName = strings.Replace(dirName, "crossplane-", "provider-", 1)
@@ -82,26 +84,12 @@ func (c *PluginConfig) GenerateDefaultRepo() string {
 			dirName = "provider-" + dirName
 		}
 	}
-	
+
 	return fmt.Sprintf("%s/%s", c.Defaults.RepoPrefix, dirName)
 }
 
 func (c *PluginConfig) GetBoilerplate() string {
-	return `/*
-Copyright 2025 The Crossplane Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/`
+	return templates.DefaultBoilerplate()
 }
 
 func (c *PluginConfig) GetDefaultAuthor() string {

@@ -21,7 +21,7 @@ import (
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/cli"
 	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
-	
+
 	crossplanev2 "github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2"
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/version"
 )
@@ -29,7 +29,7 @@ import (
 func main() {
 	// Get version information
 	versionInfo := version.Get()
-	
+
 	// Create a simplified CLI that only exposes init and create api
 	cli, err := cli.New(
 		cli.WithCommandName("crossplane-provider-gen"),

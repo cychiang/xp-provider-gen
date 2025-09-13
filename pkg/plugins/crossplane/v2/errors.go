@@ -33,14 +33,14 @@ type PluginError struct {
 // Error implements the error interface
 func (e PluginError) Error() string {
 	msg := fmt.Sprintf("%s %s failed: %v", e.Component, e.Operation, e.Cause)
-	
+
 	if len(e.Hints) > 0 {
 		msg += "\n\nSuggestions:"
 		for _, hint := range e.Hints {
 			msg += fmt.Sprintf("\n  - %s", hint)
 		}
 	}
-	
+
 	return msg
 }
 
@@ -107,7 +107,7 @@ func InitError(operation string, cause error) error {
 	builder := NewError("init").
 		Operation(operation).
 		Cause(cause)
-	
+
 	// Add context-specific hints
 	switch {
 	case strings.Contains(cause.Error(), "domain"):
@@ -122,16 +122,16 @@ func InitError(operation string, cause error) error {
 		builder = builder.Hint("You can manually add the build submodule later:")
 		builder = builder.Hint("git submodule add https://github.com/crossplane/build build")
 	}
-	
+
 	return builder.Build()
 }
 
-// CreateAPIError creates a create api command error with context  
+// CreateAPIError creates a create api command error with context
 func CreateAPIError(operation string, cause error) error {
 	builder := NewError("createAPI").
 		Operation(operation).
 		Cause(cause)
-	
+
 	// Add context-specific hints
 	switch {
 	case strings.Contains(cause.Error(), "group"):
@@ -146,7 +146,7 @@ func CreateAPIError(operation string, cause error) error {
 		builder = builder.Hint("Check if there are conflicting files in the target location")
 		builder = builder.Hint("Use --force flag to overwrite existing files")
 	}
-	
+
 	return builder.Build()
 }
 
@@ -175,13 +175,13 @@ func WrapWithContext(err error, component, operation string) error {
 	if err == nil {
 		return nil
 	}
-	
+
 	// If it's already a PluginError, don't double-wrap
 	var pluginErr PluginError
 	if As(err, &pluginErr) {
 		return err
 	}
-	
+
 	return NewError(component).
 		Operation(operation).
 		Cause(err).

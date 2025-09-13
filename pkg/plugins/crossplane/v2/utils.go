@@ -34,12 +34,12 @@ func (g *GitUtils) InitRepo() error {
 	if _, err := os.Stat(".git"); err == nil {
 		return nil
 	}
-	
+
 	cmd := exec.Command("git", "init")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to initialize git repository: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -48,10 +48,10 @@ func (g *GitUtils) CreateInitialCommit() error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to add files to git: %w", err)
 	}
-	
+
 	commitMsg := "Initial commit\n\nScaffolded Crossplane provider project"
 	authorFlag := fmt.Sprintf("--author=%s", g.config.GetDefaultAuthor())
-	
+
 	cmd = exec.Command("git", "commit", "-m", commitMsg, authorFlag)
 	if err := cmd.Run(); err != nil {
 		cmd = exec.Command("git", "commit", "-m", commitMsg)
@@ -59,7 +59,7 @@ func (g *GitUtils) CreateInitialCommit() error {
 			return fmt.Errorf("failed to create initial commit: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -67,13 +67,12 @@ func (g *GitUtils) AddBuildSubmodule() error {
 	if _, err := os.Stat("build"); err == nil {
 		return nil
 	}
-	
+
 	cmd := exec.Command("git", "submodule", "add", g.config.Git.BuildSubmoduleURL, "build")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to add build submodule: %w", err)
 	}
-	
+
 	fmt.Printf("Added build submodule from %s\n", g.config.Git.BuildSubmoduleURL)
 	return nil
 }
-

@@ -38,7 +38,7 @@ type TemplateUpdater struct {
 
 	// Force overwrite existing content
 	Force bool
-	
+
 	// ProviderName is the name extracted from the repository
 	ProviderName string
 }

@@ -21,18 +21,15 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 )
 
-// GoMod creates go.mod template
-func GoMod(cfg config.Config) machinery.Template {
-	return SimpleFile(cfg, "go.mod", goModTemplate)
+// ClusterDockerfile creates cluster Dockerfile
+func ClusterDockerfile(cfg config.Config) machinery.Template {
+	return SimpleFile(cfg, "cluster/images/provider/Dockerfile", clusterDockerfileTemplate)
 }
 
-const goModTemplate = `module {{ .Repo }}
-
-go 1.24
-
-require (
-	github.com/crossplane/crossplane-runtime v2.0.0
-	k8s.io/apimachinery v0.31.0
-	k8s.io/client-go v0.31.0
-	sigs.k8s.io/controller-runtime v0.19.0
-)`
+const clusterDockerfileTemplate = `FROM alpine:3.19
+RUN apk --no-cache add ca-certificates
+WORKDIR /
+COPY provider /usr/local/bin/
+EXPOSE 8080
+USER 65532:65532
+ENTRYPOINT ["provider"]`

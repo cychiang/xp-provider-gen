@@ -30,11 +30,11 @@ func TestPlugin_Interface(t *testing.T) {
 func TestPlugin_Name(t *testing.T) {
 	p := Plugin{}
 	name := p.Name()
-	
+
 	if name == "" {
 		t.Error("Plugin name should not be empty")
 	}
-	
+
 	// Should follow kubebuilder naming convention
 	expected := "crossplane.go.kubebuilder.io"
 	if name != expected {
@@ -45,7 +45,7 @@ func TestPlugin_Name(t *testing.T) {
 func TestPlugin_Version(t *testing.T) {
 	p := Plugin{}
 	version := p.Version()
-	
+
 	if version.Number != 2 {
 		t.Errorf("Plugin version = %d, want 2", version.Number)
 	}
@@ -54,11 +54,11 @@ func TestPlugin_Version(t *testing.T) {
 func TestPlugin_SupportedProjectVersions(t *testing.T) {
 	p := Plugin{}
 	versions := p.SupportedProjectVersions()
-	
+
 	if len(versions) == 0 {
 		t.Error("Plugin should support at least one project version")
 	}
-	
+
 	// Should support kubebuilder v3 projects
 	hasV3 := false
 	for _, v := range versions {
@@ -67,7 +67,7 @@ func TestPlugin_SupportedProjectVersions(t *testing.T) {
 			break
 		}
 	}
-	
+
 	if !hasV3 {
 		t.Error("Plugin should support kubebuilder project version 3")
 	}
@@ -75,26 +75,26 @@ func TestPlugin_SupportedProjectVersions(t *testing.T) {
 
 func TestPlugin_Subcommands(t *testing.T) {
 	p := Plugin{}
-	
+
 	// Should provide init subcommand
 	initCmd := p.GetInitSubcommand()
 	if initCmd == nil {
 		t.Error("Plugin should provide init subcommand")
 	}
-	
+
 	// Should provide create api subcommand
 	createAPICmd := p.GetCreateAPISubcommand()
 	if createAPICmd == nil {
 		t.Error("Plugin should provide create api subcommand")
 	}
-	
+
 	// Should not provide webhook subcommand (Crossplane doesn't use them typically)
 	webhookCmd := p.GetCreateWebhookSubcommand()
 	if webhookCmd != nil {
 		t.Error("Plugin should not provide webhook subcommand")
 	}
-	
-	// Should not provide edit subcommand 
+
+	// Should not provide edit subcommand
 	editCmd := p.GetEditSubcommand()
 	if editCmd != nil {
 		t.Error("Plugin should not provide edit subcommand")
@@ -104,7 +104,7 @@ func TestPlugin_Subcommands(t *testing.T) {
 func TestPlugin_DeprecationWarning(t *testing.T) {
 	p := Plugin{}
 	warning := p.DeprecationWarning()
-	
+
 	// Should not have deprecation warning for current version
 	if warning != "" {
 		t.Errorf("Plugin should not have deprecation warning, got: %s", warning)
@@ -123,19 +123,19 @@ func TestCreateAPISubcommand_Interface(t *testing.T) {
 
 func TestPluginConfig_Defaults(t *testing.T) {
 	cfg := NewPluginConfig()
-	
+
 	if cfg.Name == "" {
 		t.Error("Plugin config name should not be empty")
 	}
-	
+
 	if cfg.Version == "" {
 		t.Error("Plugin config version should not be empty")
 	}
-	
+
 	if cfg.Git.BuildSubmoduleURL == "" {
 		t.Error("Build submodule URL should not be empty")
 	}
-	
+
 	// Should have Crossplane build submodule URL
 	expected := "https://github.com/crossplane/build"
 	if cfg.Git.BuildSubmoduleURL != expected {
@@ -145,17 +145,17 @@ func TestPluginConfig_Defaults(t *testing.T) {
 
 func TestPluginConfig_GenerateDefaultRepo(t *testing.T) {
 	cfg := NewPluginConfig()
-	
+
 	repo := cfg.GenerateDefaultRepo()
 	if repo == "" {
 		t.Error("Generated default repo should not be empty")
 	}
-	
+
 	// Should contain provider prefix by default
 	if !contains(repo, "provider-") {
 		t.Error("Generated repo should contain 'provider-' prefix")
 	}
-	
+
 	// Should contain crossplane-contrib prefix by default
 	if !contains(repo, "github.com/crossplane-contrib") {
 		t.Error("Generated repo should use crossplane-contrib by default")
@@ -164,9 +164,9 @@ func TestPluginConfig_GenerateDefaultRepo(t *testing.T) {
 
 // Helper function
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && 
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || 
-		 indexOfSubstring(s, substr) >= 0))
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
+		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
+			indexOfSubstring(s, substr) >= 0))
 }
 
 func indexOfSubstring(s, substr string) int {

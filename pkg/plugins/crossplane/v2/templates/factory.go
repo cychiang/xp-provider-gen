@@ -39,7 +39,7 @@ func (f *TemplateFactory) GoMod() machinery.Template {
 	return GoMod(f.config)
 }
 
-// Makefile creates Makefile template  
+// Makefile creates Makefile template
 func (f *TemplateFactory) Makefile() machinery.Template {
 	return Makefile(f.config)
 }
@@ -59,49 +59,49 @@ func (f *TemplateFactory) MainGo() machinery.Template {
 	return MainGo(f.config)
 }
 
-// ProviderConfigTypes creates ProviderConfig types (placeholder)
+// ProviderConfigTypes creates ProviderConfig types
 func (f *TemplateFactory) ProviderConfigTypes() machinery.Template {
-	return SimpleFile(f.config, "apis/v1alpha1/types.go", "package v1alpha1")
+	return ProviderConfigTypes(f.config)
 }
 
-// ProviderConfigRegister creates ProviderConfig registration (placeholder)
+// ProviderConfigRegister creates ProviderConfig registration
 func (f *TemplateFactory) ProviderConfigRegister() machinery.Template {
-	return SimpleFile(f.config, "apis/v1alpha1/register.go", "package v1alpha1")
+	return ProviderConfigRegister(f.config)
 }
 
-// CrossplanePackage creates package/crossplane.yaml (placeholder)
+// CrossplanePackage creates package/crossplane.yaml
 func (f *TemplateFactory) CrossplanePackage() machinery.Template {
-	return SimpleFile(f.config, "package/crossplane.yaml", "apiVersion: meta.pkg.crossplane.io/v1alpha1\nkind: Provider")
+	return CrossplanePackage(f.config)
 }
 
-// ConfigController creates config controller (placeholder)
+// ConfigController creates config controller
 func (f *TemplateFactory) ConfigController() machinery.Template {
-	return SimpleFile(f.config, "internal/controller/config/config.go", "package config")
+	return ConfigController(f.config)
 }
 
-// ControllerRegister creates controller registration file (placeholder)
+// ControllerRegister creates controller registration file
 func (f *TemplateFactory) ControllerRegister() machinery.Template {
-	return SimpleFile(f.config, "internal/controller/register.go", "package controller")
+	return ControllerRegister(f.config)
 }
 
-// VersionGo creates version management (placeholder)
+// VersionGo creates version management
 func (f *TemplateFactory) VersionGo() machinery.Template {
-	return SimpleFile(f.config, "internal/version/version.go", "package version")
+	return VersionGo(f.config)
 }
 
-// ClusterDockerfile creates cluster Dockerfile (placeholder)
+// ClusterDockerfile creates cluster Dockerfile
 func (f *TemplateFactory) ClusterDockerfile() machinery.Template {
-	return SimpleFile(f.config, "cluster/images/provider/Dockerfile", "FROM alpine:latest")
+	return ClusterDockerfile(f.config)
 }
 
-// ClusterMakefile creates cluster Makefile (placeholder)
+// ClusterMakefile creates cluster Makefile
 func (f *TemplateFactory) ClusterMakefile() machinery.Template {
-	return SimpleFile(f.config, "cluster/images/provider/Makefile", "# Cluster Makefile")
+	return ClusterMakefile(f.config)
 }
 
-// License creates LICENSE file (placeholder)
+// License creates LICENSE file
 func (f *TemplateFactory) License() machinery.Template {
-	return StaticFile(f.config, "LICENSE", "Apache License 2.0")
+	return License(f.config)
 }
 
 // API Template Methods - delegates to API template functions

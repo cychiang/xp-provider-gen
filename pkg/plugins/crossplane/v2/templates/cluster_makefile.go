@@ -21,18 +21,17 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 )
 
-// GoMod creates go.mod template
-func GoMod(cfg config.Config) machinery.Template {
-	return SimpleFile(cfg, "go.mod", goModTemplate)
+// ClusterMakefile creates cluster Makefile
+func ClusterMakefile(cfg config.Config) machinery.Template {
+	return SimpleFile(cfg, "cluster/images/provider/Makefile", clusterMakefileTemplate)
 }
 
-const goModTemplate = `module {{ .Repo }}
+const clusterMakefileTemplate = `# Cluster image Makefile for {{ .ProviderName }}
 
-go 1.24
+include ../../../build/makelib/image.mk
 
-require (
-	github.com/crossplane/crossplane-runtime v2.0.0
-	k8s.io/apimachinery v0.31.0
-	k8s.io/client-go v0.31.0
-	sigs.k8s.io/controller-runtime v0.19.0
-)`
+# Image URL to use all building/pushing image targets
+REGISTRY_ORGS ?= xpkg.upbound.io/crossplane-contrib
+IMAGE_NAMES ?= {{ .ProviderName }}
+IMAGES = $(IMAGE_NAMES)
+-include ../../../build/makelib/image.mk`

@@ -29,7 +29,7 @@ COVERAGE_DIR=coverage
 # Binary names
 BINARY=crossplane-provider-gen
 
-.PHONY: help build clean test test-verbose coverage fmt vet lint mod-tidy mod-verify validate
+.PHONY: help build clean test test-verbose coverage fmt vet lint mod-tidy mod-verify validate integration-test
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -44,8 +44,8 @@ clean: ## Clean build artifacts and temporary files
 	$(GOCLEAN)
 	rm -rf $(BUILD_DIR) $(COVERAGE_DIR)
 
-test: ## Run tests
-	$(GOTEST) -v ./pkg/plugins/crossplane/v1/
+test: ## Run all tests
+	$(GOTEST) -v ./...
 
 test-verbose: ## Run tests with verbose output
 	$(GOTEST) -v -race ./...
@@ -99,9 +99,10 @@ docs: ## Generate documentation (placeholder)
 	@echo "Documentation generation not yet implemented"
 	@echo "See README.md and IMPLEMENTATION_PLAN.md for current documentation"
 
-# Integration testing (when implemented)
+# Integration testing
 .PHONY: integration-test
 
-integration-test: ## Run integration tests (placeholder)
-	@echo "Integration tests not yet implemented"
-	@echo "This will test the plugin with actual kubebuilder CLI integration"
+integration-test: build ## Run comprehensive integration tests
+	@echo "Running integration tests..."
+	./scripts/integration-test.sh
+	@echo "Integration tests completed!"

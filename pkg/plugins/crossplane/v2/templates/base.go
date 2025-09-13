@@ -30,7 +30,7 @@ type BaseTemplate struct {
 	machinery.DomainMixin
 	machinery.RepositoryMixin
 	machinery.BoilerplateMixin
-	
+
 	// Common Crossplane fields
 	ProviderName string
 	Force        bool
@@ -44,28 +44,14 @@ func (t *BaseTemplate) Configure(cfg config.Config) {
 		t.Repo = cfg.GetRepository()
 		t.RepositoryMixin = machinery.RepositoryMixin{Repo: t.Repo}
 	}
-	
+
 	if t.ProviderName == "" && t.Repo != "" {
 		t.ProviderName = extractProviderName(t.Repo)
 	}
-	
+
 	// Configure boilerplate
-	t.Boilerplate = `/*
-Copyright 2025 The Crossplane Authors.
+	t.Boilerplate = DefaultBoilerplate()
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/`
-	
 	// Set sensible defaults
 	if t.IfExistsAction == 0 {
 		t.IfExistsAction = machinery.OverwriteFile
@@ -106,7 +92,7 @@ func (t *InitTemplate) SetTemplateDefaults() error {
 	return nil
 }
 
-// APITemplate specializes BaseTemplate for API templates (has resource info)  
+// APITemplate specializes BaseTemplate for API templates (has resource info)
 type APITemplate struct {
 	BaseTemplate
 	machinery.ResourceMixin
@@ -193,12 +179,12 @@ func extractProviderName(repo string) string {
 	if repo == "" {
 		return "provider-example"
 	}
-	
+
 	parts := strings.Split(repo, "/")
 	if len(parts) == 0 {
 		return "provider-example"
 	}
-	
+
 	return parts[len(parts)-1]
 }
 
@@ -214,7 +200,7 @@ func StaticFile(cfg config.Config, path, body string) machinery.Template {
 	return NewStaticTemplate(cfg, path, body)
 }
 
-// APIFile creates an API-related file template  
+// APIFile creates an API-related file template
 func APIFile(cfg config.Config, path, body string) machinery.Template {
 	return NewAPITemplate(cfg, path, body)
 }

@@ -27,7 +27,7 @@ type createAPISubcommand struct {
 
 func (p *createAPISubcommand) UpdateMetadata(cliMeta plugin.CLIMetadata, subcmdMeta *plugin.SubcommandMetadata) {
 	p.ensureConfig()
-	
+
 	subcmdMeta.Description = `Create a new Crossplane managed resource API.
 
 This command scaffolds a complete managed resource with:
@@ -36,7 +36,7 @@ This command scaffolds a complete managed resource with:
 - Controller implementation with crossplane-runtime v2 patterns
 - External client interface for cloud API integration
 - Automatic registration in controller manager`
-	
+
 	subcmdMeta.Examples = fmt.Sprintf(`  # Create a compute resource
   %s create api --group=compute --version=v1alpha1 --kind=Instance
 
@@ -50,13 +50,13 @@ This command scaffolds a complete managed resource with:
   %s create api --group=database --version=v1alpha1 --kind=PostgreSQL --force
 
   # Create resource without external client generation
-  %s create api --group=compute --version=v1alpha1 --kind=Server --generate-client=false`, 
+  %s create api --group=compute --version=v1alpha1 --kind=Server --generate-client=false`,
 		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
 }
 
 func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
 	p.ensureConfig()
-	
+
 	defaults := p.pluginConfig.Defaults
 	fs.BoolVar(&p.GenerateClient, "generate-client", defaults.GenerateClient, "generate external client interface")
 	fs.BoolVar(&p.Force, "force", defaults.Force, "overwrite existing files if they exist")
@@ -89,13 +89,13 @@ func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 	if err := validator.ValidateResource(p.resource); err != nil {
 		return CreateAPIError("resource validation", err)
 	}
-	
+
 	// Additional kubebuilder-compatible checks
 	if p.resource.Domain == "" {
-		return CreateAPIError("configuration check", 
+		return CreateAPIError("configuration check",
 			fmt.Errorf("resource domain is required - ensure project is properly initialized"))
 	}
-	
+
 	return nil
 }
 
@@ -103,7 +103,7 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Creating Crossplane managed resource API %s/%s %s\n", p.resource.Group, p.resource.Version, p.resource.Kind)
 
 	p.ensureConfig()
-	
+
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(p.config),
 		machinery.WithBoilerplate(p.pluginConfig.GetBoilerplate()),
@@ -112,19 +112,19 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 	// Create template factory for ultra-simple template creation
 	factory := templates.NewFactory(p.config)
-	
+
 	// Execute scaffolding - dramatically simplified from complex template instantiation
 	if err := scaffold.Execute(
 		// API types and group registration
 		factory.APIGroup(),
 		factory.APITypes(p.Force),
 		factory.Controller(p.Force),
-		
+
 		// Controller registration update
 		&templates.TemplateUpdater{
-			Force: true,
+			Force:           true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
-			ProviderName: p.extractProviderName(),
+			ProviderName:    p.extractProviderName(),
 		},
 	); err != nil {
 		return CreateAPIError("scaffolding", err)
@@ -138,7 +138,7 @@ func (p *createAPISubcommand) PostScaffold() error {
 	if err := p.config.AddResource(*p.resource); err != nil {
 		return CreateAPIError("configuration update", err)
 	}
-	
+
 	if err := p.saveProjectFile(); err != nil {
 		return CreateAPIError("PROJECT file persistence", err)
 	}
@@ -158,11 +158,11 @@ func (p *createAPISubcommand) saveProjectFile() error {
 	if err != nil {
 		return fmt.Errorf("error marshaling config to YAML: %w", err)
 	}
-	
+
 	if err := os.WriteFile("PROJECT", configBytes, 0644); err != nil {
 		return fmt.Errorf("error writing PROJECT file: %w", err)
 	}
-	
+
 	return nil
 }
 

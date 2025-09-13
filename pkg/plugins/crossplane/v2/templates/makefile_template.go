@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 )
 
-// Makefile creates Makefile template  
+// Makefile creates Makefile template
 func Makefile(cfg config.Config) machinery.Template {
 	return SimpleFile(cfg, "Makefile", makefileTemplate)
 }

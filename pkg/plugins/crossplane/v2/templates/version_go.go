@@ -21,18 +21,28 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 )
 
-// GoMod creates go.mod template
-func GoMod(cfg config.Config) machinery.Template {
-	return SimpleFile(cfg, "go.mod", goModTemplate)
+// VersionGo creates version management
+func VersionGo(cfg config.Config) machinery.Template {
+	return SimpleFile(cfg, "internal/version/version.go", versionGoTemplate)
 }
 
-const goModTemplate = `module {{ .Repo }}
+const versionGoTemplate = `package version
 
-go 1.24
+import "runtime/debug"
 
-require (
-	github.com/crossplane/crossplane-runtime v2.0.0
-	k8s.io/apimachinery v0.31.0
-	k8s.io/client-go v0.31.0
-	sigs.k8s.io/controller-runtime v0.19.0
-)`
+// Version is the version of {{ .ProviderName }}.
+var Version string
+
+// GetVersion returns the version of {{ .ProviderName }}.
+func GetVersion() string {
+	if Version != "" {
+		return Version
+	}
+
+	// Fallback to build info if version is not set
+	if info, ok := debug.ReadBuildInfo(); ok {
+		return info.Main.Version
+	}
+
+	return "unknown"
+}`
