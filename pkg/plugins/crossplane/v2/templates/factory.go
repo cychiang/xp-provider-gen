@@ -46,7 +46,7 @@ func NewFactory(cfg config.Config) TemplateFactory {
 		GitIgnoreTemplateType, MainGoTemplateType, APIsTemplateType, GenerateGoTemplateType,
 		BoilerplateTemplateType, ProviderConfigTypesType, ProviderConfigRegisterType,
 		CrossplanePackageType, ConfigControllerType, ControllerRegisterType,
-		ClusterDockerfileType, ClusterMakefileType, VersionGoType,
+		ClusterDockerfileType, ClusterMakefileType, VersionGoType, DocGoType,
 	}
 	for _, templateType := range initTypes {
 		factory.initRegistry[templateType] = NewInitTemplateBuilder(templateType)

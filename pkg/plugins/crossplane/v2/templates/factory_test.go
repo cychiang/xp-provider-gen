@@ -92,17 +92,26 @@ func TestCrossplaneTemplateFactory_GetSupportedTypes(t *testing.T) {
 	}
 
 	expectedTypes := map[TemplateType]bool{
+		// Init template types
 		GoModTemplateType:            true,
 		MakefileTemplateType:         true,
 		READMETemplateType:           true,
 		GitIgnoreTemplateType:        true,
 		MainGoTemplateType:           true,
+		APIsTemplateType:             true,
+		GenerateGoTemplateType:       true,
+		BoilerplateTemplateType:      true,
 		ProviderConfigTypesType:      true,
 		ProviderConfigRegisterType:   true,
 		CrossplanePackageType:        true,
 		ConfigControllerType:         true,
 		ControllerRegisterType:       true,
+		VersionGoType:                true,
+		ClusterDockerfileType:        true,
+		ClusterMakefileType:          true,
 		LicenseType:                  true,
+		DocGoType:                    true,
+		// API template types
 		APITypesTemplateType:         true,
 		APIGroupTemplateType:         true,
 		ControllerTemplateType:       true,
@@ -134,11 +143,18 @@ func TestCrossplaneTemplateFactory_CreateInitTemplate(t *testing.T) {
 		{"README", READMETemplateType, false},
 		{"GitIgnore", GitIgnoreTemplateType, false},
 		{"MainGo", MainGoTemplateType, false},
+		{"APIs", APIsTemplateType, false},
+		{"GenerateGo", GenerateGoTemplateType, false},
+		{"Boilerplate", BoilerplateTemplateType, false},
 		{"ProviderConfigTypes", ProviderConfigTypesType, false},
 		{"ProviderConfigRegister", ProviderConfigRegisterType, false},
 		{"CrossplanePackage", CrossplanePackageType, false},
 		{"ConfigController", ConfigControllerType, false},
 		{"ControllerRegister", ControllerRegisterType, false},
+		{"VersionGo", VersionGoType, false},
+		{"ClusterDockerfile", ClusterDockerfileType, false},
+		{"ClusterMakefile", ClusterMakefileType, false},
+		{"DocGo", DocGoType, false},
 		{"Invalid", TemplateType("invalid"), true},
 	}
 
@@ -290,6 +306,10 @@ func TestCrossplaneTemplateFactory_ConvenienceMethods(t *testing.T) {
 			factory.CrossplanePackage,
 			factory.ConfigController,
 			factory.ControllerRegister,
+			factory.VersionGo,
+			factory.ClusterDockerfile,
+			factory.ClusterMakefile,
+			factory.DocGo,
 		}
 
 		for i, method := range initMethods {
@@ -369,4 +389,193 @@ func TestTemplateOptions(t *testing.T) {
 	if opts.CustomData["custom"] != "value" {
 		t.Error("WithCustomData should set CustomData")
 	}
+}
+
+// TestAPITemplateFixedIssues tests the specific issues that were fixed
+func TestAPITemplateFixedIssues(t *testing.T) {
+	cfg := &mockConfig{
+		domain: "template.crossplane.io",
+		repo:   "github.com/my-account/provider-template",
+	}
+	factory := NewFactory(cfg)
+
+	testResource := &resource.Resource{
+		GVK: resource.GVK{
+			Group:   "sample",
+			Version: "v1alpha1",
+			Kind:    "MyType",
+		},
+	}
+
+	t.Run("Categories annotation uses provider name not domain", func(t *testing.T) {
+		product, err := factory.CreateAPITemplate(APITypesTemplateType, WithResource(testResource))
+		if err != nil {
+			t.Fatalf("Failed to create API template: %v", err)
+		}
+
+		// Check that the template body contains correct categories
+		if apiProduct, ok := product.(*APITypesTemplateProduct); ok {
+			err := apiProduct.SetTemplateDefaults()
+			if err != nil {
+				t.Fatalf("Failed to set template defaults: %v", err)
+			}
+
+			templateBody := apiProduct.TemplateBody
+			if !containsString(templateBody, "categories={crossplane,managed,{{ .ProviderName | lower }}}") {
+				t.Error("Template should use ProviderName in categories, not domain")
+			}
+		}
+	})
+
+	t.Run("API resources are namespaced not cluster scoped", func(t *testing.T) {
+		product, err := factory.CreateAPITemplate(APITypesTemplateType, WithResource(testResource))
+		if err != nil {
+			t.Fatalf("Failed to create API template: %v", err)
+		}
+
+		// Check that the template body contains correct scope
+		if apiProduct, ok := product.(*APITypesTemplateProduct); ok {
+			err := apiProduct.SetTemplateDefaults()
+			if err != nil {
+				t.Fatalf("Failed to set template defaults: %v", err)
+			}
+
+			templateBody := apiProduct.TemplateBody
+			if !containsString(templateBody, "scope=Namespaced") {
+				t.Error("Template should use scope=Namespaced for managed resources")
+			}
+		}
+	})
+
+	t.Run("Provider config uses provider domain not pkg.crossplane.io", func(t *testing.T) {
+		product, err := factory.CreateInitTemplate(ProviderConfigRegisterType)
+		if err != nil {
+			t.Fatalf("Failed to create provider config template: %v", err)
+		}
+
+		// Check that the template body contains correct domain
+		if providerProduct, ok := product.(*ProviderConfigRegisterTemplateProduct); ok {
+			err := providerProduct.SetTemplateDefaults()
+			if err != nil {
+				t.Fatalf("Failed to set template defaults: %v", err)
+			}
+
+			templateBody := providerProduct.TemplateBody
+			if !containsString(templateBody, `Group   = "{{ .Domain }}"`) {
+				t.Error("Template should use provider domain, not pkg.crossplane.io")
+			}
+		}
+	})
+
+	t.Run("DocGo template is available and uses correct domain", func(t *testing.T) {
+		product, err := factory.CreateInitTemplate(DocGoType)
+		if err != nil {
+			t.Fatalf("Failed to create DocGo template: %v", err)
+		}
+
+		// Check that the template body contains correct domain
+		if docProduct, ok := product.(*DocGoTemplateProduct); ok {
+			err := docProduct.SetTemplateDefaults()
+			if err != nil {
+				t.Fatalf("Failed to set template defaults: %v", err)
+			}
+
+			templateBody := docProduct.TemplateBody
+			if !containsString(templateBody, "+groupName={{ .Domain }}") {
+				t.Error("DocGo template should use provider domain")
+			}
+		}
+	})
+}
+
+// TestProviderNameExtraction tests provider name extraction from repository
+func TestProviderNameExtraction(t *testing.T) {
+	tests := []struct {
+		name         string
+		repo         string
+		expectedName string
+	}{
+		{"Standard GitHub repo", "github.com/crossplane/provider-aws", "provider-aws"},
+		{"Custom domain repo", "git.company.com/team/provider-gcp", "provider-gcp"},
+		{"Simple name", "provider-azure", "provider-azure"},
+		{"Empty repo", "", "provider-example"},
+		{"Just domain", "github.com", "github.com"},
+		{"Single segment", "test", "test"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractProviderName(tt.repo)
+			if result != tt.expectedName {
+				t.Errorf("extractProviderName(%q) = %q, want %q", tt.repo, result, tt.expectedName)
+			}
+		})
+	}
+}
+
+// TestTemplateRegistry tests the registry pattern implementation
+func TestTemplateRegistry(t *testing.T) {
+	cfg := newMockConfig()
+	factory := NewFactory(cfg).(*CrossplaneTemplateFactory)
+
+	t.Run("Init registry populated", func(t *testing.T) {
+		if len(factory.initRegistry) == 0 {
+			t.Error("Init registry should not be empty")
+		}
+
+		// Test a few key templates
+		keyTemplates := []TemplateType{
+			GoModTemplateType,
+			MakefileTemplateType,
+			ProviderConfigTypesType,
+		}
+
+		for _, templateType := range keyTemplates {
+			if _, exists := factory.initRegistry[templateType]; !exists {
+				t.Errorf("Init registry should contain %s", templateType)
+			}
+		}
+	})
+
+	t.Run("API registry populated", func(t *testing.T) {
+		if len(factory.apiRegistry) == 0 {
+			t.Error("API registry should not be empty")
+		}
+
+		// Test API templates
+		apiTemplates := []TemplateType{
+			APITypesTemplateType,
+			APIGroupTemplateType,
+			ControllerTemplateType,
+		}
+
+		for _, templateType := range apiTemplates {
+			if _, exists := factory.apiRegistry[templateType]; !exists {
+				t.Errorf("API registry should contain %s", templateType)
+			}
+		}
+	})
+
+	t.Run("Static registry populated", func(t *testing.T) {
+		if len(factory.staticRegistry) == 0 {
+			t.Error("Static registry should not be empty")
+		}
+
+		if _, exists := factory.staticRegistry[LicenseType]; !exists {
+			t.Error("Static registry should contain LicenseType")
+		}
+	})
+}
+
+// Helper function to check if string contains substring
+func containsString(text, substr string) bool {
+	return len(text) > 0 && len(substr) > 0 &&
+		   func() bool {
+			   for i := 0; i <= len(text)-len(substr); i++ {
+				   if text[i:i+len(substr)] == substr {
+					   return true
+				   }
+			   }
+			   return false
+		   }()
 }
