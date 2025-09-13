@@ -13,7 +13,41 @@ make build
 
 ## Quick Start
 
-### Create a new provider project
+### 🚀 Super Quick: One-liner Provider Creation
+
+```bash
+# Create a new provider with all examples in one command
+./scripts/new-provider my-provider
+
+# Or with custom domain and repo
+./scripts/new-provider provider-aws aws.crossplane.io github.com/crossplane/provider-aws
+```
+
+### 🎯 Interactive Provider Creation
+
+```bash
+# Run the interactive script for guided setup
+./scripts/init-provider.sh
+```
+
+### ⚡ Quick Provider with Options
+
+```bash
+# Non-interactive with full control
+./scripts/init-provider.sh \
+    --project-name=provider-gcp \
+    --domain=gcp.crossplane.io \
+    --repo=github.com/crossplane/provider-gcp \
+    --skip-tests
+
+# Minimal provider without examples
+./scripts/init-provider.sh \
+    --project-name=my-provider \
+    --skip-apis \
+    --skip-build
+```
+
+### 🛠️ Manual Creation (Advanced)
 
 ```bash
 mkdir my-provider && cd my-provider

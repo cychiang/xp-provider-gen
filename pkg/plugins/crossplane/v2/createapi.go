@@ -110,18 +110,30 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		machinery.WithResource(p.resource),
 	)
 
-	// Create template factory for ultra-simple template creation
-	factory := templates.NewFactory(p.config)
+	// Create template factory using true Factory Pattern
+	factory := templates.NewFactory(p.config).(*templates.CrossplaneTemplateFactory)
 
-	// Execute scaffolding - dramatically simplified from complex template instantiation
+	// Get templates using the factory pattern
+	apiGroup, _ := factory.APIGroup(p.resource)
+	apiTypes, _ := factory.APITypes(p.Force, p.resource)
+	controller, _ := factory.Controller(p.Force, p.resource)
+
+	// Execute scaffolding with proper Factory Pattern
 	if err := scaffold.Execute(
 		// API types and group registration
-		factory.APIGroup(),
-		factory.APITypes(p.Force),
-		factory.Controller(p.Force),
+		apiGroup,
+		apiTypes,
+		controller,
 
 		// Controller registration update
 		&templates.TemplateUpdater{
+			Force:           true,
+			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
+			ProviderName:    p.extractProviderName(),
+		},
+
+		// API registration update
+		&templates.APIRegistrationUpdater{
 			Force:           true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
 			ProviderName:    p.extractProviderName(),

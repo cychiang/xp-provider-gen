@@ -17,106 +17,225 @@ limitations under the License.
 package templates
 
 import (
+	"fmt"
+
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
-	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
+	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 )
 
-// TemplateFactory creates templates with minimal configuration
-// This is the main entry point for creating all template types
-type TemplateFactory struct {
-	config config.Config
+// CrossplaneTemplateFactory implements the TemplateFactory interface
+type CrossplaneTemplateFactory struct {
+	config         config.Config
+	initRegistry   map[TemplateType]TemplateBuilder
+	apiRegistry    map[TemplateType]TemplateBuilder
+	staticRegistry map[TemplateType]TemplateBuilder
 }
 
-// NewFactory creates a new template factory
-func NewFactory(cfg config.Config) *TemplateFactory {
-	return &TemplateFactory{config: cfg}
+// NewFactory creates a new CrossplaneTemplateFactory
+func NewFactory(cfg config.Config) TemplateFactory {
+	factory := &CrossplaneTemplateFactory{
+		config:         cfg,
+		initRegistry:   make(map[TemplateType]TemplateBuilder),
+		apiRegistry:    make(map[TemplateType]TemplateBuilder),
+		staticRegistry: make(map[TemplateType]TemplateBuilder),
+	}
+
+	// Register init template builders
+	initTypes := []TemplateType{
+		GoModTemplateType, MakefileTemplateType, READMETemplateType,
+		GitIgnoreTemplateType, MainGoTemplateType, APIsTemplateType, GenerateGoTemplateType,
+		BoilerplateTemplateType, ProviderConfigTypesType, ProviderConfigRegisterType,
+		CrossplanePackageType, ConfigControllerType, ControllerRegisterType,
+		ClusterDockerfileType, ClusterMakefileType, VersionGoType,
+	}
+	for _, templateType := range initTypes {
+		factory.initRegistry[templateType] = NewInitTemplateBuilder(templateType)
+	}
+
+	// Register API template builders
+	apiTypes := []TemplateType{
+		APITypesTemplateType, APIGroupTemplateType, ControllerTemplateType,
+	}
+	for _, templateType := range apiTypes {
+		factory.apiRegistry[templateType] = NewAPITemplateBuilder(templateType)
+	}
+
+	// Register static template builders
+	staticTypes := []TemplateType{
+		LicenseType,
+	}
+	for _, templateType := range staticTypes {
+		factory.staticRegistry[templateType] = NewStaticTemplateBuilder(templateType)
+	}
+
+	return factory
 }
 
-// Init Template Methods - delegates to individual template functions
+// CreateInitTemplate creates initialization templates
+func (f *CrossplaneTemplateFactory) CreateInitTemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error) {
+	builder, exists := f.initRegistry[templateType]
+	if !exists {
+		return nil, fmt.Errorf("unsupported init template type: %s", templateType)
+	}
 
-// GoMod creates go.mod template
-func (f *TemplateFactory) GoMod() machinery.Template {
-	return GoMod(f.config)
+	product, err := builder.Build(f.config, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build init template %s: %w", templateType, err)
+	}
+
+	return product, nil
 }
 
-// Makefile creates Makefile template
-func (f *TemplateFactory) Makefile() machinery.Template {
-	return Makefile(f.config)
+// CreateAPITemplate creates API templates
+func (f *CrossplaneTemplateFactory) CreateAPITemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error) {
+	builder, exists := f.apiRegistry[templateType]
+	if !exists {
+		return nil, fmt.Errorf("unsupported API template type: %s", templateType)
+	}
+
+	product, err := builder.Build(f.config, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build API template %s: %w", templateType, err)
+	}
+
+	return product, nil
 }
 
-// GitIgnore creates .gitignore template
-func (f *TemplateFactory) GitIgnore() machinery.Template {
-	return GitIgnore(f.config)
+// CreateStaticTemplate creates static templates
+func (f *CrossplaneTemplateFactory) CreateStaticTemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error) {
+	builder, exists := f.staticRegistry[templateType]
+	if !exists {
+		return nil, fmt.Errorf("unsupported static template type: %s", templateType)
+	}
+
+	product, err := builder.Build(f.config, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build static template %s: %w", templateType, err)
+	}
+
+	return product, nil
 }
 
-// README creates README.md template
-func (f *TemplateFactory) README() machinery.Template {
-	return README(f.config)
+// GetSupportedTypes returns all supported template types
+func (f *CrossplaneTemplateFactory) GetSupportedTypes() []TemplateType {
+	var types []TemplateType
+
+	for templateType := range f.initRegistry {
+		types = append(types, templateType)
+	}
+
+	for templateType := range f.apiRegistry {
+		types = append(types, templateType)
+	}
+
+	for templateType := range f.staticRegistry {
+		types = append(types, templateType)
+	}
+
+	return types
 }
 
-// MainGo creates cmd/provider/main.go template
-func (f *TemplateFactory) MainGo() machinery.Template {
-	return MainGo(f.config)
+// Convenience methods for backward compatibility and ease of use
+
+// GoMod creates a go.mod template
+func (f *CrossplaneTemplateFactory) GoMod() (TemplateProduct, error) {
+	return f.CreateInitTemplate(GoModTemplateType)
 }
 
-// ProviderConfigTypes creates ProviderConfig types
-func (f *TemplateFactory) ProviderConfigTypes() machinery.Template {
-	return ProviderConfigTypes(f.config)
+// Makefile creates a Makefile template
+func (f *CrossplaneTemplateFactory) Makefile() (TemplateProduct, error) {
+	return f.CreateInitTemplate(MakefileTemplateType)
 }
 
-// ProviderConfigRegister creates ProviderConfig registration
-func (f *TemplateFactory) ProviderConfigRegister() machinery.Template {
-	return ProviderConfigRegister(f.config)
+// README creates a README.md template
+func (f *CrossplaneTemplateFactory) README() (TemplateProduct, error) {
+	return f.CreateInitTemplate(READMETemplateType)
 }
 
-// CrossplanePackage creates package/crossplane.yaml
-func (f *TemplateFactory) CrossplanePackage() machinery.Template {
-	return CrossplanePackage(f.config)
+// GitIgnore creates a .gitignore template
+func (f *CrossplaneTemplateFactory) GitIgnore() (TemplateProduct, error) {
+	return f.CreateInitTemplate(GitIgnoreTemplateType)
 }
 
-// ConfigController creates config controller
-func (f *TemplateFactory) ConfigController() machinery.Template {
-	return ConfigController(f.config)
+// MainGo creates a main.go template
+func (f *CrossplaneTemplateFactory) MainGo() (TemplateProduct, error) {
+	return f.CreateInitTemplate(MainGoTemplateType)
 }
 
-// ControllerRegister creates controller registration file
-func (f *TemplateFactory) ControllerRegister() machinery.Template {
-	return ControllerRegister(f.config)
+// ProviderConfigTypes creates ProviderConfig types template
+func (f *CrossplaneTemplateFactory) ProviderConfigTypes() (TemplateProduct, error) {
+	return f.CreateInitTemplate(ProviderConfigTypesType)
 }
 
-// VersionGo creates version management
-func (f *TemplateFactory) VersionGo() machinery.Template {
-	return VersionGo(f.config)
+// ProviderConfigRegister creates ProviderConfig registration template
+func (f *CrossplaneTemplateFactory) ProviderConfigRegister() (TemplateProduct, error) {
+	return f.CreateInitTemplate(ProviderConfigRegisterType)
 }
 
-// ClusterDockerfile creates cluster Dockerfile
-func (f *TemplateFactory) ClusterDockerfile() machinery.Template {
-	return ClusterDockerfile(f.config)
+// CrossplanePackage creates package/crossplane.yaml template
+func (f *CrossplaneTemplateFactory) CrossplanePackage() (TemplateProduct, error) {
+	return f.CreateInitTemplate(CrossplanePackageType)
 }
 
-// ClusterMakefile creates cluster Makefile
-func (f *TemplateFactory) ClusterMakefile() machinery.Template {
-	return ClusterMakefile(f.config)
+// ConfigController creates config controller template
+func (f *CrossplaneTemplateFactory) ConfigController() (TemplateProduct, error) {
+	return f.CreateInitTemplate(ConfigControllerType)
 }
 
-// License creates LICENSE file
-func (f *TemplateFactory) License() machinery.Template {
-	return License(f.config)
+// ControllerRegister creates controller registration template
+func (f *CrossplaneTemplateFactory) ControllerRegister() (TemplateProduct, error) {
+	return f.CreateInitTemplate(ControllerRegisterType)
 }
 
-// API Template Methods - delegates to API template functions
-
-// APITypes creates API types file for managed resource
-func (f *TemplateFactory) APITypes(force bool) machinery.Template {
-	return APITypes(f.config, force)
+// ClusterDockerfile creates cluster Dockerfile template
+func (f *CrossplaneTemplateFactory) ClusterDockerfile() (TemplateProduct, error) {
+	return f.CreateInitTemplate(ClusterDockerfileType)
 }
 
-// APIGroup creates API group registration
-func (f *TemplateFactory) APIGroup() machinery.Template {
-	return APIGroup(f.config)
+// ClusterMakefile creates cluster Makefile template
+func (f *CrossplaneTemplateFactory) ClusterMakefile() (TemplateProduct, error) {
+	return f.CreateInitTemplate(ClusterMakefileType)
 }
 
-// Controller creates controller implementation
-func (f *TemplateFactory) Controller(force bool) machinery.Template {
-	return Controller(f.config, force)
+// VersionGo creates version.go template
+func (f *CrossplaneTemplateFactory) VersionGo() (TemplateProduct, error) {
+	return f.CreateInitTemplate(VersionGoType)
+}
+
+// License creates LICENSE template
+func (f *CrossplaneTemplateFactory) License() (TemplateProduct, error) {
+	return f.CreateStaticTemplate(LicenseType)
+}
+
+// APITypes creates API types template
+func (f *CrossplaneTemplateFactory) APITypes(force bool, res interface{}) (TemplateProduct, error) {
+	opts := []Option{WithForce(force)}
+	if res != nil {
+		if r, ok := res.(*resource.Resource); ok {
+			opts = append(opts, WithResource(r))
+		}
+	}
+	return f.CreateAPITemplate(APITypesTemplateType, opts...)
+}
+
+// APIGroup creates API group template
+func (f *CrossplaneTemplateFactory) APIGroup(res interface{}) (TemplateProduct, error) {
+	opts := []Option{}
+	if res != nil {
+		if r, ok := res.(*resource.Resource); ok {
+			opts = append(opts, WithResource(r))
+		}
+	}
+	return f.CreateAPITemplate(APIGroupTemplateType, opts...)
+}
+
+// Controller creates controller template
+func (f *CrossplaneTemplateFactory) Controller(force bool, res interface{}) (TemplateProduct, error) {
+	opts := []Option{WithForce(force)}
+	if res != nil {
+		if r, ok := res.(*resource.Resource); ok {
+			opts = append(opts, WithResource(r))
+		}
+	}
+	return f.CreateAPITemplate(ControllerTemplateType, opts...)
 }
