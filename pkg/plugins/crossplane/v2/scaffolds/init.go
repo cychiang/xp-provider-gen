@@ -73,6 +73,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	clusterMakefile, _ := factory.ClusterMakefile()
 	versionGo, _ := factory.VersionGo()
 	license, _ := factory.License()
+	docGo, _ := factory.DocGo()
 
 	// Execute scaffolding with proper Factory Pattern
 	if err := scaffold.Execute(
@@ -89,6 +90,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 		// ProviderConfig APIs
 		providerConfigTypes,
 		providerConfigRegister,
+		docGo,
 
 		// Package and controllers
 		crossplanePackage,

@@ -78,6 +78,8 @@ func (b *InitTemplateBuilder) Build(cfg config.Config, opts ...Option) (Template
 		product = &VersionGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
 	case LicenseType:
 		product = &LicenseTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
+	case DocGoType:
+		product = &DocGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
 	default:
 		return nil, fmt.Errorf("unsupported init template type: %s", b.templateType)
 	}

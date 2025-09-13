@@ -44,6 +44,7 @@ const (
 	ClusterDockerfileType        TemplateType = "clusterdockerfile"
 	ClusterMakefileType          TemplateType = "clustermakefile"
 	LicenseType                  TemplateType = "license"
+	DocGoType                    TemplateType = "docgo"
 
 	// API template types
 	APITypesTemplateType         TemplateType = "apitypes"

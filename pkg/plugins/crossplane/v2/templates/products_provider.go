@@ -177,7 +177,7 @@ const providerConfigRegisterTemplate = `{{ .Boilerplate }}
 
 // Package v1alpha1 contains the core resources of the {{ .ProviderName }} provider.
 // +kubebuilder:object:generate=true
-// +groupName=pkg.crossplane.io
+// +groupName={{ .Domain }}
 // +versionName=v1alpha1
 package v1alpha1
 
@@ -188,7 +188,7 @@ import (
 
 // Package type metadata.
 const (
-	Group   = "pkg.crossplane.io"
+	Group   = "{{ .Domain }}"
 	Version = "v1alpha1"
 )
 
@@ -545,6 +545,27 @@ ADD bin/$TARGETOS\_$TARGETARCH/provider /usr/local/bin/crossplane-{{ .ProviderNa
 
 USER 65532
 ENTRYPOINT ["crossplane-{{ .ProviderName }}-provider"]`
+
+// DocGoTemplateProduct implements doc.go file generation
+type DocGoTemplateProduct struct {
+	*BaseTemplateProduct
+}
+
+func (t *DocGoTemplateProduct) SetTemplateDefaults() error {
+	if t.Path == "" {
+		t.Path = filepath.Join("apis", "v1alpha1", "doc.go")
+	}
+	t.TemplateBody = docGoTemplate
+	return nil
+}
+
+const docGoTemplate = `{{ .Boilerplate }}
+
+// Package v1alpha1 contains the core resources of the {{ .ProviderName }} provider.
+// +kubebuilder:object:generate=true
+// +groupName={{ .Domain }}
+// +versionName=v1alpha1
+package v1alpha1`
 
 // ClusterMakefileTemplateProduct implements cluster Makefile generation
 type ClusterMakefileTemplateProduct struct {

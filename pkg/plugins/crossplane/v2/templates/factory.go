@@ -207,6 +207,11 @@ func (f *CrossplaneTemplateFactory) License() (TemplateProduct, error) {
 	return f.CreateStaticTemplate(LicenseType)
 }
 
+// DocGo creates doc.go template for v1alpha1 package
+func (f *CrossplaneTemplateFactory) DocGo() (TemplateProduct, error) {
+	return f.CreateInitTemplate(DocGoType)
+}
+
 // APITypes creates API types template
 func (f *CrossplaneTemplateFactory) APITypes(force bool, res interface{}) (TemplateProduct, error) {
 	opts := []Option{WithForce(force)}
