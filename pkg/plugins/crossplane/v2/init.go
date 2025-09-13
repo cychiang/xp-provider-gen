@@ -26,12 +26,25 @@ type initSubcommand struct {
 func (p *initSubcommand) UpdateMetadata(cliMeta plugin.CLIMetadata, subcmdMeta *plugin.SubcommandMetadata) {
 	subcmdMeta.Description = `Initialize a new Crossplane provider project.
 
-This command initializes a new Crossplane provider project with the necessary
-scaffolding to develop and build a Kubernetes controller to manage external
-resources following Crossplane patterns.`
+This command scaffolds a complete Crossplane provider project with:
+- ProviderConfig APIs for authentication
+- Package metadata for Crossplane registry
+- Build system integration via git submodules
+- Controller scaffolding following Crossplane v2 patterns
+- Go module and project structure`
 	
-	subcmdMeta.Examples = fmt.Sprintf(`  # Initialize a basic Crossplane provider project
-  %s init --domain=example.com --repo=github.com/example/provider-example`, cliMeta.CommandName)
+	subcmdMeta.Examples = fmt.Sprintf(`  # Initialize a basic provider
+  %s init --domain=example.com --repo=github.com/example/provider-aws
+
+  # Initialize with custom organization
+  %s init --domain=acme.com --repo=github.com/acme/provider-acme
+
+  # Initialize in current directory (auto-detects name)
+  %s init --domain=example.com
+
+  # Initialize with owner for copyright
+  %s init --domain=example.com --repo=github.com/example/provider-gcp --owner="Acme Corp"`, 
+		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
 }
 
 func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {

@@ -17,30 +17,22 @@ limitations under the License.
 package templates
 
 import (
-	"path/filepath"
-
+	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 )
 
-var _ machinery.Template = &GitModules{}
-
-// GitModules scaffolds a .gitmodules file for Crossplane build system submodule
-type GitModules struct {
-	machinery.TemplateMixin
+// GoMod creates go.mod template
+func GoMod(cfg config.Config) machinery.Template {
+	return SimpleFile(cfg, "go.mod", goModTemplate)
 }
 
-// SetTemplateDefaults implements machinery.Template
-func (f *GitModules) SetTemplateDefaults() error {
-	if f.Path == "" {
-		f.Path = filepath.Join(".gitmodules")
-	}
+const goModTemplate = `module {{ .Repo }}
 
-	f.TemplateBody = gitModulesTemplate
+go 1.24
 
-	return nil
-}
-
-const gitModulesTemplate = `[submodule "build"]
-	path = build
-	url = https://github.com/crossplane/build
-`
+require (
+	github.com/crossplane/crossplane-runtime v2.0.0
+	k8s.io/apimachinery v0.31.0
+	k8s.io/client-go v0.31.0
+	sigs.k8s.io/controller-runtime v0.19.0
+)`

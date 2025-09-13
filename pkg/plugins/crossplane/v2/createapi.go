@@ -11,9 +11,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 
-	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/templates/api"
-	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/templates/controllers"
-	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds/templates"
+	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/templates"
 )
 
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
@@ -32,15 +30,28 @@ func (p *createAPISubcommand) UpdateMetadata(cliMeta plugin.CLIMetadata, subcmdM
 	
 	subcmdMeta.Description = `Create a new Crossplane managed resource API.
 
-This command scaffolds a new Crossplane managed resource with the necessary
-controller implementation using crossplane-runtime patterns.`
+This command scaffolds a complete managed resource with:
+- Custom Resource Definition (CRD) following Kubernetes standards
+- Parameters and Observation structs for external resource lifecycle
+- Controller implementation with crossplane-runtime v2 patterns
+- External client interface for cloud API integration
+- Automatic registration in controller manager`
 	
-	subcmdMeta.Examples = fmt.Sprintf(`  # Create a basic managed resource
+	subcmdMeta.Examples = fmt.Sprintf(`  # Create a compute resource
   %s create api --group=compute --version=v1alpha1 --kind=Instance
 
-  # Create a storage resource
-  %s create api --group=storage --version=v1beta1 --kind=Bucket`, 
-		cliMeta.CommandName, cliMeta.CommandName)
+  # Create a storage resource with stable version
+  %s create api --group=storage --version=v1beta1 --kind=Bucket
+
+  # Create a network resource
+  %s create api --group=network --version=v1alpha1 --kind=VPC
+
+  # Create resource and force overwrite existing files
+  %s create api --group=database --version=v1alpha1 --kind=PostgreSQL --force
+
+  # Create resource without external client generation
+  %s create api --group=compute --version=v1alpha1 --kind=Server --generate-client=false`, 
+		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
 }
 
 func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
@@ -93,26 +104,27 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 	p.ensureConfig()
 	
-	providerName := p.extractProviderName()
-	
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(p.config),
 		machinery.WithBoilerplate(p.pluginConfig.GetBoilerplate()),
 		machinery.WithResource(p.resource),
 	)
 
+	// Create template factory for ultra-simple template creation
+	factory := templates.NewFactory(p.config)
+	
+	// Execute scaffolding - dramatically simplified from complex template instantiation
 	if err := scaffold.Execute(
-		&api.CrossplaneGroup{},
-		&api.CrossplaneTypes{Force: p.Force},
-		&controllers.CrossplaneController{
-			Force: p.Force,
-			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
-			DomainMixin: machinery.DomainMixin{Domain: p.config.GetDomain()},
-		},
+		// API types and group registration
+		factory.APIGroup(),
+		factory.APITypes(p.Force),
+		factory.Controller(p.Force),
+		
+		// Controller registration update
 		&templates.TemplateUpdater{
 			Force: true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
-			ProviderName: providerName,
+			ProviderName: p.extractProviderName(),
 		},
 	); err != nil {
 		return CreateAPIError("scaffolding", err)

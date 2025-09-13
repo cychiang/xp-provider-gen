@@ -1,68 +1,20 @@
-/*
-Copyright 2025 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package api
+package templates
 
 import (
-	log "log/slog"
-	"path/filepath"
-
+	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 )
 
-var _ machinery.Template = &CrossplaneTypes{}
-
-// CrossplaneTypes scaffolds the file that defines Crossplane managed resource types
-type CrossplaneTypes struct {
-	machinery.TemplateMixin
-	machinery.MultiGroupMixin
-	machinery.BoilerplateMixin
-	machinery.ResourceMixin
-
-	// Crossplane-specific fields
-	Force bool
-}
-
-// SetTemplateDefaults implements machinery.Template
-func (f *CrossplaneTypes) SetTemplateDefaults() error {
-	if f.Path == "" {
-		// Crossplane providers always use multi-group layout: apis/${group}/${version}/
-		if f.Resource.Group != "" {
-			f.Path = filepath.Join("apis", "%[group]", "%[version]", "%[kind]_types.go")
-		} else {
-			// Fallback for resources without group
-			f.Path = filepath.Join("apis", "%[version]", "%[kind]_types.go")
-		}
-	}
-
-	f.Path = f.Resource.Replacer().Replace(f.Path)
-	log.Info(f.Path)
-
-	f.TemplateBody = crossplaneTypesTemplate
-
-	if f.Force {
-		f.IfExistsAction = machinery.OverwriteFile
+func APITypes(cfg config.Config, force bool) machinery.Template {
+	t := NewAPITemplate(cfg, "apis/%[group]/%[version]/%[kind]_types.go", crossplaneTypesTemplate)
+	if force {
+		t.SetAction(machinery.OverwriteFile)
 	} else {
-		f.IfExistsAction = machinery.Error
+		t.SetAction(machinery.Error)
 	}
-
-	return nil
+	return t
 }
 
-//nolint:lll
 const crossplaneTypesTemplate = `{{ .Boilerplate }}
 
 package {{ .Resource.Version }}
@@ -86,7 +38,7 @@ type {{ .Resource.Kind }}Parameters struct {
 	// ConfigurableField is a required configuration parameter for the {{ .Resource.Kind }}.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
-	ConfigurableField string ` + "`" + `json:"configurableField"` + "`" + `
+	ConfigurableField string ` + "`json:\"configurableField\"`" + `
 }
 
 // {{ .Resource.Kind }}Observation are the observable fields of a {{ .Resource.Kind }}.
@@ -94,21 +46,21 @@ type {{ .Resource.Kind }}Observation struct {
 	// TODO: Add fields that will be observed from the external resource.
 	// These fields represent the current state of the external resource
 	// and will be populated by the controller during reconciliation.
-	ConfigurableField string ` + "`" + `json:"configurableField"` + "`" + `
-	ObservableField   string ` + "`" + `json:"observableField,omitempty"` + "`" + `
+	ConfigurableField string ` + "`json:\"configurableField\"`" + `
+	ObservableField   string ` + "`json:\"observableField,omitempty\"`" + `
 }
 
 // A {{ .Resource.Kind }}Spec defines the desired state of a {{ .Resource.Kind }}.
 type {{ .Resource.Kind }}Spec struct {
-	xpv2.ManagedResourceSpec ` + "`" + `json:",inline"` + "`" + `
+	xpv2.ManagedResourceSpec ` + "`json:\",inline\"`" + `
 	// +kubebuilder:validation:Required
-	ForProvider              {{ .Resource.Kind }}Parameters ` + "`" + `json:"forProvider"` + "`" + `
+	ForProvider              {{ .Resource.Kind }}Parameters ` + "`json:\"forProvider\"`" + `
 }
 
 // A {{ .Resource.Kind }}Status represents the observed state of a {{ .Resource.Kind }}.
 type {{ .Resource.Kind }}Status struct {
-	xpv1.ResourceStatus ` + "`" + `json:",inline"` + "`" + `
-	AtProvider          {{ .Resource.Kind }}Observation ` + "`" + `json:"atProvider,omitempty"` + "`" + `
+	xpv1.ResourceStatus ` + "`json:\",inline\"`" + `
+	AtProvider          {{ .Resource.Kind }}Observation ` + "`json:\"atProvider,omitempty\"`" + `
 }
 
 // +kubebuilder:object:root=true
@@ -121,20 +73,20 @@ type {{ .Resource.Kind }}Status struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed},shortName={{ lower .Resource.Kind }}
 type {{ .Resource.Kind }} struct {
-	metav1.TypeMeta   ` + "`" + `json:",inline"` + "`" + `
-	metav1.ObjectMeta ` + "`" + `json:"metadata,omitempty"` + "`" + `
+	metav1.TypeMeta   ` + "`json:\",inline\"`" + `
+	metav1.ObjectMeta ` + "`json:\"metadata,omitempty\"`" + `
 
-	Spec   {{ .Resource.Kind }}Spec   ` + "`" + `json:"spec"` + "`" + `
-	Status {{ .Resource.Kind }}Status ` + "`" + `json:"status,omitempty"` + "`" + `
+	Spec   {{ .Resource.Kind }}Spec   ` + "`json:\"spec\"`" + `
+	Status {{ .Resource.Kind }}Status ` + "`json:\"status,omitempty\"`" + `
 }
 
 // +kubebuilder:object:root=true
 
 // {{ .Resource.Kind }}List contains a list of {{ .Resource.Kind }}
 type {{ .Resource.Kind }}List struct {
-	metav1.TypeMeta ` + "`" + `json:",inline"` + "`" + `
-	metav1.ListMeta ` + "`" + `json:"metadata,omitempty"` + "`" + `
-	Items           []{{ .Resource.Kind }} ` + "`" + `json:"items"` + "`" + `
+	metav1.TypeMeta ` + "`json:\",inline\"`" + `
+	metav1.ListMeta ` + "`json:\"metadata,omitempty\"`" + `
+	Items           []{{ .Resource.Kind }} ` + "`json:\"items\"`" + `
 }
 
 // {{ .Resource.Kind }} type metadata.
@@ -147,5 +99,4 @@ var (
 
 func init() {
 	SchemeBuilder.Register(&{{ .Resource.Kind }}{}, &{{ .Resource.Kind }}List{})
-}
-`
+}`
