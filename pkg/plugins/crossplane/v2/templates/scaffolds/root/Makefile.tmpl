@@ -46,7 +46,7 @@ XPKGS = {{ .ProviderName }}
 
 # NOTE(hasheddan): we force image building to happen prior to xpkg build so that
 # we ensure image is present in daemon.
-xpkg.build.{{ .ProviderName }}: do.build.images
+xpkg.build.{{ .ProviderName }}: do.build.images $(CROSSPLANE_CLI)
 
 # ====================================================================================
 # Targets
