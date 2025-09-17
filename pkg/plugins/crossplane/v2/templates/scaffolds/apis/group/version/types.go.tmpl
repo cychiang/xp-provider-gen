@@ -15,12 +15,13 @@ import (
 // {{ .Resource.Kind }}Parameters are the configurable fields of a {{ .Resource.Kind }}.
 type {{ .Resource.Kind }}Parameters struct {
 	// TODO: Add your configurable fields here
-	Region string `json:"region"`
+	ConfigurableField string `json:"configurableField"`
 }
 
 // {{ .Resource.Kind }}Observation are the observable fields of a {{ .Resource.Kind }}.
 type {{ .Resource.Kind }}Observation struct {
 	// TODO: Add your observable fields here
+	ConfigurableField string `json:"configurableField"`
 	Status string `json:"status,omitempty"`
 }
 
