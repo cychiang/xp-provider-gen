@@ -288,13 +288,25 @@ spec:
 // ConfigControllerTemplateProduct implements config controller
 type ConfigControllerTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *ConfigControllerTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = filepath.Join("internal", "controller", "config", "config.go")
 	}
-	t.TemplateBody = configControllerTemplate
+
+	// Load from scaffolds file
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("internal/controller/config/config.go.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = configControllerTemplate
+	}
 	return nil
 }
 
@@ -364,13 +376,25 @@ func setupClusterProviderConfig(mgr ctrl.Manager, o controller.Options) error {
 // ControllerRegisterTemplateProduct implements controller registration
 type ControllerRegisterTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *ControllerRegisterTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = filepath.Join("internal", "controller", "register.go")
 	}
-	t.TemplateBody = controllerRegisterTemplate
+
+	// Load from scaffolds file
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("internal/controller/register.go.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = controllerRegisterTemplate
+	}
 	return nil
 }
 
@@ -592,6 +616,7 @@ const licenseTemplate = `                                 Apache License
 // ClusterDockerfileTemplateProduct implements cluster Dockerfile generation
 type ClusterDockerfileTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *ClusterDockerfileTemplateProduct) SetTemplateDefaults() error {
@@ -599,7 +624,18 @@ func (t *ClusterDockerfileTemplateProduct) SetTemplateDefaults() error {
 		providerName := extractProviderName(t.Repo)
 		t.Path = filepath.Join("cluster", "images", providerName, "Dockerfile")
 	}
-	t.TemplateBody = clusterDockerfileTemplate
+
+	// Load from scaffolds file
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("cluster/images/IMAGE_NAME/Dockerfile.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = clusterDockerfileTemplate
+	}
 	return nil
 }
 
@@ -616,13 +652,25 @@ ENTRYPOINT ["crossplane-{{ .ProviderName }}-provider"]`
 // DocGoTemplateProduct implements doc.go file generation
 type DocGoTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *DocGoTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = filepath.Join("apis", "v1alpha1", "doc.go")
 	}
-	t.TemplateBody = docGoTemplate
+
+	// Load from scaffolds file
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("apis/doc.go.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = docGoTemplate
+	}
 	return nil
 }
 
@@ -637,6 +685,7 @@ package v1alpha1`
 // ClusterMakefileTemplateProduct implements cluster Makefile generation
 type ClusterMakefileTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *ClusterMakefileTemplateProduct) SetTemplateDefaults() error {
@@ -644,7 +693,18 @@ func (t *ClusterMakefileTemplateProduct) SetTemplateDefaults() error {
 		providerName := extractProviderName(t.Repo)
 		t.Path = filepath.Join("cluster", "images", providerName, "Makefile")
 	}
-	t.TemplateBody = clusterMakefileTemplate
+
+	// Load from scaffolds file
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("cluster/images/IMAGE_NAME/Makefile.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = clusterMakefileTemplate
+	}
 	return nil
 }
 

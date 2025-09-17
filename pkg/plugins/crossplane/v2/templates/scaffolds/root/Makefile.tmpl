@@ -53,11 +53,19 @@ xpkg.build.{{ .ProviderName }}: do.build.images
 
 # NOTE: We rely on the default reviewable target from build/makelib/common.mk
 
-# Update dependencies and setup build environment
-submodules: $(SUBMODULES)
-	@echo "Setting up build environment..."
-	@go mod tidy
-	@echo "Build environment setup complete."
+# integration tests
+e2e.run: test-integration
+
+# Run integration tests.
+test-integration: $(KIND) $(KUBECTL) $(CROSSPLANE_CLI) $(HELM3)
+	@$(INFO) running integration tests using kind $(KIND_VERSION)
+	@KIND_NODE_IMAGE_TAG=${KIND_NODE_IMAGE_TAG} $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
+	@$(OK) integration tests passed
+
+# Update the submodules, such as the common build scripts.
+submodules:
+	@git submodule sync
+	@git submodule update --init --recursive
 
 # NOTE: We rely on the default generate target from build/makelib/golang.mk
 
@@ -66,7 +74,7 @@ submodules: $(SUBMODULES)
 # The first time `make` is run, the includes of build/*.mk files will
 # all fail, and this target will be run. The next time, the default as defined
 # by the includes will be run instead.
-fallback: submodules
+fallthrough: submodules
 	@echo Initial setup complete. Running make again . . .
 	@make
 
@@ -91,14 +99,57 @@ dev-clean: $(KIND) $(KUBECTL)
 	@$(INFO) Deleting kind cluster
 	@$(KIND) delete cluster --name=$(PROJECT_NAME)-dev
 
-.PHONY: submodules fallback run dev dev-clean
+.PHONY: submodules fallthrough test-integration run dev dev-clean
+
+# ====================================================================================
+# Special Targets
+
+# Install gomplate
+GOMPLATE_VERSION := 3.10.0
+GOMPLATE := $(TOOLS_HOST_DIR)/gomplate-$(GOMPLATE_VERSION)
+
+$(GOMPLATE):
+	@$(INFO) installing gomplate $(SAFEHOSTPLATFORM)
+	@mkdir -p $(TOOLS_HOST_DIR)
+	@curl -fsSLo $(GOMPLATE) https://github.com/hairyhenderson/gomplate/releases/download/v$(GOMPLATE_VERSION)/gomplate_$(SAFEHOSTPLATFORM) || $(FAIL)
+	@chmod +x $(GOMPLATE)
+	@$(OK) installing gomplate $(SAFEHOSTPLATFORM)
+
+export GOMPLATE
+
+# This target prepares repo for your provider by replacing all "template"
+# occurrences with your provider name.
+# This target can only be run once, if you want to rerun for some reason,
+# consider stashing/resetting your git state.
+# Arguments:
+#   provider: Camel case name of your provider, e.g. GitHub, PlanetScale
+provider.prepare:
+	@[ "${provider}" ] || ( echo "argument \"provider\" is not set"; exit 1 )
+	@PROVIDER=$(provider) ./hack/helpers/prepare.sh
+
+# This target adds a new api type and its controller.
+# You would still need to register new api in "apis/<provider>.go" and
+# controller in "internal/controller/<provider>.go".
+# Arguments:
+#   provider: Camel case name of your provider, e.g. GitHub, PlanetScale
+#   group: API group for the type you want to add.
+#   kind: Kind of the type you want to add
+#	apiversion: API version of the type you want to add. Optional and defaults to "v1alpha1"
+provider.addtype: $(GOMPLATE)
+	@[ "${provider}" ] || ( echo "argument \"provider\" is not set"; exit 1 )
+	@[ "${group}" ] || ( echo "argument \"group\" is not set"; exit 1 )
+	@[ "${kind}" ] || ( echo "argument \"kind\" is not set"; exit 1 )
+	@PROVIDER=$(provider) GROUP=$(group) KIND=$(kind) APIVERSION=$(apiversion) PROJECT_REPO=$(PROJECT_REPO) ./hack/helpers/addtype.sh
 
 define CROSSPLANE_MAKE_HELP
 Crossplane Targets:
     submodules            Update the submodules, such as the common build scripts.
+    test-integration      Run integration tests using kind.
     run                   Run crossplane locally, out-of-cluster. Useful for development.
     dev                   Create kind cluster and run provider with CRDs.
     dev-clean             Clean up development kind cluster.
+    provider.prepare      Replace "template" with provider name. Run once per provider.
+    provider.addtype      Add a new API type and controller. Requires group, kind and provider args.
 
 endef
 # The reason CROSSPLANE_MAKE_HELP is used instead of CROSSPLANE_HELP is because the crossplane

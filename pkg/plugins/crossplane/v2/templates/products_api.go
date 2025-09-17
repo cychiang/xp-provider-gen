@@ -440,6 +440,7 @@ func (c *external) Disconnect(ctx context.Context) error {
 // ExamplesManagedResourceTemplateProduct implements managed resource examples
 type ExamplesManagedResourceTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *ExamplesManagedResourceTemplateProduct) GetPath() string {
@@ -453,7 +454,17 @@ func (t *ExamplesManagedResourceTemplateProduct) GetIfExistsAction() machinery.I
 }
 
 func (t *ExamplesManagedResourceTemplateProduct) SetTemplateDefaults() error {
-	t.TemplateBody = managedResourceExampleTemplate
+	// Load from scaffolds file
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("examples/group/kind.yaml.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = managedResourceExampleTemplate
+	}
 	return nil
 }
 

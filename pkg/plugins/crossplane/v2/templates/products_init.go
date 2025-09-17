@@ -579,6 +579,7 @@ const boilerplateTemplate = `// SPDX-FileCopyrightText: 2025 The Crossplane Auth
 // ExamplesProviderConfigTemplateProduct implements provider config examples
 type ExamplesProviderConfigTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *ExamplesProviderConfigTemplateProduct) GetPath() string {
@@ -590,7 +591,17 @@ func (t *ExamplesProviderConfigTemplateProduct) GetIfExistsAction() machinery.If
 }
 
 func (t *ExamplesProviderConfigTemplateProduct) SetTemplateDefaults() error {
-	t.TemplateBody = examplesProviderConfigTemplate
+	// Load from scaffolds file
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("examples/provider/config.yaml.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = examplesProviderConfigTemplate
+	}
 	return nil
 }
 
