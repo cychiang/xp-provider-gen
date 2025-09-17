@@ -40,14 +40,14 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/statemetrics"
 
-	"github.com/test/provider-scheme-test/apis"
-	providercontroller "github.com/test/provider-scheme-test/internal/controller"
-	"github.com/test/provider-scheme-test/internal/version"
+	"github.com/test/provider-workflow/apis"
+	providercontroller "github.com/test/provider-workflow/internal/controller"
+	"github.com/test/provider-workflow/internal/version"
 )
 
 func main() {
 	var (
-		app            = kingpin.New(filepath.Base(os.Args[0]), "provider-scheme-test support for Crossplane.").DefaultEnvars()
+		app            = kingpin.New(filepath.Base(os.Args[0]), "provider-workflow support for Crossplane.").DefaultEnvars()
 		debug          = app.Flag("debug", "Run with debug logging.").Short('d').Bool()
 		leaderElection = app.Flag("leader-election", "Use leader election for the controller manager.").Short('l').Default("false").Envar("LEADER_ELECTION").Bool()
 
@@ -64,7 +64,7 @@ func main() {
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	zl := zap.New(zap.UseDevMode(*debug))
-	log := logging.NewLogrLogger(zl.WithName("provider-scheme-test"))
+	log := logging.NewLogrLogger(zl.WithName("provider-workflow"))
 	if *debug {
 		// The controller-runtime is *very* verbose even at info level, so we only
 		// provide it a real logger when we're running in debug mode.
@@ -94,14 +94,14 @@ func main() {
 		// server. Switching to Leases only and longer leases appears to
 		// alleviate this.
 		LeaderElection:             *leaderElection,
-		LeaderElectionID:           "crossplane-leader-election-provider-scheme-test",
+		LeaderElectionID:           "crossplane-leader-election-provider-workflow",
 		LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
 		LeaseDuration:              func() *time.Duration { d := 60 * time.Second; return &d }(),
 		RenewDeadline:              func() *time.Duration { d := 50 * time.Second; return &d }(),
 	})
 	kingpin.FatalIfError(err, "Cannot create controller manager")
 
-	kingpin.FatalIfError(apis.AddToScheme(mgr.GetScheme()), "Cannot add provider-scheme-test APIs to scheme")
+	kingpin.FatalIfError(apis.AddToScheme(mgr.GetScheme()), "Cannot add provider-workflow APIs to scheme")
 
 	metricRecorder := managed.NewMRMetricRecorder()
 	stateMetrics := statemetrics.NewMRStateMetrics()
@@ -137,11 +137,11 @@ func main() {
 		clo := controller.ChangeLogOptions{
 			ChangeLogger: managed.NewGRPCChangeLogger(
 				changelogsv1alpha1.NewChangeLogServiceClient(conn),
-				managed.WithProviderVersion(fmt.Sprintf("provider-scheme-test:%s", version.Version))),
+				managed.WithProviderVersion(fmt.Sprintf("provider-workflow:%s", version.Version))),
 		}
 		o.ChangeLogOptions = &clo
 	}
 
-	kingpin.FatalIfError(providercontroller.Setup(mgr, o), "Cannot setup provider-scheme-test controllers")
+	kingpin.FatalIfError(providercontroller.Setup(mgr, o), "Cannot setup provider-workflow controllers")
 	kingpin.FatalIfError(mgr.Start(ctrl.SetupSignalHandler()), "Cannot start controller manager")
 }

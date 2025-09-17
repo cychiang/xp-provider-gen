@@ -5,5 +5,5 @@
 domain: test.io
 layout:
 - crossplane.go.kubebuilder.io/v2
-repo: github.com/test/provider-scheme-test
+repo: github.com/test/provider-workflow
 version: "3"

@@ -21,10 +21,10 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 
-	"github.com/test/provider-scheme-test/internal/controller/config"
+	"github.com/test/provider-workflow/internal/controller/config"
 )
 
-// Setup creates all provider-scheme-test controllers with the supplied logger and adds them to
+// Setup creates all provider-workflow controllers with the supplied logger and adds them to
 // the supplied manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{

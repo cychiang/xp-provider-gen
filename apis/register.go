@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package apis contains Kubernetes API for the provider-scheme-test provider.
+// Package apis contains Kubernetes API for the provider-workflow provider.
 package apis
 
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
-	v1alpha1 "github.com/test/provider-scheme-test/apis/v1alpha1"
+	v1alpha1 "github.com/test/provider-workflow/apis/v1alpha1"
 )
 
 func init() {
