@@ -1,212 +1,4 @@
-/*
-Copyright 2025 The Crossplane Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package templates
-
-import (
-	"fmt"
-	"path/filepath"
-	"strings"
-)
-
-// APITypesTemplateProduct implements API types template
-type APITypesTemplateProduct struct {
-	*BaseTemplateProduct
-	loader *TemplateLoader
-}
-
-func (t *APITypesTemplateProduct) SetTemplateDefaults() error {
-	if t.Path == "" {
-		t.Path = fmt.Sprintf("apis/%s/%s/%s_types.go",
-			t.Resource.Group, t.Resource.Version, strings.ToLower(t.Resource.Kind))
-	}
-
-	// Try to load from file first, fallback to embedded constant
-	if t.loader == nil {
-		t.loader = NewTemplateLoader()
-	}
-
-	if templateContent, err := t.loader.LoadTemplate("apis/group/version/types.go.tmpl"); err == nil {
-		t.TemplateBody = templateContent
-	} else {
-		// Fallback to embedded template for backward compatibility
-		t.TemplateBody = apiTypesTemplate
-	}
-	return nil
-}
-
-const apiTypesTemplate = `{{ .Boilerplate }}
-
-package {{ .Resource.Version }}
-
-import (
-	"reflect"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
-	xpv2 "github.com/crossplane/crossplane-runtime/v2/apis/common/v2"
-)
-
-// {{ .Resource.Kind }}Parameters are the configurable fields of a {{ .Resource.Kind }}.
-type {{ .Resource.Kind }}Parameters struct {
-	// TODO: Add your configurable fields here
-	Region string ` + "`" + `json:"region"` + "`" + `
-}
-
-// {{ .Resource.Kind }}Observation are the observable fields of a {{ .Resource.Kind }}.
-type {{ .Resource.Kind }}Observation struct {
-	// TODO: Add your observable fields here
-	Status string ` + "`" + `json:"status,omitempty"` + "`" + `
-}
-
-// A {{ .Resource.Kind }}Spec defines the desired state of a {{ .Resource.Kind }}.
-type {{ .Resource.Kind }}Spec struct {
-	xpv2.ManagedResourceSpec ` + "`" + `json:",inline"` + "`" + `
-	ForProvider              {{ .Resource.Kind }}Parameters ` + "`" + `json:"forProvider"` + "`" + `
-}
-
-// A {{ .Resource.Kind }}Status represents the observed state of a {{ .Resource.Kind }}.
-type {{ .Resource.Kind }}Status struct {
-	xpv1.ResourceStatus ` + "`" + `json:",inline"` + "`" + `
-	AtProvider          {{ .Resource.Kind }}Observation ` + "`" + `json:"atProvider,omitempty"` + "`" + `
-}
-
-// +kubebuilder:object:root=true
-
-// A {{ .Resource.Kind }} is an example API type.
-// +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
-// +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
-// +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
-// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
-// +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed,{{ .ProviderName | lower }}},shortName={{ .Resource.Kind | lower }}
-type {{ .Resource.Kind }} struct {
-	metav1.TypeMeta   ` + "`" + `json:",inline"` + "`" + `
-	metav1.ObjectMeta ` + "`" + `json:"metadata,omitempty"` + "`" + `
-
-	Spec   {{ .Resource.Kind }}Spec   ` + "`" + `json:"spec"` + "`" + `
-	Status {{ .Resource.Kind }}Status ` + "`" + `json:"status,omitempty"` + "`" + `
-}
-
-// +kubebuilder:object:root=true
-
-// {{ .Resource.Kind }}List contains a list of {{ .Resource.Kind }}
-type {{ .Resource.Kind }}List struct {
-	metav1.TypeMeta ` + "`" + `json:",inline"` + "`" + `
-	metav1.ListMeta ` + "`" + `json:"metadata,omitempty"` + "`" + `
-	Items           []{{ .Resource.Kind }} ` + "`" + `json:"items"` + "`" + `
-}
-
-// {{ .Resource.Kind }} type metadata.
-var (
-	{{ .Resource.Kind }}Kind             = reflect.TypeOf({{ .Resource.Kind }}{}).Name()
-	{{ .Resource.Kind }}GroupKind        = schema.GroupKind{Group: Group, Kind: {{ .Resource.Kind }}Kind}.String()
-	{{ .Resource.Kind }}KindAPIVersion   = {{ .Resource.Kind }}Kind + "." + CRDGroupVersion.String()
-	{{ .Resource.Kind }}GroupVersionKind = CRDGroupVersion.WithKind({{ .Resource.Kind }}Kind)
-)
-
-func init() {
-	SchemeBuilder.Register(&{{ .Resource.Kind }}{}, &{{ .Resource.Kind }}List{})
-}`
-
-// APIGroupTemplateProduct implements API group registration template
-type APIGroupTemplateProduct struct {
-	*BaseTemplateProduct
-	loader *TemplateLoader
-}
-
-func (t *APIGroupTemplateProduct) SetTemplateDefaults() error {
-	if t.Path == "" {
-		t.Path = fmt.Sprintf("apis/%s/%s/groupversion_info.go",
-			t.Resource.Group, t.Resource.Version)
-	}
-
-	// Try to load from file first, fallback to embedded constant
-	if t.loader == nil {
-		t.loader = NewTemplateLoader()
-	}
-
-	if templateContent, err := t.loader.LoadTemplate("apis/group/version/groupversion_info.go.tmpl"); err == nil {
-		t.TemplateBody = templateContent
-	} else {
-		// Fallback to embedded template for backward compatibility
-		t.TemplateBody = apiGroupTemplate
-	}
-	return nil
-}
-
-const apiGroupTemplate = `{{ .Boilerplate }}
-
-// Package {{ .Resource.Version }} contains API Schema definitions for the {{ .Resource.Group }} {{ .Resource.Version }} API group
-// +kubebuilder:object:generate=true
-// +groupName={{ .Resource.QualifiedGroup }}
-// +versionName={{ .Resource.Version }}
-package {{ .Resource.Version }}
-
-import (
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/scheme"
-)
-
-// Package type metadata.
-const (
-	Group   = "{{ .Resource.QualifiedGroup }}"
-	Version = "{{ .Resource.Version }}"
-)
-
-var (
-	// CRDGroupVersion is the API Group Version used to register the objects
-	CRDGroupVersion = schema.GroupVersion{Group: Group, Version: Version}
-
-	// SchemeGroupVersion is group version used to register these objects
-	SchemeGroupVersion = schema.GroupVersion{Group: Group, Version: Version}
-
-	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
-	SchemeBuilder = &scheme.Builder{GroupVersion: CRDGroupVersion}
-)`
-
-// ControllerTemplateProduct implements controller template
-type ControllerTemplateProduct struct {
-	*BaseTemplateProduct
-	loader *TemplateLoader
-}
-
-func (t *ControllerTemplateProduct) SetTemplateDefaults() error {
-	if t.Path == "" {
-		t.Path = filepath.Join("internal", "controller", t.Resource.Group,
-			strings.ToLower(t.Resource.Kind), strings.ToLower(t.Resource.Kind)+".go")
-	}
-
-	// Try to load from file first, fallback to embedded constant
-	if t.loader == nil {
-		t.loader = NewTemplateLoader()
-	}
-
-	if templateContent, err := t.loader.LoadTemplate("internal/controller/kind/controller.go.tmpl"); err == nil {
-		t.TemplateBody = templateContent
-	} else {
-		// Fallback to embedded template for backward compatibility
-		t.TemplateBody = controllerTemplate
-	}
-	return nil
-}
-
-const controllerTemplate = `{{ .Boilerplate }}
+{{ .Boilerplate }}
 
 package {{ .Resource.Kind | lower }}
 
@@ -216,6 +8,7 @@ import (
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -362,6 +155,15 @@ type external struct {
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
+	// If the managed resource is marked for deletion then deleted it.
+	// Because there is no external resource to observe, we return false for
+	// ResourceExists.
+	if meta.WasDeleted(mg) {
+		return managed.ExternalObservation{
+			ResourceExists: false,
+		}, nil
+	}
+
 	cr, ok := mg.(*{{ .Resource.Version }}.{{ .Resource.Kind }})
 	if !ok {
 		return managed.ExternalObservation{}, errors.New(errNot{{ .Resource.Kind }})
@@ -370,6 +172,15 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	// These fmt statements should be removed in the real implementation.
 	fmt.Printf("Observing: %+v", cr)
 
+	// Simulate external resource doesn't exist, and enter to create the flow
+	if meta.GetExternalName(cr) == "" {
+		return managed.ExternalObservation{
+			ResourceExists: false,
+		}, nil
+	}
+
+	// Now the resource is in sync and ready to use, so mark it as available.
+	cr.Status.SetConditions(xpv1.Available())
 	return managed.ExternalObservation{
 		// Return false when the external resource does not exist. This lets
 		// the managed resource reconciler know that it needs to call Create to
@@ -395,6 +206,8 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	}
 
 	fmt.Printf("Creating: %+v", cr)
+
+	meta.SetExternalName(cr, "my-external-name")
 
 	return managed.ExternalCreation{
 		// Optionally return any details that may be required to connect to the
@@ -432,4 +245,4 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 
 func (c *external) Disconnect(ctx context.Context) error {
 	return nil
-}`
+}

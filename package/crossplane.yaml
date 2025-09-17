@@ -1,0 +1,22 @@
+apiVersion: meta.pkg.crossplane.io/v1alpha1
+kind: Provider
+metadata:
+  name: provider-scheme-test
+  annotations:
+    meta.crossplane.io/maintainer: provider-scheme-test Maintainers <noreply@crossplane.io>
+    meta.crossplane.io/source: github.com/test/provider-scheme-test
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      provider-scheme-test is a Crossplane provider for provider-scheme-test.
+    meta.crossplane.io/readme: |
+      This `provider-provider-scheme-test` repository is the Crossplane infrastructure provider for
+      provider-scheme-test. The provider that is built from the source code in this repository can be
+      installed into a Crossplane control plane and adds the following new functionality:
+
+      * Custom Resource Definitions (CRDs) that model provider-scheme-test infrastructure and services
+      * Controllers to provision these resources in provider-scheme-test based on the users desired state captured in CRDs they create
+      * Implementations of Crossplane's portable resource abstractions, enabling provider-scheme-test resources to fulfill a user's general need for cloud services
+
+spec:
+  controller:
+    image: github.com/test/provider-scheme-test:latest

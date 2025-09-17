@@ -23,13 +23,25 @@ import (
 // GoModTemplateProduct implements go.mod template
 type GoModTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *GoModTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = "go.mod"
 	}
-	t.TemplateBody = goModTemplate
+
+	// Try to load from file first, fallback to embedded constant
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("root/go.mod.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = goModTemplate
+	}
 	return nil
 }
 
@@ -57,13 +69,25 @@ require (
 // MakefileTemplateProduct implements Makefile template
 type MakefileTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *MakefileTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = "Makefile"
 	}
-	t.TemplateBody = makefileTemplate
+
+	// Try to load from file first, fallback to embedded constant
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("root/Makefile.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = makefileTemplate
+	}
 	return nil
 }
 
@@ -137,18 +161,72 @@ submodules: $(SUBMODULES)
 # by the includes will be run instead.
 fallback: submodules
 	@echo Initial setup complete. Running make again . . .
-	@make`
+	@make
+
+# This is for running out-of-cluster locally, and is for convenience. Running
+# this make target will print out the command which was used. For more control,
+# try running the binary directly with different arguments.
+run: go.build
+	@$(INFO) Running Crossplane locally out-of-cluster . . .
+	@# To see other arguments that can be provided, run the command with --help instead
+	$(GO_OUT_DIR)/provider --debug
+
+dev: $(KIND) $(KUBECTL)
+	@$(INFO) Creating kind cluster
+	@$(KIND) create cluster --name=$(PROJECT_NAME)-dev
+	@$(KUBECTL) cluster-info --context kind-$(PROJECT_NAME)-dev
+	@$(INFO) Installing Provider CRDs
+	@$(KUBECTL) apply -R -f package/crds
+	@$(INFO) Starting Provider controllers
+	@$(GO) run cmd/provider/main.go --debug
+
+dev-clean: $(KIND) $(KUBECTL)
+	@$(INFO) Deleting kind cluster
+	@$(KIND) delete cluster --name=$(PROJECT_NAME)-dev
+
+.PHONY: submodules fallback run dev dev-clean
+
+define CROSSPLANE_MAKE_HELP
+Crossplane Targets:
+    submodules            Update the submodules, such as the common build scripts.
+    run                   Run crossplane locally, out-of-cluster. Useful for development.
+    dev                   Create kind cluster and run provider with CRDs.
+    dev-clean             Clean up development kind cluster.
+
+endef
+# The reason CROSSPLANE_MAKE_HELP is used instead of CROSSPLANE_HELP is because the crossplane
+# binary will try to use CROSSPLANE_HELP if it is set, and this is for something different.
+export CROSSPLANE_MAKE_HELP
+
+crossplane.help:
+	@echo "$$CROSSPLANE_MAKE_HELP"
+
+help-special: crossplane.help
+
+.PHONY: crossplane.help help-special`
 
 // READMETemplateProduct implements README.md template
 type READMETemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *READMETemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = "README.md"
 	}
-	t.TemplateBody = readmeTemplate
+
+	// Try to load from file first, fallback to embedded constant
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("root/README.md.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = readmeTemplate
+	}
 	return nil
 }
 
@@ -206,13 +284,25 @@ We welcome contributions! Please see our [contributing guide](CONTRIBUTING.md) f
 // GitIgnoreTemplateProduct implements .gitignore template
 type GitIgnoreTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *GitIgnoreTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = ".gitignore"
 	}
-	t.TemplateBody = gitIgnoreTemplate
+
+	// Try to load from file first, fallback to embedded constant
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("root/.gitignore.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = gitIgnoreTemplate
+	}
 	return nil
 }
 
@@ -229,13 +319,25 @@ cover.out
 // MainGoTemplateProduct implements cmd/provider/main.go template
 type MainGoTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *MainGoTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = filepath.Join("cmd", "provider", "main.go")
 	}
-	t.TemplateBody = mainGoTemplate
+
+	// Try to load from file first, fallback to embedded constant
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("cmd/provider/main.go.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = mainGoTemplate
+	}
 	return nil
 }
 
@@ -375,13 +477,25 @@ func main() {
 // APIsTemplateProduct implements apis/apis.go
 type APIsTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *APIsTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = filepath.Join("apis", "register.go")
 	}
-	t.TemplateBody = apisTemplate
+
+	// Try to load from file first, fallback to embedded constant
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("apis/register.go.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = apisTemplate
+	}
 	return nil
 }
 

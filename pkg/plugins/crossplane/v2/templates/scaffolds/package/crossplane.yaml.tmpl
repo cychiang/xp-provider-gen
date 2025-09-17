@@ -1,0 +1,22 @@
+apiVersion: meta.pkg.crossplane.io/v1alpha1
+kind: Provider
+metadata:
+  name: {{ .ProviderName }}
+  annotations:
+    meta.crossplane.io/maintainer: {{ .ProviderName }} Maintainers <noreply@crossplane.io>
+    meta.crossplane.io/source: {{ .Repo }}
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      {{ .ProviderName }} is a Crossplane provider for {{ .ProviderName }}.
+    meta.crossplane.io/readme: |
+      This `provider-{{ .ProviderName }}` repository is the Crossplane infrastructure provider for
+      {{ .ProviderName }}. The provider that is built from the source code in this repository can be
+      installed into a Crossplane control plane and adds the following new functionality:
+
+      * Custom Resource Definitions (CRDs) that model {{ .ProviderName }} infrastructure and services
+      * Controllers to provision these resources in {{ .ProviderName }} based on the users desired state captured in CRDs they create
+      * Implementations of Crossplane's portable resource abstractions, enabling {{ .ProviderName }} resources to fulfill a user's general need for cloud services
+
+spec:
+  controller:
+    image: {{ .Repo }}:latest

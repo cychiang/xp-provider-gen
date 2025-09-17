@@ -1,0 +1,53 @@
+# {{ .ProviderName }}
+
+A Crossplane provider for managing cloud resources.
+
+## Getting Started
+
+### Install Provider
+
+Apply the provider to your Crossplane cluster:
+
+```bash
+kubectl apply -f package/provider.yaml
+```
+
+### Configure Provider
+
+Create a ProviderConfig:
+
+```yaml
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: {{ .ProviderName }}
+spec:
+  package: {{ .Repo }}
+```
+
+## Development
+
+### Build
+
+Run `make` to build the provider:
+
+```bash
+make
+```
+
+### Test
+
+Run tests with:
+
+```bash
+make test
+```
+
+### Deploy
+
+Build and deploy the provider:
+
+```bash
+make build
+make deploy
+```

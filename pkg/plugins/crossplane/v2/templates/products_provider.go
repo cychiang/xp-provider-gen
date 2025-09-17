@@ -23,13 +23,25 @@ import (
 // ProviderConfigTypesTemplateProduct implements ProviderConfig types
 type ProviderConfigTypesTemplateProduct struct {
 	*BaseTemplateProduct
+	loader *TemplateLoader
 }
 
 func (t *ProviderConfigTypesTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = filepath.Join("apis", "v1alpha1", "types.go")
 	}
-	t.TemplateBody = providerConfigTypesTemplate
+
+	// Try to load from file first, fallback to embedded constant
+	if t.loader == nil {
+		t.loader = NewTemplateLoader()
+	}
+
+	if templateContent, err := t.loader.LoadTemplate("apis/v1alpha1/providerconfig_types.go.tmpl"); err == nil {
+		t.TemplateBody = templateContent
+	} else {
+		// Fallback to embedded template for backward compatibility
+		t.TemplateBody = providerConfigTypesTemplate
+	}
 	return nil
 }
 
@@ -175,13 +187,11 @@ func (t *ProviderConfigRegisterTemplateProduct) SetTemplateDefaults() error {
 
 const providerConfigRegisterTemplate = `{{ .Boilerplate }}
 
-// Package v1alpha1 contains the core resources of the {{ .ProviderName }} provider.
-// +kubebuilder:object:generate=true
-// +groupName={{ .Domain }}
-// +versionName=v1alpha1
 package v1alpha1
 
 import (
+	"reflect"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
@@ -198,15 +208,45 @@ var (
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
+)
 
-	// GroupVersionKind definitions
-	ProviderConfigGroupVersionKind         = SchemeGroupVersion.WithKind("ProviderConfig")
-	ProviderConfigUsageListGroupVersionKind = SchemeGroupVersion.WithKind("ProviderConfigUsageList")
+// ProviderConfig type metadata.
+var (
+	ProviderConfigKind             = reflect.TypeOf(ProviderConfig{}).Name()
+	ProviderConfigGroupKind        = schema.GroupKind{Group: Group, Kind: ProviderConfigKind}.String()
+	ProviderConfigGroupVersionKind = SchemeGroupVersion.WithKind(ProviderConfigKind)
+)
+
+// ProviderConfigUsage type metadata.
+var (
+	ProviderConfigUsageKind             = reflect.TypeOf(ProviderConfigUsage{}).Name()
+	ProviderConfigUsageGroupVersionKind = SchemeGroupVersion.WithKind(ProviderConfigUsageKind)
+
+	ProviderConfigUsageListKind             = reflect.TypeOf(ProviderConfigUsageList{}).Name()
+	ProviderConfigUsageListGroupVersionKind = SchemeGroupVersion.WithKind(ProviderConfigUsageListKind)
+)
+
+// ClusterProviderConfig type metadata
+var (
+	ClusterProviderConfigKind             = reflect.TypeOf(ClusterProviderConfig{}).Name()
+	ClusterProviderConfigGroupKind        = schema.GroupKind{Group: Group, Kind: ClusterProviderConfigKind}.String()
+	ClusterProviderConfigGroupVersionKind = SchemeGroupVersion.WithKind(ClusterProviderConfigKind)
+)
+
+// ClusterProviderConfigUsage type metadata.
+var (
+	ClusterProviderConfigUsageKind             = reflect.TypeOf(ClusterProviderConfigUsage{}).Name()
+	ClusterProviderConfigUsageGroupVersionKind = SchemeGroupVersion.WithKind(ClusterProviderConfigUsageKind)
+
+	ClusterProviderConfigUsageListKind             = reflect.TypeOf(ClusterProviderConfigUsageList{}).Name()
+	ClusterProviderConfigUsageListGroupVersionKind = SchemeGroupVersion.WithKind(ClusterProviderConfigUsageListKind)
 )
 
 func init() {
 	SchemeBuilder.Register(&ProviderConfig{}, &ProviderConfigList{})
 	SchemeBuilder.Register(&ProviderConfigUsage{}, &ProviderConfigUsageList{})
+	SchemeBuilder.Register(&ClusterProviderConfig{}, &ClusterProviderConfigList{})
+	SchemeBuilder.Register(&ClusterProviderConfigUsage{}, &ClusterProviderConfigUsageList{})
 }`
 
 // CrossplanePackageTemplateProduct implements package/crossplane.yaml
@@ -277,10 +317,18 @@ import (
 // Setup adds a controller that reconciles ProviderConfigs by accounting for
 // their current usage.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
+	if err := setupNamespacedProviderConfig(mgr, o); err != nil {
+		return err
+	}
+	return setupClusterProviderConfig(mgr, o)
+}
+
+func setupNamespacedProviderConfig(mgr ctrl.Manager, o controller.Options) error {
 	name := providerconfig.ControllerName(v1alpha1.ProviderConfigGroupVersionKind.GroupKind().String())
 
 	of := resource.ProviderConfigKinds{
 		Config:    v1alpha1.ProviderConfigGroupVersionKind,
+		Usage:     v1alpha1.ProviderConfigUsageGroupVersionKind,
 		UsageList: v1alpha1.ProviderConfigUsageListGroupVersionKind,
 	}
 
@@ -289,6 +337,25 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		WithOptions(o.ForControllerRuntime()).
 		For(&v1alpha1.ProviderConfig{}).
 		Watches(&v1alpha1.ProviderConfigUsage{}, &resource.EnqueueRequestForProviderConfig{}).
+		Complete(ratelimiter.NewReconciler(name, providerconfig.NewReconciler(mgr, of,
+			providerconfig.WithLogger(o.Logger.WithValues("controller", name)),
+			providerconfig.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name)))), o.GlobalRateLimiter))
+}
+
+func setupClusterProviderConfig(mgr ctrl.Manager, o controller.Options) error {
+	name := providerconfig.ControllerName(v1alpha1.ClusterProviderConfigGroupVersionKind.GroupKind().String())
+
+	of := resource.ProviderConfigKinds{
+		Config:    v1alpha1.ClusterProviderConfigGroupVersionKind,
+		Usage:     v1alpha1.ClusterProviderConfigUsageGroupVersionKind,
+		UsageList: v1alpha1.ClusterProviderConfigUsageListGroupVersionKind,
+	}
+
+	return ctrl.NewControllerManagedBy(mgr).
+		Named(name).
+		WithOptions(o.ForControllerRuntime()).
+		For(&v1alpha1.ClusterProviderConfig{}).
+		Watches(&v1alpha1.ClusterProviderConfigUsage{}, &resource.EnqueueRequestForProviderConfig{}).
 		Complete(ratelimiter.NewReconciler(name, providerconfig.NewReconciler(mgr, of,
 			providerconfig.WithLogger(o.Logger.WithValues("controller", name)),
 			providerconfig.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name)))), o.GlobalRateLimiter))
