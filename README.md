@@ -6,17 +6,17 @@ CLI tool for scaffolding Crossplane providers using Kubebuilder v4 and crossplan
 
 ```bash
 # Install
-git clone https://github.com/crossplane/xp-kubebuilder-plugin
-cd xp-kubebuilder-plugin
+git clone https://github.com/cychiang/xp-provider-gen
+cd xp-provider-gen
 make build
 
 # Create a new provider
 mkdir my-provider && cd my-provider
-../bin/crossplane-provider-gen init --domain=example.com --repo=github.com/example/provider-awesome
+xp-provider-gen init --domain=example.com --repo=github.com/example/provider-awesome
 
 # Add managed resources
-../bin/crossplane-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
-../bin/crossplane-provider-gen create api --group=storage --version=v1alpha1 --kind=Bucket
+xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
+xp-provider-gen create api --group=storage --version=v1alpha1 --kind=Bucket
 
 # Build and test
 make generate && make build && make reviewable
