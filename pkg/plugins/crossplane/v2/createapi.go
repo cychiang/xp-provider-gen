@@ -160,7 +160,7 @@ func (p *createAPISubcommand) PostScaffold() error {
 	fmt.Printf("  1. Customize the %sParameters and %sObservation structs\n", p.resource.Kind, p.resource.Kind)
 	fmt.Printf("  2. Implement the external client logic\n")
 	fmt.Printf("  3. Update controller reconciliation logic\n")
-	fmt.Printf("  4. Run 'make manifests' to generate CRDs\n")
+	fmt.Printf("  4. Run 'make generate' to generate CRDs\n")
 
 	return nil
 }

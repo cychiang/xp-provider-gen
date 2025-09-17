@@ -152,10 +152,16 @@ func (s *InitScaffolder) setupGitAndSubmodule() error {
 func (s *InitScaffolder) runPostInitSteps() error {
 	fmt.Printf("Running automated setup steps...\n")
 
-	// Step 1: Run make submodules
-	fmt.Printf("  1. Setting up build system (make submodules)...\n")
+	// Step 1: Create initial commit FIRST to avoid git HEAD errors
+	fmt.Printf("  1. Creating initial commit...\n")
+	if err := s.createInitialCommit(); err != nil {
+		fmt.Printf("    Warning: initial commit failed: %v (you can commit manually later)\n", err)
+	}
+
+	// Step 2: Run make submodules
+	fmt.Printf("  2. Setting up build system (make submodules)...\n")
 	if err := s.runCommand("make", "submodules"); err != nil {
-		return fmt.Errorf("failed to run make submodules: %w", err)
+		fmt.Printf("    Warning: make submodules failed: %v (you can run it manually later)\n", err)
 	}
 
 	// Verify build system is ready by checking if make targets are available
@@ -163,28 +169,22 @@ func (s *InitScaffolder) runPostInitSteps() error {
 		fmt.Printf("    Warning: Build system not fully ready: %v\n", err)
 	}
 
-	// Step 2: Run go mod tidy
-	fmt.Printf("  2. Downloading dependencies (go mod tidy)...\n")
+	// Step 3: Run go mod tidy
+	fmt.Printf("  3. Downloading dependencies (go mod tidy)...\n")
 	if err := s.runCommand("go", "mod", "tidy"); err != nil {
 		fmt.Printf("    Warning: go mod tidy failed: %v (you can run it manually later)\n", err)
 	}
 
-	// Step 3: Run make generate
-	fmt.Printf("  3. Generating code (make generate)...\n")
+	// Step 4: Run make generate
+	fmt.Printf("  4. Generating code (make generate)...\n")
 	if err := s.runCommand("make", "generate"); err != nil {
 		fmt.Printf("    Warning: make generate failed: %v (you can run it manually later)\n", err)
 	}
 
-	// Step 4: Run make reviewable
-	fmt.Printf("  4. Running quality checks (make reviewable)...\n")
+	// Step 5: Run make reviewable
+	fmt.Printf("  5. Running quality checks (make reviewable)...\n")
 	if err := s.runCommand("make", "reviewable"); err != nil {
 		fmt.Printf("    Warning: make reviewable failed: %v (you can run it manually later)\n", err)
-	}
-
-	// Step 5: Create initial commit
-	fmt.Printf("  5. Creating initial commit...\n")
-	if err := s.createInitialCommit(); err != nil {
-		fmt.Printf("    Warning: initial commit failed: %v (you can commit manually later)\n", err)
 	}
 
 	fmt.Printf("Automated setup completed successfully!\n")

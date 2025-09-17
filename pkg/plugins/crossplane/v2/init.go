@@ -123,13 +123,10 @@ func (p *initSubcommand) PostScaffold() error {
 
 	fmt.Println("Crossplane provider project initialized successfully!")
 	fmt.Printf("Next steps:\n")
-	fmt.Printf("  1. Run 'make submodules' to initialize the build system\n")
-	fmt.Printf("  2. Run 'go mod tidy' to download dependencies\n")
-	fmt.Printf("  3. Run 'make generate' to generate required code\n")
-	fmt.Printf("  4. Run 'make reviewable' to ensure code quality\n")
-	fmt.Printf("  5. Use 'crossplane-provider-gen create api' to add managed resources\n")
-	fmt.Printf("  6. Implement external client logic for your provider\n")
-	fmt.Printf("  7. Run 'make build' to build the provider\n")
+	fmt.Printf("  1. Use 'crossplane-provider-gen create api' to add managed resources\n")
+	fmt.Printf("  2. Implement external client logic for your provider\n")
+	fmt.Printf("  3. Run 'make build' to build the provider\n")
+	fmt.Printf("  4. Run 'make run' to test the provider locally\n")
 
 	return nil
 }
