@@ -74,6 +74,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	versionGo, _ := factory.VersionGo()
 	license, _ := factory.License()
 	docGo, _ := factory.DocGo()
+	examplesProviderConfig, _ := factory.ExamplesProviderConfig()
 
 	// Execute scaffolding with proper Factory Pattern
 	if err := scaffold.Execute(
@@ -106,6 +107,9 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 
 		// Static files
 		license,
+
+		// Example files
+		examplesProviderConfig,
 	); err != nil {
 		return fmt.Errorf("error scaffolding Crossplane provider project: %w", err)
 	}

@@ -18,6 +18,8 @@ package templates
 
 import (
 	"path/filepath"
+
+	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 )
 
 // GoModTemplateProduct implements go.mod template
@@ -572,4 +574,62 @@ func (t *BoilerplateTemplateProduct) SetTemplateDefaults() error {
 const boilerplateTemplate = `// SPDX-FileCopyrightText: 2025 The Crossplane Authors <https://crossplane.io>
 //
 // SPDX-License-Identifier: Apache-2.0
+`
+
+// ExamplesProviderConfigTemplateProduct implements provider config examples
+type ExamplesProviderConfigTemplateProduct struct {
+	*BaseTemplateProduct
+}
+
+func (t *ExamplesProviderConfigTemplateProduct) GetPath() string {
+	return "examples/provider/config.yaml"
+}
+
+func (t *ExamplesProviderConfigTemplateProduct) GetIfExistsAction() machinery.IfExistsAction {
+	return machinery.OverwriteFile
+}
+
+func (t *ExamplesProviderConfigTemplateProduct) SetTemplateDefaults() error {
+	t.TemplateBody = examplesProviderConfigTemplate
+	return nil
+}
+
+const examplesProviderConfigTemplate = `apiVersion: v1
+kind: Namespace
+metadata:
+  name: default
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: default
+  name: example-provider-secret
+type: Opaque
+data:
+  credentials: QkFTRTY0RU5DT0RFRF9QUk9WSURFUl9DUkVEUwo=
+---
+apiVersion: {{ .Domain }}/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: example
+  namespace: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: default
+      name: example-provider-secret
+      key: credentials
+---
+apiVersion: {{ .Domain }}/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: example
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: default
+      name: example-provider-secret
+      key: credentials
 `

@@ -47,6 +47,7 @@ func NewFactory(cfg config.Config) TemplateFactory {
 		BoilerplateTemplateType, ProviderConfigTypesType, ProviderConfigRegisterType,
 		CrossplanePackageType, ConfigControllerType, ControllerRegisterType,
 		ClusterDockerfileType, ClusterMakefileType, VersionGoType, DocGoType,
+		ExamplesProviderConfigTemplateType,
 	}
 	for _, templateType := range initTypes {
 		factory.initRegistry[templateType] = NewInitTemplateBuilder(templateType)
@@ -55,6 +56,7 @@ func NewFactory(cfg config.Config) TemplateFactory {
 	// Register API template builders
 	apiTypes := []TemplateType{
 		APITypesTemplateType, APIGroupTemplateType, ControllerTemplateType,
+		ExamplesManagedResourceTemplateType,
 	}
 	for _, templateType := range apiTypes {
 		factory.apiRegistry[templateType] = NewAPITemplateBuilder(templateType)
@@ -243,4 +245,20 @@ func (f *CrossplaneTemplateFactory) Controller(force bool, res interface{}) (Tem
 		}
 	}
 	return f.CreateAPITemplate(ControllerTemplateType, opts...)
+}
+
+// ExamplesProviderConfig returns the provider config examples template
+func (f *CrossplaneTemplateFactory) ExamplesProviderConfig() (TemplateProduct, error) {
+	return f.CreateInitTemplate(ExamplesProviderConfigTemplateType)
+}
+
+// ExamplesManagedResource returns the managed resource examples template
+func (f *CrossplaneTemplateFactory) ExamplesManagedResource(res interface{}) (TemplateProduct, error) {
+	opts := []Option{}
+	if res != nil {
+		if r, ok := res.(*resource.Resource); ok {
+			opts = append(opts, WithResource(r))
+		}
+	}
+	return f.CreateAPITemplate(ExamplesManagedResourceTemplateType, opts...)
 }

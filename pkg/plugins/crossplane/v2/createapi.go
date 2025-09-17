@@ -117,6 +117,7 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	apiGroup, _ := factory.APIGroup(p.resource)
 	apiTypes, _ := factory.APITypes(p.Force, p.resource)
 	controller, _ := factory.Controller(p.Force, p.resource)
+	examplesManagedResource, _ := factory.ExamplesManagedResource(p.resource)
 
 	// Execute scaffolding with proper Factory Pattern
 	if err := scaffold.Execute(
@@ -124,6 +125,7 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		apiGroup,
 		apiTypes,
 		controller,
+		examplesManagedResource,
 
 		// Controller registration update
 		&templates.TemplateUpdater{
@@ -161,6 +163,7 @@ func (p *createAPISubcommand) PostScaffold() error {
 	fmt.Printf("  2. Implement the external client logic\n")
 	fmt.Printf("  3. Update controller reconciliation logic\n")
 	fmt.Printf("  4. Run 'make generate' to generate CRDs\n")
+	fmt.Printf("  5. Check examples/%s/%s.yaml for usage examples\n", strings.ToLower(p.resource.Group), strings.ToLower(p.resource.Kind))
 
 	return nil
 }

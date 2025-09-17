@@ -80,6 +80,8 @@ func (b *InitTemplateBuilder) Build(cfg config.Config, opts ...Option) (Template
 		product = &LicenseTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
 	case DocGoType:
 		product = &DocGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
+	case ExamplesProviderConfigTemplateType:
+		product = &ExamplesProviderConfigTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
 	default:
 		return nil, fmt.Errorf("unsupported init template type: %s", b.templateType)
 	}
@@ -142,6 +144,8 @@ func (b *APITemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateP
 		product = &APIGroupTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
 	case ControllerTemplateType:
 		product = &ControllerTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
+	case ExamplesManagedResourceTemplateType:
+		product = &ExamplesManagedResourceTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
 	default:
 		return nil, fmt.Errorf("unsupported API template type: %s", b.templateType)
 	}

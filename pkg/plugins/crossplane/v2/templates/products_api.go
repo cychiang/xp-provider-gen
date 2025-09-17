@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 )
 
 // APITypesTemplateProduct implements API types template
@@ -432,4 +434,54 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 
 func (c *external) Disconnect(ctx context.Context) error {
 	return nil
-}`
+}
+`
+
+// ExamplesManagedResourceTemplateProduct implements managed resource examples
+type ExamplesManagedResourceTemplateProduct struct {
+	*BaseTemplateProduct
+}
+
+func (t *ExamplesManagedResourceTemplateProduct) GetPath() string {
+	return fmt.Sprintf("examples/%s/%s.yaml",
+		strings.ToLower(t.Resource.Group),
+		strings.ToLower(t.Resource.Kind))
+}
+
+func (t *ExamplesManagedResourceTemplateProduct) GetIfExistsAction() machinery.IfExistsAction {
+	return machinery.OverwriteFile
+}
+
+func (t *ExamplesManagedResourceTemplateProduct) SetTemplateDefaults() error {
+	t.TemplateBody = managedResourceExampleTemplate
+	return nil
+}
+
+const managedResourceExampleTemplate = `apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+kind: {{ .Resource.Kind }}
+metadata:
+  name: example
+  namespace: default
+spec:
+  forProvider:
+    # TODO: Update with your managed resource's configurable fields
+    # Example field for demonstration:
+    # configurableField: test
+  providerConfigRef:
+    name: example
+    kind: ProviderConfig
+---
+apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+kind: {{ .Resource.Kind }}
+metadata:
+  name: cluster-example
+  namespace: default
+spec:
+  forProvider:
+    # TODO: Update with your managed resource's configurable fields
+    # Example field for demonstration:
+    # configurableField: test
+  providerConfigRef:
+    name: example
+    kind: ClusterProviderConfig
+`

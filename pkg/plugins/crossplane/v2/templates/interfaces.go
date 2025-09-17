@@ -45,11 +45,13 @@ const (
 	ClusterMakefileType          TemplateType = "clustermakefile"
 	LicenseType                  TemplateType = "license"
 	DocGoType                    TemplateType = "docgo"
+	ExamplesProviderConfigTemplateType TemplateType = "examplesproviderconfig"
 
 	// API template types
 	APITypesTemplateType         TemplateType = "apitypes"
 	APIGroupTemplateType         TemplateType = "apigroup"
 	ControllerTemplateType       TemplateType = "controller"
+	ExamplesManagedResourceTemplateType TemplateType = "examplesmanagedresource"
 )
 
 // TemplateProduct defines the interface for all template products
