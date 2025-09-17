@@ -47,6 +47,7 @@ clean: ## Clean build artifacts and temporary files
 test: ## Run all tests
 	$(GOTEST) -v ./...
 
+
 test-verbose: ## Run tests with verbose output
 	$(GOTEST) -v -race ./...
 

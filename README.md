@@ -1,163 +1,156 @@
 # Crossplane Provider Generator
 
-A standalone CLI tool for scaffolding Crossplane providers with kubebuilder patterns and crossplane-runtime v2 integration. Features a revolutionary single-responsibility template architecture with comprehensive test framework for Test-Driven Development.
+CLI tool for scaffolding Crossplane providers with crossplane-runtime v2.
 
 ## Installation
 
-**Build from source:**
 ```bash
 git clone https://github.com/crossplane/xp-kubebuilder-plugin
 cd xp-kubebuilder-plugin
 make build
 ```
 
-## Quick Start
+## Usage
 
-### Create a new provider project
-
-```bash
-mkdir my-provider && cd my-provider
-../bin/crossplane-provider-gen init --domain=example.com --repo=github.com/example/my-provider
-
-# Initialize dependencies (required after init)
-make submodules
-go mod tidy
-make generate
-make reviewable
-```
-
-### Add managed resources
+### Initialize Provider
 
 ```bash
-# Create managed resources
-../bin/crossplane-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
-../bin/crossplane-provider-gen create api --group=storage --version=v1alpha1 --kind=Bucket
-
-# Build and test
-make build
-make test
+./bin/crossplane-provider-gen init --domain=example.com --repo=github.com/example/provider-name
+cd $PROJECT_DIR
+make submodules && go mod tidy && make generate
 ```
 
-## Commands
+### Add Managed Resources
 
-| Command | Description |
-|---------|-------------|
-| `init` | Bootstrap a Crossplane provider project |
-| `create api` | Generate a managed resource with controller |
+```bash
+./bin/crossplane-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
+make generate && make build
+```
 
-### Flags
-
-**init command:**
-- `--domain` - Domain for API groups (required)
-- `--repo` - Go module name (required)
-
-**create api command:**
-- `--group` - API group name (required)
-- `--version` - API version (required)  
-- `--kind` - Resource kind (required)
-- `--generate-client` - Generate external client interface (default: true)
-- `--force` - Overwrite existing files (default: false)
-
-## Generated Project Structure
+## Project Structure
 
 ```
-my-provider/
+provider-name/
 ├── apis/
-│   ├── v1alpha1/              # ProviderConfig APIs
-│   └── compute/v1alpha1/      # Managed resource APIs
-├── cmd/provider/main.go       # Provider entry point
-├── internal/controller/       # Controllers
-├── package/crossplane.yaml    # Provider metadata
-└── Makefile                   # Build system
+│   ├── v1alpha1/           # ProviderConfig APIs
+│   └── GROUP/VERSION/      # Managed resource APIs
+├── cmd/provider/           # Provider binary
+├── internal/controller/    # Controllers
+├── examples/               # YAML examples
+├── package/                # Crossplane package
+└── Makefile               # Build system
 ```
 
-## Generated Features
+## Template System
 
-- **Crossplane v2 runtime patterns** with proper `Parameters`/`Observation` structs
-- **External client interfaces** for cloud API integration
-- **ProviderConfig APIs** for authentication and configuration
-- **Controller scaffolding** following Crossplane best practices
-- **Build system integration** via git submodules
-- **PROJECT file tracking** for resource management
+Templates are organized in `pkg/plugins/crossplane/v2/templates/scaffolds/`:
 
-## Contributing
+```
+scaffolds/
+├── root/                   # Root-level files (Makefile, README, etc.)
+├── apis/                   # API-related templates
+├── cmd/provider/           # Main binary templates
+├── internal/controller/    # Controller templates
+├── examples/               # Example YAML templates
+└── cluster/                # Container build templates
+```
 
-### Development Setup
+### Adding New Templates
+
+The auto-discovery system provides different levels of complexity based on your needs:
+
+#### **For Basic Templates (0 Steps)** ✅
+Just create your template file - it's automatically discovered and available:
 
 ```bash
-# Clone and build
-git clone https://github.com/crossplane/xp-kubebuilder-plugin
-cd xp-kubebuilder-plugin
-go build -o bin/crossplane-provider-gen ./cmd/crossplane-provider-gen
-
-# Test generation
-mkdir test-provider && cd test-provider
-../bin/crossplane-provider-gen init --domain=test.io --repo=github.com/test/provider-test
-make submodules && go mod tidy && make generate && make reviewable
+# Example: Add a new Go utility template
+echo 'package utils\n\n// {{ .Resource.Kind }}Helper...' > pkg/plugins/crossplane/v2/templates/scaffolds/internal/utils/helper.go.tmpl
 ```
 
-## Architecture
+**Automatic features:**
+- ✅ Runtime discovery and registration
+- ✅ Auto-categorization (init/api/static based on path)
+- ✅ Template type generation (`InternalUtilsHelperGoType`)
+- ✅ Works immediately if pattern matches existing ones
 
-### Single-Responsibility Template System
+#### **For New Template Types (1-2 Steps)**
+If your template introduces a new pattern:
 
-This project features a revolutionary template architecture where **each template has its own file** following Single Responsibility Principle:
+**Step 1:** Add the template file ✅ (Auto-discovered)
 
-```
-pkg/plugins/crossplane/v2/templates/
-├── factory.go              # Clean factory pattern (122 lines)
-├── base.go                 # Template infrastructure
-├── boilerplate.go          # Centralized Apache 2.0 license
-├── templates_test.go       # Comprehensive test framework (18 tests)
-├── gomod_template.go       # go.mod template only
-├── makefile_template.go    # Makefile template only
-├── readme_template.go      # README.md template only
-├── gitignore_template.go   # .gitignore template only
-├── main_go_template.go     # cmd/provider/main.go only
-├── api_types_template.go   # CRD types only
-├── controller_template.go  # Controller implementation only
-├── provider_config_*.go    # ProviderConfig types & registration
-├── crossplane_package.go   # package/crossplane.yaml only
-├── cluster_*.go           # Container build files only
-├── license.go             # LICENSE file only
-└── [17 more single-purpose templates]
+**Step 2:** Add pattern matching in `pkg/plugins/crossplane/v2/templates/builders.go`:
+```go
+case strings.Contains(typeStr, "utils"):
+    product = &UtilsTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
 ```
 
-### Test-Driven Development Ready
+#### **For Convenience Methods (2-3 Steps)**
+To add factory convenience methods:
 
-The test framework enables TDD for template development:
+**Step 1:** Add template file ✅ (Auto-discovered)
+
+**Step 2:** Add pattern matching ✅ (If needed)
+
+**Step 3:** Add convenience method in `factory.go`:
+```go
+func (f *CrossplaneTemplateFactory) Utils() (TemplateProduct, error) {
+    templateType, err := f.FindTemplateTypeByPath("utils")
+    if err != nil {
+        return nil, err
+    }
+    return f.CreateInitTemplate(templateType)
+}
+```
+
+#### **Template Categories**
+
+Templates are automatically categorized by path:
+
+| Category | Path Patterns | Use Case |
+|----------|---------------|----------|
+| **Init** | `root/`, `cmd/`, `internal/`, etc. | Project initialization |
+| **API** | `apis/group/version/`, `internal/controller/kind/`, `examples/group/` | Creating managed resources |
+| **Static** | `LICENSE` | Standalone files |
+
+#### **What's Automatic** 🚀
+
+1. **Discovery** - Scans all `.tmpl` files at runtime
+2. **Type Generation** - `test/sample.md.tmpl` → `TestSampleMdType`
+3. **Categorization** - Auto-assigns init/api/static category
+4. **Registration** - Templates registered in appropriate factory
+5. **Path Lookup** - `FindTemplateTypeByPath("sample")` works automatically
+
+**Before:** 4 manual steps required
+**After:** 0-3 steps depending on complexity
+**Most common case:** **0 steps!** 🎉
+
+#### **Development Workflow**
+
+1. **Test template discovery:**
+   ```bash
+   go test ./pkg/plugins/crossplane/v2/templates/ -v -run TestCrossplaneTemplateFactory_GetSupportedTypes
+   ```
+
+2. **Verify complete workflow:**
+   ```bash
+   # Test in temp directory
+   cd /tmp && mkdir test-provider && cd test-provider
+   /path/to/crossplane-provider-gen init --domain=test.io --repo=github.com/test/provider
+   /path/to/crossplane-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
+   make generate && make build && make reviewable
+   ```
+
+3. **Debug template types:**
+   Templates are auto-generated with naming pattern: `{Path}Type`
+   - `root/go.mod.tmpl` → `RootGoModType`
+   - `apis/group/version/types.go.tmpl` → `ApisGroupVersionTypesGoType`
+   - `examples/group/kind.yaml.tmpl` → `ExamplesGroupKindYamlType`
+
+## Build Commands
 
 ```bash
-# Test all templates
-make test
-
-# Run specific template validation
-go test -v ./pkg/plugins/crossplane/v2/templates/
-
-# TDD workflow example:
-# 1. Write test for new template first
-# 2. Run tests (should fail)
-# 3. Implement template
-# 4. Run tests (should pass)
+make build       # Build provider binary
+make test        # Run tests
+make reviewable  # Run all quality checks
+make submodules  # Update build system
 ```
-
-### Template Development
-
-Each template implements the `machinery.Template` interface with Go template substitution supporting `{{ .Repo }}`, `{{ .Domain }}`, and `{{ .ProviderName }}`.
-
-**Adding a new template:**
-1. Create `new_feature_template.go` with single template function
-2. Add factory method in `factory.go`
-3. Write test in `templates_test.go`
-4. Run `make test` to validate
-
-Key areas for contribution:
-- Enhanced API/controller templates  
-- Cloud-specific patterns (AWS, GCP, Azure)
-- CI/CD workflow templates
-- Documentation and examples
-
-## Resources
-
-- [Crossplane Provider Development](https://docs.crossplane.io/contribute/provider-development-guide/)
-- [Crossplane Runtime v2](https://github.com/crossplane/crossplane-runtime)
-- [Provider Template](https://github.com/crossplane/provider-template)

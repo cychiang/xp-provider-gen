@@ -110,18 +110,32 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		machinery.WithResource(p.resource),
 	)
 
-	// Create template factory for ultra-simple template creation
-	factory := templates.NewFactory(p.config)
+	// Create template factory using true Factory Pattern
+	factory := templates.NewFactory(p.config).(*templates.CrossplaneTemplateFactory)
 
-	// Execute scaffolding - dramatically simplified from complex template instantiation
+	// Get templates using the factory pattern
+	apiGroup, _ := factory.APIGroup(p.resource)
+	apiTypes, _ := factory.APITypes(p.Force, p.resource)
+	controller, _ := factory.Controller(p.Force, p.resource)
+	examplesManagedResource, _ := factory.ExamplesManagedResource(p.resource)
+
+	// Execute scaffolding with proper Factory Pattern
 	if err := scaffold.Execute(
 		// API types and group registration
-		factory.APIGroup(),
-		factory.APITypes(p.Force),
-		factory.Controller(p.Force),
+		apiGroup,
+		apiTypes,
+		controller,
+		examplesManagedResource,
 
 		// Controller registration update
 		&templates.TemplateUpdater{
+			Force:           true,
+			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
+			ProviderName:    p.extractProviderName(),
+		},
+
+		// API registration update
+		&templates.APIRegistrationUpdater{
 			Force:           true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
 			ProviderName:    p.extractProviderName(),
@@ -148,7 +162,8 @@ func (p *createAPISubcommand) PostScaffold() error {
 	fmt.Printf("  1. Customize the %sParameters and %sObservation structs\n", p.resource.Kind, p.resource.Kind)
 	fmt.Printf("  2. Implement the external client logic\n")
 	fmt.Printf("  3. Update controller reconciliation logic\n")
-	fmt.Printf("  4. Run 'make manifests' to generate CRDs\n")
+	fmt.Printf("  4. Run 'make generate' to generate CRDs\n")
+	fmt.Printf("  5. Check examples/%s/%s.yaml for usage examples\n", strings.ToLower(p.resource.Group), strings.ToLower(p.resource.Kind))
 
 	return nil
 }

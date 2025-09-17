@@ -1,0 +1,27 @@
+apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+kind: {{ .Resource.Kind }}
+metadata:
+  name: example
+  namespace: default
+spec:
+  forProvider:
+    # TODO: Update with your managed resource's configurable fields
+    # Example field for demonstration:
+    configurableField: test
+  providerConfigRef:
+    name: example
+    kind: ProviderConfig
+---
+apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+kind: {{ .Resource.Kind }}
+metadata:
+  name: cluster-example
+  namespace: default
+spec:
+  forProvider:
+    # TODO: Update with your managed resource's configurable fields
+    # Example field for demonstration:
+    configurableField: test
+  providerConfigRef:
+    name: example
+    kind: ClusterProviderConfig
