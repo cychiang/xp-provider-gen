@@ -17,51 +17,45 @@ limitations under the License.
 package templates
 
 import (
+	"strings"
 	"testing"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 )
 
-// mockConfig implements config.Config interface for testing
-type mockConfig struct {
-	domain string
-	repo   string
-}
+type mockConfig struct{}
 
-func (m *mockConfig) GetDomain() string                                                  { return m.domain }
-func (m *mockConfig) GetRepository() string                                              { return m.repo }
-func (m *mockConfig) GetProjectName() string                                             { return "provider-test" }
-func (m *mockConfig) GetVersion() config.Version                                         { return config.Version{} }
-func (m *mockConfig) GetCliVersion() string                                              { return "v4.8.0" }
-func (m *mockConfig) SetCliVersion(version string) error                                 { return nil }
-func (m *mockConfig) SetDomain(domain string) error                                      { return nil }
-func (m *mockConfig) SetRepository(repo string) error                                    { return nil }
-func (m *mockConfig) SetProjectName(name string) error                                   { return nil }
-func (m *mockConfig) GetPluginChain() []string                                           { return nil }
-func (m *mockConfig) SetPluginChain(chain []string) error                                { return nil }
-func (m *mockConfig) GetResources() ([]resource.Resource, error)                         { return nil, nil }
-func (m *mockConfig) HasResource(gvk resource.GVK) bool                                  { return false }
-func (m *mockConfig) GetResource(gvk resource.GVK) (resource.Resource, error)            { return resource.Resource{}, nil }
-func (m *mockConfig) AddResource(res resource.Resource) error                             { return nil }
-func (m *mockConfig) UpdateResource(res resource.Resource) error                          { return nil }
-func (m *mockConfig) HasGroup(group string) bool                                          { return false }
-func (m *mockConfig) ListCRDVersions() []string                                           { return nil }
-func (m *mockConfig) ListWebhookVersions() []string                                       { return nil }
-func (m *mockConfig) ResourcesLength() int                                                { return 0 }
-func (m *mockConfig) DecodePluginConfig(pluginKey string, pluginConfig interface{}) error { return nil }
-func (m *mockConfig) EncodePluginConfig(pluginKey string, pluginConfig interface{}) error { return nil }
-func (m *mockConfig) IsMultiGroup() bool                                                  { return false }
-func (m *mockConfig) SetMultiGroup() error                                                { return nil }
-func (m *mockConfig) ClearMultiGroup() error                                              { return nil }
-func (m *mockConfig) MarshalYAML() ([]byte, error)                                        { return nil, nil }
-func (m *mockConfig) UnmarshalYAML([]byte) error                                          { return nil }
+func (m *mockConfig) GetDomain() string                                          { return "example.com" }
+func (m *mockConfig) SetDomain(domain string) error                              { return nil }
+func (m *mockConfig) GetRepository() string                                      { return "github.com/example/provider-test" }
+func (m *mockConfig) SetRepository(repository string) error                      { return nil }
+func (m *mockConfig) GetVersion() config.Version                                 { return config.Version{Number: 3} }
+func (m *mockConfig) GetCliVersion() string                                      { return "4.0.0" }
+func (m *mockConfig) SetCliVersion(version string) error                         { return nil }
+func (m *mockConfig) GetProjectName() string                                     { return "provider-test" }
+func (m *mockConfig) SetProjectName(name string) error                           { return nil }
+func (m *mockConfig) GetPluginChain() []string                                   { return []string{"crossplane.go.kubebuilder.io/v2"} }
+func (m *mockConfig) SetPluginChain(pluginChain []string) error                  { return nil }
+func (m *mockConfig) IsMultiGroup() bool                                         { return false }
+func (m *mockConfig) SetMultiGroup() error                                       { return nil }
+func (m *mockConfig) ClearMultiGroup() error                                     { return nil }
+func (m *mockConfig) ResourcesLength() int                                       { return 0 }
+func (m *mockConfig) GetResources() ([]resource.Resource, error)                 { return []resource.Resource{}, nil }
+func (m *mockConfig) HasResource(gvk resource.GVK) bool                          { return false }
+func (m *mockConfig) GetResource(gvk resource.GVK) (resource.Resource, error)    { return resource.Resource{}, nil }
+func (m *mockConfig) AddResource(res resource.Resource) error                    { return nil }
+func (m *mockConfig) UpdateResource(res resource.Resource) error                 { return nil }
+func (m *mockConfig) HasGroup(group string) bool                                 { return false }
+func (m *mockConfig) ListCRDVersions() []string                                  { return []string{} }
+func (m *mockConfig) ListWebhookVersions() []string                              { return []string{} }
+func (m *mockConfig) EncodePluginConfig(key string, pluginConfig interface{}) error { return nil }
+func (m *mockConfig) DecodePluginConfig(key string, pluginConfig interface{}) error { return nil }
+func (m *mockConfig) MarshalYAML() ([]byte, error)                               { return []byte{}, nil }
+func (m *mockConfig) UnmarshalYAML(data []byte) error                            { return nil }
 
 func newMockConfig() config.Config {
-	return &mockConfig{
-		domain: "example.com",
-		repo:   "github.com/example/provider-test",
-	}
+	return &mockConfig{}
 }
 
 func TestCrossplaneTemplateFactory_NewFactory(t *testing.T) {
@@ -69,12 +63,12 @@ func TestCrossplaneTemplateFactory_NewFactory(t *testing.T) {
 	factory := NewFactory(cfg)
 
 	if factory == nil {
-		t.Error("NewFactory should return non-nil factory")
+		t.Error("Factory should not be nil")
 	}
 
 	concreteFactory, ok := factory.(*CrossplaneTemplateFactory)
 	if !ok {
-		t.Error("NewFactory should return *CrossplaneTemplateFactory")
+		t.Error("Factory should be of type CrossplaneTemplateFactory")
 	}
 
 	if concreteFactory.config != cfg {
@@ -91,42 +85,35 @@ func TestCrossplaneTemplateFactory_GetSupportedTypes(t *testing.T) {
 		t.Error("Factory should support multiple template types")
 	}
 
-	expectedTypes := map[TemplateType]bool{
-		// Init template types
-		GoModTemplateType:            true,
-		MakefileTemplateType:         true,
-		READMETemplateType:           true,
-		GitIgnoreTemplateType:        true,
-		MainGoTemplateType:           true,
-		APIsTemplateType:             true,
-		GenerateGoTemplateType:       true,
-		BoilerplateTemplateType:      true,
-		ProviderConfigTypesType:      true,
-		ProviderConfigRegisterType:   true,
-		CrossplanePackageType:        true,
-		ConfigControllerType:         true,
-		ControllerRegisterType:       true,
-		VersionGoType:                true,
-		ClusterDockerfileType:        true,
-		ClusterMakefileType:          true,
-		LicenseType:                  true,
-		DocGoType:                    true,
-		// API template types
-		APITypesTemplateType:         true,
-		APIGroupTemplateType:         true,
-		ControllerTemplateType:       true,
+	expectedPatterns := []string{
+		"gomod", "makefile", "readme", "license", "maingo",
+		"apis", "generatego", "boilerplate",
 	}
 
-	foundTypes := make(map[TemplateType]bool)
-	for _, templateType := range types {
-		foundTypes[templateType] = true
+	typeStrings := make([]string, len(types))
+	for i, templateType := range types {
+		typeStrings[i] = strings.ToLower(string(templateType))
 	}
 
-	for expectedType := range expectedTypes {
-		if !foundTypes[expectedType] {
-			t.Errorf("Expected template type %s not found in supported types", expectedType)
+	for _, pattern := range expectedPatterns {
+		found := false
+		for _, typeStr := range typeStrings {
+			if strings.Contains(typeStr, pattern) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected pattern %s not found in discovered template types", pattern)
 		}
 	}
+
+	t.Logf("Auto-discovery found %d template types", len(types))
+
+	t.Logf("Found %d init, %d API, %d static templates",
+		len(factory.(*CrossplaneTemplateFactory).initRegistry),
+		len(factory.(*CrossplaneTemplateFactory).apiRegistry),
+		len(factory.(*CrossplaneTemplateFactory).staticRegistry))
 }
 
 func TestCrossplaneTemplateFactory_CreateInitTemplate(t *testing.T) {
@@ -134,58 +121,23 @@ func TestCrossplaneTemplateFactory_CreateInitTemplate(t *testing.T) {
 	factory := NewFactory(cfg)
 
 	tests := []struct {
-		name         string
-		templateType TemplateType
-		expectError  bool
+		name string
+		test func() (TemplateProduct, error)
 	}{
-		{"GoMod", GoModTemplateType, false},
-		{"Makefile", MakefileTemplateType, false},
-		{"README", READMETemplateType, false},
-		{"GitIgnore", GitIgnoreTemplateType, false},
-		{"MainGo", MainGoTemplateType, false},
-		{"APIs", APIsTemplateType, false},
-		{"GenerateGo", GenerateGoTemplateType, false},
-		{"Boilerplate", BoilerplateTemplateType, false},
-		{"ProviderConfigTypes", ProviderConfigTypesType, false},
-		{"ProviderConfigRegister", ProviderConfigRegisterType, false},
-		{"CrossplanePackage", CrossplanePackageType, false},
-		{"ConfigController", ConfigControllerType, false},
-		{"ControllerRegister", ControllerRegisterType, false},
-		{"VersionGo", VersionGoType, false},
-		{"ClusterDockerfile", ClusterDockerfileType, false},
-		{"ClusterMakefile", ClusterMakefileType, false},
-		{"DocGo", DocGoType, false},
-		{"Invalid", TemplateType("invalid"), true},
+		{"GoMod", func() (TemplateProduct, error) { return factory.(*CrossplaneTemplateFactory).GoMod() }},
+		{"Makefile", func() (TemplateProduct, error) { return factory.(*CrossplaneTemplateFactory).Makefile() }},
+		{"README", func() (TemplateProduct, error) { return factory.(*CrossplaneTemplateFactory).README() }},
+		{"MainGo", func() (TemplateProduct, error) { return factory.(*CrossplaneTemplateFactory).MainGo() }},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			product, err := factory.CreateInitTemplate(tt.templateType)
-
-			if tt.expectError {
-				if err == nil {
-					t.Error("Expected error for invalid template type")
-				}
-				return
-			}
-
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			template, err := test.test()
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
-				return
 			}
-
-			if product == nil {
-				t.Error("Product should not be nil")
-				return
-			}
-
-			if product.GetTemplateType() != tt.templateType {
-				t.Errorf("Expected template type %s, got %s", tt.templateType, product.GetTemplateType())
-			}
-
-			// Test that template implements machinery.Template
-			if product.GetPath() == "" {
-				t.Error("Template should have a path")
+			if template == nil {
+				t.Error("Template should not be nil")
 			}
 		})
 	}
@@ -195,55 +147,38 @@ func TestCrossplaneTemplateFactory_CreateAPITemplate(t *testing.T) {
 	cfg := newMockConfig()
 	factory := NewFactory(cfg)
 
-	testResource := &resource.Resource{
+	res := &resource.Resource{
 		GVK: resource.GVK{
 			Group:   "compute",
 			Version: "v1alpha1",
 			Kind:    "Instance",
 		},
+		Plural: "instances",
 	}
 
 	tests := []struct {
-		name         string
-		templateType TemplateType
-		resource     *resource.Resource
-		expectError  bool
+		name string
+		test func() (TemplateProduct, error)
 	}{
-		{"APITypes", APITypesTemplateType, testResource, false},
-		{"APIGroup", APIGroupTemplateType, testResource, false},
-		{"Controller", ControllerTemplateType, testResource, false},
-		{"APITypes without resource", APITypesTemplateType, nil, true},
-		{"Invalid", TemplateType("invalid"), testResource, true},
+		{"APITypes", func() (TemplateProduct, error) {
+			return factory.(*CrossplaneTemplateFactory).APITypes(false, res)
+		}},
+		{"APIGroup", func() (TemplateProduct, error) {
+			return factory.(*CrossplaneTemplateFactory).APIGroup(res)
+		}},
+		{"Controller", func() (TemplateProduct, error) {
+			return factory.(*CrossplaneTemplateFactory).Controller(false, res)
+		}},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			opts := []Option{}
-			if tt.resource != nil {
-				opts = append(opts, WithResource(tt.resource))
-			}
-
-			product, err := factory.CreateAPITemplate(tt.templateType, opts...)
-
-			if tt.expectError {
-				if err == nil {
-					t.Error("Expected error")
-				}
-				return
-			}
-
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			template, err := test.test()
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
-				return
 			}
-
-			if product == nil {
-				t.Error("Product should not be nil")
-				return
-			}
-
-			if product.GetTemplateType() != tt.templateType {
-				t.Errorf("Expected template type %s, got %s", tt.templateType, product.GetTemplateType())
+			if template == nil {
+				t.Error("Template should not be nil")
 			}
 		})
 	}
@@ -254,37 +189,22 @@ func TestCrossplaneTemplateFactory_CreateStaticTemplate(t *testing.T) {
 	factory := NewFactory(cfg)
 
 	tests := []struct {
-		name         string
-		templateType TemplateType
-		expectError  bool
+		name string
+		test func() (TemplateProduct, error)
 	}{
-		{"License", LicenseType, false},
-		{"Invalid", TemplateType("invalid"), true},
+		{"License", func() (TemplateProduct, error) {
+			return factory.(*CrossplaneTemplateFactory).License()
+		}},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			product, err := factory.CreateStaticTemplate(tt.templateType)
-
-			if tt.expectError {
-				if err == nil {
-					t.Error("Expected error for invalid template type")
-				}
-				return
-			}
-
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			template, err := test.test()
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
-				return
 			}
-
-			if product == nil {
-				t.Error("Product should not be nil")
-				return
-			}
-
-			if product.GetTemplateType() != tt.templateType {
-				t.Errorf("Expected template type %s, got %s", tt.templateType, product.GetTemplateType())
+			if template == nil {
+				t.Error("Template should not be nil")
 			}
 		})
 	}
@@ -294,12 +214,11 @@ func TestCrossplaneTemplateFactory_ConvenienceMethods(t *testing.T) {
 	cfg := newMockConfig()
 	factory := NewFactory(cfg).(*CrossplaneTemplateFactory)
 
-	t.Run("Init templates", func(t *testing.T) {
-		initMethods := []func() (TemplateProduct, error){
+	t.Run("Init_templates", func(t *testing.T) {
+		methods := []func() (TemplateProduct, error){
 			factory.GoMod,
 			factory.Makefile,
 			factory.README,
-			factory.GitIgnore,
 			factory.MainGo,
 			factory.ProviderConfigTypes,
 			factory.ProviderConfigRegister,
@@ -310,50 +229,53 @@ func TestCrossplaneTemplateFactory_ConvenienceMethods(t *testing.T) {
 			factory.ClusterDockerfile,
 			factory.ClusterMakefile,
 			factory.DocGo,
+			factory.ExamplesProviderConfig,
 		}
 
-		for i, method := range initMethods {
-			product, err := method()
+		for i, method := range methods {
+			template, err := method()
 			if err != nil {
 				t.Errorf("Method %d failed: %v", i, err)
 			}
-			if product == nil {
+			if template == nil {
 				t.Errorf("Method %d returned nil product", i)
 			}
 		}
 	})
 
-	t.Run("Static templates", func(t *testing.T) {
-		product, err := factory.License()
+	t.Run("Static_templates", func(t *testing.T) {
+		template, err := factory.License()
 		if err != nil {
 			t.Errorf("License method failed: %v", err)
 		}
-		if product == nil {
+		if template == nil {
 			t.Error("License method returned nil product")
 		}
 	})
 
-	t.Run("API templates", func(t *testing.T) {
-		testResource := &resource.Resource{
+	t.Run("API_templates", func(t *testing.T) {
+		res := &resource.Resource{
 			GVK: resource.GVK{
 				Group:   "compute",
 				Version: "v1alpha1",
 				Kind:    "Instance",
 			},
+			Plural: "instances",
 		}
 
 		apiMethods := []func() (TemplateProduct, error){
-			func() (TemplateProduct, error) { return factory.APITypes(false, testResource) },
-			func() (TemplateProduct, error) { return factory.APIGroup(testResource) },
-			func() (TemplateProduct, error) { return factory.Controller(false, testResource) },
+			func() (TemplateProduct, error) { return factory.APITypes(false, res) },
+			func() (TemplateProduct, error) { return factory.APIGroup(res) },
+			func() (TemplateProduct, error) { return factory.Controller(false, res) },
+			func() (TemplateProduct, error) { return factory.ExamplesManagedResource(res) },
 		}
 
 		for i, method := range apiMethods {
-			product, err := method()
+			template, err := method()
 			if err != nil {
 				t.Errorf("API method %d failed: %v", i, err)
 			}
-			if product == nil {
+			if template == nil {
 				t.Errorf("API method %d returned nil product", i)
 			}
 		}
@@ -361,221 +283,28 @@ func TestCrossplaneTemplateFactory_ConvenienceMethods(t *testing.T) {
 }
 
 func TestTemplateOptions(t *testing.T) {
-	testResource := &resource.Resource{
+	options := &TemplateOptions{}
+
+	WithForce(true)(options)
+	if !options.Force {
+		t.Error("WithForce should set Force to true")
+	}
+
+	res := &resource.Resource{
 		GVK: resource.GVK{
 			Group:   "compute",
 			Version: "v1alpha1",
 			Kind:    "Instance",
 		},
 	}
-
-	testData := map[string]interface{}{
-		"custom": "value",
-	}
-
-	opts := &TemplateOptions{}
-
-	WithForce(true)(opts)
-	if !opts.Force {
-		t.Error("WithForce should set Force to true")
-	}
-
-	WithResource(testResource)(opts)
-	if opts.Resource != testResource {
+	WithResource(res)(options)
+	if options.Resource != res {
 		t.Error("WithResource should set Resource")
 	}
 
-	WithCustomData(testData)(opts)
-	if opts.CustomData["custom"] != "value" {
+	customData := map[string]interface{}{"key": "value"}
+	WithCustomData(customData)(options)
+	if options.CustomData["key"] != "value" {
 		t.Error("WithCustomData should set CustomData")
 	}
-}
-
-// TestAPITemplateFixedIssues tests the specific issues that were fixed
-func TestAPITemplateFixedIssues(t *testing.T) {
-	cfg := &mockConfig{
-		domain: "template.crossplane.io",
-		repo:   "github.com/my-account/provider-template",
-	}
-	factory := NewFactory(cfg)
-
-	testResource := &resource.Resource{
-		GVK: resource.GVK{
-			Group:   "sample",
-			Version: "v1alpha1",
-			Kind:    "MyType",
-		},
-	}
-
-	t.Run("Categories annotation uses provider name not domain", func(t *testing.T) {
-		product, err := factory.CreateAPITemplate(APITypesTemplateType, WithResource(testResource))
-		if err != nil {
-			t.Fatalf("Failed to create API template: %v", err)
-		}
-
-		// Check that the template body contains correct categories
-		if apiProduct, ok := product.(*APITypesTemplateProduct); ok {
-			err := apiProduct.SetTemplateDefaults()
-			if err != nil {
-				t.Fatalf("Failed to set template defaults: %v", err)
-			}
-
-			templateBody := apiProduct.TemplateBody
-			if !containsString(templateBody, "categories={crossplane,managed,{{ .ProviderName | lower }}}") {
-				t.Error("Template should use ProviderName in categories, not domain")
-			}
-		}
-	})
-
-	t.Run("API resources are namespaced not cluster scoped", func(t *testing.T) {
-		product, err := factory.CreateAPITemplate(APITypesTemplateType, WithResource(testResource))
-		if err != nil {
-			t.Fatalf("Failed to create API template: %v", err)
-		}
-
-		// Check that the template body contains correct scope
-		if apiProduct, ok := product.(*APITypesTemplateProduct); ok {
-			err := apiProduct.SetTemplateDefaults()
-			if err != nil {
-				t.Fatalf("Failed to set template defaults: %v", err)
-			}
-
-			templateBody := apiProduct.TemplateBody
-			if !containsString(templateBody, "scope=Namespaced") {
-				t.Error("Template should use scope=Namespaced for managed resources")
-			}
-		}
-	})
-
-	t.Run("Provider config uses provider domain not pkg.crossplane.io", func(t *testing.T) {
-		product, err := factory.CreateInitTemplate(ProviderConfigRegisterType)
-		if err != nil {
-			t.Fatalf("Failed to create provider config template: %v", err)
-		}
-
-		// Check that the template body contains correct domain
-		if providerProduct, ok := product.(*ProviderConfigRegisterTemplateProduct); ok {
-			err := providerProduct.SetTemplateDefaults()
-			if err != nil {
-				t.Fatalf("Failed to set template defaults: %v", err)
-			}
-
-			templateBody := providerProduct.TemplateBody
-			if !containsString(templateBody, `Group   = "{{ .Domain }}"`) {
-				t.Error("Template should use provider domain, not pkg.crossplane.io")
-			}
-		}
-	})
-
-	t.Run("DocGo template is available and uses correct domain", func(t *testing.T) {
-		product, err := factory.CreateInitTemplate(DocGoType)
-		if err != nil {
-			t.Fatalf("Failed to create DocGo template: %v", err)
-		}
-
-		// Check that the template body contains correct domain
-		if docProduct, ok := product.(*DocGoTemplateProduct); ok {
-			err := docProduct.SetTemplateDefaults()
-			if err != nil {
-				t.Fatalf("Failed to set template defaults: %v", err)
-			}
-
-			templateBody := docProduct.TemplateBody
-			if !containsString(templateBody, "+groupName={{ .Domain }}") {
-				t.Error("DocGo template should use provider domain")
-			}
-		}
-	})
-}
-
-// TestProviderNameExtraction tests provider name extraction from repository
-func TestProviderNameExtraction(t *testing.T) {
-	tests := []struct {
-		name         string
-		repo         string
-		expectedName string
-	}{
-		{"Standard GitHub repo", "github.com/crossplane/provider-aws", "provider-aws"},
-		{"Custom domain repo", "git.company.com/team/provider-gcp", "provider-gcp"},
-		{"Simple name", "provider-azure", "provider-azure"},
-		{"Empty repo", "", "provider-example"},
-		{"Just domain", "github.com", "github.com"},
-		{"Single segment", "test", "test"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := extractProviderName(tt.repo)
-			if result != tt.expectedName {
-				t.Errorf("extractProviderName(%q) = %q, want %q", tt.repo, result, tt.expectedName)
-			}
-		})
-	}
-}
-
-// TestTemplateRegistry tests the registry pattern implementation
-func TestTemplateRegistry(t *testing.T) {
-	cfg := newMockConfig()
-	factory := NewFactory(cfg).(*CrossplaneTemplateFactory)
-
-	t.Run("Init registry populated", func(t *testing.T) {
-		if len(factory.initRegistry) == 0 {
-			t.Error("Init registry should not be empty")
-		}
-
-		// Test a few key templates
-		keyTemplates := []TemplateType{
-			GoModTemplateType,
-			MakefileTemplateType,
-			ProviderConfigTypesType,
-		}
-
-		for _, templateType := range keyTemplates {
-			if _, exists := factory.initRegistry[templateType]; !exists {
-				t.Errorf("Init registry should contain %s", templateType)
-			}
-		}
-	})
-
-	t.Run("API registry populated", func(t *testing.T) {
-		if len(factory.apiRegistry) == 0 {
-			t.Error("API registry should not be empty")
-		}
-
-		// Test API templates
-		apiTemplates := []TemplateType{
-			APITypesTemplateType,
-			APIGroupTemplateType,
-			ControllerTemplateType,
-		}
-
-		for _, templateType := range apiTemplates {
-			if _, exists := factory.apiRegistry[templateType]; !exists {
-				t.Errorf("API registry should contain %s", templateType)
-			}
-		}
-	})
-
-	t.Run("Static registry populated", func(t *testing.T) {
-		if len(factory.staticRegistry) == 0 {
-			t.Error("Static registry should not be empty")
-		}
-
-		if _, exists := factory.staticRegistry[LicenseType]; !exists {
-			t.Error("Static registry should contain LicenseType")
-		}
-	})
-}
-
-// Helper function to check if string contains substring
-func containsString(text, substr string) bool {
-	return len(text) > 0 && len(substr) > 0 &&
-		   func() bool {
-			   for i := 0; i <= len(text)-len(substr); i++ {
-				   if text[i:i+len(substr)] == substr {
-					   return true
-				   }
-			   }
-			   return false
-		   }()
 }

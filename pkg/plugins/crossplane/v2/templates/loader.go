@@ -24,7 +24,7 @@ import (
 	"strings"
 )
 
-//go:embed scaffolds
+//go:embed scaffolds scaffolds/root/.gitignore.tmpl
 var templateFS embed.FS
 
 // TemplateLoader loads templates from the embedded filesystem

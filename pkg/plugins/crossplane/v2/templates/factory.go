@@ -18,12 +18,13 @@ package templates
 
 import (
 	"fmt"
+	"io/fs"
+	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 )
 
-// CrossplaneTemplateFactory implements the TemplateFactory interface
 type CrossplaneTemplateFactory struct {
 	config         config.Config
 	initRegistry   map[TemplateType]TemplateBuilder
@@ -31,7 +32,6 @@ type CrossplaneTemplateFactory struct {
 	staticRegistry map[TemplateType]TemplateBuilder
 }
 
-// NewFactory creates a new CrossplaneTemplateFactory
 func NewFactory(cfg config.Config) TemplateFactory {
 	factory := &CrossplaneTemplateFactory{
 		config:         cfg,
@@ -40,40 +40,35 @@ func NewFactory(cfg config.Config) TemplateFactory {
 		staticRegistry: make(map[TemplateType]TemplateBuilder),
 	}
 
-	// Register init template builders
-	initTypes := []TemplateType{
-		GoModTemplateType, MakefileTemplateType, READMETemplateType,
-		GitIgnoreTemplateType, MainGoTemplateType, APIsTemplateType, GenerateGoTemplateType,
-		BoilerplateTemplateType, ProviderConfigTypesType, ProviderConfigRegisterType,
-		CrossplanePackageType, ConfigControllerType, ControllerRegisterType,
-		ClusterDockerfileType, ClusterMakefileType, VersionGoType, DocGoType,
-		ExamplesProviderConfigTemplateType,
-	}
-	for _, templateType := range initTypes {
-		factory.initRegistry[templateType] = NewInitTemplateBuilder(templateType)
-	}
-
-	// Register API template builders
-	apiTypes := []TemplateType{
-		APITypesTemplateType, APIGroupTemplateType, ControllerTemplateType,
-		ExamplesManagedResourceTemplateType,
-	}
-	for _, templateType := range apiTypes {
-		factory.apiRegistry[templateType] = NewAPITemplateBuilder(templateType)
-	}
-
-	// Register static template builders
-	staticTypes := []TemplateType{
-		LicenseType,
-	}
-	for _, templateType := range staticTypes {
-		factory.staticRegistry[templateType] = NewStaticTemplateBuilder(templateType)
-	}
-
+	factory.discoverAndRegisterTemplates()
 	return factory
 }
 
-// CreateInitTemplate creates initialization templates
+func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
+	fs.WalkDir(templateFS, "scaffolds", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+			return nil
+		}
+
+		info := AnalyzeTemplatePath(path)
+		templateType := TemplateType(info.GenerateTemplateType())
+
+		switch info.Category {
+		case "init":
+			f.initRegistry[templateType] = NewInitTemplateBuilder(templateType)
+		case "api":
+			f.apiRegistry[templateType] = NewAPITemplateBuilder(templateType)
+		case "static":
+			f.staticRegistry[templateType] = NewStaticTemplateBuilder(templateType)
+		}
+
+		return nil
+	})
+}
 func (f *CrossplaneTemplateFactory) CreateInitTemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error) {
 	builder, exists := f.initRegistry[templateType]
 	if !exists {
@@ -88,7 +83,6 @@ func (f *CrossplaneTemplateFactory) CreateInitTemplate(templateType TemplateType
 	return product, nil
 }
 
-// CreateAPITemplate creates API templates
 func (f *CrossplaneTemplateFactory) CreateAPITemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error) {
 	builder, exists := f.apiRegistry[templateType]
 	if !exists {
@@ -103,7 +97,6 @@ func (f *CrossplaneTemplateFactory) CreateAPITemplate(templateType TemplateType,
 	return product, nil
 }
 
-// CreateStaticTemplate creates static templates
 func (f *CrossplaneTemplateFactory) CreateStaticTemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error) {
 	builder, exists := f.staticRegistry[templateType]
 	if !exists {
@@ -118,7 +111,6 @@ func (f *CrossplaneTemplateFactory) CreateStaticTemplate(templateType TemplateTy
 	return product, nil
 }
 
-// GetSupportedTypes returns all supported template types
 func (f *CrossplaneTemplateFactory) GetSupportedTypes() []TemplateType {
 	var types []TemplateType
 
@@ -137,128 +129,254 @@ func (f *CrossplaneTemplateFactory) GetSupportedTypes() []TemplateType {
 	return types
 }
 
-// Convenience methods for backward compatibility and ease of use
+func (f *CrossplaneTemplateFactory) FindTemplateTypeByPath(pathPattern string) (TemplateType, error) {
+	patternMapping := map[string]string{
+		"gomod":                    "RootGoMod",
+		"makefile":                 "RootMakefile",
+		"readme":                   "RootReadmeMd",
+		"gitignore":                "RootGitignore",
+		"maingo":                   "CmdProviderMainGo",
+		"providerconfigtypes":      "ApisV1alpha1ProviderconfigTypes",
+		"providerconfigregister":   "ApisV1alpha1Register",
+		"crossplanepackage":        "PackageCrossplaneYaml",
+		"configcontroller":         "InternalControllerConfigConfig",
+		"controllerregister":       "InternalControllerRegister",
+		"clusterdockerfile":        "ClusterImagesImageNameDockerfile",
+		"clustermakefile":          "ClusterImagesImageNameMakefile",
+		"versiongo":                "InternalVersionVersion",
+		"license":                  "License",
+		"docgo":                    "ApisDocGo",
+		"examplesproviderconfig":   "ExamplesProviderConfigYaml",
+		"apitypes":                 "ApisGroupVersionTypes",
+		"apigroup":                 "ApisGroupVersionGroupversionInfo",
+		"controller":               "InternalControllerKindController",
+		"examplesmanagedresource":  "ExamplesGroupKindYaml",
+		"boilerplate":              "HackBoilerplateGoTxt",
+		"generatego":               "HackGenerateGo",
+		"apis":                     "ApisRegister",
+	}
 
-// GoMod creates a go.mod template
+	if mappedPattern, exists := patternMapping[strings.ToLower(pathPattern)]; exists {
+		for templateType := range f.initRegistry {
+			typeStr := string(templateType)
+			if strings.Contains(typeStr, mappedPattern) {
+				return templateType, nil
+			}
+		}
+		for templateType := range f.apiRegistry {
+			typeStr := string(templateType)
+			if strings.Contains(typeStr, mappedPattern) {
+				return templateType, nil
+			}
+		}
+		for templateType := range f.staticRegistry {
+			typeStr := string(templateType)
+			if strings.Contains(typeStr, mappedPattern) {
+				return templateType, nil
+			}
+		}
+	}
+	for templateType := range f.initRegistry {
+		typeStr := string(templateType)
+		if strings.Contains(strings.ToLower(typeStr), strings.ToLower(pathPattern)) {
+			return templateType, nil
+		}
+	}
+	for templateType := range f.apiRegistry {
+		typeStr := string(templateType)
+		if strings.Contains(strings.ToLower(typeStr), strings.ToLower(pathPattern)) {
+			return templateType, nil
+		}
+	}
+	for templateType := range f.staticRegistry {
+		typeStr := string(templateType)
+		if strings.Contains(strings.ToLower(typeStr), strings.ToLower(pathPattern)) {
+			return templateType, nil
+		}
+	}
+	return "", fmt.Errorf("template type not found for path pattern: %s", pathPattern)
+}
+
 func (f *CrossplaneTemplateFactory) GoMod() (TemplateProduct, error) {
-	return f.CreateInitTemplate(GoModTemplateType)
+	templateType, err := f.FindTemplateTypeByPath("gomod")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// Makefile creates a Makefile template
 func (f *CrossplaneTemplateFactory) Makefile() (TemplateProduct, error) {
-	return f.CreateInitTemplate(MakefileTemplateType)
+	templateType, err := f.FindTemplateTypeByPath("makefile")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// README creates a README.md template
 func (f *CrossplaneTemplateFactory) README() (TemplateProduct, error) {
-	return f.CreateInitTemplate(READMETemplateType)
+	templateType, err := f.FindTemplateTypeByPath("readme")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// GitIgnore creates a .gitignore template
 func (f *CrossplaneTemplateFactory) GitIgnore() (TemplateProduct, error) {
-	return f.CreateInitTemplate(GitIgnoreTemplateType)
+	templateType, err := f.FindTemplateTypeByPath("gitignore")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// MainGo creates a main.go template
 func (f *CrossplaneTemplateFactory) MainGo() (TemplateProduct, error) {
-	return f.CreateInitTemplate(MainGoTemplateType)
+	templateType, err := f.FindTemplateTypeByPath("maingo")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// ProviderConfigTypes creates ProviderConfig types template
 func (f *CrossplaneTemplateFactory) ProviderConfigTypes() (TemplateProduct, error) {
-	return f.CreateInitTemplate(ProviderConfigTypesType)
+	templateType, err := f.FindTemplateTypeByPath("providerconfigtypes")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// ProviderConfigRegister creates ProviderConfig registration template
 func (f *CrossplaneTemplateFactory) ProviderConfigRegister() (TemplateProduct, error) {
-	return f.CreateInitTemplate(ProviderConfigRegisterType)
+	templateType, err := f.FindTemplateTypeByPath("providerconfigregister")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// CrossplanePackage creates package/crossplane.yaml template
 func (f *CrossplaneTemplateFactory) CrossplanePackage() (TemplateProduct, error) {
-	return f.CreateInitTemplate(CrossplanePackageType)
+	templateType, err := f.FindTemplateTypeByPath("crossplanepackage")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// ConfigController creates config controller template
 func (f *CrossplaneTemplateFactory) ConfigController() (TemplateProduct, error) {
-	return f.CreateInitTemplate(ConfigControllerType)
+	templateType, err := f.FindTemplateTypeByPath("configcontroller")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// ControllerRegister creates controller registration template
 func (f *CrossplaneTemplateFactory) ControllerRegister() (TemplateProduct, error) {
-	return f.CreateInitTemplate(ControllerRegisterType)
+	templateType, err := f.FindTemplateTypeByPath("controllerregister")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// ClusterDockerfile creates cluster Dockerfile template
 func (f *CrossplaneTemplateFactory) ClusterDockerfile() (TemplateProduct, error) {
-	return f.CreateInitTemplate(ClusterDockerfileType)
+	templateType, err := f.FindTemplateTypeByPath("clusterdockerfile")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// ClusterMakefile creates cluster Makefile template
 func (f *CrossplaneTemplateFactory) ClusterMakefile() (TemplateProduct, error) {
-	return f.CreateInitTemplate(ClusterMakefileType)
+	templateType, err := f.FindTemplateTypeByPath("clustermakefile")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// VersionGo creates version.go template
 func (f *CrossplaneTemplateFactory) VersionGo() (TemplateProduct, error) {
-	return f.CreateInitTemplate(VersionGoType)
+	templateType, err := f.FindTemplateTypeByPath("versiongo")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// License creates LICENSE template
 func (f *CrossplaneTemplateFactory) License() (TemplateProduct, error) {
-	return f.CreateStaticTemplate(LicenseType)
+	templateType, err := f.FindTemplateTypeByPath("license")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateStaticTemplate(templateType)
 }
 
-// DocGo creates doc.go template for v1alpha1 package
 func (f *CrossplaneTemplateFactory) DocGo() (TemplateProduct, error) {
-	return f.CreateInitTemplate(DocGoType)
+	templateType, err := f.FindTemplateTypeByPath("docgo")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// APITypes creates API types template
 func (f *CrossplaneTemplateFactory) APITypes(force bool, res interface{}) (TemplateProduct, error) {
+	templateType, err := f.FindTemplateTypeByPath("apitypes")
+	if err != nil {
+		return nil, err
+	}
 	opts := []Option{WithForce(force)}
 	if res != nil {
 		if r, ok := res.(*resource.Resource); ok {
 			opts = append(opts, WithResource(r))
 		}
 	}
-	return f.CreateAPITemplate(APITypesTemplateType, opts...)
+	return f.CreateAPITemplate(templateType, opts...)
 }
 
-// APIGroup creates API group template
 func (f *CrossplaneTemplateFactory) APIGroup(res interface{}) (TemplateProduct, error) {
+	templateType, err := f.FindTemplateTypeByPath("apigroup")
+	if err != nil {
+		return nil, err
+	}
 	opts := []Option{}
 	if res != nil {
 		if r, ok := res.(*resource.Resource); ok {
 			opts = append(opts, WithResource(r))
 		}
 	}
-	return f.CreateAPITemplate(APIGroupTemplateType, opts...)
+	return f.CreateAPITemplate(templateType, opts...)
 }
 
-// Controller creates controller template
 func (f *CrossplaneTemplateFactory) Controller(force bool, res interface{}) (TemplateProduct, error) {
+	templateType, err := f.FindTemplateTypeByPath("controller")
+	if err != nil {
+		return nil, err
+	}
 	opts := []Option{WithForce(force)}
 	if res != nil {
 		if r, ok := res.(*resource.Resource); ok {
 			opts = append(opts, WithResource(r))
 		}
 	}
-	return f.CreateAPITemplate(ControllerTemplateType, opts...)
+	return f.CreateAPITemplate(templateType, opts...)
 }
 
-// ExamplesProviderConfig returns the provider config examples template
 func (f *CrossplaneTemplateFactory) ExamplesProviderConfig() (TemplateProduct, error) {
-	return f.CreateInitTemplate(ExamplesProviderConfigTemplateType)
+	templateType, err := f.FindTemplateTypeByPath("examplesproviderconfig")
+	if err != nil {
+		return nil, err
+	}
+	return f.CreateInitTemplate(templateType)
 }
 
-// ExamplesManagedResource returns the managed resource examples template
 func (f *CrossplaneTemplateFactory) ExamplesManagedResource(res interface{}) (TemplateProduct, error) {
+	templateType, err := f.FindTemplateTypeByPath("examplesmanagedresource")
+	if err != nil {
+		return nil, err
+	}
 	opts := []Option{}
 	if res != nil {
 		if r, ok := res.(*resource.Resource); ok {
 			opts = append(opts, WithResource(r))
 		}
 	}
-	return f.CreateAPITemplate(ExamplesManagedResourceTemplateType, opts...)
+	return f.CreateAPITemplate(templateType, opts...)
 }

@@ -45,11 +45,20 @@ Templates use Go's text/template syntax with the following available variables:
 
 ## Adding New Templates
 
-1. Create the template file in the appropriate directory
-2. Use the `.tmpl` extension
-3. Include the necessary template variables
-4. Update the template factory to include the new template type
-5. Add a corresponding TemplateProduct implementation
+**ZERO STEPS!** - Just create your template file:
+
+```bash
+# Simply create your template file in the appropriate directory - that's it!
+echo "your template content..." > pkg/plugins/crossplane/v2/templates/scaffolds/category/your-template.tmpl
+```
+
+The system **automatically discovers and registers** all `.tmpl` files at runtime:
+- ✅ Auto-detects template category (init/api/static) from file path
+- ✅ Generates TemplateType constants automatically
+- ✅ Registers with appropriate factory automatically
+- ✅ No manual registration or generation commands needed
+
+**Reduced from 4 manual steps to 0 steps!** 🚀
 
 ## Migration from Embedded Templates
 

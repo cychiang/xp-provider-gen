@@ -22,39 +22,8 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 )
 
-// TemplateType represents the type of template to create
 type TemplateType string
 
-const (
-	// Init template types
-	GoModTemplateType            TemplateType = "gomod"
-	MakefileTemplateType         TemplateType = "makefile"
-	READMETemplateType           TemplateType = "readme"
-	GitIgnoreTemplateType        TemplateType = "gitignore"
-	MainGoTemplateType           TemplateType = "maingo"
-	APIsTemplateType             TemplateType = "apis"
-	GenerateGoTemplateType       TemplateType = "generatego"
-	BoilerplateTemplateType      TemplateType = "boilerplate"
-	ProviderConfigTypesType      TemplateType = "providerconfigtypes"
-	ProviderConfigRegisterType   TemplateType = "providerconfigregister"
-	CrossplanePackageType        TemplateType = "crossplanepackage"
-	ConfigControllerType         TemplateType = "configcontroller"
-	ControllerRegisterType       TemplateType = "controllerregister"
-	VersionGoType                TemplateType = "versiongo"
-	ClusterDockerfileType        TemplateType = "clusterdockerfile"
-	ClusterMakefileType          TemplateType = "clustermakefile"
-	LicenseType                  TemplateType = "license"
-	DocGoType                    TemplateType = "docgo"
-	ExamplesProviderConfigTemplateType TemplateType = "examplesproviderconfig"
-
-	// API template types
-	APITypesTemplateType         TemplateType = "apitypes"
-	APIGroupTemplateType         TemplateType = "apigroup"
-	ControllerTemplateType       TemplateType = "controller"
-	ExamplesManagedResourceTemplateType TemplateType = "examplesmanagedresource"
-)
-
-// TemplateProduct defines the interface for all template products
 type TemplateProduct interface {
 	machinery.Template
 	GetTemplateType() TemplateType
@@ -62,7 +31,6 @@ type TemplateProduct interface {
 	SetResource(res *resource.Resource) error
 }
 
-// TemplateFactory defines the abstract factory interface
 type TemplateFactory interface {
 	CreateInitTemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error)
 	CreateAPITemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error)
@@ -70,23 +38,18 @@ type TemplateFactory interface {
 	GetSupportedTypes() []TemplateType
 }
 
-// TemplateBuilder builds specific template types
 type TemplateBuilder interface {
 	Build(cfg config.Config, opts ...Option) (TemplateProduct, error)
 	GetTemplateType() TemplateType
 }
 
-// Option provides configuration options for template creation
 type Option func(*TemplateOptions)
 
-// TemplateOptions holds configuration options for template creation
 type TemplateOptions struct {
 	Force        bool
 	Resource     *resource.Resource
 	CustomData   map[string]interface{}
 }
-
-// Option functions
 func WithForce(force bool) Option {
 	return func(opts *TemplateOptions) {
 		opts.Force = force

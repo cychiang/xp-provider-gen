@@ -18,11 +18,11 @@ package templates
 
 import (
 	"fmt"
+	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 )
 
-// InitTemplateBuilder builds init templates
 type InitTemplateBuilder struct {
 	templateType TemplateType
 }
@@ -43,55 +43,54 @@ func (b *InitTemplateBuilder) Build(cfg config.Config, opts ...Option) (Template
 
 	var product TemplateProduct
 
-	switch b.templateType {
-	case GoModTemplateType:
+	typeStr := strings.ToLower(string(b.templateType))
+	switch {
+	case strings.Contains(typeStr, "gomod"):
 		product = &GoModTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case MakefileTemplateType:
+	case strings.Contains(typeStr, "makefile"):
 		product = &MakefileTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case READMETemplateType:
+	case strings.Contains(typeStr, "readme"):
 		product = &READMETemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case GitIgnoreTemplateType:
+	case strings.Contains(typeStr, "gitignore"):
 		product = &GitIgnoreTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case MainGoTemplateType:
+	case strings.Contains(typeStr, "maingo"):
 		product = &MainGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case APIsTemplateType:
-		product = &APIsTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case GenerateGoTemplateType:
-		product = &GenerateGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case BoilerplateTemplateType:
-		product = &BoilerplateTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case ProviderConfigTypesType:
+	case strings.Contains(typeStr, "providerconfig") && strings.Contains(typeStr, "types"):
 		product = &ProviderConfigTypesTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case ProviderConfigRegisterType:
+	case strings.Contains(typeStr, "v1alpha1") && strings.Contains(typeStr, "register"):
 		product = &ProviderConfigRegisterTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case CrossplanePackageType:
+	case strings.Contains(typeStr, "apis") && strings.Contains(typeStr, "register"):
+		product = &APIsTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
+	case strings.Contains(typeStr, "generatego"):
+		product = &GenerateGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
+	case strings.Contains(typeStr, "boilerplate"):
+		product = &BoilerplateTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
+	case strings.Contains(typeStr, "crossplane") && strings.Contains(typeStr, "yaml"):
 		product = &CrossplanePackageTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case ConfigControllerType:
+	case strings.Contains(typeStr, "controller") && strings.Contains(typeStr, "config"):
 		product = &ConfigControllerTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case ControllerRegisterType:
+	case strings.Contains(typeStr, "controller") && strings.Contains(typeStr, "register"):
 		product = &ControllerRegisterTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case ClusterDockerfileType:
+	case strings.Contains(typeStr, "cluster") && strings.Contains(typeStr, "dockerfile"):
 		product = &ClusterDockerfileTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case ClusterMakefileType:
+	case strings.Contains(typeStr, "cluster") && strings.Contains(typeStr, "makefile"):
 		product = &ClusterMakefileTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case VersionGoType:
+	case strings.Contains(typeStr, "versiongo"):
 		product = &VersionGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case LicenseType:
+	case strings.Contains(typeStr, "license"):
 		product = &LicenseTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case DocGoType:
+	case strings.Contains(typeStr, "docgo"):
 		product = &DocGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case ExamplesProviderConfigTemplateType:
+	case strings.Contains(typeStr, "examplesproviderconfig"):
 		product = &ExamplesProviderConfigTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
 	default:
 		return nil, fmt.Errorf("unsupported init template type: %s", b.templateType)
 	}
 
-	// Configure the product
 	if err := product.Configure(cfg); err != nil {
 		return nil, fmt.Errorf("failed to configure template: %w", err)
 	}
 
-	// Set options by getting the base template
 	if baseProduct, ok := product.(interface{ GetBase() *BaseTemplateProduct }); ok {
 		base := baseProduct.GetBase()
 		if options.Force {
@@ -102,7 +101,6 @@ func (b *InitTemplateBuilder) Build(cfg config.Config, opts ...Option) (Template
 		}
 	}
 
-	// Call SetTemplateDefaults to set paths and template bodies
 	if defaultSetter, ok := product.(interface{ SetTemplateDefaults() error }); ok {
 		if err := defaultSetter.SetTemplateDefaults(); err != nil {
 			return nil, fmt.Errorf("failed to set template defaults: %w", err)
@@ -112,7 +110,6 @@ func (b *InitTemplateBuilder) Build(cfg config.Config, opts ...Option) (Template
 	return product, nil
 }
 
-// APITemplateBuilder builds API templates
 type APITemplateBuilder struct {
 	templateType TemplateType
 }
@@ -137,30 +134,28 @@ func (b *APITemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateP
 
 	var product TemplateProduct
 
-	switch b.templateType {
-	case APITypesTemplateType:
+	typeStr := strings.ToLower(string(b.templateType))
+	switch {
+	case strings.Contains(typeStr, "groupversiontypes"):
 		product = &APITypesTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case APIGroupTemplateType:
+	case strings.Contains(typeStr, "groupversiongroupversion"):
 		product = &APIGroupTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case ControllerTemplateType:
+	case strings.Contains(typeStr, "controllerkindcontroller"):
 		product = &ControllerTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case ExamplesManagedResourceTemplateType:
+	case strings.Contains(typeStr, "examplesgroupkind"):
 		product = &ExamplesManagedResourceTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
 	default:
 		return nil, fmt.Errorf("unsupported API template type: %s", b.templateType)
 	}
 
-	// Configure the product
 	if err := product.Configure(cfg); err != nil {
 		return nil, fmt.Errorf("failed to configure template: %w", err)
 	}
 
-	// Set resource
 	if err := product.SetResource(options.Resource); err != nil {
 		return nil, fmt.Errorf("failed to set resource: %w", err)
 	}
 
-	// Set options by getting the base template
 	if baseProduct, ok := product.(interface{ GetBase() *BaseTemplateProduct }); ok {
 		base := baseProduct.GetBase()
 		if options.Force {
@@ -171,7 +166,6 @@ func (b *APITemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateP
 		}
 	}
 
-	// Call SetTemplateDefaults to set paths and template bodies
 	if defaultSetter, ok := product.(interface{ SetTemplateDefaults() error }); ok {
 		if err := defaultSetter.SetTemplateDefaults(); err != nil {
 			return nil, fmt.Errorf("failed to set template defaults: %w", err)
@@ -181,7 +175,6 @@ func (b *APITemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateP
 	return product, nil
 }
 
-// StaticTemplateBuilder builds static templates
 type StaticTemplateBuilder struct {
 	templateType TemplateType
 }
@@ -202,19 +195,18 @@ func (b *StaticTemplateBuilder) Build(cfg config.Config, opts ...Option) (Templa
 
 	var product TemplateProduct
 
-	switch b.templateType {
-	case LicenseType:
+	typeStr := strings.ToLower(string(b.templateType))
+	switch {
+	case strings.Contains(typeStr, "license"):
 		product = &LicenseTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
 	default:
 		return nil, fmt.Errorf("unsupported static template type: %s", b.templateType)
 	}
 
-	// Configure the product
 	if err := product.Configure(cfg); err != nil {
 		return nil, fmt.Errorf("failed to configure template: %w", err)
 	}
 
-	// Set options by getting the base template
 	if baseProduct, ok := product.(interface{ GetBase() *BaseTemplateProduct }); ok {
 		base := baseProduct.GetBase()
 		if options.Force {
@@ -225,7 +217,6 @@ func (b *StaticTemplateBuilder) Build(cfg config.Config, opts ...Option) (Templa
 		}
 	}
 
-	// Call SetTemplateDefaults to set paths and template bodies
 	if defaultSetter, ok := product.(interface{ SetTemplateDefaults() error }); ok {
 		if err := defaultSetter.SetTemplateDefaults(); err != nil {
 			return nil, fmt.Errorf("failed to set template defaults: %w", err)

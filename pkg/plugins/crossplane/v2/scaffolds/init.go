@@ -28,13 +28,11 @@ import (
 	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/templates"
 )
 
-// InitScaffolder scaffolds the project structure for a Crossplane provider
 type InitScaffolder struct {
 	config      config.Config
 	boilerplate string
 }
 
-// NewInitScaffolder returns a new InitScaffolder for Crossplane provider projects
 func NewInitScaffolder(config config.Config) *InitScaffolder {
 	return &InitScaffolder{
 		config:      config,
@@ -42,43 +40,106 @@ func NewInitScaffolder(config config.Config) *InitScaffolder {
 	}
 }
 
-// Scaffold scaffolds the Crossplane provider project structure
 func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Scaffolding Crossplane provider project structure...\n")
 
-	// Initialize the machinery.Scaffold that will write the files to disk
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(s.config),
 		machinery.WithBoilerplate(s.boilerplate),
 	)
 
-	// Create template factory for true Factory Pattern template creation
 	factory := templates.NewFactory(s.config).(*templates.CrossplaneTemplateFactory)
 
-	// Get all templates using the factory pattern
-	goMod, _ := factory.GoMod()
-	makefile, _ := factory.Makefile()
-	readme, _ := factory.README()
-	gitIgnore, _ := factory.GitIgnore()
-	mainGo, _ := factory.MainGo()
-	apisTemplate, _ := factory.CreateInitTemplate(templates.APIsTemplateType)
-	generateGo, _ := factory.CreateInitTemplate(templates.GenerateGoTemplateType)
-	boilerplate, _ := factory.CreateInitTemplate(templates.BoilerplateTemplateType)
-	providerConfigTypes, _ := factory.ProviderConfigTypes()
-	providerConfigRegister, _ := factory.ProviderConfigRegister()
-	crossplanePackage, _ := factory.CrossplanePackage()
-	configController, _ := factory.ConfigController()
-	controllerRegister, _ := factory.ControllerRegister()
-	clusterDockerfile, _ := factory.ClusterDockerfile()
-	clusterMakefile, _ := factory.ClusterMakefile()
-	versionGo, _ := factory.VersionGo()
-	license, _ := factory.License()
-	docGo, _ := factory.DocGo()
-	examplesProviderConfig, _ := factory.ExamplesProviderConfig()
+	goMod, err := factory.GoMod()
+	if err != nil {
+		return fmt.Errorf("failed to create GoMod template: %w", err)
+	}
+	makefile, err := factory.Makefile()
+	if err != nil {
+		return fmt.Errorf("failed to create Makefile template: %w", err)
+	}
+	readme, err := factory.README()
+	if err != nil {
+		return fmt.Errorf("failed to create README template: %w", err)
+	}
+	gitIgnore, err := factory.GitIgnore()
+	if err != nil {
+		return fmt.Errorf("failed to create GitIgnore template: %w", err)
+	}
+	mainGo, err := factory.MainGo()
+	if err != nil {
+		return fmt.Errorf("failed to create MainGo template: %w", err)
+	}
+	apisTemplateType, err := factory.FindTemplateTypeByPath("apis")
+	if err != nil {
+		return fmt.Errorf("failed to find APIs template: %w", err)
+	}
+	apisTemplate, err := factory.CreateInitTemplate(apisTemplateType)
+	if err != nil {
+		return fmt.Errorf("failed to create APIs template: %w", err)
+	}
+	generateGoType, err := factory.FindTemplateTypeByPath("generatego")
+	if err != nil {
+		return fmt.Errorf("failed to find GenerateGo template: %w", err)
+	}
+	generateGo, err := factory.CreateInitTemplate(generateGoType)
+	if err != nil {
+		return fmt.Errorf("failed to create GenerateGo template: %w", err)
+	}
+	boilerplateType, err := factory.FindTemplateTypeByPath("boilerplate")
+	if err != nil {
+		return fmt.Errorf("failed to find Boilerplate template: %w", err)
+	}
+	boilerplate, err := factory.CreateInitTemplate(boilerplateType)
+	if err != nil {
+		return fmt.Errorf("failed to create Boilerplate template: %w", err)
+	}
+	providerConfigTypes, err := factory.ProviderConfigTypes()
+	if err != nil {
+		return fmt.Errorf("failed to create ProviderConfigTypes template: %w", err)
+	}
+	providerConfigRegister, err := factory.ProviderConfigRegister()
+	if err != nil {
+		return fmt.Errorf("failed to create ProviderConfigRegister template: %w", err)
+	}
+	crossplanePackage, err := factory.CrossplanePackage()
+	if err != nil {
+		return fmt.Errorf("failed to create CrossplanePackage template: %w", err)
+	}
+	configController, err := factory.ConfigController()
+	if err != nil {
+		return fmt.Errorf("failed to create ConfigController template: %w", err)
+	}
+	controllerRegister, err := factory.ControllerRegister()
+	if err != nil {
+		return fmt.Errorf("failed to create ControllerRegister template: %w", err)
+	}
+	clusterDockerfile, err := factory.ClusterDockerfile()
+	if err != nil {
+		return fmt.Errorf("failed to create ClusterDockerfile template: %w", err)
+	}
+	clusterMakefile, err := factory.ClusterMakefile()
+	if err != nil {
+		return fmt.Errorf("failed to create ClusterMakefile template: %w", err)
+	}
+	versionGo, err := factory.VersionGo()
+	if err != nil {
+		return fmt.Errorf("failed to create VersionGo template: %w", err)
+	}
+	license, err := factory.License()
+	if err != nil {
+		return fmt.Errorf("failed to create License template: %w", err)
+	}
+	docGo, err := factory.DocGo()
+	if err != nil {
+		return fmt.Errorf("failed to create DocGo template: %w", err)
+	}
+	examplesProviderConfig, err := factory.ExamplesProviderConfig()
+	if err != nil {
+		return fmt.Errorf("failed to create ExamplesProviderConfig template: %w", err)
+	}
 
-	// Execute scaffolding with proper Factory Pattern
 	if err := scaffold.Execute(
-		// Basic project structure
 		goMod,
 		makefile,
 		readme,
@@ -88,27 +149,21 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 		generateGo,
 		boilerplate,
 
-		// ProviderConfig APIs
 		providerConfigTypes,
 		providerConfigRegister,
 		docGo,
 
-		// Package and controllers
 		crossplanePackage,
 		configController,
 		controllerRegister,
 
-		// Cluster resources for Docker image building
 		clusterDockerfile,
 		clusterMakefile,
 
-		// Version information
 		versionGo,
 
-		// Static files
 		license,
 
-		// Example files
 		examplesProviderConfig,
 	); err != nil {
 		return fmt.Errorf("error scaffolding Crossplane provider project: %w", err)
@@ -116,31 +171,24 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 
 	fmt.Printf("Crossplane provider project scaffolded successfully!\n")
 
-	// Initialize git and build submodule BEFORE automated setup
 	if err := s.setupGitAndSubmodule(); err != nil {
 		fmt.Printf("Warning: Git setup failed: %v\n", err)
-		// Continue anyway - user can set up manually
 	}
 
-	// Automate post-init steps
 	if err := s.runPostInitSteps(); err != nil {
 		fmt.Printf("Warning: Some post-init steps failed: %v\n", err)
-		// Don't return error - project is still created successfully
 	}
 
 	return nil
 }
 
-// setupGitAndSubmodule initializes git repository and build submodule
 func (s *InitScaffolder) setupGitAndSubmodule() error {
-	// Initialize git repository if not already initialized
 	if _, err := os.Stat(".git"); os.IsNotExist(err) {
 		if err := s.runCommand("git", "init"); err != nil {
 			return fmt.Errorf("failed to git init: %w", err)
 		}
 	}
 
-	// Add build submodule if build directory doesn't exist as a submodule
 	if _, err := os.Stat("build"); os.IsNotExist(err) {
 		buildSubmoduleURL := "https://github.com/crossplane/build"
 		if err := s.runCommand("git", "submodule", "add", buildSubmoduleURL, "build"); err != nil {
@@ -152,40 +200,33 @@ func (s *InitScaffolder) setupGitAndSubmodule() error {
 	return nil
 }
 
-// runPostInitSteps runs the automated steps after project scaffolding
 func (s *InitScaffolder) runPostInitSteps() error {
 	fmt.Printf("Running automated setup steps...\n")
 
-	// Step 1: Create initial commit FIRST to avoid git HEAD errors
 	fmt.Printf("  1. Creating initial commit...\n")
 	if err := s.createInitialCommit(); err != nil {
 		fmt.Printf("    Warning: initial commit failed: %v (you can commit manually later)\n", err)
 	}
 
-	// Step 2: Run make submodules
 	fmt.Printf("  2. Setting up build system (make submodules)...\n")
 	if err := s.runCommand("make", "submodules"); err != nil {
 		fmt.Printf("    Warning: make submodules failed: %v (you can run it manually later)\n", err)
 	}
 
-	// Verify build system is ready by checking if make targets are available
 	if err := s.verifyBuildSystem(); err != nil {
 		fmt.Printf("    Warning: Build system not fully ready: %v\n", err)
 	}
 
-	// Step 3: Run go mod tidy
 	fmt.Printf("  3. Downloading dependencies (go mod tidy)...\n")
 	if err := s.runCommand("go", "mod", "tidy"); err != nil {
 		fmt.Printf("    Warning: go mod tidy failed: %v (you can run it manually later)\n", err)
 	}
 
-	// Step 4: Run make generate
 	fmt.Printf("  4. Generating code (make generate)...\n")
 	if err := s.runCommand("make", "generate"); err != nil {
 		fmt.Printf("    Warning: make generate failed: %v (you can run it manually later)\n", err)
 	}
 
-	// Step 5: Run make reviewable
 	fmt.Printf("  5. Running quality checks (make reviewable)...\n")
 	if err := s.runCommand("make", "reviewable"); err != nil {
 		fmt.Printf("    Warning: make reviewable failed: %v (you can run it manually later)\n", err)
@@ -195,48 +236,39 @@ func (s *InitScaffolder) runPostInitSteps() error {
 	return nil
 }
 
-// runCommand executes a command in the current directory
 func (s *InitScaffolder) runCommand(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
-	// Set working directory explicitly
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 	cmd.Dir = cwd
 
-	// Preserve environment variables
 	cmd.Env = os.Environ()
 
-	// For make commands, use combined output to capture errors better
 	if name == "make" {
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Printf("    Command failed: %s %v\n", name, args)
 			fmt.Printf("    Output: %s\n", string(output))
 		} else {
-			// Print successful output
 			fmt.Print(string(output))
 		}
 		return err
 	}
 
-	// For other commands, use normal stdout/stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-// verifyBuildSystem checks if the build system is ready by testing make targets
 func (s *InitScaffolder) verifyBuildSystem() error {
-	// Try to run make help to see if targets are available
 	cmd := exec.Command("make", "help")
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("make help failed: %w", err)
 	}
 
-	// Check if generate and reviewable targets are available
 	outputStr := string(output)
 	if !strings.Contains(outputStr, "generate") {
 		return fmt.Errorf("generate target not available")
@@ -248,35 +280,26 @@ func (s *InitScaffolder) verifyBuildSystem() error {
 	return nil
 }
 
-// createInitialCommit creates an initial git commit
 func (s *InitScaffolder) createInitialCommit() error {
-	// Initialize git repository if not already initialized
 	if _, err := os.Stat(".git"); os.IsNotExist(err) {
 		if err := s.runCommand("git", "init"); err != nil {
 			return fmt.Errorf("failed to git init: %w", err)
 		}
 	}
 
-	// Set git config if not set (needed for temp directories)
 	if err := s.runCommand("git", "config", "user.email", "crossplane-provider-gen@example.com"); err != nil {
-		// Ignore error, user might have global config
 	}
 	if err := s.runCommand("git", "config", "user.name", "Crossplane Provider Generator"); err != nil {
-		// Ignore error, user might have global config
 	}
 
-	// Add safe directory to handle permission issues in temp directories
 	cwd, _ := os.Getwd()
 	if err := s.runCommand("git", "config", "--global", "--add", "safe.directory", cwd); err != nil {
-		// Ignore error, this is just to handle temp directory issues
 	}
 
-	// Add all files
 	if err := s.runCommand("git", "add", "."); err != nil {
 		return fmt.Errorf("failed to git add: %w", err)
 	}
 
-	// Create initial commit
 	commitMessage := fmt.Sprintf(`Initial Crossplane provider project
 
 This project provides a Crossplane provider for %s resources.
@@ -290,7 +313,6 @@ Ready for implementing custom resource management logic.`, s.extractProviderName
 	return nil
 }
 
-// extractProviderName extracts provider name from config
 func (s *InitScaffolder) extractProviderName() string {
 	if s.config.GetRepository() != "" {
 		parts := strings.Split(s.config.GetRepository(), "/")
