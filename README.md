@@ -2,16 +2,6 @@
 
 A command-line tool for scaffolding Crossplane providers using Kubebuilder v4 and crossplane-runtime v2.
 
-## Features
-
-- 🚀 **Quick Setup** - Initialize a complete Crossplane provider in seconds
-- 📦 **Auto-Discovery** - Templates are automatically discovered and categorized
-- 🔧 **Full Workflow** - From scaffolding to build-ready provider
-- 🧪 **Battle-Tested** - Follows Crossplane v2 patterns and best practices
-- ✅ **Complete CRD Generation** - Generates ProviderConfig, ClusterProviderConfig, and all managed resource CRDs
-- 🔄 **Multi-API Support** - Create multiple APIs in the same group/version without conflicts
-- 🎯 **Zero-Step Templates** - Add new templates instantly without registration
-
 ## Quick Start
 
 ### Installation
@@ -29,9 +19,10 @@ make build
 mkdir my-provider && cd my-provider
 xp-provider-gen init --domain=example.com --repo=github.com/example/provider-awesome
 
-# Add managed resources
+# Add managed resources with different versions
 xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
-xp-provider-gen create api --group=storage --version=v1alpha1 --kind=Bucket
+xp-provider-gen create api --group=storage --version=v1 --kind=Bucket
+xp-provider-gen create api --group=network --version=v1beta1 --kind=VPC
 
 # Build and test
 make generate && make build && make reviewable
@@ -59,12 +50,19 @@ xp-provider-gen init --domain=example.com --repo=github.com/example/provider-aws
 ### Add Managed Resources
 
 ```bash
+# Create APIs with any version
 xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
+xp-provider-gen create api --group=storage --version=v1 --kind=Bucket
+xp-provider-gen create api --group=network --version=v1beta1 --kind=VPC
+
+# Multiple resources in same group/version (no conflicts!)
+xp-provider-gen create api --group=storage --version=v1 --kind=Bucket
+xp-provider-gen create api --group=storage --version=v1 --kind=Volume
 ```
 
 **Options:**
 - `--group` - Resource group (e.g., compute, storage, network)
-- `--version` - API version (e.g., v1alpha1, v1beta1)
+- `--version` - API version (any format: v1, v1alpha1, v1beta1, v2, etc.)
 - `--kind` - Resource kind (e.g., Instance, Bucket, VPC)
 - `--force` - Overwrite existing files
 
@@ -74,25 +72,42 @@ xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
 provider-awesome/
 ├── apis/                       # API definitions
 │   ├── v1alpha1/              # ProviderConfig types
+│   │   ├── providerconfig_types.go
+│   │   └── register.go
 │   ├── compute/v1alpha1/      # Instance managed resource
-│   └── storage/v1alpha1/      # Bucket managed resource
+│   │   ├── instance_types.go   # Generated as KIND_types.go
+│   │   └── groupversion_info.go
+│   ├── storage/v1/            # Bucket and Volume (v1 version)
+│   │   ├── bucket_types.go     # No conflicts - separate files!
+│   │   ├── volume_types.go     # Multiple APIs per group/version
+│   │   └── groupversion_info.go
+│   ├── doc.go
+│   ├── generate.go            # Code generation configuration
+│   └── register.go            # Auto-updated import registry
 ├── cmd/provider/              # Main provider binary
 ├── internal/
 │   ├── controller/            # Resource controllers
 │   │   ├── bucket/           # Bucket controller
 │   │   ├── instance/         # Instance controller
+│   │   ├── volume/           # Volume controller
 │   │   └── config/           # ProviderConfig controller
 │   └── version/              # Version information
 ├── examples/                  # YAML examples
 │   ├── provider/             # ProviderConfig examples
 │   ├── compute/              # Instance examples
-│   └── storage/              # Bucket examples
+│   └── storage/              # Bucket and Volume examples
 ├── package/                   # Crossplane package
 │   ├── crds/                 # Generated CRDs
+│   │   ├── example.com_providerconfigs.yaml
+│   │   ├── example.com_clusterproviderconfigs.yaml
+│   │   ├── compute.example.com_instances.yaml
+│   │   ├── storage.example.com_buckets.yaml
+│   │   └── storage.example.com_volumes.yaml
 │   └── crossplane.yaml       # Package metadata
 ├── cluster/                   # Docker build files
 │   └── images/provider-name/ # Container configuration
 ├── hack/                     # Code generation scripts
+├── build/                    # Crossplane build system (submodule)
 └── Makefile                  # Build system
 ```
 
@@ -110,24 +125,6 @@ make reviewable
 
 # Run the provider locally
 make run
-```
-
-## Contributing: Zero-Step Template Development
-
-This project features a revolutionary **zero-step template system** - just add your template file and it's automatically discovered!
-
-### 🚀 Add Templates in Zero Steps
-
-```bash
-# Old way: 4+ manual steps (register, generate, compile, test)
-# New way: 0 steps - just create your template file!
-
-echo 'package {{ .Resource.Group }}' > pkg/plugins/crossplane/v2/templates/scaffolds/apis/GROUP/doc.go.tmpl
-# That's it! Template is automatically:
-# ✅ Discovered at runtime
-# ✅ Categorized by path
-# ✅ Registered with factory
-# ✅ Ready to use immediately
 ```
 
 ### Automatic Template System
@@ -179,14 +176,6 @@ Available in all templates:
 {{ .Resource.QualifiedGroup }} // compute.aws.example.com
 ```
 
-### Benefits for Contributors
-
-- **🎯 Zero friction** - Add templates instantly without boilerplate
-- **🔍 Clear structure** - Directory layout matches generated project
-- **✨ IDE friendly** - Full syntax highlighting and validation
-- **🚀 Fast iteration** - No compilation step for template changes
-- **📚 Self-documenting** - Template location shows where files are generated
-
 ## Testing
 
 ```bash
@@ -199,23 +188,6 @@ xp-provider-gen init --domain=test.io --repo=github.com/test/provider
 xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
 make generate && make build && make reviewable
 ```
-
-## Recent Improvements
-
-### ✅ Fixed CRD Generation Issues
-- **ProviderConfig CRDs** - Now properly generates `providerconfigs.yaml` and `clusterproviderconfigs.yaml`
-- **Complete CRD Set** - Generates all required CRDs including ProviderConfigUsage types
-- **Automatic Discovery** - CRDs are discovered and generated automatically during `make generate`
-
-### ✅ Multi-API Support
-- **No More Conflicts** - Create multiple APIs in the same group/version (e.g., `storage/v1alpha1/Bucket` and `storage/v1alpha1/Volume`)
-- **KIND-Specific Files** - Each resource gets its own types file (e.g., `bucket_types.go`, `volume_types.go`)
-- **Isolated Development** - Work on multiple resources without overwriting each other
-
-### ✅ Enhanced Template System
-- **Zero Registration** - Add templates instantly without manual registration
-- **Path-Based Discovery** - Template category automatically detected from file path
-- **Runtime Discovery** - Templates discovered and registered at runtime
 
 ## Build Commands
 
@@ -230,6 +202,14 @@ make generate && make build && make reviewable
 - Go 1.24.5+
 - Docker (for building providers)
 - Git (for submodules)
+
+## Contributing
+
+We welcome contributions! The zero-step template system makes it easy to add new features:
+
+1. **Add templates**: Just create `.tmpl` files - they're automatically discovered
+2. **Fix bugs**: The codebase is well-structured and easy to navigate
+3. **Improve docs**: Help make the project more accessible
 
 ## License
 

@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/templates"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates"
 )
 
 type PluginConfig struct {

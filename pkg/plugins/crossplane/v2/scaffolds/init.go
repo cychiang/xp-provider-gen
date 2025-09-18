@@ -25,7 +25,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
-	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/templates"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates"
 )
 
 type InitScaffolder struct {

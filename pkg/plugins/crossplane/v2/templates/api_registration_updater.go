@@ -65,8 +65,8 @@ func (f *APIRegistrationUpdater) GetBody() string {
 	var newImport, newRegistration string
 	if f.Resource.Group != "" && f.Resource.Group != "v1alpha1" {
 		// API group (e.g., sample, compute, storage)
-		newImport = fmt.Sprintf(`%sv1alpha1 "%s/apis/%s/v1alpha1"`, f.Resource.Group, f.Repo, f.Resource.Group)
-		newRegistration = fmt.Sprintf("%sv1alpha1.SchemeBuilder.AddToScheme", f.Resource.Group)
+		newImport = fmt.Sprintf(`%s%s "%s/apis/%s/%s"`, f.Resource.Group, f.Resource.Version, f.Repo, f.Resource.Group, f.Resource.Version)
+		newRegistration = fmt.Sprintf("%s%s.SchemeBuilder.AddToScheme", f.Resource.Group, f.Resource.Version)
 	}
 
 	// Always include the main v1alpha1 import
@@ -101,7 +101,7 @@ func (f *APIRegistrationUpdater) GetBody() string {
 	if newImport != "" {
 		importExists := false
 		for _, existing := range existingImports {
-			if strings.Contains(existing, fmt.Sprintf("/apis/%s/v1alpha1", f.Resource.Group)) {
+			if strings.Contains(existing, fmt.Sprintf("/apis/%s/%s", f.Resource.Group, f.Resource.Version)) {
 				importExists = true
 				break
 			}
@@ -180,8 +180,8 @@ func (f *APIRegistrationUpdater) parseExistingContent() ([]string, []string) {
 	inRegistrations := false
 
 	// Regex patterns for parsing
-	importPattern := regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v1alpha1)\s+"([^"]+/apis/[^"]+)"\s*$`)
-	registrationPattern := regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v1alpha1\.SchemeBuilder\.AddToScheme),?\s*$`)
+	importPattern := regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v[a-zA-Z0-9]+)\s+"([^"]+/apis/[^"]+)"\s*$`)
+	registrationPattern := regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v[a-zA-Z0-9]+\.SchemeBuilder\.AddToScheme),?\s*$`)
 
 	for scanner.Scan() {
 		line := scanner.Text()

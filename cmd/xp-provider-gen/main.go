@@ -22,8 +22,8 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/cli"
 	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
 
-	crossplanev2 "github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2"
-	"github.com/crossplane/xp-kubebuilder-plugin/pkg/version"
+	crossplanev2 "github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2"
+	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
 func main() {
