@@ -120,26 +120,28 @@ func TestCrossplaneTemplateFactory_CreateInitTemplate(t *testing.T) {
 	cfg := newMockConfig()
 	factory := NewFactory(cfg)
 
-	tests := []struct {
-		name string
-		test func() (TemplateProduct, error)
-	}{
-		{"GoMod", func() (TemplateProduct, error) { return factory.(*CrossplaneTemplateFactory).GoMod() }},
-		{"Makefile", func() (TemplateProduct, error) { return factory.(*CrossplaneTemplateFactory).Makefile() }},
-		{"README", func() (TemplateProduct, error) { return factory.(*CrossplaneTemplateFactory).README() }},
-		{"MainGo", func() (TemplateProduct, error) { return factory.(*CrossplaneTemplateFactory).MainGo() }},
+	templates, err := factory.GetInitTemplates()
+	if err != nil {
+		t.Fatalf("GetInitTemplates failed: %v", err)
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			template, err := test.test()
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
+	if len(templates) == 0 {
+		t.Error("GetInitTemplates should return templates")
+	}
+
+	expectedPatterns := []string{"gomod", "makefile", "readme", "maingo"}
+	for _, pattern := range expectedPatterns {
+		found := false
+		for _, template := range templates {
+			templateType := strings.ToLower(string(template.GetTemplateType()))
+			if strings.Contains(templateType, pattern) {
+				found = true
+				break
 			}
-			if template == nil {
-				t.Error("Template should not be nil")
-			}
-		})
+		}
+		if !found {
+			t.Errorf("Expected init template pattern %s not found", pattern)
+		}
 	}
 }
 
@@ -156,31 +158,35 @@ func TestCrossplaneTemplateFactory_CreateAPITemplate(t *testing.T) {
 		Plural: "instances",
 	}
 
-	tests := []struct {
-		name string
-		test func() (TemplateProduct, error)
-	}{
-		{"APITypes", func() (TemplateProduct, error) {
-			return factory.(*CrossplaneTemplateFactory).APITypes(false, res)
-		}},
-		{"APIGroup", func() (TemplateProduct, error) {
-			return factory.(*CrossplaneTemplateFactory).APIGroup(res)
-		}},
-		{"Controller", func() (TemplateProduct, error) {
-			return factory.(*CrossplaneTemplateFactory).Controller(false, res)
-		}},
+	templates, err := factory.GetAPITemplates(WithResource(res))
+	if err != nil {
+		t.Fatalf("GetAPITemplates failed: %v", err)
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			template, err := test.test()
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
+	if len(templates) == 0 {
+		t.Error("GetAPITemplates should return templates")
+	}
+
+	expectedPatterns := []string{"types", "groupversion", "controller"}
+	for _, pattern := range expectedPatterns {
+		found := false
+		for _, template := range templates {
+			templateType := strings.ToLower(string(template.GetTemplateType()))
+			if strings.Contains(templateType, pattern) {
+				found = true
+				break
 			}
-			if template == nil {
-				t.Error("Template should not be nil")
-			}
-		})
+		}
+		if !found {
+			t.Logf("Available API template types: %v", func() []string {
+				var types []string
+				for _, tmpl := range templates {
+					types = append(types, string(tmpl.GetTemplateType()))
+				}
+				return types
+			}())
+			t.Errorf("Expected API template pattern %s not found", pattern)
+		}
 	}
 }
 
@@ -188,68 +194,62 @@ func TestCrossplaneTemplateFactory_CreateStaticTemplate(t *testing.T) {
 	cfg := newMockConfig()
 	factory := NewFactory(cfg)
 
-	tests := []struct {
-		name string
-		test func() (TemplateProduct, error)
-	}{
-		{"License", func() (TemplateProduct, error) {
-			return factory.(*CrossplaneTemplateFactory).License()
-		}},
+	templates, err := factory.GetStaticTemplates()
+	if err != nil {
+		t.Fatalf("GetStaticTemplates failed: %v", err)
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			template, err := test.test()
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
+	if len(templates) == 0 {
+		t.Error("GetStaticTemplates should return templates")
+	}
+
+	expectedPatterns := []string{"license"}
+	for _, pattern := range expectedPatterns {
+		found := false
+		for _, template := range templates {
+			templateType := strings.ToLower(string(template.GetTemplateType()))
+			if strings.Contains(templateType, pattern) {
+				found = true
+				break
 			}
-			if template == nil {
-				t.Error("Template should not be nil")
-			}
-		})
+		}
+		if !found {
+			t.Errorf("Expected static template pattern %s not found", pattern)
+		}
 	}
 }
 
 func TestCrossplaneTemplateFactory_ConvenienceMethods(t *testing.T) {
 	cfg := newMockConfig()
-	factory := NewFactory(cfg).(*CrossplaneTemplateFactory)
+	factory := NewFactory(cfg)
 
 	t.Run("Init_templates", func(t *testing.T) {
-		methods := []func() (TemplateProduct, error){
-			factory.GoMod,
-			factory.Makefile,
-			factory.README,
-			factory.MainGo,
-			factory.ProviderConfigTypes,
-			factory.ProviderConfigRegister,
-			factory.CrossplanePackage,
-			factory.ConfigController,
-			factory.ControllerRegister,
-			factory.VersionGo,
-			factory.ClusterDockerfile,
-			factory.ClusterMakefile,
-			factory.DocGo,
-			factory.ExamplesProviderConfig,
+		templates, err := factory.GetInitTemplates()
+		if err != nil {
+			t.Errorf("GetInitTemplates failed: %v", err)
 		}
-
-		for i, method := range methods {
-			template, err := method()
-			if err != nil {
-				t.Errorf("Method %d failed: %v", i, err)
-			}
+		if len(templates) == 0 {
+			t.Error("GetInitTemplates should return templates")
+		}
+		for _, template := range templates {
 			if template == nil {
-				t.Errorf("Method %d returned nil product", i)
+				t.Error("Template should not be nil")
 			}
 		}
 	})
 
 	t.Run("Static_templates", func(t *testing.T) {
-		template, err := factory.License()
+		templates, err := factory.GetStaticTemplates()
 		if err != nil {
-			t.Errorf("License method failed: %v", err)
+			t.Errorf("GetStaticTemplates failed: %v", err)
 		}
-		if template == nil {
-			t.Error("License method returned nil product")
+		if len(templates) == 0 {
+			t.Error("GetStaticTemplates should return templates")
+		}
+		for _, template := range templates {
+			if template == nil {
+				t.Error("Template should not be nil")
+			}
 		}
 	})
 
@@ -263,20 +263,16 @@ func TestCrossplaneTemplateFactory_ConvenienceMethods(t *testing.T) {
 			Plural: "instances",
 		}
 
-		apiMethods := []func() (TemplateProduct, error){
-			func() (TemplateProduct, error) { return factory.APITypes(false, res) },
-			func() (TemplateProduct, error) { return factory.APIGroup(res) },
-			func() (TemplateProduct, error) { return factory.Controller(false, res) },
-			func() (TemplateProduct, error) { return factory.ExamplesManagedResource(res) },
+		templates, err := factory.GetAPITemplates(WithResource(res))
+		if err != nil {
+			t.Errorf("GetAPITemplates failed: %v", err)
 		}
-
-		for i, method := range apiMethods {
-			template, err := method()
-			if err != nil {
-				t.Errorf("API method %d failed: %v", i, err)
-			}
+		if len(templates) == 0 {
+			t.Error("GetAPITemplates should return templates")
+		}
+		for _, template := range templates {
 			if template == nil {
-				t.Errorf("API method %d returned nil product", i)
+				t.Error("Template should not be nil")
 			}
 		}
 	})

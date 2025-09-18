@@ -41,73 +41,82 @@ func (b *InitTemplateBuilder) Build(cfg config.Config, opts ...Option) (Template
 		opt(options)
 	}
 
-	var product TemplateProduct
-
-	typeStr := strings.ToLower(string(b.templateType))
-	switch {
-	case strings.Contains(typeStr, "gomod"):
-		product = &GoModTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "makefile"):
-		product = &MakefileTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "readme"):
-		product = &READMETemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "gitignore"):
-		product = &GitIgnoreTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "maingo"):
-		product = &MainGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "providerconfig") && strings.Contains(typeStr, "types"):
-		product = &ProviderConfigTypesTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "v1alpha1") && strings.Contains(typeStr, "register"):
-		product = &ProviderConfigRegisterTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "apis") && strings.Contains(typeStr, "register"):
-		product = &APIsTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "generatego"):
-		product = &GenerateGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "boilerplate"):
-		product = &BoilerplateTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "crossplane") && strings.Contains(typeStr, "yaml"):
-		product = &CrossplanePackageTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "controller") && strings.Contains(typeStr, "config"):
-		product = &ConfigControllerTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "controller") && strings.Contains(typeStr, "register"):
-		product = &ControllerRegisterTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "cluster") && strings.Contains(typeStr, "dockerfile"):
-		product = &ClusterDockerfileTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "cluster") && strings.Contains(typeStr, "makefile"):
-		product = &ClusterMakefileTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "versiongo"):
-		product = &VersionGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "license"):
-		product = &LicenseTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "docgo"):
-		product = &DocGoTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "examplesproviderconfig"):
-		product = &ExamplesProviderConfigTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	default:
-		return nil, fmt.Errorf("unsupported init template type: %s", b.templateType)
+	// Find template info for this template type
+	info, err := b.findTemplateInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find template info: %w", err)
 	}
+
+	// Create replacement map for init template variables (basic replacements only)
+	projectName := cfg.GetProjectName()
+
+	// Fallback: extract project name from repository URL if GetProjectName() is empty
+	if projectName == "" {
+		repo := cfg.GetRepository()
+		if repo != "" {
+			// Extract last part of repo URL: "github.com/example/provider-test" -> "provider-test"
+			parts := strings.Split(repo, "/")
+			if len(parts) > 0 {
+				projectName = parts[len(parts)-1]
+			}
+		}
+	}
+
+	replacements := map[string]string{
+		"IMAGENAME": projectName, // Use project name for image
+	}
+
+	// Create generic template product
+	outputPath := generateOutputPath(info, replacements)
+	templatePath := strings.TrimPrefix(info.Path, "scaffolds/")
+	product := NewGenericTemplateProduct(b.templateType, outputPath, templatePath)
 
 	if err := product.Configure(cfg); err != nil {
 		return nil, fmt.Errorf("failed to configure template: %w", err)
 	}
 
-	if baseProduct, ok := product.(interface{ GetBase() *BaseTemplateProduct }); ok {
-		base := baseProduct.GetBase()
-		if options.Force {
-			base.SetForce(options.Force)
-		}
-		if options.CustomData != nil {
-			base.SetCustomData(options.CustomData)
-		}
+	base := product.GetBase()
+	if options.Force {
+		base.SetForce(options.Force)
+	}
+	if options.CustomData != nil {
+		base.SetCustomData(options.CustomData)
 	}
 
-	if defaultSetter, ok := product.(interface{ SetTemplateDefaults() error }); ok {
-		if err := defaultSetter.SetTemplateDefaults(); err != nil {
-			return nil, fmt.Errorf("failed to set template defaults: %w", err)
-		}
+	if err := product.SetTemplateDefaults(); err != nil {
+		return nil, fmt.Errorf("failed to set template defaults: %w", err)
 	}
 
 	return product, nil
+}
+
+func (b *InitTemplateBuilder) findTemplateInfo() (TemplateInfo, error) {
+	// Walk through the templates to find the one matching our type
+	var foundInfo TemplateInfo
+	found := false
+
+	err := walkTemplateFS("scaffolds", func(path string, isDir bool) error {
+		if isDir || !strings.HasSuffix(path, ".tmpl") {
+			return nil
+		}
+
+		info := AnalyzeTemplatePath(path)
+		if info.Category == InitCategory && TemplateType(info.GenerateTemplateType()) == b.templateType {
+			foundInfo = info
+			found = true
+		}
+		return nil
+	})
+
+	if err != nil {
+		return TemplateInfo{}, err
+	}
+
+	if !found {
+		return TemplateInfo{}, fmt.Errorf("template not found for type: %s", b.templateType)
+	}
+
+	return foundInfo, nil
 }
 
 type APITemplateBuilder struct {
@@ -132,21 +141,38 @@ func (b *APITemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateP
 		return nil, fmt.Errorf("resource is required for API templates")
 	}
 
-	var product TemplateProduct
-
-	typeStr := strings.ToLower(string(b.templateType))
-	switch {
-	case strings.Contains(typeStr, "groupversiontypes"):
-		product = &APITypesTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "groupversiongroupversion"):
-		product = &APIGroupTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "controllerkindcontroller"):
-		product = &ControllerTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	case strings.Contains(typeStr, "examplesgroupkind"):
-		product = &ExamplesManagedResourceTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	default:
-		return nil, fmt.Errorf("unsupported API template type: %s", b.templateType)
+	// Find template info for this template type
+	info, err := b.findTemplateInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find template info: %w", err)
 	}
+
+	// Create replacement map for API template variables
+	projectName := cfg.GetProjectName()
+
+	// Fallback: extract project name from repository URL if GetProjectName() is empty
+	if projectName == "" {
+		repo := cfg.GetRepository()
+		if repo != "" {
+			// Extract last part of repo URL: "github.com/example/provider-test" -> "provider-test"
+			parts := strings.Split(repo, "/")
+			if len(parts) > 0 {
+				projectName = parts[len(parts)-1]
+			}
+		}
+	}
+
+	replacements := map[string]string{
+		"GROUP":     strings.ToLower(options.Resource.Group),
+		"VERSION":   options.Resource.Version,
+		"KIND":      strings.ToLower(options.Resource.Kind),
+		"IMAGENAME": projectName, // Use project name for image
+	}
+
+	// Create generic template product
+	outputPath := generateOutputPath(info, replacements)
+	templatePath := strings.TrimPrefix(info.Path, "scaffolds/")
+	product := NewGenericTemplateProduct(b.templateType, outputPath, templatePath)
 
 	if err := product.Configure(cfg); err != nil {
 		return nil, fmt.Errorf("failed to configure template: %w", err)
@@ -156,23 +182,48 @@ func (b *APITemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateP
 		return nil, fmt.Errorf("failed to set resource: %w", err)
 	}
 
-	if baseProduct, ok := product.(interface{ GetBase() *BaseTemplateProduct }); ok {
-		base := baseProduct.GetBase()
-		if options.Force {
-			base.SetForce(options.Force)
-		}
-		if options.CustomData != nil {
-			base.SetCustomData(options.CustomData)
-		}
+	base := product.GetBase()
+	if options.Force {
+		base.SetForce(options.Force)
+	}
+	if options.CustomData != nil {
+		base.SetCustomData(options.CustomData)
 	}
 
-	if defaultSetter, ok := product.(interface{ SetTemplateDefaults() error }); ok {
-		if err := defaultSetter.SetTemplateDefaults(); err != nil {
-			return nil, fmt.Errorf("failed to set template defaults: %w", err)
-		}
+	if err := product.SetTemplateDefaults(); err != nil {
+		return nil, fmt.Errorf("failed to set template defaults: %w", err)
 	}
 
 	return product, nil
+}
+
+func (b *APITemplateBuilder) findTemplateInfo() (TemplateInfo, error) {
+	// Walk through the templates to find the one matching our type
+	var foundInfo TemplateInfo
+	found := false
+
+	err := walkTemplateFS("scaffolds", func(path string, isDir bool) error {
+		if isDir || !strings.HasSuffix(path, ".tmpl") {
+			return nil
+		}
+
+		info := AnalyzeTemplatePath(path)
+		if info.Category == APICategory && TemplateType(info.GenerateTemplateType()) == b.templateType {
+			foundInfo = info
+			found = true
+		}
+		return nil
+	})
+
+	if err != nil {
+		return TemplateInfo{}, err
+	}
+
+	if !found {
+		return TemplateInfo{}, fmt.Errorf("template not found for type: %s", b.templateType)
+	}
+
+	return foundInfo, nil
 }
 
 type StaticTemplateBuilder struct {
@@ -193,35 +244,87 @@ func (b *StaticTemplateBuilder) Build(cfg config.Config, opts ...Option) (Templa
 		opt(options)
 	}
 
-	var product TemplateProduct
-
-	typeStr := strings.ToLower(string(b.templateType))
-	switch {
-	case strings.Contains(typeStr, "license"):
-		product = &LicenseTemplateProduct{BaseTemplateProduct: NewBaseTemplateProduct(b.templateType)}
-	default:
-		return nil, fmt.Errorf("unsupported static template type: %s", b.templateType)
+	// Find template info for this template type
+	info, err := b.findTemplateInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find template info: %w", err)
 	}
+
+	// Create replacement map for static template variables (basic replacements only)
+	projectName := cfg.GetProjectName()
+
+	// Fallback: extract project name from repository URL if GetProjectName() is empty
+	if projectName == "" {
+		repo := cfg.GetRepository()
+		if repo != "" {
+			// Extract last part of repo URL: "github.com/example/provider-test" -> "provider-test"
+			parts := strings.Split(repo, "/")
+			if len(parts) > 0 {
+				projectName = parts[len(parts)-1]
+			}
+		}
+	}
+
+	replacements := map[string]string{
+		"IMAGENAME": projectName, // Use project name for image
+	}
+
+	// Add API-specific replacements if resource is available
+	if options.Resource != nil {
+		replacements["GROUP"] = strings.ToLower(options.Resource.Group)
+		replacements["VERSION"] = options.Resource.Version
+		replacements["KIND"] = strings.ToLower(options.Resource.Kind)
+	}
+
+	// Create generic template product
+	outputPath := generateOutputPath(info, replacements)
+	templatePath := strings.TrimPrefix(info.Path, "scaffolds/")
+	product := NewGenericTemplateProduct(b.templateType, outputPath, templatePath)
 
 	if err := product.Configure(cfg); err != nil {
 		return nil, fmt.Errorf("failed to configure template: %w", err)
 	}
 
-	if baseProduct, ok := product.(interface{ GetBase() *BaseTemplateProduct }); ok {
-		base := baseProduct.GetBase()
-		if options.Force {
-			base.SetForce(options.Force)
-		}
-		if options.CustomData != nil {
-			base.SetCustomData(options.CustomData)
-		}
+	base := product.GetBase()
+	if options.Force {
+		base.SetForce(options.Force)
+	}
+	if options.CustomData != nil {
+		base.SetCustomData(options.CustomData)
 	}
 
-	if defaultSetter, ok := product.(interface{ SetTemplateDefaults() error }); ok {
-		if err := defaultSetter.SetTemplateDefaults(); err != nil {
-			return nil, fmt.Errorf("failed to set template defaults: %w", err)
-		}
+	if err := product.SetTemplateDefaults(); err != nil {
+		return nil, fmt.Errorf("failed to set template defaults: %w", err)
 	}
 
 	return product, nil
+}
+
+func (b *StaticTemplateBuilder) findTemplateInfo() (TemplateInfo, error) {
+	// Walk through the templates to find the one matching our type
+	var foundInfo TemplateInfo
+	found := false
+
+	err := walkTemplateFS("scaffolds", func(path string, isDir bool) error {
+		if isDir || !strings.HasSuffix(path, ".tmpl") {
+			return nil
+		}
+
+		info := AnalyzeTemplatePath(path)
+		if info.Category == StaticCategory && TemplateType(info.GenerateTemplateType()) == b.templateType {
+			foundInfo = info
+			found = true
+		}
+		return nil
+	})
+
+	if err != nil {
+		return TemplateInfo{}, err
+	}
+
+	if !found {
+		return TemplateInfo{}, fmt.Errorf("template not found for type: %s", b.templateType)
+	}
+
+	return foundInfo, nil
 }

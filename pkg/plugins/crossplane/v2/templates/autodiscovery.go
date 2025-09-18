@@ -93,9 +93,9 @@ func AnalyzeTemplatePath(path string) TemplateInfo {
 
 func determineCategory(path string) TemplateCategory {
 	apiPatterns := []string{
-		"apis/group/version/",
-		"internal/controller/kind/",
-		"examples/group/",
+		"apis/GROUP/VERSION/",
+		"internal/controller/KIND/",
+		"examples/GROUP/",
 	}
 
 	staticPatterns := []string{
