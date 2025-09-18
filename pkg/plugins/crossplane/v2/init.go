@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 
-	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/scaffolds"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/scaffolds"
 )
 
 var _ plugin.InitSubcommand = &initSubcommand{}

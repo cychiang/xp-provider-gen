@@ -27,7 +27,7 @@ BUILD_DIR=bin
 COVERAGE_DIR=coverage
 
 # Binary names
-BINARY=crossplane-provider-gen
+BINARY=xp-provider-gen
 
 .PHONY: help build clean test test-verbose coverage fmt vet lint mod-tidy mod-verify validate integration-test
 
@@ -38,7 +38,7 @@ help: ## Show this help message
 build: ## Build the standalone Crossplane provider generator
 	@echo "Building Crossplane provider generator..."
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY) ./cmd/crossplane-provider-gen
+	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY) ./cmd/xp-provider-gen
 
 clean: ## Clean build artifacts and temporary files
 	$(GOCLEAN)

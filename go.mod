@@ -1,4 +1,4 @@
-module github.com/crossplane/xp-kubebuilder-plugin
+module github.com/cychiang/xp-provider-gen
 
 go 1.24.5
 

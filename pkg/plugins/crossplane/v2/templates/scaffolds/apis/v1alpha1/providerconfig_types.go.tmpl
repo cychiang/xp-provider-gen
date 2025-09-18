@@ -9,11 +9,13 @@ import (
 )
 
 // A ProviderConfigStatus defines the status of a Provider.
+// +kubebuilder:object:generate=true
 type ProviderConfigStatus struct {
 	xpv1.ProviderConfigStatus `json:",inline"`
 }
 
 // ProviderCredentials required to authenticate.
+// +kubebuilder:object:generate=true
 type ProviderCredentials struct {
 	// Source of the provider credentials.
 	// +kubebuilder:validation:Enum=None;Secret;InjectedIdentity;Environment;Filesystem
@@ -22,6 +24,7 @@ type ProviderCredentials struct {
 	xpv1.CommonCredentialSelectors `json:",inline"`
 }
 
+// +kubebuilder:object:generate=true
 type ProviderConfigSpec struct {
 	// Credentials required to authenticate to this provider.
 	Credentials ProviderCredentials `json:"credentials"`

@@ -26,6 +26,7 @@ type TemplateType string
 
 type TemplateProduct interface {
 	machinery.Template
+	machinery.Builder
 	GetTemplateType() TemplateType
 	Configure(cfg config.Config) error
 	SetResource(res *resource.Resource) error
@@ -36,6 +37,9 @@ type TemplateFactory interface {
 	CreateAPITemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error)
 	CreateStaticTemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error)
 	GetSupportedTypes() []TemplateType
+	GetInitTemplates(opts ...Option) ([]TemplateProduct, error)
+	GetAPITemplates(opts ...Option) ([]TemplateProduct, error)
+	GetStaticTemplates(opts ...Option) ([]TemplateProduct, error)
 }
 
 type TemplateBuilder interface {

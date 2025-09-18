@@ -62,14 +62,9 @@ func (f *TemplateUpdater) GetBody() string {
 	existingImports, existingSetups := f.parseExistingContent()
 
 	// Determine new import path and setup call
-	var newImport, newSetup string
-	if f.Resource.Group != "" {
-		newImport = fmt.Sprintf("%s/internal/controller/%s/%s", f.Repo, f.Resource.Group, strings.ToLower(f.Resource.Kind))
-		newSetup = fmt.Sprintf("%s.Setup", strings.ToLower(f.Resource.Kind))
-	} else {
-		newImport = fmt.Sprintf("%s/internal/controller/%s", f.Repo, strings.ToLower(f.Resource.Kind))
-		newSetup = fmt.Sprintf("%s.Setup", strings.ToLower(f.Resource.Kind))
-	}
+	// Controllers are always created in internal/controller/{kind}, regardless of API group
+	newImport := fmt.Sprintf("%s/internal/controller/%s", f.Repo, strings.ToLower(f.Resource.Kind))
+	newSetup := fmt.Sprintf("%s.Setup", strings.ToLower(f.Resource.Kind))
 
 	// Add new import if not already present
 	importExists := false

@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 
-	"github.com/crossplane/xp-kubebuilder-plugin/pkg/plugins/crossplane/v2/templates"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates"
 )
 
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
@@ -110,37 +110,41 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		machinery.WithResource(p.resource),
 	)
 
-	// Create template factory using true Factory Pattern
-	factory := templates.NewFactory(p.config).(*templates.CrossplaneTemplateFactory)
+	// Create template factory
+	factory := templates.NewFactory(p.config)
 
-	// Get templates using the factory pattern
-	apiGroup, _ := factory.APIGroup(p.resource)
-	apiTypes, _ := factory.APITypes(p.Force, p.resource)
-	controller, _ := factory.Controller(p.Force, p.resource)
-	examplesManagedResource, _ := factory.ExamplesManagedResource(p.resource)
+	// Get API templates automatically from discovered templates
+	apiTemplates, err := factory.GetAPITemplates(
+		templates.WithForce(p.Force),
+		templates.WithResource(p.resource),
+	)
+	if err != nil {
+		return CreateAPIError("template discovery", err)
+	}
 
-	// Execute scaffolding with proper Factory Pattern
-	if err := scaffold.Execute(
-		// API types and group registration
-		apiGroup,
-		apiTypes,
-		controller,
-		examplesManagedResource,
-
-		// Controller registration update
+	// Create updater templates for registration
+	updaterTemplates := []machinery.Builder{
 		&templates.TemplateUpdater{
 			Force:           true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
 			ProviderName:    p.extractProviderName(),
 		},
-
-		// API registration update
 		&templates.APIRegistrationUpdater{
 			Force:           true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
 			ProviderName:    p.extractProviderName(),
 		},
-	); err != nil {
+	}
+
+	// Combine API templates and updater templates
+	allTemplates := make([]machinery.Builder, 0, len(apiTemplates)+len(updaterTemplates))
+	for _, tmpl := range apiTemplates {
+		allTemplates = append(allTemplates, tmpl)
+	}
+	allTemplates = append(allTemplates, updaterTemplates...)
+
+	// Execute scaffolding with discovered templates
+	if err := scaffold.Execute(allTemplates...); err != nil {
 		return CreateAPIError("scaffolding", err)
 	}
 

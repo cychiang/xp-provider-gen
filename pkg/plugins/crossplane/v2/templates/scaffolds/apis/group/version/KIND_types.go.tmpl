@@ -13,12 +13,14 @@ import (
 )
 
 // {{ .Resource.Kind }}Parameters are the configurable fields of a {{ .Resource.Kind }}.
+// +kubebuilder:object:generate=true
 type {{ .Resource.Kind }}Parameters struct {
 	// TODO: Add your configurable fields here
 	ConfigurableField string `json:"configurableField"`
 }
 
 // {{ .Resource.Kind }}Observation are the observable fields of a {{ .Resource.Kind }}.
+// +kubebuilder:object:generate=true
 type {{ .Resource.Kind }}Observation struct {
 	// TODO: Add your observable fields here
 	ConfigurableField string `json:"configurableField"`
@@ -26,12 +28,14 @@ type {{ .Resource.Kind }}Observation struct {
 }
 
 // A {{ .Resource.Kind }}Spec defines the desired state of a {{ .Resource.Kind }}.
+// +kubebuilder:object:generate=true
 type {{ .Resource.Kind }}Spec struct {
 	xpv2.ManagedResourceSpec `json:",inline"`
 	ForProvider              {{ .Resource.Kind }}Parameters `json:"forProvider"`
 }
 
 // A {{ .Resource.Kind }}Status represents the observed state of a {{ .Resource.Kind }}.
+// +kubebuilder:object:generate=true
 type {{ .Resource.Kind }}Status struct {
 	xpv1.ResourceStatus `json:",inline"`
 	AtProvider          {{ .Resource.Kind }}Observation `json:"atProvider,omitempty"`
