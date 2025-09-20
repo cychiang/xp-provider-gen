@@ -135,4 +135,3 @@ func (t TemplateInfo) GenerateTemplateType() TemplateType {
 
 	return TemplateType(name + "Type")
 }
-

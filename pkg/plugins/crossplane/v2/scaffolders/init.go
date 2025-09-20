@@ -98,13 +98,11 @@ func (s *InitScaffolder) addBuildSubmodule() error {
 		}
 		fmt.Printf("Added build submodule from %s\n", buildSubmoduleURL)
 
-		// Initialize the submodule to ensure content is available
 		if err := s.runCommand("git", "submodule", "update", "--init", "--recursive"); err != nil {
 			return fmt.Errorf("failed to initialize build submodule: %w", err)
 		}
 		fmt.Printf("Initialized build submodule content\n")
 	} else {
-		// If build directory exists, ensure submodule is properly initialized
 		if _, err := os.Stat("build/.git"); os.IsNotExist(err) {
 			if err := s.runCommand("git", "submodule", "update", "--init", "--recursive"); err != nil {
 				return fmt.Errorf("failed to initialize existing build submodule: %w", err)
@@ -248,4 +246,3 @@ func (s *InitScaffolder) extractProviderName() string {
 	}
 	return "crossplane-provider"
 }
-

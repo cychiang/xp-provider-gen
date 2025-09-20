@@ -50,24 +50,19 @@ type TemplateBuilder interface {
 type Option func(*TemplateOptions)
 
 type TemplateOptions struct {
-	Force        bool
-	Resource     *resource.Resource
-	CustomData   map[string]interface{}
+	Force      bool
+	Resource   *resource.Resource
+	CustomData map[string]interface{}
 }
+
 func WithForce(force bool) Option {
-	return func(opts *TemplateOptions) {
-		opts.Force = force
-	}
+	return func(opts *TemplateOptions) { opts.Force = force }
 }
 
 func WithResource(resource *resource.Resource) Option {
-	return func(opts *TemplateOptions) {
-		opts.Resource = resource
-	}
+	return func(opts *TemplateOptions) { opts.Resource = resource }
 }
 
 func WithCustomData(data map[string]interface{}) Option {
-	return func(opts *TemplateOptions) {
-		opts.CustomData = data
-	}
+	return func(opts *TemplateOptions) { opts.CustomData = data }
 }

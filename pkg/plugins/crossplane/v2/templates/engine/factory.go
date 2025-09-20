@@ -169,5 +169,3 @@ func (f *CrossplaneTemplateFactory) GetStaticTemplates(opts ...Option) ([]Templa
 
 	return templates, nil
 }
-
-

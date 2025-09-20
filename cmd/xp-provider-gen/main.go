@@ -27,10 +27,8 @@ import (
 )
 
 func main() {
-	// Get version information
 	versionInfo := version.Get()
 
-	// Create a simplified CLI that only exposes init and create api
 	cli, err := cli.New(
 		cli.WithCommandName("crossplane-provider-gen"),
 		cli.WithVersion(versionInfo.Short()),
