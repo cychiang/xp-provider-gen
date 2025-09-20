@@ -1,16 +1,5 @@
 {{ .Boilerplate }}
 
-// This file contains user-customizable controller logic for {{ .Resource.Kind }} managed resources.
-// The controller setup logic is auto-generated in controller_setup.go and should not be modified.
-//
-// To customize the controller:
-// 1. Modify the NewConnector function to implement provider-specific logic
-// 2. Implement your external client in the Observe, Create, Update, Delete methods
-// 3. Add custom setup options to the SetupOptions struct below if needed
-//
-// The auto-generated setup in controller_setup.go will be updated automatically
-// when new Crossplane features are added, ensuring your provider stays current.
-
 package {{ .Resource.Kind | lower }}
 
 import (
@@ -18,9 +7,14 @@ import (
 	"fmt"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/statemetrics"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -47,25 +41,49 @@ var (
 	newNoOpService = func(_ []byte) (interface{}, error) { return &NoOpService{}, nil }
 )
 
-// SetupOptions allows customization of the controller setup.
-// Add fields here for any custom setup parameters you need.
-type SetupOptions struct {
-	// Add custom setup options here as needed
-	// Example: CustomClientOptions ClientOptions
-	// Example: SpecialFeatureEnabled bool
-}
+// Setup adds a controller that reconciles {{ .Resource.Kind }} managed resources.
+func Setup(mgr ctrl.Manager, o controller.Options) error {
+	name := managed.ControllerName({{ .Resource.Version }}.{{ .Resource.Kind }}GroupKind)
 
-// NewConnector creates a connector for the {{ .Resource.Kind }} managed resource.
-// This function can be customized to implement provider-specific connector logic.
-// The SetupOptions parameter allows for custom configuration.
-func NewConnector(mgr ctrl.Manager, opts SetupOptions) (managed.ExternalConnector, error) {
-	// TODO: Customize this connector based on your provider's needs
-	// You can use opts for custom configuration
-	return &connector{
-		kube:         mgr.GetClient(),
-		usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
-		newServiceFn: newNoOpService,
-	}, nil
+	opts := []managed.ReconcilerOption{
+		managed.WithExternalConnector(&connector{
+			kube:         mgr.GetClient(),
+			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
+			newServiceFn: newNoOpService}),
+		managed.WithLogger(o.Logger.WithValues("controller", name)),
+		managed.WithPollInterval(o.PollInterval),
+		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
+	}
+
+	if o.Features.Enabled(feature.EnableBetaManagementPolicies) {
+		opts = append(opts, managed.WithManagementPolicies())
+	}
+
+	if o.Features.Enabled(feature.EnableAlphaChangeLogs) {
+		opts = append(opts, managed.WithChangeLogger(o.ChangeLogOptions.ChangeLogger))
+	}
+
+	if o.MetricOptions != nil {
+		opts = append(opts, managed.WithMetricRecorder(o.MetricOptions.MRMetrics))
+	}
+
+	if o.MetricOptions != nil && o.MetricOptions.MRStateMetrics != nil {
+		stateMetricsRecorder := statemetrics.NewMRStateRecorder(
+			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &{{ .Resource.Version }}.{{ .Resource.Kind }}List{}, o.MetricOptions.PollStateMetricInterval,
+		)
+		if err := mgr.Add(stateMetricsRecorder); err != nil {
+			return errors.Wrap(err, "cannot register MR state metrics recorder for kind {{ .Resource.Version }}.{{ .Resource.Kind }}List")
+		}
+	}
+
+	r := managed.NewReconciler(mgr, resource.ManagedKind({{ .Resource.Version }}.{{ .Resource.Kind }}GroupVersionKind), opts...)
+
+	return ctrl.NewControllerManagedBy(mgr).
+		Named(name).
+		WithOptions(o.ForControllerRuntime()).
+		WithEventFilter(resource.DesiredStateChanged()).
+		For(&{{ .Resource.Version }}.{{ .Resource.Kind }}{}).
+		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
 // A connector is expected to produce an ExternalClient when its Connect method

@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
 )
 
 type PluginConfig struct {
@@ -89,7 +89,7 @@ func (c *PluginConfig) GenerateDefaultRepo() string {
 }
 
 func (c *PluginConfig) GetBoilerplate() string {
-	return templates.DefaultBoilerplate()
+	return engine.DefaultBoilerplate()
 }
 
 func (c *PluginConfig) GetDefaultAuthor() string {

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package templates
+package engine
 
 import (
 	"bufio"
@@ -69,33 +69,7 @@ func (f *APIRegistrationUpdater) GetBody() string {
 		newRegistration = fmt.Sprintf("%s%s.SchemeBuilder.AddToScheme", f.Resource.Group, f.Resource.Version)
 	}
 
-	// Always include the main v1alpha1 import
-	mainImport := fmt.Sprintf(`v1alpha1 "%s/apis/v1alpha1"`, f.Repo)
-	mainRegistration := "v1alpha1.SchemeBuilder.AddToScheme"
-
-	// Add main import if not already present
-	mainImportExists := false
-	for _, existing := range existingImports {
-		if strings.Contains(existing, "/apis/v1alpha1") {
-			mainImportExists = true
-			break
-		}
-	}
-	if !mainImportExists {
-		existingImports = append(existingImports, mainImport)
-	}
-
-	// Add main registration if not already present
-	mainRegExists := false
-	for _, existing := range existingRegistrations {
-		if existing == mainRegistration {
-			mainRegExists = true
-			break
-		}
-	}
-	if !mainRegExists {
-		existingRegistrations = append(existingRegistrations, mainRegistration)
-	}
+	// Note: Provider v1alpha1 types are already registered via providerv1alpha1 import in initial template
 
 	// Add new import if it's an API group and not already present
 	if newImport != "" {

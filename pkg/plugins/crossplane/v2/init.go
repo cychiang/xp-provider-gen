@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 
-	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/scaffolds"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/scaffolders"
 )
 
 var _ plugin.InitSubcommand = &initSubcommand{}
@@ -98,7 +98,7 @@ func (p *initSubcommand) PreScaffold(machinery.Filesystem) error {
 func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Scaffolding Crossplane provider project...\n")
 
-	scaffolder := scaffolds.NewInitScaffolder(p.config)
+	scaffolder := scaffolders.NewInitScaffolder(p.config)
 	return scaffolder.Scaffold(fs)
 }
 

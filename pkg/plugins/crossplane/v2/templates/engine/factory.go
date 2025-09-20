@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package templates
+package engine
 
 import (
 	"fmt"
@@ -44,7 +44,7 @@ func NewFactory(cfg config.Config) TemplateFactory {
 }
 
 func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
-	fs.WalkDir(templateFS, "scaffolds", func(path string, d fs.DirEntry, err error) error {
+	fs.WalkDir(templateFS, "files", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

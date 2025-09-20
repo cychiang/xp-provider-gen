@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package templates
+package engine
 
 import (
 	"embed"
@@ -24,7 +24,7 @@ import (
 	"strings"
 )
 
-//go:embed scaffolds scaffolds/root/.gitignore.tmpl
+//go:embed files files/project/.gitignore.tmpl
 var templateFS embed.FS
 
 // TemplateLoader loads templates from the embedded filesystem
@@ -42,7 +42,7 @@ func NewTemplateLoader() *TemplateLoader {
 // LoadTemplate loads a template by its name/path
 func (tl *TemplateLoader) LoadTemplate(templatePath string) (string, error) {
 	// Convert template path to filesystem path
-	fsPath := path.Join("scaffolds", templatePath)
+	fsPath := path.Join("files", templatePath)
 
 	content, err := tl.fs.ReadFile(fsPath)
 	if err != nil {
@@ -63,7 +63,7 @@ func (tl *TemplateLoader) ListTemplates() ([]string, error) {
 
 		if !d.IsDir() && strings.HasSuffix(path, ".tmpl") {
 			// Remove the base path and .tmpl extension for cleaner names
-			templateName := strings.TrimPrefix(path, "scaffolds/")
+			templateName := strings.TrimPrefix(path, "files/")
 			templateName = strings.TrimSuffix(templateName, ".tmpl")
 			templates = append(templates, templateName)
 		}
@@ -76,7 +76,7 @@ func (tl *TemplateLoader) ListTemplates() ([]string, error) {
 
 // TemplateExists checks if a template exists
 func (tl *TemplateLoader) TemplateExists(templatePath string) bool {
-	fsPath := path.Join("scaffolds", templatePath)
+	fsPath := path.Join("files", templatePath)
 	_, err := tl.fs.ReadFile(fsPath)
 	return err == nil
 }
