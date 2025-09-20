@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 
-	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
 )
 
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
@@ -111,12 +111,12 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	)
 
 	// Create template factory
-	factory := templates.NewFactory(p.config)
+	factory := engine.NewFactory(p.config)
 
 	// Get API templates automatically from discovered templates
 	apiTemplates, err := factory.GetAPITemplates(
-		templates.WithForce(p.Force),
-		templates.WithResource(p.resource),
+		engine.WithForce(p.Force),
+		engine.WithResource(p.resource),
 	)
 	if err != nil {
 		return CreateAPIError("template discovery", err)
@@ -124,12 +124,12 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 	// Create updater templates for registration
 	updaterTemplates := []machinery.Builder{
-		&templates.TemplateUpdater{
+		&engine.TemplateUpdater{
 			Force:           true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
 			ProviderName:    p.extractProviderName(),
 		},
-		&templates.APIRegistrationUpdater{
+		&engine.APIRegistrationUpdater{
 			Force:           true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
 			ProviderName:    p.extractProviderName(),

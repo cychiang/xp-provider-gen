@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 
-	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/scaffolds"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/scaffolders"
 )
 
 var _ plugin.InitSubcommand = &initSubcommand{}
@@ -61,7 +61,6 @@ func (p *initSubcommand) InjectConfig(c config.Config) error {
 
 	validator := NewValidator()
 
-	// Validate domain if provided
 	if p.domain != "" {
 		if err := validator.ValidateDomain(p.domain); err != nil {
 			return InitError("domain validation", err)
@@ -72,14 +71,12 @@ func (p *initSubcommand) InjectConfig(c config.Config) error {
 		}
 	}
 
-	// Handle repository - validate if provided, generate default if not
 	repo := p.repo
 	if repo == "" {
 		repo = p.pluginConfig.GenerateDefaultRepo()
 		fmt.Printf("No --repo flag provided, using default: %s\n", repo)
 	}
 
-	// Always validate the repository (whether provided or generated)
 	if err := validator.ValidateRepository(repo); err != nil {
 		return InitError("repository validation", err)
 	}
@@ -98,7 +95,7 @@ func (p *initSubcommand) PreScaffold(machinery.Filesystem) error {
 func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Scaffolding Crossplane provider project...\n")
 
-	scaffolder := scaffolds.NewInitScaffolder(p.config)
+	scaffolder := scaffolders.NewInitScaffolder(p.config)
 	return scaffolder.Scaffold(fs)
 }
 
@@ -107,7 +104,6 @@ func (p *initSubcommand) PostScaffold() error {
 	gitUtils := NewGitUtils(p.pluginConfig)
 
 	if err := gitUtils.InitRepo(); err != nil {
-		// Git init failures are warnings, not hard errors - maintain kubebuilder flexibility
 		fmt.Printf("Warning: Could not initialize git repository: %v\n", err)
 	} else {
 		if err := gitUtils.CreateInitialCommit(); err != nil {

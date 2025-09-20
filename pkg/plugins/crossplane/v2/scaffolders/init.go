@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package scaffolds
+package scaffolders
 
 import (
 	"fmt"
@@ -25,7 +25,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
-	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
 )
 
 type InitScaffolder struct {
@@ -36,7 +36,7 @@ type InitScaffolder struct {
 func NewInitScaffolder(config config.Config) *InitScaffolder {
 	return &InitScaffolder{
 		config:      config,
-		boilerplate: templates.DefaultBoilerplate(),
+		boilerplate: engine.DefaultBoilerplate(),
 	}
 }
 
@@ -48,7 +48,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 		machinery.WithBoilerplate(s.boilerplate),
 	)
 
-	factory := templates.NewFactory(s.config)
+	factory := engine.NewFactory(s.config)
 
 	initTemplates, err := factory.GetInitTemplates()
 	if err != nil {
@@ -98,13 +98,11 @@ func (s *InitScaffolder) addBuildSubmodule() error {
 		}
 		fmt.Printf("Added build submodule from %s\n", buildSubmoduleURL)
 
-		// Initialize the submodule to ensure content is available
 		if err := s.runCommand("git", "submodule", "update", "--init", "--recursive"); err != nil {
 			return fmt.Errorf("failed to initialize build submodule: %w", err)
 		}
 		fmt.Printf("Initialized build submodule content\n")
 	} else {
-		// If build directory exists, ensure submodule is properly initialized
 		if _, err := os.Stat("build/.git"); os.IsNotExist(err) {
 			if err := s.runCommand("git", "submodule", "update", "--init", "--recursive"); err != nil {
 				return fmt.Errorf("failed to initialize existing build submodule: %w", err)
@@ -248,4 +246,3 @@ func (s *InitScaffolder) extractProviderName() string {
 	}
 	return "crossplane-provider"
 }
-

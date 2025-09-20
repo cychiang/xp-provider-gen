@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package templates
+package engine
 
 import (
 	"path/filepath"
@@ -39,7 +39,7 @@ type TemplateInfo struct {
 func DiscoverTemplates() (map[string]TemplateInfo, error) {
 	templates := make(map[string]TemplateInfo)
 
-	err := walkTemplateFS("scaffolds", func(path string, isDir bool) error {
+	err := walkTemplateFS("files", func(path string, isDir bool) error {
 		if isDir || !strings.HasSuffix(path, ".tmpl") {
 			return nil
 		}
@@ -77,7 +77,7 @@ func walkTemplateFS(root string, fn func(path string, isDir bool) error) error {
 }
 
 func AnalyzeTemplatePath(path string) TemplateInfo {
-	cleanPath := strings.TrimPrefix(path, "scaffolds/")
+	cleanPath := strings.TrimPrefix(path, "files/")
 	name := strings.TrimSuffix(filepath.Base(cleanPath), ".tmpl")
 	outputPath := strings.TrimSuffix(cleanPath, ".tmpl")
 
@@ -135,4 +135,3 @@ func (t TemplateInfo) GenerateTemplateType() TemplateType {
 
 	return TemplateType(name + "Type")
 }
-

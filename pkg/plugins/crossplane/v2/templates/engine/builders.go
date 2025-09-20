@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package templates
+package engine
 
 import (
 	"fmt"
@@ -68,7 +68,7 @@ func (b *InitTemplateBuilder) Build(cfg config.Config, opts ...Option) (Template
 
 	// Create generic template product
 	outputPath := generateOutputPath(info, replacements)
-	templatePath := strings.TrimPrefix(info.Path, "scaffolds/")
+	templatePath := strings.TrimPrefix(info.Path, "files/")
 	product := NewGenericTemplateProduct(b.templateType, outputPath, templatePath)
 
 	if err := product.Configure(cfg); err != nil {
@@ -95,7 +95,7 @@ func (b *InitTemplateBuilder) findTemplateInfo() (TemplateInfo, error) {
 	var foundInfo TemplateInfo
 	found := false
 
-	err := walkTemplateFS("scaffolds", func(path string, isDir bool) error {
+	err := walkTemplateFS("files", func(path string, isDir bool) error {
 		if isDir || !strings.HasSuffix(path, ".tmpl") {
 			return nil
 		}
@@ -171,7 +171,7 @@ func (b *APITemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateP
 
 	// Create generic template product
 	outputPath := generateOutputPath(info, replacements)
-	templatePath := strings.TrimPrefix(info.Path, "scaffolds/")
+	templatePath := strings.TrimPrefix(info.Path, "files/")
 	product := NewGenericTemplateProduct(b.templateType, outputPath, templatePath)
 
 	if err := product.Configure(cfg); err != nil {
@@ -202,7 +202,7 @@ func (b *APITemplateBuilder) findTemplateInfo() (TemplateInfo, error) {
 	var foundInfo TemplateInfo
 	found := false
 
-	err := walkTemplateFS("scaffolds", func(path string, isDir bool) error {
+	err := walkTemplateFS("files", func(path string, isDir bool) error {
 		if isDir || !strings.HasSuffix(path, ".tmpl") {
 			return nil
 		}
@@ -278,7 +278,7 @@ func (b *StaticTemplateBuilder) Build(cfg config.Config, opts ...Option) (Templa
 
 	// Create generic template product
 	outputPath := generateOutputPath(info, replacements)
-	templatePath := strings.TrimPrefix(info.Path, "scaffolds/")
+	templatePath := strings.TrimPrefix(info.Path, "files/")
 	product := NewGenericTemplateProduct(b.templateType, outputPath, templatePath)
 
 	if err := product.Configure(cfg); err != nil {
@@ -305,7 +305,7 @@ func (b *StaticTemplateBuilder) findTemplateInfo() (TemplateInfo, error) {
 	var foundInfo TemplateInfo
 	found := false
 
-	err := walkTemplateFS("scaffolds", func(path string, isDir bool) error {
+	err := walkTemplateFS("files", func(path string, isDir bool) error {
 		if isDir || !strings.HasSuffix(path, ".tmpl") {
 			return nil
 		}

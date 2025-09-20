@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package templates
+package engine
 
 import (
 	"fmt"
@@ -63,12 +63,12 @@ func (t *GenericTemplateProduct) GetOutputPath() string {
 
 // generateOutputPath converts a template info to its output path with variable replacements
 func generateOutputPath(info TemplateInfo, replacements map[string]string) string {
-	// The OutputDir is like "root/Makefile" or "apis/register.go"
+	// The OutputDir is like "project/Makefile" or "apis/register.go"
 	outputPath := info.OutputDir
 
-	// Handle root files specially - remove the "root/" prefix
-	if strings.HasPrefix(outputPath, "root/") {
-		outputPath = strings.TrimPrefix(outputPath, "root/")
+	// Handle root files specially - remove the "project/" prefix
+	if strings.HasPrefix(outputPath, "project/") {
+		outputPath = strings.TrimPrefix(outputPath, "project/")
 	}
 
 	// Apply variable replacements for uppercase placeholders

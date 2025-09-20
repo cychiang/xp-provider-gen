@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package templates
+package engine
 
 import (
 	"strings"
@@ -110,11 +110,11 @@ func extractProviderName(repo string) string {
 	if repo == "" {
 		return "provider-example"
 	}
-	
+
 	parts := strings.Split(repo, "/")
 	if len(parts) > 0 {
 		return parts[len(parts)-1]
 	}
-	
+
 	return "provider-example"
 }

@@ -13,50 +13,22 @@ var (
 	supportedProjectVersions = []config.Version{{Number: 3}}
 )
 
-// Plugin implements the kubebuilder plugin interface for Crossplane providers
-type Plugin struct {
-	// We can optionally compose with golang/v4 plugin later
-	// golangv4.Plugin
-}
+type Plugin struct{}
 
-// Name returns the name of the plugin
-func (p Plugin) Name() string {
-	return pluginName
-}
+func (p Plugin) Name() string { return pluginName }
 
-// Version returns the plugin version
-func (p Plugin) Version() plugin.Version {
-	return pluginVersion
-}
+func (p Plugin) Version() plugin.Version { return pluginVersion }
 
-// SupportedProjectVersions returns the project versions supported by this plugin
-func (p Plugin) SupportedProjectVersions() []config.Version {
-	return supportedProjectVersions
-}
+func (p Plugin) SupportedProjectVersions() []config.Version { return supportedProjectVersions }
 
-// GetInitSubcommand returns the init subcommand for this plugin
-func (p Plugin) GetInitSubcommand() plugin.InitSubcommand {
-	return &initSubcommand{}
-}
+func (p Plugin) GetInitSubcommand() plugin.InitSubcommand { return &initSubcommand{} }
 
-// GetCreateAPISubcommand returns the create api subcommand for this plugin
-func (p Plugin) GetCreateAPISubcommand() plugin.CreateAPISubcommand {
-	return &createAPISubcommand{}
-}
+func (p Plugin) GetCreateAPISubcommand() plugin.CreateAPISubcommand { return &createAPISubcommand{} }
 
-// GetCreateWebhookSubcommand returns nil as webhooks are not supported
-func (p Plugin) GetCreateWebhookSubcommand() plugin.CreateWebhookSubcommand {
-	return nil
-}
+func (p Plugin) GetCreateWebhookSubcommand() plugin.CreateWebhookSubcommand { return nil }
 
-// GetEditSubcommand returns nil as edit is not supported
-func (p Plugin) GetEditSubcommand() plugin.EditSubcommand {
-	return nil
-}
+func (p Plugin) GetEditSubcommand() plugin.EditSubcommand { return nil }
 
-// DeprecationWarning returns any deprecation warning for this plugin
-func (p Plugin) DeprecationWarning() string {
-	return ""
-}
+func (p Plugin) DeprecationWarning() string { return "" }
 
 var _ plugin.Full = Plugin{}

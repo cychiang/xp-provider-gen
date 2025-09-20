@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package templates
+package engine
 
 // DefaultBoilerplate returns the standard Apache 2.0 license boilerplate
 // used for all generated Crossplane provider files
