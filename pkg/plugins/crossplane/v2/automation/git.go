@@ -14,23 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v2
+package automation
 
 import (
 	"fmt"
 	"os"
 	"os/exec"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
-type GitUtils struct {
-	config *PluginConfig
+type GitOperations struct {
+	config *core.PluginConfig
 }
 
-func NewGitUtils(config *PluginConfig) *GitUtils {
-	return &GitUtils{config: config}
+func NewGitOperations(config *core.PluginConfig) *GitOperations {
+	return &GitOperations{config: config}
 }
 
-func (g *GitUtils) InitRepo() error {
+func (g *GitOperations) Init() error {
 	if _, err := os.Stat(".git"); err == nil {
 		return nil
 	}
@@ -43,36 +45,33 @@ func (g *GitUtils) InitRepo() error {
 	return nil
 }
 
-func (g *GitUtils) CreateInitialCommit() error {
+func (g *GitOperations) CreateCommit(message, author string) error {
 	cmd := exec.Command("git", "add", ".")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to add files to git: %w", err)
 	}
 
-	commitMsg := "Initial commit\n\nScaffolded Crossplane provider project"
-	authorFlag := fmt.Sprintf("--author=%s", g.config.GetDefaultAuthor())
-
-	cmd = exec.Command("git", "commit", "-m", commitMsg, authorFlag)
+	authorFlag := fmt.Sprintf("--author=%s", author)
+	cmd = exec.Command("git", "commit", "-m", message, authorFlag)
 	if err := cmd.Run(); err != nil {
-		cmd = exec.Command("git", "commit", "-m", commitMsg)
+		cmd = exec.Command("git", "commit", "-m", message)
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to create initial commit: %w", err)
+			return fmt.Errorf("failed to create commit: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func (g *GitUtils) AddBuildSubmodule() error {
-	if _, err := os.Stat("build"); err == nil {
+func (g *GitOperations) AddSubmodule(url, path string) error {
+	if _, err := os.Stat(path); err == nil {
 		return nil
 	}
 
-	cmd := exec.Command("git", "submodule", "add", g.config.Git.BuildSubmoduleURL, "build")
+	cmd := exec.Command("git", "submodule", "add", url, path)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to add build submodule: %w", err)
+		return fmt.Errorf("failed to add submodule: %w", err)
 	}
 
-	fmt.Printf("Added build submodule from %s\n", g.config.Git.BuildSubmoduleURL)
 	return nil
 }

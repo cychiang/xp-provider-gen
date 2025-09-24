@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package scaffolders
+package scaffold
 
 import (
 	"fmt"
@@ -25,18 +25,17 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
 )
 
 type InitScaffolder struct {
-	config      config.Config
-	boilerplate string
+	config config.Config
 }
 
 func NewInitScaffolder(config config.Config) *InitScaffolder {
 	return &InitScaffolder{
-		config:      config,
-		boilerplate: engine.DefaultBoilerplate(),
+		config: config,
 	}
 }
 
@@ -45,7 +44,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(s.config),
-		machinery.WithBoilerplate(s.boilerplate),
+		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
 	)
 
 	factory := engine.NewFactory(s.config)
@@ -238,11 +237,9 @@ Ready for implementing custom resource management logic.`, s.extractProviderName
 }
 
 func (s *InitScaffolder) extractProviderName() string {
-	if s.config.GetRepository() != "" {
-		parts := strings.Split(s.config.GetRepository(), "/")
-		if len(parts) > 0 {
-			return parts[len(parts)-1]
-		}
+	name := core.ExtractProviderName(s.config.GetRepository())
+	if name == "provider-example" {
+		return "crossplane-provider"
 	}
-	return "crossplane-provider"
+	return name
 }

@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
+
+	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
 type CrossplaneTemplateFactory struct {
@@ -44,7 +46,7 @@ func NewFactory(cfg config.Config) TemplateFactory {
 }
 
 func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
-	fs.WalkDir(templateFS, "files", func(path string, d fs.DirEntry, err error) error {
+	fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

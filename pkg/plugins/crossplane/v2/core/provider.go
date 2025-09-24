@@ -14,16 +14,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v2
+package core
 
 import (
-	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"strings"
+
+	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 )
 
-type PluginConfig = core.PluginConfig
-type DefaultValues = core.DefaultValues
-type GitConfig = core.GitConfig
+func ExtractProviderName(repo string) string {
+	if repo == "" {
+		return "provider-example"
+	}
 
-func NewPluginConfig() *PluginConfig {
-	return core.NewPluginConfig(pluginName)
+	parts := strings.Split(repo, "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+
+	return "provider-example"
+}
+
+func ExtractProjectName(cfg config.Config) string {
+	name := cfg.GetProjectName()
+	if name != "" {
+		return name
+	}
+
+	return ExtractProviderName(cfg.GetRepository())
 }

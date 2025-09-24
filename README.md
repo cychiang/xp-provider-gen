@@ -1,227 +1,165 @@
 # Crossplane Provider Generator
 
-A command-line tool for scaffolding Crossplane providers using Kubebuilder v4 and crossplane-runtime v2. This tool generates complete, production-ready Crossplane provider projects with proper API structure, controllers, and build systems.
+A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crossplane-runtime v2.
 
-## Features
+## About This Project
 
-- 🚀 **Zero-configuration setup**: Automatically generates complete provider projects
-- 🔧 **Modern tooling**: Built on Kubebuilder v4 and crossplane-runtime v2
-- 📦 **Proper API structure**: Supports multiple groups, versions, and kinds without conflicts
-- 🏗️ **Automated build system**: Integrates with Crossplane build tooling via git submodules
-- ✅ **Quality assurance**: Includes linting, testing, and code generation workflows
-- 🎯 **Developer-friendly**: Clean separation between user code and generated code
+This project is a specialized Kubebuilder plugin that generates complete Crossplane provider projects. It automates the creation of APIs, controllers, build configurations, and all necessary scaffolding for building production-ready Crossplane providers.
+
+**Key capabilities:**
+- Scaffolds complete provider projects with modern Crossplane v2 runtime
+- Supports multiple API groups, versions, and resource kinds in a single provider
+- Generates conflict-free resource types with dedicated files per kind
+- Includes automated git setup, build system integration, and quality checks
+- Uses template-based generation with auto-discovery for extensibility
+
+## Project Structure
+
+This generator tool is organized as follows:
+
+```
+xp-provider-gen/
+├── cmd/xp-provider-gen/       # CLI application entrypoint
+├── pkg/
+│   ├── plugins/crossplane/v2/ # Kubebuilder plugin implementation
+│   │   ├── automation/        # Post-init automation pipeline
+│   │   ├── core/             # Shared utilities (DRY principles)
+│   │   ├── scaffold/         # Template execution logic
+│   │   ├── templates/engine/ # Template discovery and rendering
+│   │   ├── validation/       # Input validation and error handling
+│   │   ├── init.go          # Init subcommand implementation
+│   │   ├── createapi.go     # Create API subcommand
+│   │   └── plugin.go        # Plugin registration with Kubebuilder
+│   ├── templates/            # Template files and loading
+│   │   ├── files/           # All .tmpl template files
+│   │   └── loader.go        # Template filesystem (embed.FS)
+│   └── version/             # Version information
+├── bin/                      # Built binaries (after make build)
+├── Makefile                  # Build automation
+└── README.md                 # This documentation
+```
+
+**Architecture principles:**
+- Each package has a single, focused responsibility
+- No circular dependencies between packages
+- Template-driven generation with auto-discovery
+- Clean separation between scaffolding logic and automation
+- Extensible through additional `.tmpl` files
 
 ## Quick Start
 
 ### Installation
 
-Build from source:
 ```bash
-git clone https://github.com/cychiang/xp-provider-gen
+git clone git@github.com:cychiang/xp-provider-gen.git
 cd xp-provider-gen
 make build
-./bin/xp-provider-gen --help
 ```
 
-### Create Your First Provider
+### Generate a Provider
 
 ```bash
-# Create a new provider project
+# Initialize provider project (always use a separate directory)
 mkdir my-provider && cd my-provider
 xp-provider-gen init --domain=example.com --repo=github.com/example/provider-awesome
 
-# Add managed resources with different versions
+# Add managed resources
 xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
 xp-provider-gen create api --group=storage --version=v1 --kind=Bucket
-xp-provider-gen create api --group=network --version=v1beta1 --kind=VPC
 
-# Build and test
+# Build and validate
 make generate && make build && make reviewable
 ```
 
-The generated provider includes:
-- ✅ **ProviderConfig and ClusterProviderConfig** CRDs for authentication
-- ✅ **Managed resource CRDs** with proper API versioning
-- ✅ **Complete controller scaffolding** following Crossplane patterns
-- ✅ **Docker build configuration** and package metadata
-- ✅ **Git repository setup** with Crossplane build system integration
+> **Important:** Always run `init` in a separate directory to avoid polluting your workspace with generated files.
+
+## Features
+
+- **Complete scaffolding** - Generates APIs, controllers, and build configuration
+- **Multiple resources** - Support for multiple groups, versions, and kinds
+- **No conflicts** - Each kind gets its own `{kind}_types.go` file
+- **Automated setup** - Git initialization, build system integration, quality checks
+- **Modern stack** - Kubebuilder v4 + crossplane-runtime v2
 
 ## Commands
 
-### Initialize a Provider
+### `init` - Initialize provider project
 
+**Usage:**
 ```bash
-xp-provider-gen init --domain=example.com --repo=github.com/example/provider-aws
+xp-provider-gen init --domain=DOMAIN --repo=REPO [--owner=OWNER]
 ```
 
-**Options:**
-- `--domain` - Domain for API groups (required)
-- `--repo` - Go module repository (required)
-- `--owner` - Copyright owner (optional)
+**Flags:**
+- `--domain` (required) - Domain for API groups
+- `--repo` (required) - Go module path
+- `--owner` (optional) - Copyright owner
 
-### Add Managed Resources
+### `create api` - Add managed resource
 
+**Usage:**
 ```bash
-# Create APIs with any version
-xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
-xp-provider-gen create api --group=storage --version=v1 --kind=Bucket
-xp-provider-gen create api --group=network --version=v1beta1 --kind=VPC
-
-# Multiple resources in same group/version (no conflicts!)
-xp-provider-gen create api --group=storage --version=v1 --kind=Bucket
-xp-provider-gen create api --group=storage --version=v1 --kind=Volume
+xp-provider-gen create api --group=GROUP --version=VERSION --kind=KIND [--force]
 ```
 
-**Options:**
-- `--group` - Resource group (e.g., compute, storage, network)
-- `--version` - API version (any format: v1, v1alpha1, v1beta1, v2, etc.)
-- `--kind` - Resource kind (e.g., Instance, Bucket, VPC)
-- `--force` - Overwrite existing files
+**Flags:**
+- `--group` (required) - Resource group (e.g., compute, storage)
+- `--version` (required) - API version (e.g., v1, v1alpha1, v1beta1)
+- `--kind` (required) - Resource kind (e.g., Instance, Bucket)
+- `--force` (optional) - Overwrite existing files
 
-## Generated Project Structure
+## Generated Structure
 
 ```
 provider-awesome/
-├── apis/                       # API definitions
+├── apis/
 │   ├── v1alpha1/              # ProviderConfig types
-│   │   ├── types.go           # ProviderConfig and ClusterProviderConfig
-│   │   └── register.go        # Type registration and metadata
-│   ├── compute/v1alpha1/      # Instance managed resource
-│   │   ├── instance_types.go  # Generated as KIND_types.go (no conflicts!)
-│   │   └── groupversion_info.go
-│   ├── storage/v1/            # Bucket and Volume (v1 version)
-│   │   ├── bucket_types.go    # Multiple APIs per group/version supported
-│   │   ├── volume_types.go    # Each KIND gets its own file
-│   │   └── groupversion_info.go
-│   ├── doc.go                 # Package documentation
-│   ├── generate.go            # Code generation configuration
-│   └── register.go            # Auto-updated import registry
-├── cmd/provider/              # Main provider binary
-│   └── main.go               # Provider entrypoint
-├── internal/
-│   ├── controller/            # Resource controllers
-│   │   ├── bucket/           # Bucket controller
-│   │   │   └── controller.go # CRUD operations for Bucket
-│   │   ├── instance/         # Instance controller
-│   │   │   └── controller.go # CRUD operations for Instance
-│   │   ├── volume/           # Volume controller
-│   │   │   └── controller.go # CRUD operations for Volume
-│   │   ├── config/           # ProviderConfig controller
-│   │   │   └── config.go     # Authentication handling
-│   │   └── register.go       # Controller registration
-│   └── version/              # Version information
-│       └── version.go
+│   ├── compute/v1alpha1/      # Compute resources
+│   └── storage/v1/            # Storage resources
+├── cmd/provider/              # Provider binary
+├── internal/controller/       # Controllers
 ├── package/                   # Crossplane package
-│   ├── crds/                 # Generated CRDs (auto-created by make generate)
-│   │   ├── example.com_providerconfigs.yaml
-│   │   ├── example.com_clusterproviderconfigs.yaml
-│   │   ├── compute.example.com_instances.yaml
-│   │   ├── storage.example.com_buckets.yaml
-│   │   └── storage.example.com_volumes.yaml
-│   └── crossplane.yaml       # Package metadata
-├── cluster/                   # Docker build files
-│   └── images/provider-awesome/
-│       ├── Dockerfile        # Multi-stage build
-│       └── Makefile         # Image build configuration
-├── hack/                     # Code generation scripts
-│   └── boilerplate.go.txt   # License header for generated files
-├── build/                    # Crossplane build system (git submodule)
-├── .gitignore               # Ignores build artifacts and IDE files
-└── Makefile                 # Build system integration
+├── cluster/                   # Docker build
+└── Makefile                   # Build automation
 ```
+
+## Requirements
+
+- Go 1.24.5+
+- Git
+- Docker (for generated providers)
+- Make (for generated providers)
 
 ## Development Workflow
 
 ```bash
-# Generate code and CRDs
-make generate
-
-# Build the provider binary
-make build
-
-# Run quality checks (lint, test)
-make reviewable
-
-# Run the provider locally
-make run
+# In generated provider directory
+make generate    # Generate CRDs and deepcopy code
+make build       # Build provider binary
+make reviewable  # Run linting and tests
+make run         # Run provider locally
 ```
-
-## Key Features
-
-### Smart API Structure
-- **No file conflicts**: Each KIND gets its own `{kind}_types.go` file
-- **Multiple APIs per group/version**: Add as many resources as needed
-- **Proper versioning**: Support for any API version (v1, v1alpha1, v1beta1, etc.)
-- **Clean separation**: Provider config types in `apis/v1alpha1/`, managed resources in `apis/{group}/{version}/`
-
-### Automated Setup
-- **Git integration**: Automatically initializes repository with proper `.gitignore`
-- **Build system**: Integrates Crossplane build tooling via git submodules
-- **Quality checks**: Includes linting, testing, and code generation workflows
-- **Complete controllers**: Generates working CRUD controllers following Crossplane patterns
-
-### Developer Experience
-- **Zero configuration**: Works out of the box with sensible defaults
-- **Extensible templates**: Template system with automatic discovery
-- **Modern tooling**: Built on latest Kubebuilder v4 and crossplane-runtime v2
-- **Clean code**: Minimal comments, focused on essential documentation
 
 ## Testing
 
-### Unit Tests
 ```bash
-# Run generator unit tests
+# Run generator tests
 make test
-```
 
-### End-to-End Testing
-```bash
-# Test complete provider generation workflow
+# E2E workflow test
 cd /tmp && mkdir test-provider && cd test-provider
 xp-provider-gen init --domain=test.io --repo=github.com/test/provider-test
 xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
-xp-provider-gen create api --group=storage --version=v1 --kind=Bucket
 make generate && make build && make reviewable
 ```
 
-### Testing Generated Providers
-```bash
-# In generated provider directory
-make test          # Run provider unit tests
-make e2e          # Run end-to-end tests (if available)
-make reviewable   # Comprehensive quality checks
-```
-
-## Build Commands
-
-| Command | Description |
-|---------|-------------|
-| `make build` | Build the xp-provider-gen binary |
-| `make test` | Run unit tests for the generator |
-| `make clean` | Clean build artifacts |
-| `make lint` | Run code linting |
-
-## Requirements
-
-**For the generator:**
-- Go 1.24.5+
-- Git (for version control and submodules)
-
-**For generated providers:**
-- Go 1.24.5+
-- Docker (for building provider images)
-- Make (for build automation)
-- Crossplane build tools (automatically included via git submodule)
-
 ## Contributing
 
-Contributions are welcome! The project is designed for easy extension:
-
-1. **Template system**: Add new `.tmpl` files and they're automatically discovered
-2. **Clean architecture**: Well-structured codebase with clear separation of concerns
-3. **Comprehensive tests**: Ensure changes work with existing functionality
-4. **Documentation**: Help improve user experience and developer onboarding
+Contributions welcome! Key technologies:
+- **Template system** - Add `.tmpl` files for auto-discovery
+- **Kubebuilder plugin** - Extends Kubebuilder v4 functionality
+- **Modular architecture** - Clear package boundaries, easy to extend
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+Apache License 2.0

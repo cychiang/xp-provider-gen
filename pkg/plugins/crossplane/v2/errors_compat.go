@@ -14,8 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package version contains the version of this repo
-package version
+package v2
 
-// Version will be overridden with the current version at build time using the -X linker flag
-var Version = "0.0.0"
+import (
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
+)
+
+func InitError(operation string, cause error) error {
+	return validation.InitError(operation, cause)
+}
+
+func CreateAPIError(operation string, cause error) error {
+	return validation.CreateAPIError(operation, cause)
+}
+
+func NewValidator() *validation.Validator {
+	return validation.NewValidator()
+}

@@ -11,7 +11,9 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
 )
 
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
@@ -85,14 +87,14 @@ func (p *createAPISubcommand) InjectResource(res *resource.Resource) error {
 
 func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 	// Validate resource parameters before scaffolding
-	validator := NewValidator()
+	validator := validation.NewValidator()
 	if err := validator.ValidateResource(p.resource); err != nil {
-		return CreateAPIError("resource validation", err)
+		return validation.CreateAPIError("resource validation", err)
 	}
 
 	// Additional kubebuilder-compatible checks
 	if p.resource.Domain == "" {
-		return CreateAPIError("configuration check",
+		return validation.CreateAPIError("configuration check",
 			fmt.Errorf("resource domain is required - ensure project is properly initialized"))
 	}
 
@@ -106,7 +108,7 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(p.config),
-		machinery.WithBoilerplate(p.pluginConfig.GetBoilerplate()),
+		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
 		machinery.WithResource(p.resource),
 	)
 
@@ -119,7 +121,7 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		engine.WithResource(p.resource),
 	)
 	if err != nil {
-		return CreateAPIError("template discovery", err)
+		return validation.CreateAPIError("template discovery", err)
 	}
 
 	// Create updater templates for registration
@@ -145,7 +147,7 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 	// Execute scaffolding with discovered templates
 	if err := scaffold.Execute(allTemplates...); err != nil {
-		return CreateAPIError("scaffolding", err)
+		return validation.CreateAPIError("scaffolding", err)
 	}
 
 	fmt.Printf("Successfully scaffolded Crossplane managed resource %s\n", p.resource.Kind)
@@ -153,12 +155,9 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 }
 
 func (p *createAPISubcommand) PostScaffold() error {
-	if err := p.config.AddResource(*p.resource); err != nil {
-		return CreateAPIError("configuration update", err)
-	}
-
-	if err := p.saveProjectFile(); err != nil {
-		return CreateAPIError("PROJECT file persistence", err)
+	projectFile := core.NewProjectFile(p.config)
+	if err := projectFile.AddResource(*p.resource); err != nil {
+		return validation.CreateAPIError("PROJECT file persistence", err)
 	}
 
 	fmt.Printf("Crossplane managed resource %s created successfully!\n", p.resource.Kind)
@@ -192,11 +191,5 @@ func (p *createAPISubcommand) ensureConfig() {
 }
 
 func (p *createAPISubcommand) extractProviderName() string {
-	if p.config.GetRepository() != "" {
-		parts := strings.Split(p.config.GetRepository(), "/")
-		if len(parts) > 0 {
-			return parts[len(parts)-1]
-		}
-	}
-	return "provider-example"
+	return core.ExtractProviderName(p.config.GetRepository())
 }
