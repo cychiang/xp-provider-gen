@@ -1,0 +1,5 @@
+domain: test.io
+layout:
+- crossplane.go.kubebuilder.io/v2
+repo: github.com/test/gitignore-test
+version: "3"
