@@ -4,5 +4,5 @@ import (
 	"embed"
 )
 
-//go:embed files
+//go:embed files files/project/.gitignore.tmpl
 var TemplateFS embed.FS
