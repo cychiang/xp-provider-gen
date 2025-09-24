@@ -8,7 +8,10 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 
-	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/scaffolders"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/automation"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/scaffold"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
 )
 
 var _ plugin.InitSubcommand = &initSubcommand{}
@@ -59,15 +62,15 @@ func (p *initSubcommand) InjectConfig(c config.Config) error {
 	p.config = c
 	p.ensureConfig()
 
-	validator := NewValidator()
+	validator := validation.NewValidator()
 
 	if p.domain != "" {
 		if err := validator.ValidateDomain(p.domain); err != nil {
-			return InitError("domain validation", err)
+			return validation.InitError("domain validation", err)
 		}
 
 		if err := p.config.SetDomain(p.domain); err != nil {
-			return InitError("configuration", err)
+			return validation.InitError("configuration", err)
 		}
 	}
 
@@ -78,11 +81,11 @@ func (p *initSubcommand) InjectConfig(c config.Config) error {
 	}
 
 	if err := validator.ValidateRepository(repo); err != nil {
-		return InitError("repository validation", err)
+		return validation.InitError("repository validation", err)
 	}
 
 	if err := p.config.SetRepository(repo); err != nil {
-		return InitError("configuration", err)
+		return validation.InitError("configuration", err)
 	}
 
 	return nil
@@ -95,26 +98,26 @@ func (p *initSubcommand) PreScaffold(machinery.Filesystem) error {
 func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Scaffolding Crossplane provider project...\n")
 
-	scaffolder := scaffolders.NewInitScaffolder(p.config)
+	scaffolder := scaffold.NewInitScaffolder(p.config)
 	return scaffolder.Scaffold(fs)
 }
 
 func (p *initSubcommand) PostScaffold() error {
 	p.ensureConfig()
-	gitUtils := NewGitUtils(p.pluginConfig)
 
-	if err := gitUtils.InitRepo(); err != nil {
-		fmt.Printf("Warning: Could not initialize git repository: %v\n", err)
-	} else {
-		if err := gitUtils.CreateInitialCommit(); err != nil {
-			fmt.Printf("Warning: Could not create initial commit: %v\n", err)
-		}
+	// Save PROJECT file
+	projectFile := core.NewProjectFile(p.config)
+	if err := projectFile.Save(); err != nil {
+		return validation.InitError("PROJECT file creation", err)
+	}
 
-		if err := gitUtils.AddBuildSubmodule(); err != nil {
-			fmt.Printf("Warning: Could not add build submodule: %v\n", err)
-			fmt.Printf("You can manually add it later with: git submodule add %s build\n",
-				p.pluginConfig.Git.BuildSubmoduleURL)
-		}
+	// Run automation pipeline
+	providerName := core.ExtractProviderName(p.config.GetRepository())
+	pipeline := automation.NewInitPipeline(p.pluginConfig, providerName)
+
+	fmt.Println("Running post-init automation...")
+	if err := pipeline.Run(); err != nil {
+		fmt.Printf("Warning: Some automation steps failed: %v\n", err)
 	}
 
 	fmt.Println("Crossplane provider project initialized successfully!")

@@ -21,6 +21,8 @@ import (
 	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
 type InitTemplateBuilder struct {
@@ -36,87 +38,25 @@ func (b *InitTemplateBuilder) GetTemplateType() TemplateType {
 }
 
 func (b *InitTemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateProduct, error) {
-	options := &TemplateOptions{}
-	for _, opt := range opts {
-		opt(options)
-	}
+	options := parseOptions(opts)
 
-	// Find template info for this template type
-	info, err := b.findTemplateInfo()
+	info, err := findTemplateInfoByCategory(InitCategory, b.templateType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find template info: %w", err)
 	}
 
-	// Create replacement map for init template variables (basic replacements only)
-	projectName := cfg.GetProjectName()
-
-	// Fallback: extract project name from repository URL if GetProjectName() is empty
-	if projectName == "" {
-		repo := cfg.GetRepository()
-		if repo != "" {
-			// Extract last part of repo URL: "github.com/example/provider-test" -> "provider-test"
-			parts := strings.Split(repo, "/")
-			if len(parts) > 0 {
-				projectName = parts[len(parts)-1]
-			}
-		}
-	}
-
+	projectName := core.ExtractProjectName(cfg)
 	replacements := map[string]string{
-		"IMAGENAME": projectName, // Use project name for image
+		"IMAGENAME": projectName,
 	}
 
-	// Create generic template product
-	outputPath := generateOutputPath(info, replacements)
-	templatePath := strings.TrimPrefix(info.Path, "files/")
-	product := NewGenericTemplateProduct(b.templateType, outputPath, templatePath)
+	product := createTemplateProduct(b.templateType, info, replacements)
 
-	if err := product.Configure(cfg); err != nil {
-		return nil, fmt.Errorf("failed to configure template: %w", err)
-	}
-
-	base := product.GetBase()
-	if options.Force {
-		base.SetForce(options.Force)
-	}
-	if options.CustomData != nil {
-		base.SetCustomData(options.CustomData)
-	}
-
-	if err := product.SetTemplateDefaults(); err != nil {
-		return nil, fmt.Errorf("failed to set template defaults: %w", err)
+	if err := configureTemplateProduct(product, cfg, options); err != nil {
+		return nil, err
 	}
 
 	return product, nil
-}
-
-func (b *InitTemplateBuilder) findTemplateInfo() (TemplateInfo, error) {
-	// Walk through the templates to find the one matching our type
-	var foundInfo TemplateInfo
-	found := false
-
-	err := walkTemplateFS("files", func(path string, isDir bool) error {
-		if isDir || !strings.HasSuffix(path, ".tmpl") {
-			return nil
-		}
-
-		info := AnalyzeTemplatePath(path)
-		if info.Category == InitCategory && TemplateType(info.GenerateTemplateType()) == b.templateType {
-			foundInfo = info
-			found = true
-		}
-		return nil
-	})
-
-	if err != nil {
-		return TemplateInfo{}, err
-	}
-
-	if !found {
-		return TemplateInfo{}, fmt.Errorf("template not found for type: %s", b.templateType)
-	}
-
-	return foundInfo, nil
 }
 
 type APITemplateBuilder struct {
@@ -132,98 +72,32 @@ func (b *APITemplateBuilder) GetTemplateType() TemplateType {
 }
 
 func (b *APITemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateProduct, error) {
-	options := &TemplateOptions{}
-	for _, opt := range opts {
-		opt(options)
-	}
+	options := parseOptions(opts)
 
 	if options.Resource == nil {
 		return nil, fmt.Errorf("resource is required for API templates")
 	}
 
-	// Find template info for this template type
-	info, err := b.findTemplateInfo()
+	info, err := findTemplateInfoByCategory(APICategory, b.templateType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find template info: %w", err)
 	}
 
-	// Create replacement map for API template variables
-	projectName := cfg.GetProjectName()
-
-	// Fallback: extract project name from repository URL if GetProjectName() is empty
-	if projectName == "" {
-		repo := cfg.GetRepository()
-		if repo != "" {
-			// Extract last part of repo URL: "github.com/example/provider-test" -> "provider-test"
-			parts := strings.Split(repo, "/")
-			if len(parts) > 0 {
-				projectName = parts[len(parts)-1]
-			}
-		}
-	}
-
+	projectName := core.ExtractProjectName(cfg)
 	replacements := map[string]string{
 		"GROUP":     strings.ToLower(options.Resource.Group),
 		"VERSION":   options.Resource.Version,
 		"KIND":      strings.ToLower(options.Resource.Kind),
-		"IMAGENAME": projectName, // Use project name for image
+		"IMAGENAME": projectName,
 	}
 
-	// Create generic template product
-	outputPath := generateOutputPath(info, replacements)
-	templatePath := strings.TrimPrefix(info.Path, "files/")
-	product := NewGenericTemplateProduct(b.templateType, outputPath, templatePath)
+	product := createTemplateProduct(b.templateType, info, replacements)
 
-	if err := product.Configure(cfg); err != nil {
-		return nil, fmt.Errorf("failed to configure template: %w", err)
-	}
-
-	if err := product.SetResource(options.Resource); err != nil {
-		return nil, fmt.Errorf("failed to set resource: %w", err)
-	}
-
-	base := product.GetBase()
-	if options.Force {
-		base.SetForce(options.Force)
-	}
-	if options.CustomData != nil {
-		base.SetCustomData(options.CustomData)
-	}
-
-	if err := product.SetTemplateDefaults(); err != nil {
-		return nil, fmt.Errorf("failed to set template defaults: %w", err)
+	if err := configureTemplateProduct(product, cfg, options); err != nil {
+		return nil, err
 	}
 
 	return product, nil
-}
-
-func (b *APITemplateBuilder) findTemplateInfo() (TemplateInfo, error) {
-	// Walk through the templates to find the one matching our type
-	var foundInfo TemplateInfo
-	found := false
-
-	err := walkTemplateFS("files", func(path string, isDir bool) error {
-		if isDir || !strings.HasSuffix(path, ".tmpl") {
-			return nil
-		}
-
-		info := AnalyzeTemplatePath(path)
-		if info.Category == APICategory && TemplateType(info.GenerateTemplateType()) == b.templateType {
-			foundInfo = info
-			found = true
-		}
-		return nil
-	})
-
-	if err != nil {
-		return TemplateInfo{}, err
-	}
-
-	if !found {
-		return TemplateInfo{}, fmt.Errorf("template not found for type: %s", b.templateType)
-	}
-
-	return foundInfo, nil
 }
 
 type StaticTemplateBuilder struct {
@@ -239,92 +113,29 @@ func (b *StaticTemplateBuilder) GetTemplateType() TemplateType {
 }
 
 func (b *StaticTemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateProduct, error) {
-	options := &TemplateOptions{}
-	for _, opt := range opts {
-		opt(options)
-	}
+	options := parseOptions(opts)
 
-	// Find template info for this template type
-	info, err := b.findTemplateInfo()
+	info, err := findTemplateInfoByCategory(StaticCategory, b.templateType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find template info: %w", err)
 	}
 
-	// Create replacement map for static template variables (basic replacements only)
-	projectName := cfg.GetProjectName()
-
-	// Fallback: extract project name from repository URL if GetProjectName() is empty
-	if projectName == "" {
-		repo := cfg.GetRepository()
-		if repo != "" {
-			// Extract last part of repo URL: "github.com/example/provider-test" -> "provider-test"
-			parts := strings.Split(repo, "/")
-			if len(parts) > 0 {
-				projectName = parts[len(parts)-1]
-			}
-		}
-	}
-
+	projectName := core.ExtractProjectName(cfg)
 	replacements := map[string]string{
-		"IMAGENAME": projectName, // Use project name for image
+		"IMAGENAME": projectName,
 	}
 
-	// Add API-specific replacements if resource is available
 	if options.Resource != nil {
 		replacements["GROUP"] = strings.ToLower(options.Resource.Group)
 		replacements["VERSION"] = options.Resource.Version
 		replacements["KIND"] = strings.ToLower(options.Resource.Kind)
 	}
 
-	// Create generic template product
-	outputPath := generateOutputPath(info, replacements)
-	templatePath := strings.TrimPrefix(info.Path, "files/")
-	product := NewGenericTemplateProduct(b.templateType, outputPath, templatePath)
+	product := createTemplateProduct(b.templateType, info, replacements)
 
-	if err := product.Configure(cfg); err != nil {
-		return nil, fmt.Errorf("failed to configure template: %w", err)
-	}
-
-	base := product.GetBase()
-	if options.Force {
-		base.SetForce(options.Force)
-	}
-	if options.CustomData != nil {
-		base.SetCustomData(options.CustomData)
-	}
-
-	if err := product.SetTemplateDefaults(); err != nil {
-		return nil, fmt.Errorf("failed to set template defaults: %w", err)
+	if err := configureTemplateProduct(product, cfg, options); err != nil {
+		return nil, err
 	}
 
 	return product, nil
-}
-
-func (b *StaticTemplateBuilder) findTemplateInfo() (TemplateInfo, error) {
-	// Walk through the templates to find the one matching our type
-	var foundInfo TemplateInfo
-	found := false
-
-	err := walkTemplateFS("files", func(path string, isDir bool) error {
-		if isDir || !strings.HasSuffix(path, ".tmpl") {
-			return nil
-		}
-
-		info := AnalyzeTemplatePath(path)
-		if info.Category == StaticCategory && TemplateType(info.GenerateTemplateType()) == b.templateType {
-			foundInfo = info
-			found = true
-		}
-		return nil
-	})
-
-	if err != nil {
-		return TemplateInfo{}, err
-	}
-
-	if !found {
-		return TemplateInfo{}, fmt.Errorf("template not found for type: %s", b.templateType)
-	}
-
-	return foundInfo, nil
 }

@@ -19,6 +19,8 @@ package engine
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
 type TemplateCategory string
@@ -54,7 +56,7 @@ func DiscoverTemplates() (map[string]TemplateInfo, error) {
 }
 
 func walkTemplateFS(root string, fn func(path string, isDir bool) error) error {
-	entries, err := templateFS.ReadDir(root)
+	entries, err := templates.TemplateFS.ReadDir(root)
 	if err != nil {
 		return err
 	}

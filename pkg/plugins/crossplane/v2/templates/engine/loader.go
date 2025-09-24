@@ -22,10 +22,11 @@ import (
 	"io/fs"
 	"path"
 	"strings"
+
+	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
-//go:embed files files/project/.gitignore.tmpl
-var templateFS embed.FS
+var templateFS embed.FS = templates.TemplateFS
 
 // TemplateLoader loads templates from the embedded filesystem
 type TemplateLoader struct {
