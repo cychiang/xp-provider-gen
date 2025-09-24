@@ -2,6 +2,50 @@
 
 A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crossplane-runtime v2.
 
+## About This Project
+
+This project is a specialized Kubebuilder plugin that generates complete Crossplane provider projects. It automates the creation of APIs, controllers, build configurations, and all necessary scaffolding for building production-ready Crossplane providers.
+
+**Key capabilities:**
+- Scaffolds complete provider projects with modern Crossplane v2 runtime
+- Supports multiple API groups, versions, and resource kinds in a single provider
+- Generates conflict-free resource types with dedicated files per kind
+- Includes automated git setup, build system integration, and quality checks
+- Uses template-based generation with auto-discovery for extensibility
+
+## Project Structure
+
+This generator tool is organized as follows:
+
+```
+xp-provider-gen/
+├── cmd/xp-provider-gen/       # CLI application entrypoint
+├── pkg/
+│   ├── plugins/crossplane/v2/ # Kubebuilder plugin implementation
+│   │   ├── automation/        # Post-init automation pipeline
+│   │   ├── core/             # Shared utilities (DRY principles)
+│   │   ├── scaffold/         # Template execution logic
+│   │   ├── templates/engine/ # Template discovery and rendering
+│   │   ├── validation/       # Input validation and error handling
+│   │   ├── init.go          # Init subcommand implementation
+│   │   ├── createapi.go     # Create API subcommand
+│   │   └── plugin.go        # Plugin registration with Kubebuilder
+│   ├── templates/            # Template files and loading
+│   │   ├── files/           # All .tmpl template files
+│   │   └── loader.go        # Template filesystem (embed.FS)
+│   └── version/             # Version information
+├── bin/                      # Built binaries (after make build)
+├── Makefile                  # Build automation
+└── README.md                 # This documentation
+```
+
+**Architecture principles:**
+- Each package has a single, focused responsibility
+- No circular dependencies between packages
+- Template-driven generation with auto-discovery
+- Clean separation between scaffolding logic and automation
+- Extensible through additional `.tmpl` files
+
 ## Quick Start
 
 ### Installation
@@ -15,7 +59,7 @@ make build
 ### Generate a Provider
 
 ```bash
-# Initialize provider project
+# Initialize provider project (always use a separate directory)
 mkdir my-provider && cd my-provider
 xp-provider-gen init --domain=example.com --repo=github.com/example/provider-awesome
 
@@ -26,6 +70,8 @@ xp-provider-gen create api --group=storage --version=v1 --kind=Bucket
 # Build and validate
 make generate && make build && make reviewable
 ```
+
+> **Important:** Always run `init` in a separate directory to avoid polluting your workspace with generated files.
 
 ## Features
 
@@ -107,17 +153,6 @@ xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
 make generate && make build && make reviewable
 ```
 
-## Architecture
-
-Clean architecture with focused packages:
-- **automation/** - Post-scaffold automation (git, build setup)
-- **core/** - Shared utilities (DRY principles)
-- **scaffold/** - Template execution
-- **templates/engine/** - Template discovery and rendering
-- **validation/** - Input validation and error handling
-
-Each package has a single responsibility with no circular dependencies.
-
 ## Contributing
 
 Contributions welcome! Key technologies:
@@ -127,4 +162,4 @@ Contributions welcome! Key technologies:
 
 ## License
 
-Apache License 2.0 - See [LICENSE](LICENSE) for details.
+Apache License 2.0
