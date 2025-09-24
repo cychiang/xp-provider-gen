@@ -37,36 +37,30 @@ make generate && make build && make reviewable
 
 ## Commands
 
-### init
+### `init` - Initialize provider project
 
-Initialize a new provider project:
-
+**Usage:**
 ```bash
-xp-provider-gen init --domain=example.com --repo=github.com/example/provider-aws
+xp-provider-gen init --domain=DOMAIN --repo=REPO [--owner=OWNER]
 ```
 
-**Required flags:**
-- `--domain` - Domain for API groups
-- `--repo` - Go module path
+**Flags:**
+- `--domain` (required) - Domain for API groups
+- `--repo` (required) - Go module path
+- `--owner` (optional) - Copyright owner
 
-**Optional flags:**
-- `--owner` - Copyright owner
+### `create api` - Add managed resource
 
-### create api
-
-Add a managed resource:
-
+**Usage:**
 ```bash
-xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
+xp-provider-gen create api --group=GROUP --version=VERSION --kind=KIND [--force]
 ```
 
-**Required flags:**
-- `--group` - Resource group (e.g., compute, storage)
-- `--version` - API version (e.g., v1, v1alpha1, v1beta1)
-- `--kind` - Resource kind (e.g., Instance, Bucket)
-
-**Optional flags:**
-- `--force` - Overwrite existing files
+**Flags:**
+- `--group` (required) - Resource group (e.g., compute, storage)
+- `--version` (required) - API version (e.g., v1, v1alpha1, v1beta1)
+- `--kind` (required) - Resource kind (e.g., Instance, Bucket)
+- `--force` (optional) - Overwrite existing files
 
 ## Generated Structure
 
@@ -83,62 +77,30 @@ provider-awesome/
 └── Makefile                   # Build automation
 ```
 
+## Requirements
+
+- Go 1.24.5+
+- Git
+- Docker (for generated providers)
+- Make (for generated providers)
+
 ## Development Workflow
 
 ```bash
 # In generated provider directory
-
 make generate    # Generate CRDs and deepcopy code
 make build       # Build provider binary
 make reviewable  # Run linting and tests
 make run         # Run provider locally
 ```
 
-## Requirements
-
-**Generator:**
-- Go 1.24.5+
-- Git
-
-**Generated providers:**
-- Go 1.24.5+
-- Docker
-- Make
-- Crossplane build tools (auto-included)
-
-## Project Structure
-
-```
-xp-provider-gen/
-├── cmd/xp-provider-gen/       # CLI entrypoint
-├── pkg/
-│   ├── plugins/crossplane/v2/ # Kubebuilder plugin
-│   │   ├── automation/        # Post-init automation pipeline
-│   │   ├── core/             # Shared utilities (DRY)
-│   │   ├── scaffold/         # Template execution
-│   │   ├── templates/engine/ # Template rendering system
-│   │   ├── validation/       # Input validation
-│   │   ├── init.go          # Init subcommand
-│   │   ├── createapi.go     # Create API subcommand
-│   │   └── plugin.go        # Plugin registration
-│   ├── templates/            # Centralized templates
-│   │   ├── files/           # Template files (.tmpl)
-│   │   └── loader.go        # Template loader (embed.FS)
-│   └── version/             # Version info
-└── docs/                     # Documentation
-```
-
 ## Testing
 
-### Generator tests
-
 ```bash
+# Run generator tests
 make test
-```
 
-### E2E workflow test
-
-```bash
+# E2E workflow test
 cd /tmp && mkdir test-provider && cd test-provider
 xp-provider-gen init --domain=test.io --repo=github.com/test/provider-test
 xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
@@ -147,27 +109,21 @@ make generate && make build && make reviewable
 
 ## Architecture
 
-The plugin follows a clean architecture with clear separation of concerns:
-
-- **automation/** - Post-scaffold automation pipeline (git, build setup)
-- **core/** - Shared utilities following DRY principles
-- **scaffold/** - Template execution (scaffolding logic only)
+Clean architecture with focused packages:
+- **automation/** - Post-scaffold automation (git, build setup)
+- **core/** - Shared utilities (DRY principles)
+- **scaffold/** - Template execution
 - **templates/engine/** - Template discovery and rendering
 - **validation/** - Input validation and error handling
 
-Each package has a single responsibility and no circular dependencies.
-
-See [docs/implementation-complete.md](docs/implementation-complete.md) for detailed architecture documentation.
+Each package has a single responsibility with no circular dependencies.
 
 ## Contributing
 
-Contributions welcome! The project uses:
-
+Contributions welcome! Key technologies:
 - **Template system** - Add `.tmpl` files for auto-discovery
 - **Kubebuilder plugin** - Extends Kubebuilder v4 functionality
 - **Modular architecture** - Clear package boundaries, easy to extend
-
-See [docs/](docs/) for architecture details.
 
 ## License
 
