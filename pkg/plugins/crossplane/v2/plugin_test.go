@@ -22,7 +22,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 )
 
-func TestPlugin_Interface(t *testing.T) {
+func TestPlugin_Interface(_ *testing.T) {
 	// Ensure Plugin implements kubebuilder plugin.Full interface
 	var _ plugin.Full = &Plugin{}
 }
@@ -111,12 +111,12 @@ func TestPlugin_DeprecationWarning(t *testing.T) {
 	}
 }
 
-func TestInitSubcommand_Interface(t *testing.T) {
+func TestInitSubcommand_Interface(_ *testing.T) {
 	// Ensure initSubcommand implements kubebuilder plugin interface
 	var _ plugin.InitSubcommand = &initSubcommand{}
 }
 
-func TestCreateAPISubcommand_Interface(t *testing.T) {
+func TestCreateAPISubcommand_Interface(_ *testing.T) {
 	// Ensure createAPISubcommand implements kubebuilder plugin interface
 	var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
 }
@@ -162,7 +162,7 @@ func TestPluginConfig_GenerateDefaultRepo(t *testing.T) {
 	}
 }
 
-// Helper function
+// Helper function.
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
 		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||

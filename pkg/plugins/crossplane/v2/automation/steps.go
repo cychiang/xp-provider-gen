@@ -17,6 +17,7 @@ limitations under the License.
 package automation
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
@@ -45,7 +46,7 @@ func (s *GitInitStep) Name() string {
 }
 
 func (s *GitInitStep) Execute() error {
-	return s.git.Init()
+	return s.git.Init(context.Background())
 }
 
 func (s *GitInitStep) IsRequired() bool {
@@ -73,7 +74,7 @@ func (s *GitCommitStep) Name() string {
 }
 
 func (s *GitCommitStep) Execute() error {
-	return s.git.CreateCommit(s.message, s.author)
+	return s.git.CreateCommit(context.Background(), s.message, s.author)
 }
 
 func (s *GitCommitStep) IsRequired() bool {
@@ -101,7 +102,7 @@ func (s *GitSubmoduleStep) Name() string {
 }
 
 func (s *GitSubmoduleStep) Execute() error {
-	return s.git.AddSubmodule(s.url, s.path)
+	return s.git.AddSubmodule(context.Background(), s.url, s.path)
 }
 
 func (s *GitSubmoduleStep) IsRequired() bool {

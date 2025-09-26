@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 )
 
-// BaseTemplateProduct provides common functionality for all template products
+// BaseTemplateProduct provides common functionality for all template products.
 type BaseTemplateProduct struct {
 	machinery.TemplateMixin
 	machinery.DomainMixin
@@ -38,7 +38,7 @@ type BaseTemplateProduct struct {
 	customData   map[string]interface{}
 }
 
-// NewBaseTemplateProduct creates a new base template product
+// NewBaseTemplateProduct creates a new base template product.
 func NewBaseTemplateProduct(templateType TemplateType) *BaseTemplateProduct {
 	return &BaseTemplateProduct{
 		templateType: templateType,
@@ -46,12 +46,12 @@ func NewBaseTemplateProduct(templateType TemplateType) *BaseTemplateProduct {
 	}
 }
 
-// GetTemplateType returns the template type
+// GetTemplateType returns the template type.
 func (t *BaseTemplateProduct) GetTemplateType() TemplateType {
 	return t.templateType
 }
 
-// Configure sets up the template with configuration
+// Configure sets up the template with configuration.
 func (t *BaseTemplateProduct) Configure(cfg config.Config) error {
 	if cfg != nil {
 		t.Domain = cfg.GetDomain()
@@ -71,7 +71,7 @@ func (t *BaseTemplateProduct) Configure(cfg config.Config) error {
 	return nil
 }
 
-// SetResource sets the resource for API templates
+// SetResource sets the resource for API templates.
 func (t *BaseTemplateProduct) SetResource(res *resource.Resource) error {
 	if res != nil {
 		t.Resource = res
@@ -80,17 +80,17 @@ func (t *BaseTemplateProduct) SetResource(res *resource.Resource) error {
 	return nil
 }
 
-// SetCustomData sets custom data for the template
+// SetCustomData sets custom data for the template.
 func (t *BaseTemplateProduct) SetCustomData(data map[string]interface{}) {
 	t.customData = data
 }
 
-// GetCustomData returns custom data
+// GetCustomData returns custom data.
 func (t *BaseTemplateProduct) GetCustomData() map[string]interface{} {
 	return t.customData
 }
 
-// SetForce sets the force flag
+// SetForce sets the force flag.
 func (t *BaseTemplateProduct) SetForce(force bool) {
 	t.Force = force
 	if force {
@@ -100,12 +100,12 @@ func (t *BaseTemplateProduct) SetForce(force bool) {
 	}
 }
 
-// GetBase returns the base template product for accessing common functionality
+// GetBase returns the base template product for accessing common functionality.
 func (t *BaseTemplateProduct) GetBase() *BaseTemplateProduct {
 	return t
 }
 
-// extractProviderName extracts provider name from repository URL
+// extractProviderName extracts provider name from repository URL.
 func extractProviderName(repo string) string {
 	if repo == "" {
 		return "provider-example"

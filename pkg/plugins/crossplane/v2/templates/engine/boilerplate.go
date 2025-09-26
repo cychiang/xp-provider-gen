@@ -17,7 +17,7 @@ limitations under the License.
 package engine
 
 // DefaultBoilerplate returns the standard Apache 2.0 license boilerplate
-// used for all generated Crossplane provider files
+// used for all generated Crossplane provider files.
 func DefaultBoilerplate() string {
 	return `/*
 Copyright 2025 The Crossplane Authors.

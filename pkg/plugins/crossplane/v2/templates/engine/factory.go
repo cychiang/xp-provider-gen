@@ -46,7 +46,7 @@ func NewFactory(cfg config.Config) TemplateFactory {
 }
 
 func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
-	fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
+	_ = fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -56,21 +56,26 @@ func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
 		}
 
 		info := AnalyzeTemplatePath(path)
-		templateType := TemplateType(info.GenerateTemplateType())
+		templateType := info.GenerateTemplateType()
 
 		switch info.Category {
-		case "init":
+		case InitCategory:
 			f.initRegistry[templateType] = NewInitTemplateBuilder(templateType)
-		case "api":
+		case APICategory:
 			f.apiRegistry[templateType] = NewAPITemplateBuilder(templateType)
-		case "static":
+		case StaticCategory:
 			f.staticRegistry[templateType] = NewStaticTemplateBuilder(templateType)
+		default:
+			// Handle unknown category - could log or ignore
 		}
 
 		return nil
 	})
 }
-func (f *CrossplaneTemplateFactory) CreateInitTemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error) {
+
+func (f *CrossplaneTemplateFactory) CreateInitTemplate(templateType TemplateType,
+	opts ...Option,
+) (TemplateProduct, error) {
 	builder, exists := f.initRegistry[templateType]
 	if !exists {
 		return nil, fmt.Errorf("unsupported init template type: %s", templateType)
@@ -84,7 +89,9 @@ func (f *CrossplaneTemplateFactory) CreateInitTemplate(templateType TemplateType
 	return product, nil
 }
 
-func (f *CrossplaneTemplateFactory) CreateAPITemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error) {
+func (f *CrossplaneTemplateFactory) CreateAPITemplate(templateType TemplateType,
+	opts ...Option,
+) (TemplateProduct, error) {
 	builder, exists := f.apiRegistry[templateType]
 	if !exists {
 		return nil, fmt.Errorf("unsupported API template type: %s", templateType)
@@ -98,7 +105,9 @@ func (f *CrossplaneTemplateFactory) CreateAPITemplate(templateType TemplateType,
 	return product, nil
 }
 
-func (f *CrossplaneTemplateFactory) CreateStaticTemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error) {
+func (f *CrossplaneTemplateFactory) CreateStaticTemplate(templateType TemplateType,
+	opts ...Option,
+) (TemplateProduct, error) {
 	builder, exists := f.staticRegistry[templateType]
 	if !exists {
 		return nil, fmt.Errorf("unsupported static template type: %s", templateType)

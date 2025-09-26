@@ -6,9 +6,9 @@ GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 
 # Go build flags
-LDFLAGS := -X github.com/crossplane/xp-kubebuilder-plugin/pkg/version.Version=$(VERSION) \
-           -X github.com/crossplane/xp-kubebuilder-plugin/pkg/version.GitCommit=$(GIT_COMMIT) \
-           -X github.com/crossplane/xp-kubebuilder-plugin/pkg/version.BuildDate=$(BUILD_DATE)
+LDFLAGS := -X github.com/cychiang/xp-provider-gen/pkg/version.Version=$(VERSION) \
+           -X github.com/cychiang/xp-provider-gen/pkg/version.GitCommit=$(GIT_COMMIT) \
+           -X github.com/cychiang/xp-provider-gen/pkg/version.BuildDate=$(BUILD_DATE)
 
 # Build flags
 BUILD_FLAGS := -ldflags "$(LDFLAGS)" -trimpath
@@ -18,7 +18,6 @@ GOCMD=go
 GOBUILD=$(GOCMD) build $(BUILD_FLAGS)
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
-GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 
 
@@ -29,7 +28,7 @@ COVERAGE_DIR=coverage
 # Binary names
 BINARY=xp-provider-gen
 
-.PHONY: help build clean test test-verbose coverage fmt vet lint mod-tidy mod-verify validate integration-test
+.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install mod-tidy mod-verify check reviewable integration-test ci-test ci-lint docs
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -44,11 +43,7 @@ clean: ## Clean build artifacts and temporary files
 	$(GOCLEAN)
 	rm -rf $(BUILD_DIR) $(COVERAGE_DIR)
 
-test: ## Run all tests
-	$(GOTEST) -v ./...
-
-
-test-verbose: ## Run tests with verbose output
+test: ## Run tests with race detection
 	$(GOTEST) -v -race ./...
 
 coverage: ## Generate test coverage report
@@ -63,8 +58,16 @@ fmt: ## Format Go code
 vet: ## Run go vet
 	$(GOCMD) vet ./...
 
-lint: ## Run golangci-lint (requires golangci-lint to be installed)
-	golangci-lint run
+# Ensure golangci-lint is installed
+lint-install: ## Install golangci-lint if not present
+	@if ! command -v golangci-lint >/dev/null 2>&1; then \
+		echo "Installing golangci-lint..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+	fi
+
+lint: lint-install ## Run golangci-lint with configuration
+	@echo "Running golangci-lint..."
+	golangci-lint run --config .golangci.yml
 
 mod-tidy: ## Run go mod tidy
 	$(GOMOD) tidy
@@ -72,36 +75,32 @@ mod-tidy: ## Run go mod tidy
 mod-verify: ## Verify go mod dependencies
 	$(GOMOD) verify
 
-validate: fmt vet lint test ## Run all validation checks (format, vet, lint, test)
-	@echo "All validation checks passed!"
+check: fmt vet lint test ## Run all quality checks (format, vet, lint, test)
+	@echo "All quality checks passed!"
 
-# Development helpers
-.PHONY: dev-setup dev-check
-
-dev-setup: mod-tidy ## Set up development environment
-	@echo "Development environment setup complete!"
-
-dev-check: validate ## Quick development check
-	@echo "Development check complete!"
+reviewable: mod-tidy check ## Run all checks to make code reviewable
+	@echo "Code is ready for review!"
 
 # CI/CD targets
-.PHONY: ci-test ci-lint
 
-ci-test: ## Run tests for CI
+ci-test: ## Run tests for CI with coverage
 	$(GOTEST) -race -coverprofile=coverage.out ./...
 
-ci-lint: ## Run linting for CI  
-	golangci-lint run --timeout=5m
+ci-lint: lint-install ## Run linting for CI with extended timeout
+	@echo "Running CI linting..."
+	golangci-lint run --config .golangci.yml --timeout=5m --out-format=github-actions
+
+lint-fix: lint-install ## Run golangci-lint with auto-fixing
+	@echo "Running golangci-lint with auto-fix..."
+	golangci-lint run --config .golangci.yml --fix
 
 # Documentation
-.PHONY: docs
 
 docs: ## Generate documentation (placeholder)
 	@echo "Documentation generation not yet implemented"
 	@echo "See README.md and IMPLEMENTATION_PLAN.md for current documentation"
 
 # Integration testing
-.PHONY: integration-test
 
 integration-test: build ## Run comprehensive integration tests
 	@echo "Running integration tests..."

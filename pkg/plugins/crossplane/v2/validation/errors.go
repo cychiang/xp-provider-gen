@@ -17,12 +17,13 @@ limitations under the License.
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
 
 // PluginError represents structured error information for better user experience
-// while maintaining compatibility with kubebuilder's error handling patterns
+// while maintaining compatibility with kubebuilder's error handling patterns.
 type PluginError struct {
 	Component string // e.g., "init", "createAPI", "template"
 	Operation string // e.g., "validation", "scaffolding", "configuration"
@@ -30,7 +31,7 @@ type PluginError struct {
 	Hints     []string // User-friendly suggestions
 }
 
-// Error implements the error interface
+// Error implements the error interface.
 func (e PluginError) Error() string {
 	msg := fmt.Sprintf("%s %s failed: %v", e.Component, e.Operation, e.Cause)
 
@@ -44,12 +45,12 @@ func (e PluginError) Error() string {
 	return msg
 }
 
-// Unwrap returns the underlying cause for error chain compatibility
+// Unwrap returns the underlying cause for error chain compatibility.
 func (e PluginError) Unwrap() error {
 	return e.Cause
 }
 
-// ErrorBuilder helps construct PluginError with fluent API
+// ErrorBuilder helps construct PluginError with fluent API.
 type ErrorBuilder struct {
 	component string
 	operation string
@@ -57,30 +58,30 @@ type ErrorBuilder struct {
 	hints     []string
 }
 
-// NewError creates a new error builder
+// NewError creates a new error builder.
 func NewError(component string) *ErrorBuilder {
 	return &ErrorBuilder{component: component}
 }
 
-// Operation sets the operation that failed
+// Operation sets the operation that failed.
 func (b *ErrorBuilder) Operation(op string) *ErrorBuilder {
 	b.operation = op
 	return b
 }
 
-// Cause sets the underlying error
+// Cause sets the underlying error.
 func (b *ErrorBuilder) Cause(err error) *ErrorBuilder {
 	b.cause = err
 	return b
 }
 
-// Hint adds a user-friendly suggestion
+// Hint adds a user-friendly suggestion.
 func (b *ErrorBuilder) Hint(hint string) *ErrorBuilder {
 	b.hints = append(b.hints, hint)
 	return b
 }
 
-// Build creates the final PluginError
+// Build creates the final PluginError.
 func (b *ErrorBuilder) Build() error {
 	return PluginError{
 		Component: b.component,
@@ -92,8 +93,8 @@ func (b *ErrorBuilder) Build() error {
 
 // Common error constructors for frequently used patterns
 
-// ValidationError creates a validation error with helpful hints
-func ValidationError(field, value, message string) error {
+// Error creates a validation error with helpful hints.
+func Error(field, value, message string) error {
 	return NewError("validation").
 		Operation("field validation").
 		Cause(fmt.Errorf("invalid %s '%s': %s", field, value, message)).
@@ -102,7 +103,7 @@ func ValidationError(field, value, message string) error {
 		Build()
 }
 
-// InitError creates an init command error with context
+// InitError creates an init command error with context.
 func InitError(operation string, cause error) error {
 	builder := NewError("init").
 		Operation(operation).
@@ -126,7 +127,7 @@ func InitError(operation string, cause error) error {
 	return builder.Build()
 }
 
-// CreateAPIError creates a create api command error with context
+// CreateAPIError creates a create api command error with context.
 func CreateAPIError(operation string, cause error) error {
 	builder := NewError("createAPI").
 		Operation(operation).
@@ -150,7 +151,7 @@ func CreateAPIError(operation string, cause error) error {
 	return builder.Build()
 }
 
-// TemplateError creates a template processing error with context
+// TemplateError creates a template processing error with context.
 func TemplateError(templateName string, cause error) error {
 	return NewError("template").
 		Operation(fmt.Sprintf("processing %s", templateName)).
@@ -160,7 +161,7 @@ func TemplateError(templateName string, cause error) error {
 		Build()
 }
 
-// ScaffoldError creates a scaffolding error with context
+// ScaffoldError creates a scaffolding error with context.
 func ScaffoldError(operation string, cause error) error {
 	return NewError("scaffold").
 		Operation(operation).
@@ -170,7 +171,7 @@ func ScaffoldError(operation string, cause error) error {
 		Build()
 }
 
-// WrapWithContext wraps an error with additional context while preserving error chains
+// WrapWithContext wraps an error with additional context while preserving error chains.
 func WrapWithContext(err error, component, operation string) error {
 	if err == nil {
 		return nil
@@ -188,11 +189,11 @@ func WrapWithContext(err error, component, operation string) error {
 		Build()
 }
 
-// As is a compatibility function for error unwrapping
+// As is a compatibility function for error unwrapping.
 func As(err error, target interface{}) bool {
-	switch t := target.(type) {
-	case *PluginError:
-		if pe, ok := err.(PluginError); ok {
+	if t, ok := target.(*PluginError); ok {
+		var pe PluginError
+		if errors.As(err, &pe) {
 			*t = pe
 			return true
 		}

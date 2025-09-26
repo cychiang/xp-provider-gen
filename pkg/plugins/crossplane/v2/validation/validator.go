@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 )
 
-// FieldValidationError represents a user input field validation error
+// FieldValidationError represents a user input field validation error.
 type FieldValidationError struct {
 	Field   string
 	Value   string
@@ -35,15 +35,15 @@ func (e FieldValidationError) Error() string {
 	return fmt.Sprintf("invalid %s '%s': %s", e.Field, e.Value, e.Message)
 }
 
-// Validator provides validation utilities that follow kubebuilder patterns
+// Validator provides validation utilities that follow kubebuilder patterns.
 type Validator struct{}
 
-// NewValidator creates a new validator instance
+// NewValidator creates a new validator instance.
 func NewValidator() *Validator {
 	return &Validator{}
 }
 
-// ValidateDomain validates the domain follows kubebuilder conventions
+// ValidateDomain validates the domain follows kubebuilder conventions.
 func (v *Validator) ValidateDomain(domain string) error {
 	if domain == "" {
 		return FieldValidationError{
@@ -80,7 +80,7 @@ func (v *Validator) ValidateDomain(domain string) error {
 	return nil
 }
 
-// ValidateRepository validates the repository follows go module conventions
+// ValidateRepository validates the repository follows go module conventions.
 func (v *Validator) ValidateRepository(repo string) error {
 	if repo == "" {
 		return FieldValidationError{
@@ -133,7 +133,7 @@ func (v *Validator) ValidateRepository(repo string) error {
 	return nil
 }
 
-// ValidateResource validates resource parameters following kubebuilder conventions
+// ValidateResource validates resource parameters following kubebuilder conventions.
 func (v *Validator) ValidateResource(res *resource.Resource) error {
 	if res == nil {
 		return FieldValidationError{
@@ -154,14 +154,10 @@ func (v *Validator) ValidateResource(res *resource.Resource) error {
 	}
 
 	// Validate kind - follows kubebuilder patterns
-	if err := v.validateKind(res.Kind); err != nil {
-		return err
-	}
-
-	return nil
+	return v.validateKind(res.Kind)
 }
 
-// validateGroup validates API group name
+// validateGroup validates API group name.
 func (v *Validator) validateGroup(group string) error {
 	if group == "" {
 		return FieldValidationError{
@@ -198,7 +194,7 @@ func (v *Validator) validateGroup(group string) error {
 	return nil
 }
 
-// validateVersion validates API version
+// validateVersion validates API version.
 func (v *Validator) validateVersion(version string) error {
 	if version == "" {
 		return FieldValidationError{
@@ -226,7 +222,7 @@ func (v *Validator) validateVersion(version string) error {
 	return nil
 }
 
-// validateKind validates resource kind
+// validateKind validates resource kind.
 func (v *Validator) validateKind(kind string) error {
 	if kind == "" {
 		return FieldValidationError{

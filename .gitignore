@@ -12,6 +12,10 @@ bin/
 # Output of the go coverage tool
 *.out
 
+# Build artifacts
+dist/
+coverage.html
+
 # Go workspace file
 go.work
 
