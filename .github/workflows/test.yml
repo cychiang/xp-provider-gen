@@ -1,0 +1,105 @@
+name: Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.24.5', '1.24.7']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run unit tests
+      run: |
+        go test -v -race -coverprofile=coverage.out ./...
+        go tool cover -html=coverage.out -o coverage.html
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v5
+      with:
+        file: ./coverage.out
+        fail_ci_if_error: false
+
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report-go${{ matrix.go-version }}
+        path: coverage.html
+
+  e2e-test:
+    name: E2E Test
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.5'
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Build binary
+      run: make build
+
+    - name: Run E2E test
+      run: |
+        cd /tmp
+        mkdir e2e-test && cd e2e-test
+
+        # Test init command
+        ${{ github.workspace }}/bin/xp-provider-gen init --domain=test.io --repo=github.com/test/provider-e2e
+
+        # Verify generated files
+        [ -f "Makefile" ] || (echo "Makefile not found" && exit 1)
+        [ -f "go.mod" ] || (echo "go.mod not found" && exit 1)
+        [ -f ".gitignore" ] || (echo ".gitignore not found" && exit 1)
+        [ -d "apis" ] || (echo "apis directory not found" && exit 1)
+
+        # Test create api command
+        ${{ github.workspace }}/bin/xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
+
+        # Verify API files
+        [ -f "apis/compute/v1alpha1/instance_types.go" ] || (echo "instance_types.go not found" && exit 1)
+        [ -f "internal/controller/instance/controller.go" ] || (echo "controller.go not found" && exit 1)
+
+        echo "E2E test completed successfully"

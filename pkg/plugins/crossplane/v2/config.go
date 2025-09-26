@@ -20,9 +20,11 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
-type PluginConfig = core.PluginConfig
-type DefaultValues = core.DefaultValues
-type GitConfig = core.GitConfig
+type (
+	PluginConfig  = core.PluginConfig
+	DefaultValues = core.DefaultValues
+	GitConfig     = core.GitConfig
+)
 
 func NewPluginConfig() *PluginConfig {
 	return core.NewPluginConfig(pluginName)

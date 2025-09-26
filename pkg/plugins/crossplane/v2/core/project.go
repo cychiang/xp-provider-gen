@@ -38,7 +38,7 @@ func (p *ProjectFile) Save() error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if err := os.WriteFile("PROJECT", bytes, 0644); err != nil {
+	if err := os.WriteFile("PROJECT", bytes, 0o600); err != nil {
 		return fmt.Errorf("write PROJECT file: %w", err)
 	}
 

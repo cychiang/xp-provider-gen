@@ -22,7 +22,7 @@ import (
 )
 
 // GenericTemplateProduct is a universal template product that works with any template
-// discovered through the autodiscovery system
+// discovered through the autodiscovery system.
 type GenericTemplateProduct struct {
 	*BaseTemplateProduct
 	loader       *TemplateLoader
@@ -30,7 +30,7 @@ type GenericTemplateProduct struct {
 	templatePath string
 }
 
-// NewGenericTemplateProduct creates a new generic template product
+// NewGenericTemplateProduct creates a new generic template product.
 func NewGenericTemplateProduct(templateType TemplateType, outputPath, templatePath string) *GenericTemplateProduct {
 	return &GenericTemplateProduct{
 		BaseTemplateProduct: NewBaseTemplateProduct(templateType),
@@ -40,7 +40,7 @@ func NewGenericTemplateProduct(templateType TemplateType, outputPath, templatePa
 	}
 }
 
-// SetTemplateDefaults loads the template content from the scaffolds directory
+// SetTemplateDefaults loads the template content from the scaffolds directory.
 func (t *GenericTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = t.outputPath
@@ -56,26 +56,22 @@ func (t *GenericTemplateProduct) SetTemplateDefaults() error {
 	return nil
 }
 
-// GetOutputPath returns the output path for this template
+// GetOutputPath returns the output path for this template.
 func (t *GenericTemplateProduct) GetOutputPath() string {
 	return t.outputPath
 }
 
-// generateOutputPath converts a template info to its output path with variable replacements
+// generateOutputPath converts a template info to its output path with variable replacements.
 func generateOutputPath(info TemplateInfo, replacements map[string]string) string {
 	// The OutputDir is like "project/Makefile" or "apis/register.go"
 	outputPath := info.OutputDir
 
 	// Handle root files specially - remove the "project/" prefix
-	if strings.HasPrefix(outputPath, "project/") {
-		outputPath = strings.TrimPrefix(outputPath, "project/")
-	}
+	outputPath = strings.TrimPrefix(outputPath, "project/")
 
 	// Apply variable replacements for uppercase placeholders
-	if replacements != nil {
-		for placeholder, value := range replacements {
-			outputPath = strings.ReplaceAll(outputPath, placeholder, value)
-		}
+	for placeholder, value := range replacements {
+		outputPath = strings.ReplaceAll(outputPath, placeholder, value)
 	}
 
 	return outputPath

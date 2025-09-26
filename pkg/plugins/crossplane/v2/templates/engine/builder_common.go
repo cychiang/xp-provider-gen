@@ -33,13 +33,12 @@ func findTemplateInfoByCategory(category TemplateCategory, templateType Template
 		}
 
 		info := AnalyzeTemplatePath(path)
-		if info.Category == category && TemplateType(info.GenerateTemplateType()) == templateType {
+		if info.Category == category && info.GenerateTemplateType() == templateType {
 			foundInfo = info
 			found = true
 		}
 		return nil
 	})
-
 	if err != nil {
 		return TemplateInfo{}, err
 	}
@@ -87,7 +86,9 @@ func configureTemplateProduct(product TemplateProduct, cfg config.Config, option
 	return nil
 }
 
-func createTemplateProduct(templateType TemplateType, info TemplateInfo, replacements map[string]string) TemplateProduct {
+func createTemplateProduct(templateType TemplateType, info TemplateInfo,
+	replacements map[string]string,
+) TemplateProduct {
 	outputPath := generateOutputPath(info, replacements)
 	templatePath := strings.TrimPrefix(info.Path, "files/")
 	return NewGenericTemplateProduct(templateType, outputPath, templatePath)

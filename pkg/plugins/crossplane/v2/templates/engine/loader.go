@@ -28,19 +28,19 @@ import (
 
 var templateFS embed.FS = templates.TemplateFS
 
-// TemplateLoader loads templates from the embedded filesystem
+// TemplateLoader loads templates from the embedded filesystem.
 type TemplateLoader struct {
 	fs embed.FS
 }
 
-// NewTemplateLoader creates a new template loader
+// NewTemplateLoader creates a new template loader.
 func NewTemplateLoader() *TemplateLoader {
 	return &TemplateLoader{
 		fs: templateFS,
 	}
 }
 
-// LoadTemplate loads a template by its name/path
+// LoadTemplate loads a template by its name/path.
 func (tl *TemplateLoader) LoadTemplate(templatePath string) (string, error) {
 	// Convert template path to filesystem path
 	fsPath := path.Join("files", templatePath)
@@ -53,7 +53,7 @@ func (tl *TemplateLoader) LoadTemplate(templatePath string) (string, error) {
 	return string(content), nil
 }
 
-// ListTemplates returns all available templates
+// ListTemplates returns all available templates.
 func (tl *TemplateLoader) ListTemplates() ([]string, error) {
 	var templates []string
 
@@ -75,7 +75,7 @@ func (tl *TemplateLoader) ListTemplates() ([]string, error) {
 	return templates, err
 }
 
-// TemplateExists checks if a template exists
+// TemplateExists checks if a template exists.
 func (tl *TemplateLoader) TemplateExists(templatePath string) bool {
 	fsPath := path.Join("files", templatePath)
 	_, err := tl.fs.ReadFile(fsPath)

@@ -32,7 +32,8 @@ func main() {
 	cli, err := cli.New(
 		cli.WithCommandName("crossplane-provider-gen"),
 		cli.WithVersion(versionInfo.Short()),
-		cli.WithDescription("Crossplane Provider Generator - A tool for scaffolding Crossplane providers and managed resources following Crossplane v2 patterns"),
+		cli.WithDescription("Crossplane Provider Generator - A tool for scaffolding Crossplane providers "+
+			"and managed resources following Crossplane v2 patterns"),
 		cli.WithDefaultProjectVersion(cfgv3.Version),
 		cli.WithPlugins(&crossplanev2.Plugin{}),
 		cli.WithDefaultPlugins(cfgv3.Version, &crossplanev2.Plugin{}),

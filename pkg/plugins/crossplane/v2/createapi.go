@@ -2,7 +2,6 @@ package v2
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -102,7 +101,8 @@ func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 }
 
 func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
-	fmt.Printf("Creating Crossplane managed resource API %s/%s %s\n", p.resource.Group, p.resource.Version, p.resource.Kind)
+	fmt.Printf("Creating Crossplane managed resource API %s/%s %s\n",
+		p.resource.Group, p.resource.Version, p.resource.Kind)
 
 	p.ensureConfig()
 
@@ -166,20 +166,8 @@ func (p *createAPISubcommand) PostScaffold() error {
 	fmt.Printf("  2. Implement the external client logic\n")
 	fmt.Printf("  3. Update controller reconciliation logic\n")
 	fmt.Printf("  4. Run 'make generate' to generate CRDs\n")
-	fmt.Printf("  5. Check examples/%s/%s.yaml for usage examples\n", strings.ToLower(p.resource.Group), strings.ToLower(p.resource.Kind))
-
-	return nil
-}
-
-func (p *createAPISubcommand) saveProjectFile() error {
-	configBytes, err := p.config.MarshalYAML()
-	if err != nil {
-		return fmt.Errorf("error marshaling config to YAML: %w", err)
-	}
-
-	if err := os.WriteFile("PROJECT", configBytes, 0644); err != nil {
-		return fmt.Errorf("error writing PROJECT file: %w", err)
-	}
+	fmt.Printf("  5. Check examples/%s/%s.yaml for usage examples\n",
+		strings.ToLower(p.resource.Group), strings.ToLower(p.resource.Kind))
 
 	return nil
 }

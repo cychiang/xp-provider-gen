@@ -17,6 +17,7 @@ limitations under the License.
 package scaffold
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -73,9 +74,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 
 	fmt.Printf("Crossplane provider project scaffolded successfully!\n")
 
-	if err := s.runPostInitSteps(); err != nil {
-		fmt.Printf("Warning: Some post-init steps failed: %v\n", err)
-	}
+	s.runPostInitSteps()
 
 	return nil
 }
@@ -90,30 +89,43 @@ func (s *InitScaffolder) setupGitAndSubmodule() error {
 }
 
 func (s *InitScaffolder) addBuildSubmodule() error {
-	if _, err := os.Stat("build"); os.IsNotExist(err) {
-		buildSubmoduleURL := "https://github.com/crossplane/build"
-		if err := s.runCommand("git", "submodule", "add", buildSubmoduleURL, "build"); err != nil {
-			return fmt.Errorf("failed to add build submodule: %w", err)
-		}
-		fmt.Printf("Added build submodule from %s\n", buildSubmoduleURL)
+	return s.setupBuildSubmodule()
+}
 
-		if err := s.runCommand("git", "submodule", "update", "--init", "--recursive"); err != nil {
-			return fmt.Errorf("failed to initialize build submodule: %w", err)
-		}
-		fmt.Printf("Initialized build submodule content\n")
-	} else {
-		if _, err := os.Stat("build/.git"); os.IsNotExist(err) {
-			if err := s.runCommand("git", "submodule", "update", "--init", "--recursive"); err != nil {
-				return fmt.Errorf("failed to initialize existing build submodule: %w", err)
-			}
-			fmt.Printf("Initialized existing build submodule content\n")
-		}
+func (s *InitScaffolder) setupBuildSubmodule() error {
+	// Check if build directory exists
+	if _, err := os.Stat("build"); os.IsNotExist(err) {
+		return s.addNewBuildSubmodule()
 	}
 
+	return s.initializeExistingBuildSubmodule()
+}
+
+func (s *InitScaffolder) addNewBuildSubmodule() error {
+	buildSubmoduleURL := "https://github.com/crossplane/build"
+	if err := s.runCommand("git", "submodule", "add", buildSubmoduleURL, "build"); err != nil {
+		return fmt.Errorf("failed to add build submodule: %w", err)
+	}
+	fmt.Printf("Added build submodule from %s\n", buildSubmoduleURL)
+
+	if err := s.runCommand("git", "submodule", "update", "--init", "--recursive"); err != nil {
+		return fmt.Errorf("failed to initialize build submodule: %w", err)
+	}
+	fmt.Printf("Initialized build submodule content\n")
 	return nil
 }
 
-func (s *InitScaffolder) runPostInitSteps() error {
+func (s *InitScaffolder) initializeExistingBuildSubmodule() error {
+	if _, err := os.Stat("build/.git"); os.IsNotExist(err) {
+		if err := s.runCommand("git", "submodule", "update", "--init", "--recursive"); err != nil {
+			return fmt.Errorf("failed to initialize existing build submodule: %w", err)
+		}
+		fmt.Printf("Initialized existing build submodule content\n")
+	}
+	return nil
+}
+
+func (s *InitScaffolder) runPostInitSteps() {
 	fmt.Printf("Running automated setup steps...\n")
 
 	fmt.Printf("  1. Setting up git repository...\n")
@@ -156,11 +168,11 @@ func (s *InitScaffolder) runPostInitSteps() error {
 	}
 
 	fmt.Printf("Automated setup completed successfully!\n")
-	return nil
 }
 
 func (s *InitScaffolder) runCommand(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, name, args...)
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
@@ -186,7 +198,8 @@ func (s *InitScaffolder) runCommand(name string, args ...string) error {
 }
 
 func (s *InitScaffolder) verifyBuildSystem() error {
-	cmd := exec.Command("make", "help")
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, "make", "help")
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("make help failed: %w", err)
@@ -210,14 +223,12 @@ func (s *InitScaffolder) createInitialCommit() error {
 		}
 	}
 
-	if err := s.runCommand("git", "config", "user.email", "crossplane-provider-gen@example.com"); err != nil {
-	}
-	if err := s.runCommand("git", "config", "user.name", "Crossplane Provider Generator"); err != nil {
-	}
+	// Best effort git config setup - ignore errors as they're not critical
+	_ = s.runCommand("git", "config", "user.email", "crossplane-provider-gen@example.com")
+	_ = s.runCommand("git", "config", "user.name", "Crossplane Provider Generator")
 
 	cwd, _ := os.Getwd()
-	if err := s.runCommand("git", "config", "--global", "--add", "safe.directory", cwd); err != nil {
-	}
+	_ = s.runCommand("git", "config", "--global", "--add", "safe.directory", cwd)
 
 	if err := s.runCommand("git", "add", "."); err != nil {
 		return fmt.Errorf("failed to git add: %w", err)

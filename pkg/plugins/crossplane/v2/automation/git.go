@@ -17,6 +17,7 @@ limitations under the License.
 package automation
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -32,12 +33,12 @@ func NewGitOperations(config *core.PluginConfig) *GitOperations {
 	return &GitOperations{config: config}
 }
 
-func (g *GitOperations) Init() error {
+func (g *GitOperations) Init(ctx context.Context) error {
 	if _, err := os.Stat(".git"); err == nil {
 		return nil
 	}
 
-	cmd := exec.Command("git", "init")
+	cmd := exec.CommandContext(ctx, "git", "init")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to initialize git repository: %w", err)
 	}
@@ -45,16 +46,16 @@ func (g *GitOperations) Init() error {
 	return nil
 }
 
-func (g *GitOperations) CreateCommit(message, author string) error {
-	cmd := exec.Command("git", "add", ".")
+func (g *GitOperations) CreateCommit(ctx context.Context, message, author string) error {
+	cmd := exec.CommandContext(ctx, "git", "add", ".")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to add files to git: %w", err)
 	}
 
 	authorFlag := fmt.Sprintf("--author=%s", author)
-	cmd = exec.Command("git", "commit", "-m", message, authorFlag)
+	cmd = exec.CommandContext(ctx, "git", "commit", "-m", message, authorFlag)
 	if err := cmd.Run(); err != nil {
-		cmd = exec.Command("git", "commit", "-m", message)
+		cmd = exec.CommandContext(ctx, "git", "commit", "-m", message)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to create commit: %w", err)
 		}
@@ -63,12 +64,12 @@ func (g *GitOperations) CreateCommit(message, author string) error {
 	return nil
 }
 
-func (g *GitOperations) AddSubmodule(url, path string) error {
+func (g *GitOperations) AddSubmodule(ctx context.Context, url, path string) error {
 	if _, err := os.Stat(path); err == nil {
 		return nil
 	}
 
-	cmd := exec.Command("git", "submodule", "add", url, path)
+	cmd := exec.CommandContext(ctx, "git", "submodule", "add", url, path)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to add submodule: %w", err)
 	}

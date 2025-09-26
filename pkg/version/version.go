@@ -31,17 +31,17 @@ var (
 	Platform  = fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
 )
 
-// Info contains version and build information
+// Info contains version and build information.
 type Info struct {
 	Version   string `json:"version"`
-	GitCommit string `json:"gitCommit"`
-	BuildDate string `json:"buildDate"`
-	GoVersion string `json:"goVersion"`
+	GitCommit string `json:"git_commit"`
+	BuildDate string `json:"build_date"`
+	GoVersion string `json:"go_version"`
 	Compiler  string `json:"compiler"`
 	Platform  string `json:"platform"`
 }
 
-// Get returns version and build information
+// Get returns version and build information.
 func Get() Info {
 	return Info{
 		Version:   Version,
@@ -53,13 +53,13 @@ func Get() Info {
 	}
 }
 
-// String returns version information as a string
+// String returns version information as a string.
 func (i Info) String() string {
 	return fmt.Sprintf("crossplane-provider-gen version %s (%s) built on %s with %s for %s",
 		i.Version, i.GitCommit, i.BuildDate, i.GoVersion, i.Platform)
 }
 
-// Short returns a short version string
+// Short returns a short version string.
 func (i Info) Short() string {
 	return fmt.Sprintf("v%s", i.Version)
 }

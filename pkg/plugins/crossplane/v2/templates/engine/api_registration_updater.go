@@ -17,7 +17,6 @@ limitations under the License.
 package engine
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,7 +28,7 @@ import (
 
 var _ machinery.Template = &APIRegistrationUpdater{}
 
-// APIRegistrationUpdater updates the apis/register.go file to include new API group imports and registrations
+// APIRegistrationUpdater updates the apis/register.go file to include new API group imports and registrations.
 type APIRegistrationUpdater struct {
 	machinery.TemplateMixin
 	machinery.ResourceMixin
@@ -43,7 +42,7 @@ type APIRegistrationUpdater struct {
 	ProviderName string
 }
 
-// SetTemplateDefaults implements machinery.Template
+// SetTemplateDefaults implements machinery.Template.
 func (f *APIRegistrationUpdater) SetTemplateDefaults() error {
 	if f.Path == "" {
 		f.Path = filepath.Join("apis", "register.go")
@@ -56,57 +55,67 @@ func (f *APIRegistrationUpdater) SetTemplateDefaults() error {
 	return nil
 }
 
-// GetBody implements machinery.Template to allow dynamic content generation
+// GetBody implements machinery.Template to allow dynamic content generation.
 func (f *APIRegistrationUpdater) GetBody() string {
-	// Parse existing file if it exists
 	existingImports, existingRegistrations := f.parseExistingContent()
+	newImport, newRegistration := f.generateNewAPIEntries()
+	updatedImports := f.addImportIfNeeded(existingImports, newImport)
+	updatedRegistrations := f.addRegistrationIfNeeded(existingRegistrations, newRegistration)
+	return f.buildTemplate(updatedImports, updatedRegistrations)
+}
 
-	// Determine new import path and registration call for the new API group
-	var newImport, newRegistration string
-	if f.Resource.Group != "" && f.Resource.Group != "v1alpha1" {
-		// API group (e.g., sample, compute, storage)
-		newImport = fmt.Sprintf(`%s%s "%s/apis/%s/%s"`, f.Resource.Group, f.Resource.Version, f.Repo, f.Resource.Group, f.Resource.Version)
-		newRegistration = fmt.Sprintf("%s%s.SchemeBuilder.AddToScheme", f.Resource.Group, f.Resource.Version)
+func (f *APIRegistrationUpdater) generateNewAPIEntries() (string, string) {
+	if f.Resource.Group == "" || f.Resource.Group == "v1alpha1" {
+		return "", ""
 	}
 
-	// Note: Provider v1alpha1 types are already registered via providerv1alpha1 import in initial template
+	newImport := fmt.Sprintf(`%s%s "%s/apis/%s/%s"`,
+		f.Resource.Group, f.Resource.Version, f.Repo, f.Resource.Group, f.Resource.Version)
+	newRegistration := fmt.Sprintf("%s%s.SchemeBuilder.AddToScheme", f.Resource.Group, f.Resource.Version)
 
-	// Add new import if it's an API group and not already present
-	if newImport != "" {
-		importExists := false
-		for _, existing := range existingImports {
-			if strings.Contains(existing, fmt.Sprintf("/apis/%s/%s", f.Resource.Group, f.Resource.Version)) {
-				importExists = true
-				break
-			}
-		}
-		if !importExists {
-			existingImports = append(existingImports, newImport)
-		}
+	return newImport, newRegistration
+}
 
-		// Add new registration if not already present
-		regExists := false
-		for _, existing := range existingRegistrations {
-			if existing == newRegistration {
-				regExists = true
-				break
-			}
-		}
-		if !regExists {
-			existingRegistrations = append(existingRegistrations, newRegistration)
+func (f *APIRegistrationUpdater) addImportIfNeeded(existingImports []string, newImport string) []string {
+	if newImport == "" {
+		return existingImports
+	}
+
+	importPath := fmt.Sprintf("/apis/%s/%s", f.Resource.Group, f.Resource.Version)
+	for _, existing := range existingImports {
+		if strings.Contains(existing, importPath) {
+			return existingImports
 		}
 	}
 
-	// Build imports section
-	var imports strings.Builder
-	for _, imp := range existingImports {
-		imports.WriteString(fmt.Sprintf("\t%s\n", imp))
+	return append(existingImports, newImport)
+}
+
+func (f *APIRegistrationUpdater) addRegistrationIfNeeded(
+	existingRegistrations []string, newRegistration string,
+) []string {
+	if newRegistration == "" {
+		return existingRegistrations
 	}
 
-	// Build registrations section
-	var registrations strings.Builder
-	for _, reg := range existingRegistrations {
-		registrations.WriteString(fmt.Sprintf("\t\t%s,\n", reg))
+	for _, existing := range existingRegistrations {
+		if existing == newRegistration {
+			return existingRegistrations
+		}
+	}
+
+	return append(existingRegistrations, newRegistration)
+}
+
+func (f *APIRegistrationUpdater) buildTemplate(imports, registrations []string) string {
+	var importsBuilder strings.Builder
+	for _, imp := range imports {
+		importsBuilder.WriteString(fmt.Sprintf("\t%s\n", imp))
+	}
+
+	var registrationsBuilder strings.Builder
+	for _, reg := range registrations {
+		registrationsBuilder.WriteString(fmt.Sprintf("\t\t%s,\n", reg))
 	}
 
 	return fmt.Sprintf(`{{ .Boilerplate }}
@@ -132,67 +141,33 @@ var AddToSchemes runtime.SchemeBuilder
 func AddToScheme(s *runtime.Scheme) error {
 	return AddToSchemes.AddToScheme(s)
 }
-`, f.ProviderName, imports.String(), registrations.String())
+`, f.ProviderName, importsBuilder.String(), registrationsBuilder.String())
 }
 
-// parseExistingContent reads and parses the existing register.go file to extract API imports and registrations
+// parseExistingContent reads and parses the existing register.go file to extract API imports and registrations.
 func (f *APIRegistrationUpdater) parseExistingContent() ([]string, []string) {
-	existingImports := []string{}
-	existingRegistrations := []string{}
+	content, err := f.readFileContent()
+	if err != nil {
+		return []string{}, []string{}
+	}
 
-	// Try to read from the filesystem using Go's standard library
+	parser := NewBaseParser(
+		content,
+		regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v[a-zA-Z0-9]+)\s+"([^"]+/apis/[^"]+)"\s*$`),
+		regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v[a-zA-Z0-9]+\.SchemeBuilder\.AddToScheme),?\s*$`),
+		"import (",
+		")",
+		"AddToSchemes = append(AddToSchemes,",
+		")",
+	)
+
+	return parser.Parse()
+}
+
+func (f *APIRegistrationUpdater) readFileContent() (string, error) {
 	file, err := os.ReadFile(f.Path)
 	if err != nil {
-		// File doesn't exist or can't be read, return empty lists
-		return existingImports, existingRegistrations
+		return "", err
 	}
-
-	content := string(file)
-	scanner := bufio.NewScanner(strings.NewReader(content))
-
-	inImports := false
-	inRegistrations := false
-
-	// Regex patterns for parsing
-	importPattern := regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v[a-zA-Z0-9]+)\s+"([^"]+/apis/[^"]+)"\s*$`)
-	registrationPattern := regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v[a-zA-Z0-9]+\.SchemeBuilder\.AddToScheme),?\s*$`)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Track import section
-		if strings.Contains(line, "import (") {
-			inImports = true
-			continue
-		}
-		if inImports && strings.Contains(line, ")") {
-			inImports = false
-			continue
-		}
-
-		// Track AddToSchemes section
-		if strings.Contains(line, "AddToSchemes = append(AddToSchemes,") {
-			inRegistrations = true
-			continue
-		}
-		if inRegistrations && strings.Contains(line, ")") {
-			inRegistrations = false
-			continue
-		}
-
-		// Parse imports
-		if inImports && importPattern.MatchString(line) {
-			existingImports = append(existingImports, strings.TrimSpace(line))
-		}
-
-		// Parse registrations
-		if inRegistrations && registrationPattern.MatchString(line) {
-			matches := registrationPattern.FindStringSubmatch(line)
-			if len(matches) > 1 {
-				existingRegistrations = append(existingRegistrations, matches[1])
-			}
-		}
-	}
-
-	return existingImports, existingRegistrations
+	return string(file), nil
 }
