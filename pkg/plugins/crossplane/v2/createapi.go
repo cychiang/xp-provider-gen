@@ -129,12 +129,12 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		&engine.TemplateUpdater{
 			Force:           true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
-			ProviderName:    p.extractProviderName(),
+			ProviderName:    core.ExtractProviderName(p.config.GetRepository()),
 		},
 		&engine.APIRegistrationUpdater{
 			Force:           true,
 			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
-			ProviderName:    p.extractProviderName(),
+			ProviderName:    core.ExtractProviderName(p.config.GetRepository()),
 		},
 	}
 
@@ -176,8 +176,4 @@ func (p *createAPISubcommand) ensureConfig() {
 	if p.pluginConfig == nil {
 		p.pluginConfig = NewPluginConfig()
 	}
-}
-
-func (p *createAPISubcommand) extractProviderName() string {
-	return core.ExtractProviderName(p.config.GetRepository())
 }

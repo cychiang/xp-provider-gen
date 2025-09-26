@@ -17,11 +17,11 @@ limitations under the License.
 package engine
 
 import (
-	"strings"
-
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
 // BaseTemplateProduct provides common functionality for all template products.
@@ -61,7 +61,7 @@ func (t *BaseTemplateProduct) Configure(cfg config.Config) error {
 	}
 
 	if t.ProviderName == "" && t.Repo != "" {
-		t.ProviderName = extractProviderName(t.Repo)
+		t.ProviderName = core.ExtractProviderName(t.Repo)
 	}
 
 	// Set default boilerplate
@@ -103,18 +103,4 @@ func (t *BaseTemplateProduct) SetForce(force bool) {
 // GetBase returns the base template product for accessing common functionality.
 func (t *BaseTemplateProduct) GetBase() *BaseTemplateProduct {
 	return t
-}
-
-// extractProviderName extracts provider name from repository URL.
-func extractProviderName(repo string) string {
-	if repo == "" {
-		return "provider-example"
-	}
-
-	parts := strings.Split(repo, "/")
-	if len(parts) > 0 {
-		return parts[len(parts)-1]
-	}
-
-	return "provider-example"
 }
