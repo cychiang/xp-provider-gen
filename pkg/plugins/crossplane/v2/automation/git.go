@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
@@ -52,10 +53,14 @@ func (g *GitOperations) CreateCommit(ctx context.Context, message, author string
 		return fmt.Errorf("failed to add files to git: %w", err)
 	}
 
+	// Use -F - to read message from stdin instead of passing as argument
 	authorFlag := fmt.Sprintf("--author=%s", author)
-	cmd = exec.CommandContext(ctx, "git", "commit", "-m", message, authorFlag)
+	cmd = exec.CommandContext(ctx, "git", "commit", "-F", "-", authorFlag)
+	cmd.Stdin = strings.NewReader(message)
 	if err := cmd.Run(); err != nil {
-		cmd = exec.CommandContext(ctx, "git", "commit", "-m", message)
+		// Fallback without author flag
+		cmd = exec.CommandContext(ctx, "git", "commit", "-F", "-")
+		cmd.Stdin = strings.NewReader(message)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to create commit: %w", err)
 		}
