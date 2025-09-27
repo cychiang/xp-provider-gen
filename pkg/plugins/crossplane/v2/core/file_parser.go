@@ -72,22 +72,22 @@ func (r *ParseResult) Get(sectionName string) []string {
 	return r.Results[sectionName]
 }
 
-// UnifiedFileParser provides a unified approach to parsing Go files.
-type UnifiedFileParser struct {
+// FileParser provides configurable parsing of Go files.
+type FileParser struct {
 	content string
 	config  ParseConfig
 }
 
-// NewUnifiedFileParser creates a new unified file parser.
-func NewUnifiedFileParser(content string, config ParseConfig) *UnifiedFileParser {
-	return &UnifiedFileParser{
+// NewFileParser creates a new file parser.
+func NewFileParser(content string, config ParseConfig) *FileParser {
+	return &FileParser{
 		content: content,
 		config:  config,
 	}
 }
 
 // Parse performs the parsing according to the configuration.
-func (p *UnifiedFileParser) Parse() *ParseResult {
+func (p *FileParser) Parse() *ParseResult {
 	result := NewParseResult()
 
 	// Initialize result maps for each section
@@ -113,7 +113,7 @@ type parseState struct {
 	activeSections map[string]bool
 }
 
-func (p *UnifiedFileParser) createParseState() *parseState {
+func (p *FileParser) createParseState() *parseState {
 	state := &parseState{
 		activeSections: make(map[string]bool),
 	}
@@ -126,7 +126,7 @@ func (p *UnifiedFileParser) createParseState() *parseState {
 	return state
 }
 
-func (p *UnifiedFileParser) updateParseState(state *parseState, line string) {
+func (p *FileParser) updateParseState(state *parseState, line string) {
 	for _, section := range p.config.Sections {
 		// Check for section start
 		if section.StartMarker != "" && strings.Contains(line, section.StartMarker) {
@@ -142,7 +142,7 @@ func (p *UnifiedFileParser) updateParseState(state *parseState, line string) {
 	}
 }
 
-func (p *UnifiedFileParser) processLine(result *ParseResult, state *parseState, line string) {
+func (p *FileParser) processLine(result *ParseResult, state *parseState, line string) {
 	for _, section := range p.config.Sections {
 		if state.activeSections[section.Name] && section.Pattern != nil {
 			if extracted := section.ExtractFunc(line, section.Pattern); extracted != "" {
@@ -247,7 +247,7 @@ func ParseFileWithConfig(filePath string, config ParseConfig) (map[string][]stri
 		return nil, err
 	}
 
-	parser := NewUnifiedFileParser(content, config)
+	parser := NewFileParser(content, config)
 	result := parser.Parse()
 
 	return result.Results, nil
