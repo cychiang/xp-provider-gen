@@ -60,11 +60,11 @@ func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
 
 		switch info.Category {
 		case InitCategory:
-			f.initRegistry[templateType] = NewInitTemplateBuilder(templateType)
+			f.initRegistry[templateType] = NewBaseTemplateBuilder(templateType, &InitBuildStrategy{})
 		case APICategory:
-			f.apiRegistry[templateType] = NewAPITemplateBuilder(templateType)
+			f.apiRegistry[templateType] = NewBaseTemplateBuilder(templateType, &APIBuildStrategy{})
 		case StaticCategory:
-			f.staticRegistry[templateType] = NewStaticTemplateBuilder(templateType)
+			f.staticRegistry[templateType] = NewBaseTemplateBuilder(templateType, &StaticBuildStrategy{})
 		default:
 			// Handle unknown category - could log or ignore
 		}

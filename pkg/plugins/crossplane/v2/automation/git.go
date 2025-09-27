@@ -18,20 +18,21 @@ package automation
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
 type GitOperations struct {
 	config *core.PluginConfig
+	runner *core.GitCommandRunner
 }
 
 func NewGitOperations(config *core.PluginConfig) *GitOperations {
-	return &GitOperations{config: config}
+	return &GitOperations{
+		config: config,
+		runner: core.NewGitCommandRunner(""),
+	}
 }
 
 func (g *GitOperations) Init(ctx context.Context) error {
@@ -39,34 +40,25 @@ func (g *GitOperations) Init(ctx context.Context) error {
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "git", "init")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to initialize git repository: %w", err)
-	}
-
-	return nil
+	return g.runner.Init(ctx)
 }
 
 func (g *GitOperations) CreateCommit(ctx context.Context, message, author string) error {
-	cmd := exec.CommandContext(ctx, "git", "add", ".")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to add files to git: %w", err)
+	if err := g.runner.Add(ctx, "."); err != nil {
+		return err
 	}
 
-	// Use -F - to read message from stdin instead of passing as argument
-	authorFlag := fmt.Sprintf("--author=%s", author)
-	cmd = exec.CommandContext(ctx, "git", "commit", "-F", "-", authorFlag)
-	cmd.Stdin = strings.NewReader(message)
-	if err := cmd.Run(); err != nil {
-		// Fallback without author flag
-		cmd = exec.CommandContext(ctx, "git", "commit", "-F", "-")
-		cmd.Stdin = strings.NewReader(message)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to create commit: %w", err)
+	if author != "" {
+		// Use provided author
+		if err := g.runner.CommitWithAuthor(ctx, message, author); err != nil {
+			// Fallback to system config
+			return g.runner.CommitWithSystemAuthor(ctx, message)
 		}
+		return nil
 	}
 
-	return nil
+	// Use system git config by default
+	return g.runner.CommitWithSystemAuthor(ctx, message)
 }
 
 func (g *GitOperations) AddSubmodule(ctx context.Context, url, path string) error {
@@ -74,10 +66,19 @@ func (g *GitOperations) AddSubmodule(ctx context.Context, url, path string) erro
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "git", "submodule", "add", url, path)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to add submodule: %w", err)
+	return g.runner.AddSubmodule(ctx, url, path)
+}
+
+// CreateCommitWithSystemConfig creates a commit using only system git configuration.
+func (g *GitOperations) CreateCommitWithSystemConfig(ctx context.Context, message string) error {
+	if err := g.runner.Add(ctx, "."); err != nil {
+		return err
 	}
 
-	return nil
+	return g.runner.CommitWithSystemAuthor(ctx, message)
+}
+
+// GetSystemAuthor retrieves the current git user configuration.
+func (g *GitOperations) GetSystemAuthor(ctx context.Context) (string, error) {
+	return g.runner.GetSystemAuthor(ctx)
 }
