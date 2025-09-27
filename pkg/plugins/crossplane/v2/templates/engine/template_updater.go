@@ -17,14 +17,14 @@ limitations under the License.
 package engine
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
 var _ machinery.Template = &TemplateUpdater{}
@@ -131,111 +131,17 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 // parseExistingContent reads and parses the existing template.go file to extract controllers.
 func (f *TemplateUpdater) parseExistingContent() ([]string, []string) {
-	content, err := f.readFileContent()
+	config := core.NewFileParserBuilder().
+		AddImportSection("imports", "import (", ")",
+			regexp.MustCompile(`^\s*"([^"]+/internal/controller/[^"]+)"\s*$`)).
+		AddMatchGroupSection("setups", "if err := mgr.GetFieldIndexer().IndexField(ctx, &xpv1.CompositeResourceDefinition{}, \"spec.claimNames\", extractCRDClaimNames); err != nil {", "}",
+			regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*\.Setup),?\s*$`)).
+		Build()
+
+	results, err := core.ParseFileWithConfig(f.Path, config)
 	if err != nil {
 		return []string{}, []string{}
 	}
 
-	parser := &TemplateFileParser{
-		content:       content,
-		importPattern: regexp.MustCompile(`^\s*"([^"]+/internal/controller/[^"]+)"\s*$`),
-		setupPattern:  regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*\.Setup),?\s*$`),
-	}
-
-	return parser.Parse()
-}
-
-func (f *TemplateUpdater) readFileContent() (string, error) {
-	file, err := os.ReadFile(f.Path)
-	if err != nil {
-		return "", err
-	}
-	return string(file), nil
-}
-
-// TemplateFileParser handles parsing of template files.
-type TemplateFileParser struct {
-	content       string
-	importPattern *regexp.Regexp
-	setupPattern  *regexp.Regexp
-}
-
-// Parse extracts imports and setup calls from template file content.
-func (p *TemplateFileParser) Parse() ([]string, []string) {
-	var imports, setups []string
-
-	scanner := bufio.NewScanner(strings.NewReader(p.content))
-	state := &templateParseState{}
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		p.updateTemplateState(state, line)
-		imports = p.processTemplateImport(imports, state, line)
-		setups = p.processTemplateSetup(setups, state, line)
-	}
-
-	return imports, setups
-}
-
-type templateParseState struct {
-	inImports bool
-	inSetups  bool
-}
-
-func (p *TemplateFileParser) updateTemplateState(state *templateParseState, line string) {
-	// Update state for imports
-	if strings.Contains(line, "import (") {
-		state.inImports = true
-		return
-	}
-	if state.inImports && strings.Contains(line, ")") {
-		state.inImports = false
-		return
-	}
-
-	// Update state for setups
-	if strings.Contains(line, "for _, setup := range []func(ctrl.Manager, controller.Options) error{") {
-		state.inSetups = true
-		return
-	}
-	if state.inSetups && strings.Contains(line, "}") {
-		state.inSetups = false
-	}
-}
-
-func (p *TemplateFileParser) processTemplateImport(imports []string, state *templateParseState, line string) []string {
-	if state.inImports {
-		if importLine := p.parseImport(line); importLine != "" {
-			imports = append(imports, importLine)
-		}
-	}
-	return imports
-}
-
-func (p *TemplateFileParser) processTemplateSetup(setups []string, state *templateParseState, line string) []string {
-	if state.inSetups {
-		if setupLine := p.parseSetup(line); setupLine != "" {
-			setups = append(setups, setupLine)
-		}
-	}
-	return setups
-}
-
-func (p *TemplateFileParser) parseImport(line string) string {
-	if matches := p.importPattern.FindStringSubmatch(line); len(matches) > 1 {
-		if !strings.HasSuffix(matches[1], "/internal/controller/config") {
-			return matches[1]
-		}
-	}
-	return ""
-}
-
-func (p *TemplateFileParser) parseSetup(line string) string {
-	if matches := p.setupPattern.FindStringSubmatch(line); len(matches) > 1 {
-		if matches[1] != "config.Setup" {
-			return matches[1]
-		}
-	}
-	return ""
+	return results["imports"], results["setups"]
 }

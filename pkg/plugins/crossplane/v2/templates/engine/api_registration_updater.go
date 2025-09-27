@@ -18,12 +18,13 @@ package engine
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
 var _ machinery.Template = &APIRegistrationUpdater{}
@@ -146,28 +147,17 @@ func AddToScheme(s *runtime.Scheme) error {
 
 // parseExistingContent reads and parses the existing register.go file to extract API imports and registrations.
 func (f *APIRegistrationUpdater) parseExistingContent() ([]string, []string) {
-	content, err := f.readFileContent()
+	config := core.NewFileParserBuilder().
+		AddImportSection("imports", "import (", ")",
+			regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v[a-zA-Z0-9]+)\s+"([^"]+/apis/[^"]+)"\s*$`)).
+		AddMatchGroupSection("registrations", "AddToSchemes = append(AddToSchemes,", ")",
+			regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v[a-zA-Z0-9]+\.SchemeBuilder\.AddToScheme),?\s*$`)).
+		Build()
+
+	results, err := core.ParseFileWithConfig(f.Path, config)
 	if err != nil {
 		return []string{}, []string{}
 	}
 
-	parser := NewBaseParser(
-		content,
-		regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v[a-zA-Z0-9]+)\s+"([^"]+/apis/[^"]+)"\s*$`),
-		regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*v[a-zA-Z0-9]+\.SchemeBuilder\.AddToScheme),?\s*$`),
-		"import (",
-		")",
-		"AddToSchemes = append(AddToSchemes,",
-		")",
-	)
-
-	return parser.Parse()
-}
-
-func (f *APIRegistrationUpdater) readFileContent() (string, error) {
-	file, err := os.ReadFile(f.Path)
-	if err != nil {
-		return "", err
-	}
-	return string(file), nil
+	return results["imports"], results["registrations"]
 }
