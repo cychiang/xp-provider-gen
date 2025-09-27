@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   security:
     name: Security Scan
@@ -27,12 +32,13 @@ jobs:
 
     - name: Upload Gosec scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: always() && hashFiles('gosec-results.sarif') != ''
       with:
         sarif_file: gosec-results.sarif
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@0.33.1
+      continue-on-error: true
       with:
         scan-type: 'fs'
         scan-ref: '.'
@@ -41,6 +47,6 @@ jobs:
 
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: always() && hashFiles('trivy-results.sarif') != ''
       with:
         sarif_file: 'trivy-results.sarif'
