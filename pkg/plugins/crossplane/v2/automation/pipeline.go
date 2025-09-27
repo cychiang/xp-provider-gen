@@ -36,6 +36,23 @@ Scaffolded Crossplane provider project for %s`, providerName)
 			NewGitInitStep(config),
 			NewGitCommitStep(config, commitMessage),
 			NewGitSubmoduleStep(config),
+			NewMakeStep("submodules", false),
+			NewGoModTidyStep(false),
+			NewMakeStep("generate", false),
+			NewMakeStep("reviewable", false),
+		},
+	}
+}
+
+func NewAPICommitPipeline(config *core.PluginConfig, resourceKind string) *Pipeline {
+	commitMessage := fmt.Sprintf(`Add %s managed resource
+
+Scaffolded CRD, controller, and client code for %s resource`, resourceKind, resourceKind)
+
+	return &Pipeline{
+		steps: []Step{
+			NewGitCommitStep(config, commitMessage),
+			NewMakeStep("generate", false),
 		},
 	}
 }

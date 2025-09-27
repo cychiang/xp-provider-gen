@@ -40,8 +40,8 @@ type DefaultValues struct {
 
 type GitConfig struct {
 	BuildSubmoduleURL string
-	DefaultAuthor     string
-	DefaultEmail      string
+	Author            string
+	Email             string
 }
 
 func NewPluginConfig(pluginName string) *PluginConfig {
@@ -59,8 +59,8 @@ func NewPluginConfig(pluginName string) *PluginConfig {
 
 		Git: GitConfig{
 			BuildSubmoduleURL: "https://github.com/crossplane/build",
-			DefaultAuthor:     "Crossplane Provider Generator",
-			DefaultEmail:      "noreply@crossplane.io",
+			Author:            "Crossplane Provider Generator",
+			Email:             "noreply@crossplane.io",
 		},
 	}
 }
@@ -87,5 +87,5 @@ func (c *PluginConfig) GenerateDefaultRepo() string {
 }
 
 func (c *PluginConfig) GetDefaultAuthor() string {
-	return fmt.Sprintf("%s <%s>", c.Git.DefaultAuthor, c.Git.DefaultEmail)
+	return fmt.Sprintf("%s <%s>", c.Git.Author, c.Git.Email)
 }

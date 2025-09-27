@@ -57,16 +57,32 @@ func (g *GitOperations) CreateCommit(ctx context.Context, message, author string
 		return nil
 	}
 
-	// Use system git config by default
-	return g.runner.CommitWithSystemAuthor(ctx, message)
+	// Use system git config by default, fall back to project defaults
+	if err := g.runner.CommitWithSystemAuthor(ctx, message); err != nil {
+		// If system config fails, use project defaults
+		defaultAuthor := g.config.GetDefaultAuthor()
+		return g.runner.CommitWithAuthor(ctx, message, defaultAuthor)
+	}
+	return nil
 }
 
 func (g *GitOperations) AddSubmodule(ctx context.Context, url, path string) error {
 	if _, err := os.Stat(path); err == nil {
-		return nil
+		// Directory exists, check if it's a submodule
+		if _, err := os.Stat(path + "/.git"); err == nil {
+			return nil // Already initialized
+		}
+		// Directory exists but not initialized as submodule
+		return g.runner.RunCommand(ctx, "submodule", "update", "--init", "--recursive")
 	}
 
-	return g.runner.AddSubmodule(ctx, url, path)
+	// Add new submodule
+	if err := g.runner.AddSubmodule(ctx, url, path); err != nil {
+		return err
+	}
+
+	// Initialize the submodule
+	return g.runner.RunCommand(ctx, "submodule", "update", "--init", "--recursive")
 }
 
 // CreateCommitWithSystemConfig creates a commit using only system git configuration.
