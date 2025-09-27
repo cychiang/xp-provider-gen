@@ -2,145 +2,164 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    ":enableVulnerabilityAlertsWithLabel(security)"
+    ":enableVulnerabilityAlertsWithLabel(security)",
+    ":rebaseStalePrs",
+    ":semanticCommitTypeAll(chore)"
   ],
   "timezone": "UTC",
   "schedule": ["before 6am on monday"],
   "labels": ["dependencies"],
   "reviewers": ["cychiang"],
   "assignees": ["cychiang"],
-  "prConcurrentLimit": 10,
-  "prHourlyLimit": 2,
+  "prConcurrentLimit": 8,
+  "prHourlyLimit": 3,
   "separateMajorMinor": true,
   "separateMultipleMajor": true,
   "separateMinorPatch": false,
   "rangeStrategy": "bump",
   "semanticCommits": "enabled",
   "semanticCommitType": "deps",
-  "semanticCommitScope": null,
   "branchPrefix": "renovate/",
   "branchTopic": "{{{depNameSanitized}}}-{{{newMajor}}}x",
   "prTitle": "{{semanticCommitType}}{{#if semanticCommitScope}}({{semanticCommitScope}}){{/if}}: {{commitMessageAction}} {{commitMessageTopic}} {{commitMessageExtra}}",
+  "postUpdateOptions": ["gomodTidy"],
   "packageRules": [
     {
-      "description": "Go modules",
-      "matchManagers": ["gomod"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "description": "Security updates - immediate, high priority",
+      "matchPackagePatterns": ["*"],
+      "vulnerabilityAlerts": true,
       "automerge": false,
-      "addLabels": ["go", "dependencies"],
-      "semanticCommitType": "deps",
-      "semanticCommitScope": "go"
+      "addLabels": ["security", "dependencies", "urgent"],
+      "prPriority": 25,
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "security",
+      "schedule": ["at any time"],
+      "minimumReleaseAge": "0 days"
     },
     {
-      "description": "Go major version updates",
+      "description": "Critical infrastructure - Kubebuilder",
+      "matchPackagePatterns": ["sigs.k8s.io/kubebuilder"],
+      "addLabels": ["kubebuilder", "dependencies", "infrastructure"],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": "kubebuilder",
+      "prPriority": 20,
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Go modules - major updates",
       "matchManagers": ["gomod"],
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "addLabels": ["go", "dependencies", "major-update"],
-      "prPriority": 10,
+      "prPriority": 15,
       "semanticCommitType": "deps",
-      "semanticCommitScope": "go"
+      "semanticCommitScope": "go",
+      "minimumReleaseAge": "7 days"
     },
     {
-      "description": "Go development tools",
+      "description": "Go modules - minor/patch updates",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": false,
+      "addLabels": ["go", "dependencies"],
+      "prPriority": 10,
+      "semanticCommitType": "deps",
+      "semanticCommitScope": "go",
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Go development tools - safe automerge",
       "matchManagers": ["gomod"],
       "matchPackagePatterns": [
         "mvdan.cc/gofumpt",
         "github.com/golangci/golangci-lint",
         "golang.org/x/tools"
       ],
-      "addLabels": ["go", "tools", "dependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "addLabels": ["go", "tools", "dependencies", "automerge"],
       "semanticCommitType": "build",
-      "semanticCommitScope": "tools"
+      "semanticCommitScope": "tools",
+      "minimumReleaseAge": "3 days",
+      "schedule": ["before 6am on the first day of the month"]
     },
     {
-      "description": "GitHub Actions",
+      "description": "Testing libraries - safe automerge for patches",
+      "matchPackagePatterns": [
+        "github.com/stretchr/testify",
+        "github.com/onsi/ginkgo",
+        "github.com/onsi/gomega"
+      ],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "addLabels": ["testing", "dependencies", "automerge"],
+      "semanticCommitType": "test",
+      "semanticCommitScope": "deps",
+      "minimumReleaseAge": "5 days"
+    },
+    {
+      "description": "Kubernetes API packages",
+      "matchPackagePatterns": ["k8s.io/api", "k8s.io/client-go", "k8s.io/apimachinery"],
+      "groupName": "kubernetes-api",
+      "addLabels": ["kubernetes", "api", "dependencies"],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": "k8s-api",
+      "prPriority": 12,
+      "minimumReleaseAge": "5 days"
+    },
+    {
+      "description": "Kubernetes tooling",
+      "matchPackagePatterns": ["k8s.io/code-generator", "k8s.io/controller-tools", "sigs.k8s.io/controller-runtime"],
+      "groupName": "kubernetes-tooling",
+      "addLabels": ["kubernetes", "tooling", "dependencies"],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": "k8s-tools",
+      "prPriority": 11,
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "Crossplane ecosystem",
+      "matchPackagePatterns": ["github.com/crossplane"],
+      "groupName": "crossplane packages",
+      "addLabels": ["crossplane", "dependencies"],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": "crossplane",
+      "prPriority": 13,
+      "minimumReleaseAge": "5 days"
+    },
+    {
+      "description": "GitHub Actions - minor/patch automerge",
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["minor", "patch"],
-      "automerge": false,
-      "addLabels": ["github-actions", "dependencies"],
+      "automerge": true,
+      "automergeType": "pr",
+      "addLabels": ["github-actions", "dependencies", "automerge"],
       "semanticCommitType": "ci",
-      "semanticCommitScope": "actions"
+      "semanticCommitScope": "actions",
+      "minimumReleaseAge": "7 days"
     },
     {
-      "description": "GitHub Actions major updates",
+      "description": "GitHub Actions - major updates",
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "addLabels": ["github-actions", "dependencies", "major-update"],
       "prPriority": 8,
       "semanticCommitType": "ci",
-      "semanticCommitScope": "actions"
+      "semanticCommitScope": "actions",
+      "minimumReleaseAge": "14 days"
     },
     {
-      "description": "Docker base images",
+      "description": "Docker images - conservative updates",
       "matchManagers": ["dockerfile"],
-      "matchUpdateTypes": ["minor", "patch"],
       "automerge": false,
       "addLabels": ["docker", "dependencies"],
       "semanticCommitType": "deps",
-      "semanticCommitScope": "docker"
-    },
-    {
-      "description": "Docker major updates",
-      "matchManagers": ["dockerfile"],
-      "matchUpdateTypes": ["major"],
-      "automerge": false,
-      "addLabels": ["docker", "dependencies", "major-update"],
+      "semanticCommitScope": "docker",
       "prPriority": 6,
-      "semanticCommitType": "deps",
-      "semanticCommitScope": "docker"
-    },
-    {
-      "description": "Security updates - high priority",
-      "matchPackagePatterns": ["*"],
-      "vulnerabilityAlerts": true,
-      "automerge": false,
-      "addLabels": ["security", "dependencies"],
-      "prPriority": 20,
-      "semanticCommitType": "fix",
-      "semanticCommitScope": "security"
-    },
-    {
-      "description": "Pin Docker digests",
-      "matchManagers": ["dockerfile"],
-      "matchUpdateTypes": ["pin"],
-      "automerge": false,
-      "addLabels": ["docker", "pin-digest"],
-      "semanticCommitType": "deps",
-      "semanticCommitScope": "docker"
-    },
-    {
-      "description": "Group Kubernetes related packages",
-      "matchPackagePatterns": ["k8s.io", "sigs.k8s.io"],
-      "groupName": "kubernetes packages",
-      "addLabels": ["kubernetes", "dependencies"],
-      "semanticCommitType": "deps",
-      "semanticCommitScope": "k8s"
-    },
-    {
-      "description": "Group Crossplane related packages",
-      "matchPackagePatterns": ["github.com/crossplane"],
-      "groupName": "crossplane packages",
-      "addLabels": ["crossplane", "dependencies"],
-      "semanticCommitType": "deps",
-      "semanticCommitScope": "crossplane"
-    },
-    {
-      "description": "Group testing packages",
-      "matchPackagePatterns": ["github.com/onsi/", "github.com/stretchr/testify"],
-      "groupName": "testing packages",
-      "addLabels": ["testing", "dependencies"],
-      "semanticCommitType": "test",
-      "semanticCommitScope": "deps"
-    },
-    {
-      "description": "Kubebuilder framework updates",
-      "matchPackagePatterns": ["sigs.k8s.io/kubebuilder"],
-      "addLabels": ["kubebuilder", "dependencies"],
-      "semanticCommitType": "deps",
-      "semanticCommitScope": "kubebuilder",
-      "prPriority": 15
+      "minimumReleaseAge": "10 days"
     }
   ],
   "osvVulnerabilityAlerts": true,
@@ -148,5 +167,7 @@
   "dependencyDashboardTitle": "🤖 Dependency Dashboard",
   "dependencyDashboardHeader": "This issue lists Renovate updates and detected dependencies. Read the [Dependency Dashboard](https://docs.renovatebot.com/key-concepts/dashboard/) docs to learn more.",
   "dependencyDashboardLabels": ["dependencies", "renovate"],
-  "configWarningReuseIssue": false
+  "configWarningReuseIssue": false,
+  "rollbackPrs": true,
+  "suppressNotifications": ["prIgnoreNotification"]
 }
