@@ -92,7 +92,7 @@ jobs:
       uses: docker/setup-buildx-action@v3
 
     - name: Download Linux AMD64 binary
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: binaries-linux-amd64
         path: dist/
