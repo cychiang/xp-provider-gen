@@ -33,7 +33,10 @@ func NewFileReader() *FileReader {
 }
 
 // ReadFile reads the content of a file and returns it as a string.
+// Note: This function trusts the caller to provide safe file paths.
+// In this context, it's used internally for reading project files during scaffolding.
 func (f *FileReader) ReadFile(path string) (string, error) {
+	// #nosec G304 - File paths are controlled by the application and come from kubebuilder scaffolding
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", path, err)
