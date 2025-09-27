@@ -58,67 +58,25 @@ func (f *TemplateUpdater) SetTemplateDefaults() error {
 
 // GetBody implements machinery.Template to allow dynamic content generation.
 func (f *TemplateUpdater) GetBody() string {
-	// Parse existing file if it exists
 	existingImports, existingSetups := f.parseExistingContent()
 
-	// Determine new import path and setup call
-	// Controllers are always created in internal/controller/{kind}, regardless of API group
-	newImport := fmt.Sprintf("%s/internal/controller/%s", f.Repo, strings.ToLower(f.Resource.Kind))
-	newSetup := fmt.Sprintf("%s.Setup", strings.ToLower(f.Resource.Kind))
+	allImports := f.buildImportsList(existingImports)
+	allSetups := f.buildSetupsList(existingSetups)
 
-	// Add new import if not already present
-	importExists := false
-	for _, existing := range existingImports {
-		if existing == newImport {
-			importExists = true
-			break
-		}
-	}
-	if !importExists {
-		existingImports = append(existingImports, newImport)
-	}
-
-	// Add new setup if not already present
-	setupExists := false
-	for _, existing := range existingSetups {
-		if existing == newSetup {
-			setupExists = true
-			break
-		}
-	}
-	if !setupExists {
-		existingSetups = append(existingSetups, newSetup)
-	}
-
-	// Build imports section
-	var imports strings.Builder
-	for _, imp := range existingImports {
-		imports.WriteString(fmt.Sprintf("\t\"%s\"\n", imp))
-	}
-
-	// Build setups section
-	var setups strings.Builder
-	for _, setup := range existingSetups {
-		setups.WriteString(fmt.Sprintf("\t\t%s,\n", setup))
-	}
+	importsSection := f.buildImportsSection(allImports)
+	setupsSection := f.buildSetupsSection(allSetups)
 
 	return fmt.Sprintf(`{{ .Boilerplate }}
 
 package controller
 
 import (
-	ctrl "sigs.k8s.io/controller-runtime"
-
-	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-
-	"{{ .Repo }}/internal/controller/config"
 %s)
 
 // Setup creates all %s controllers with the supplied logger and adds them to
 // the supplied manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{
-		config.Setup,
 %s	} {
 		if err := setup(mgr, o); err != nil {
 			return err
@@ -126,15 +84,15 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	}
 	return nil
 }
-`, imports.String(), f.ProviderName, setups.String())
+`, importsSection, f.ProviderName, setupsSection)
 }
 
-// parseExistingContent reads and parses the existing template.go file to extract controllers.
+// parseExistingContent reads and parses the existing register.go file to extract controllers.
 func (f *TemplateUpdater) parseExistingContent() ([]string, []string) {
 	config := core.NewFileParserBuilder().
-		AddImportSection("imports", "import (", ")",
+		AddMatchGroupSection("imports", "import (", ")",
 			regexp.MustCompile(`^\s*"([^"]+/internal/controller/[^"]+)"\s*$`)).
-		AddMatchGroupSection("setups", "if err := mgr.GetFieldIndexer().IndexField(ctx, &xpv1.CompositeResourceDefinition{}, \"spec.claimNames\", extractCRDClaimNames); err != nil {", "}",
+		AddMatchGroupSection("setups", "for _, setup := range []func(ctrl.Manager, controller.Options) error{", "}",
 			regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*\.Setup),?\s*$`)).
 		Build()
 
@@ -144,4 +102,66 @@ func (f *TemplateUpdater) parseExistingContent() ([]string, []string) {
 	}
 
 	return results["imports"], results["setups"]
+}
+
+// buildImportsList builds the complete list of imports including config and new resource.
+func (f *TemplateUpdater) buildImportsList(existingImports []string) []string {
+	configImport := fmt.Sprintf("%s/internal/controller/config", f.Repo)
+	allImports := f.ensureStringInList(existingImports, configImport, true)
+
+	if f.Resource != nil {
+		newImport := fmt.Sprintf("%s/internal/controller/%s", f.Repo, strings.ToLower(f.Resource.Kind))
+		allImports = f.ensureStringInList(allImports, newImport, false)
+	}
+
+	return allImports
+}
+
+// buildSetupsList builds the complete list of setups including config and new resource.
+func (f *TemplateUpdater) buildSetupsList(existingSetups []string) []string {
+	allSetups := f.ensureStringInList(existingSetups, "config.Setup", true)
+
+	if f.Resource != nil {
+		newSetup := fmt.Sprintf("%s.Setup", strings.ToLower(f.Resource.Kind))
+		allSetups = f.ensureStringInList(allSetups, newSetup, false)
+	}
+
+	return allSetups
+}
+
+// ensureStringInList adds a string to the list if not already present.
+// If prepend is true, adds to the beginning; otherwise appends to the end.
+func (f *TemplateUpdater) ensureStringInList(list []string, item string, prepend bool) []string {
+	for _, existing := range list {
+		if existing == item {
+			return list
+		}
+	}
+
+	if prepend {
+		return append([]string{item}, list...)
+	}
+	return append(list, item)
+}
+
+// buildImportsSection creates the imports section string.
+func (f *TemplateUpdater) buildImportsSection(imports []string) string {
+	var section strings.Builder
+	section.WriteString("\tctrl \"sigs.k8s.io/controller-runtime\"\n")
+	section.WriteString("\n")
+	section.WriteString("\t\"github.com/crossplane/crossplane-runtime/v2/pkg/controller\"\n")
+	section.WriteString("\n")
+	for _, imp := range imports {
+		section.WriteString(fmt.Sprintf("\t\"%s\"\n", imp))
+	}
+	return section.String()
+}
+
+// buildSetupsSection creates the setups section string.
+func (f *TemplateUpdater) buildSetupsSection(setups []string) string {
+	var section strings.Builder
+	for _, setup := range setups {
+		section.WriteString(fmt.Sprintf("\t\t%s,\n", setup))
+	}
+	return section.String()
 }
