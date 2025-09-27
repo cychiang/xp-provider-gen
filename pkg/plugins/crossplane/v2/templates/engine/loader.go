@@ -20,9 +20,8 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
-	"path"
-	"strings"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
@@ -42,8 +41,10 @@ func NewTemplateLoader() *TemplateLoader {
 
 // LoadTemplate loads a template by its name/path.
 func (tl *TemplateLoader) LoadTemplate(templatePath string) (string, error) {
+	processor := core.NewTemplatePathProcessor()
+
 	// Convert template path to filesystem path
-	fsPath := path.Join("files", templatePath)
+	fsPath := processor.ConvertToFilesystemPath(templatePath)
 
 	content, err := tl.fs.ReadFile(fsPath)
 	if err != nil {
@@ -56,16 +57,16 @@ func (tl *TemplateLoader) LoadTemplate(templatePath string) (string, error) {
 // ListTemplates returns all available templates.
 func (tl *TemplateLoader) ListTemplates() ([]string, error) {
 	var templates []string
+	processor := core.NewTemplatePathProcessor()
 
 	err := fs.WalkDir(tl.fs, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !d.IsDir() && strings.HasSuffix(path, ".tmpl") {
+		if !d.IsDir() && processor.IsTemplateFile(path) {
 			// Remove the base path and .tmpl extension for cleaner names
-			templateName := strings.TrimPrefix(path, "files/")
-			templateName = strings.TrimSuffix(templateName, ".tmpl")
+			templateName := processor.GetOutputPath(path)
 			templates = append(templates, templateName)
 		}
 
@@ -77,7 +78,8 @@ func (tl *TemplateLoader) ListTemplates() ([]string, error) {
 
 // TemplateExists checks if a template exists.
 func (tl *TemplateLoader) TemplateExists(templatePath string) bool {
-	fsPath := path.Join("files", templatePath)
+	processor := core.NewTemplatePathProcessor()
+	fsPath := processor.ConvertToFilesystemPath(templatePath)
 	_, err := tl.fs.ReadFile(fsPath)
 	return err == nil
 }

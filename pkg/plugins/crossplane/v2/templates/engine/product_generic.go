@@ -18,7 +18,8 @@ package engine
 
 import (
 	"fmt"
-	"strings"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
 // GenericTemplateProduct is a universal template product that works with any template
@@ -63,16 +64,6 @@ func (t *GenericTemplateProduct) GetOutputPath() string {
 
 // generateOutputPath converts a template info to its output path with variable replacements.
 func generateOutputPath(info TemplateInfo, replacements map[string]string) string {
-	// The OutputDir is like "project/Makefile" or "apis/register.go"
-	outputPath := info.OutputDir
-
-	// Handle root files specially - remove the "project/" prefix
-	outputPath = strings.TrimPrefix(outputPath, "project/")
-
-	// Apply variable replacements for uppercase placeholders
-	for placeholder, value := range replacements {
-		outputPath = strings.ReplaceAll(outputPath, placeholder, value)
-	}
-
-	return outputPath
+	processor := core.NewTemplatePathProcessor()
+	return processor.GenerateOutputPath(info.OutputDir, replacements)
 }

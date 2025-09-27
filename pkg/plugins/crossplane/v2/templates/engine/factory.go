@@ -19,10 +19,10 @@ package engine
 import (
 	"fmt"
 	"io/fs"
-	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
@@ -46,12 +46,14 @@ func NewFactory(cfg config.Config) TemplateFactory {
 }
 
 func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
+	processor := core.NewTemplatePathProcessor()
+
 	_ = fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if d.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+		if d.IsDir() || !processor.IsTemplateFile(path) {
 			return nil
 		}
 
