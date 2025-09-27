@@ -25,31 +25,52 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
-type InitTemplateBuilder struct {
+// BuildStrategy defines different strategies for building templates.
+type BuildStrategy interface {
+	GetCategory() TemplateCategory
+	ValidateOptions(options *TemplateOptions) error
+	GenerateReplacements(cfg config.Config, options *TemplateOptions) (map[string]string, error)
+}
+
+// BaseTemplateBuilder provides unified template building functionality.
+type BaseTemplateBuilder struct {
 	templateType TemplateType
+	strategy     BuildStrategy
 }
 
-func NewInitTemplateBuilder(templateType TemplateType) TemplateBuilder {
-	return &InitTemplateBuilder{templateType: templateType}
+// NewBaseTemplateBuilder creates a new template builder with the specified strategy.
+func NewBaseTemplateBuilder(templateType TemplateType, strategy BuildStrategy) TemplateBuilder {
+	return &BaseTemplateBuilder{
+		templateType: templateType,
+		strategy:     strategy,
+	}
 }
 
-func (b *InitTemplateBuilder) GetTemplateType() TemplateType {
+func (b *BaseTemplateBuilder) GetTemplateType() TemplateType {
 	return b.templateType
 }
 
-func (b *InitTemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateProduct, error) {
+func (b *BaseTemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateProduct, error) {
 	options := parseOptions(opts)
 
-	info, err := findTemplateInfoByCategory(InitCategory, b.templateType)
+	// Validate options using strategy
+	if err := b.strategy.ValidateOptions(options); err != nil {
+		return nil, err
+	}
+
+	// Find template info using strategy's category
+	info, err := findTemplateInfoByCategory(b.strategy.GetCategory(), b.templateType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find template info: %w", err)
 	}
 
-	projectName := core.ExtractProjectName(cfg)
-	replacements := map[string]string{
-		"IMAGENAME": projectName,
+	// Generate replacements using strategy
+	replacements, err := b.strategy.GenerateReplacements(cfg, options)
+	if err != nil {
+		return nil, err
 	}
 
+	// Create and configure template product
 	product := createTemplateProduct(b.templateType, info, replacements)
 
 	if err := configureTemplateProduct(product, cfg, options); err != nil {
@@ -59,83 +80,77 @@ func (b *InitTemplateBuilder) Build(cfg config.Config, opts ...Option) (Template
 	return product, nil
 }
 
-type APITemplateBuilder struct {
-	templateType TemplateType
+// InitBuildStrategy implements strategy for init templates.
+type InitBuildStrategy struct{}
+
+func (s *InitBuildStrategy) GetCategory() TemplateCategory {
+	return InitCategory
 }
 
-func NewAPITemplateBuilder(templateType TemplateType) TemplateBuilder {
-	return &APITemplateBuilder{templateType: templateType}
+func (s *InitBuildStrategy) ValidateOptions(_ *TemplateOptions) error {
+	// Init templates don't require special validation
+	return nil
 }
 
-func (b *APITemplateBuilder) GetTemplateType() TemplateType {
-	return b.templateType
-}
-
-func (b *APITemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateProduct, error) {
-	options := parseOptions(opts)
-
-	if options.Resource == nil {
-		return nil, fmt.Errorf("resource is required for API templates")
-	}
-
-	info, err := findTemplateInfoByCategory(APICategory, b.templateType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find template info: %w", err)
-	}
-
+func (s *InitBuildStrategy) GenerateReplacements(cfg config.Config, _ *TemplateOptions) (map[string]string, error) {
 	projectName := core.ExtractProjectName(cfg)
-	replacements := map[string]string{
+	return map[string]string{
+		"IMAGENAME": projectName,
+	}, nil
+}
+
+// APIBuildStrategy implements strategy for API templates.
+type APIBuildStrategy struct{}
+
+func (s *APIBuildStrategy) GetCategory() TemplateCategory {
+	return APICategory
+}
+
+func (s *APIBuildStrategy) ValidateOptions(options *TemplateOptions) error {
+	if options.Resource == nil {
+		return fmt.Errorf("resource is required for API templates")
+	}
+	return nil
+}
+
+func (s *APIBuildStrategy) GenerateReplacements(
+	cfg config.Config, options *TemplateOptions,
+) (map[string]string, error) {
+	projectName := core.ExtractProjectName(cfg)
+	return map[string]string{
 		"GROUP":     strings.ToLower(options.Resource.Group),
 		"VERSION":   options.Resource.Version,
 		"KIND":      strings.ToLower(options.Resource.Kind),
 		"IMAGENAME": projectName,
-	}
-
-	product := createTemplateProduct(b.templateType, info, replacements)
-
-	if err := configureTemplateProduct(product, cfg, options); err != nil {
-		return nil, err
-	}
-
-	return product, nil
+	}, nil
 }
 
-type StaticTemplateBuilder struct {
-	templateType TemplateType
+// StaticBuildStrategy implements strategy for static templates.
+type StaticBuildStrategy struct{}
+
+func (s *StaticBuildStrategy) GetCategory() TemplateCategory {
+	return StaticCategory
 }
 
-func NewStaticTemplateBuilder(templateType TemplateType) TemplateBuilder {
-	return &StaticTemplateBuilder{templateType: templateType}
+func (s *StaticBuildStrategy) ValidateOptions(_ *TemplateOptions) error {
+	// Static templates don't require special validation
+	return nil
 }
 
-func (b *StaticTemplateBuilder) GetTemplateType() TemplateType {
-	return b.templateType
-}
-
-func (b *StaticTemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateProduct, error) {
-	options := parseOptions(opts)
-
-	info, err := findTemplateInfoByCategory(StaticCategory, b.templateType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find template info: %w", err)
-	}
-
+func (s *StaticBuildStrategy) GenerateReplacements(
+	cfg config.Config, options *TemplateOptions,
+) (map[string]string, error) {
 	projectName := core.ExtractProjectName(cfg)
 	replacements := map[string]string{
 		"IMAGENAME": projectName,
 	}
 
+	// Add resource-specific replacements if available
 	if options.Resource != nil {
 		replacements["GROUP"] = strings.ToLower(options.Resource.Group)
 		replacements["VERSION"] = options.Resource.Version
 		replacements["KIND"] = strings.ToLower(options.Resource.Kind)
 	}
 
-	product := createTemplateProduct(b.templateType, info, replacements)
-
-	if err := configureTemplateProduct(product, cfg, options); err != nil {
-		return nil, err
-	}
-
-	return product, nil
+	return replacements, nil
 }
