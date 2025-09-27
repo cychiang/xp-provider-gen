@@ -17,14 +17,14 @@ limitations under the License.
 package engine
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
 var _ machinery.Template = &TemplateUpdater{}
@@ -58,67 +58,25 @@ func (f *TemplateUpdater) SetTemplateDefaults() error {
 
 // GetBody implements machinery.Template to allow dynamic content generation.
 func (f *TemplateUpdater) GetBody() string {
-	// Parse existing file if it exists
 	existingImports, existingSetups := f.parseExistingContent()
 
-	// Determine new import path and setup call
-	// Controllers are always created in internal/controller/{kind}, regardless of API group
-	newImport := fmt.Sprintf("%s/internal/controller/%s", f.Repo, strings.ToLower(f.Resource.Kind))
-	newSetup := fmt.Sprintf("%s.Setup", strings.ToLower(f.Resource.Kind))
+	allImports := f.buildImportsList(existingImports)
+	allSetups := f.buildSetupsList(existingSetups)
 
-	// Add new import if not already present
-	importExists := false
-	for _, existing := range existingImports {
-		if existing == newImport {
-			importExists = true
-			break
-		}
-	}
-	if !importExists {
-		existingImports = append(existingImports, newImport)
-	}
-
-	// Add new setup if not already present
-	setupExists := false
-	for _, existing := range existingSetups {
-		if existing == newSetup {
-			setupExists = true
-			break
-		}
-	}
-	if !setupExists {
-		existingSetups = append(existingSetups, newSetup)
-	}
-
-	// Build imports section
-	var imports strings.Builder
-	for _, imp := range existingImports {
-		imports.WriteString(fmt.Sprintf("\t\"%s\"\n", imp))
-	}
-
-	// Build setups section
-	var setups strings.Builder
-	for _, setup := range existingSetups {
-		setups.WriteString(fmt.Sprintf("\t\t%s,\n", setup))
-	}
+	importsSection := f.buildImportsSection(allImports)
+	setupsSection := f.buildSetupsSection(allSetups)
 
 	return fmt.Sprintf(`{{ .Boilerplate }}
 
 package controller
 
 import (
-	ctrl "sigs.k8s.io/controller-runtime"
-
-	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-
-	"{{ .Repo }}/internal/controller/config"
 %s)
 
 // Setup creates all %s controllers with the supplied logger and adds them to
 // the supplied manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{
-		config.Setup,
 %s	} {
 		if err := setup(mgr, o); err != nil {
 			return err
@@ -126,116 +84,84 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	}
 	return nil
 }
-`, imports.String(), f.ProviderName, setups.String())
+`, importsSection, f.ProviderName, setupsSection)
 }
 
-// parseExistingContent reads and parses the existing template.go file to extract controllers.
+// parseExistingContent reads and parses the existing register.go file to extract controllers.
 func (f *TemplateUpdater) parseExistingContent() ([]string, []string) {
-	content, err := f.readFileContent()
+	config := core.NewFileParserBuilder().
+		AddMatchGroupSection("imports", "import (", ")",
+			regexp.MustCompile(`^\s*"([^"]+/internal/controller/[^"]+)"\s*$`)).
+		AddMatchGroupSection("setups", "for _, setup := range []func(ctrl.Manager, controller.Options) error{", "}",
+			regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*\.Setup),?\s*$`)).
+		Build()
+
+	results, err := core.ParseFileWithConfig(f.Path, config)
 	if err != nil {
 		return []string{}, []string{}
 	}
 
-	parser := &TemplateFileParser{
-		content:       content,
-		importPattern: regexp.MustCompile(`^\s*"([^"]+/internal/controller/[^"]+)"\s*$`),
-		setupPattern:  regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*\.Setup),?\s*$`),
-	}
-
-	return parser.Parse()
+	return results["imports"], results["setups"]
 }
 
-func (f *TemplateUpdater) readFileContent() (string, error) {
-	file, err := os.ReadFile(f.Path)
-	if err != nil {
-		return "", err
+// buildImportsList builds the complete list of imports including config and new resource.
+func (f *TemplateUpdater) buildImportsList(existingImports []string) []string {
+	configImport := fmt.Sprintf("%s/internal/controller/config", f.Repo)
+	allImports := f.ensureStringInList(existingImports, configImport, true)
+
+	if f.Resource != nil {
+		newImport := fmt.Sprintf("%s/internal/controller/%s", f.Repo, strings.ToLower(f.Resource.Kind))
+		allImports = f.ensureStringInList(allImports, newImport, false)
 	}
-	return string(file), nil
+
+	return allImports
 }
 
-// TemplateFileParser handles parsing of template files.
-type TemplateFileParser struct {
-	content       string
-	importPattern *regexp.Regexp
-	setupPattern  *regexp.Regexp
+// buildSetupsList builds the complete list of setups including config and new resource.
+func (f *TemplateUpdater) buildSetupsList(existingSetups []string) []string {
+	allSetups := f.ensureStringInList(existingSetups, "config.Setup", true)
+
+	if f.Resource != nil {
+		newSetup := fmt.Sprintf("%s.Setup", strings.ToLower(f.Resource.Kind))
+		allSetups = f.ensureStringInList(allSetups, newSetup, false)
+	}
+
+	return allSetups
 }
 
-// Parse extracts imports and setup calls from template file content.
-func (p *TemplateFileParser) Parse() ([]string, []string) {
-	var imports, setups []string
-
-	scanner := bufio.NewScanner(strings.NewReader(p.content))
-	state := &templateParseState{}
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		p.updateTemplateState(state, line)
-		imports = p.processTemplateImport(imports, state, line)
-		setups = p.processTemplateSetup(setups, state, line)
-	}
-
-	return imports, setups
-}
-
-type templateParseState struct {
-	inImports bool
-	inSetups  bool
-}
-
-func (p *TemplateFileParser) updateTemplateState(state *templateParseState, line string) {
-	// Update state for imports
-	if strings.Contains(line, "import (") {
-		state.inImports = true
-		return
-	}
-	if state.inImports && strings.Contains(line, ")") {
-		state.inImports = false
-		return
-	}
-
-	// Update state for setups
-	if strings.Contains(line, "for _, setup := range []func(ctrl.Manager, controller.Options) error{") {
-		state.inSetups = true
-		return
-	}
-	if state.inSetups && strings.Contains(line, "}") {
-		state.inSetups = false
-	}
-}
-
-func (p *TemplateFileParser) processTemplateImport(imports []string, state *templateParseState, line string) []string {
-	if state.inImports {
-		if importLine := p.parseImport(line); importLine != "" {
-			imports = append(imports, importLine)
+// ensureStringInList adds a string to the list if not already present.
+// If prepend is true, adds to the beginning; otherwise appends to the end.
+func (f *TemplateUpdater) ensureStringInList(list []string, item string, prepend bool) []string {
+	for _, existing := range list {
+		if existing == item {
+			return list
 		}
 	}
-	return imports
+
+	if prepend {
+		return append([]string{item}, list...)
+	}
+	return append(list, item)
 }
 
-func (p *TemplateFileParser) processTemplateSetup(setups []string, state *templateParseState, line string) []string {
-	if state.inSetups {
-		if setupLine := p.parseSetup(line); setupLine != "" {
-			setups = append(setups, setupLine)
-		}
+// buildImportsSection creates the imports section string.
+func (f *TemplateUpdater) buildImportsSection(imports []string) string {
+	var section strings.Builder
+	section.WriteString("\tctrl \"sigs.k8s.io/controller-runtime\"\n")
+	section.WriteString("\n")
+	section.WriteString("\t\"github.com/crossplane/crossplane-runtime/v2/pkg/controller\"\n")
+	section.WriteString("\n")
+	for _, imp := range imports {
+		section.WriteString(fmt.Sprintf("\t\"%s\"\n", imp))
 	}
-	return setups
+	return section.String()
 }
 
-func (p *TemplateFileParser) parseImport(line string) string {
-	if matches := p.importPattern.FindStringSubmatch(line); len(matches) > 1 {
-		if !strings.HasSuffix(matches[1], "/internal/controller/config") {
-			return matches[1]
-		}
+// buildSetupsSection creates the setups section string.
+func (f *TemplateUpdater) buildSetupsSection(setups []string) string {
+	var section strings.Builder
+	for _, setup := range setups {
+		section.WriteString(fmt.Sprintf("\t\t%s,\n", setup))
 	}
-	return ""
-}
-
-func (p *TemplateFileParser) parseSetup(line string) string {
-	if matches := p.setupPattern.FindStringSubmatch(line); len(matches) > 1 {
-		if matches[1] != "config.Setup" {
-			return matches[1]
-		}
-	}
-	return ""
+	return section.String()
 }

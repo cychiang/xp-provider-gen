@@ -15,6 +15,11 @@ bin/
 # Build artifacts
 dist/
 coverage.html
+coverage/
+
+# Security scan reports
+gosec-report.txt
+gosec-report.json
 
 # Go workspace file
 go.work
