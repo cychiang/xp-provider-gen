@@ -125,7 +125,7 @@ provider-awesome/
 
 ## Requirements
 
-- Go 1.24.5+
+- Go 1.24.7+
 - Git
 - Docker (for generated providers)
 - Make (for generated providers)
@@ -157,7 +157,7 @@ make generate && make build && make reviewable
 
 For working on this project itself (not just using it), you'll need:
 
-- Go 1.24.5+
+- Go 1.24.7+
 - Git
 - golangci-lint (for `make lint`)
 - gosec (for `make check` security scanning)

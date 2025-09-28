@@ -14,7 +14,7 @@ This directory contains GitHub Actions workflows for automating CI/CD processes.
 ### 🧪 `test.yml` - Testing
 **Triggers:** Push/PR to `main`, `develop`
 - Runs unit tests with race detection
-- Tests against multiple Go versions (1.24.5, 1.24.7)
+- Tests against Go version 1.24.7
 - Generates coverage reports
 - Uploads coverage to Codecov
 - Includes E2E workflow testing
