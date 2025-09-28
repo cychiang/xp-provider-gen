@@ -28,7 +28,7 @@ COVERAGE_DIR=coverage
 # Binary names
 BINARY=xp-provider-gen
 
-.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec gosec-install mod-tidy mod-verify check reviewable integration-test ci-test ci-lint ci-gosec docs
+.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable integration-test ci-test ci-lint ci-gosec docs
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -69,16 +69,10 @@ lint: lint-install ## Run golangci-lint with configuration
 	@echo "Running golangci-lint..."
 	golangci-lint run --config .golangci.yml
 
-# Ensure gosec is installed
-gosec-install: ## Install gosec if not present
-	@if ! command -v gosec >/dev/null 2>&1; then \
-		echo "Installing gosec..."; \
-		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
-	fi
-
-gosec: gosec-install ## Run gosec security scanner
+gosec: ## Run gosec security scanner
 	@echo "Running gosec security scanner..."
-	$(shell go env GOPATH)/bin/gosec -fmt=text -out=gosec-report.txt -stdout -verbose=text -severity=medium -confidence=medium ./...
+	@echo "Running gosec security scanner..."
+	gosec -fmt=text -out=gosec-report.txt -stdout -verbose=text -severity=medium -confidence=medium ./...
 
 mod-tidy: ## Run go mod tidy
 	$(GOMOD) tidy
@@ -101,9 +95,9 @@ ci-lint: lint-install ## Run linting for CI with extended timeout
 	@echo "Running CI linting..."
 	golangci-lint run --config .golangci.yml --timeout=5m --out-format=github-actions
 
-ci-gosec: gosec-install ## Run gosec for CI with JSON output
+ci-gosec: ## Run gosec for CI with JSON output
 	@echo "Running CI security scanning..."
-	$(shell go env GOPATH)/bin/gosec -fmt=json -out=gosec-report.json -stdout -severity=medium -confidence=medium ./...
+	gosec -fmt=json -out=gosec-report.json -stdout -severity=medium -confidence=medium ./...
 
 lint-fix: lint-install ## Run golangci-lint with auto-fixing
 	@echo "Running golangci-lint with auto-fix..."
