@@ -18,17 +18,20 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
 func findTemplateInfoByCategory(category TemplateCategory, templateType TemplateType) (TemplateInfo, error) {
 	var foundInfo TemplateInfo
 	found := false
 
+	processor := core.NewTemplatePathProcessor()
+
 	err := walkTemplateFS("files", func(path string, isDir bool) error {
-		if isDir || !strings.HasSuffix(path, ".tmpl") {
+		if isDir || !processor.IsTemplateFile(path) {
 			return nil
 		}
 
@@ -89,7 +92,8 @@ func configureTemplateProduct(product TemplateProduct, cfg config.Config, option
 func createTemplateProduct(templateType TemplateType, info TemplateInfo,
 	replacements map[string]string,
 ) TemplateProduct {
+	processor := core.NewTemplatePathProcessor()
 	outputPath := generateOutputPath(info, replacements)
-	templatePath := strings.TrimPrefix(info.Path, "files/")
+	templatePath := processor.CleanTemplatePath(info.Path)
 	return NewGenericTemplateProduct(templateType, outputPath, templatePath)
 }

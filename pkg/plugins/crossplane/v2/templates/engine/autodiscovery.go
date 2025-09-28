@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
@@ -41,8 +42,10 @@ type TemplateInfo struct {
 func DiscoverTemplates() (map[string]TemplateInfo, error) {
 	templates := make(map[string]TemplateInfo)
 
+	processor := core.NewTemplatePathProcessor()
+
 	err := walkTemplateFS("files", func(path string, isDir bool) error {
-		if isDir || !strings.HasSuffix(path, ".tmpl") {
+		if isDir || !processor.IsTemplateFile(path) {
 			return nil
 		}
 
@@ -79,9 +82,11 @@ func walkTemplateFS(root string, fn func(path string, isDir bool) error) error {
 }
 
 func AnalyzeTemplatePath(path string) TemplateInfo {
-	cleanPath := strings.TrimPrefix(path, "files/")
-	name := strings.TrimSuffix(filepath.Base(cleanPath), ".tmpl")
-	outputPath := strings.TrimSuffix(cleanPath, ".tmpl")
+	processor := core.NewTemplatePathProcessor()
+
+	cleanPath := processor.CleanTemplatePath(path)
+	name := processor.GetTemplateBaseName(path)
+	outputPath := processor.GetOutputPath(path)
 
 	category := determineCategory(cleanPath)
 
@@ -94,6 +99,8 @@ func AnalyzeTemplatePath(path string) TemplateInfo {
 }
 
 func determineCategory(path string) TemplateCategory {
+	processor := core.NewTemplatePathProcessor()
+
 	apiPatterns := []string{
 		"apis/GROUP/VERSION/",
 		"internal/controller/KIND/",
@@ -104,23 +111,20 @@ func determineCategory(path string) TemplateCategory {
 		"LICENSE",
 	}
 
-	for _, pattern := range apiPatterns {
-		if strings.Contains(path, pattern) {
-			return APICategory
-		}
+	if processor.PathHasPattern(path, apiPatterns) {
+		return APICategory
 	}
 
-	for _, pattern := range staticPatterns {
-		if strings.Contains(path, pattern) {
-			return StaticCategory
-		}
+	if processor.PathHasPattern(path, staticPatterns) {
+		return StaticCategory
 	}
 
 	return InitCategory
 }
 
 func (t TemplateInfo) GenerateTemplateType() TemplateType {
-	parts := strings.Split(t.OutputDir, "/")
+	processor := core.NewTemplatePathProcessor()
+	parts := processor.SplitPathComponents(t.OutputDir)
 	var name string
 
 	for _, part := range parts {
