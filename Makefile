@@ -28,11 +28,28 @@ COVERAGE_DIR=coverage
 # Binary names
 BINARY=xp-provider-gen
 
-.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable integration-test ci-test ci-lint ci-gosec docs
+.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable integration-test ci-test ci-lint ci-gosec e2e-test docs
 
 help: ## Show this help message
 	@echo "Available targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Development:"
+	@grep -E '^(build|clean):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Testing:"
+	@grep -E '^(test|coverage|e2e-test|integration-test):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Code Quality:"
+	@grep -E '^(fmt|vet|lint|lint-fix|gosec|check|reviewable):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Dependencies:"
+	@grep -E '^(mod-tidy|mod-verify):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@echo ""
+	@echo "CI/CD:"
+	@grep -E '^(ci-test|ci-lint|ci-gosec):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Other:"
+	@grep -E '^(help|docs):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
 build: ## Build the standalone Crossplane provider generator
 	@echo "Building Crossplane provider generator..."
@@ -52,6 +69,10 @@ coverage: ## Generate test coverage report
 	$(GOCMD) tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
 	@echo "Coverage report generated: $(COVERAGE_DIR)/coverage.html"
 
+e2e-test: build ## Run local end-to-end test
+	@echo "Running local E2E test..."
+	@./scripts/e2e-test.sh
+
 fmt: ## Format Go code
 	$(GOCMD) fmt ./...
 
@@ -59,7 +80,7 @@ vet: ## Run go vet
 	$(GOCMD) vet ./...
 
 # Ensure golangci-lint is installed
-lint-install: ## Install golangci-lint if not present
+lint-install: # Install golangci-lint if not present (internal)
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "Installing golangci-lint..."; \
 		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
@@ -115,3 +136,4 @@ integration-test: build ## Run comprehensive integration tests
 	@echo "Running integration tests..."
 	./scripts/integration-test.sh
 	@echo "Integration tests completed!"
+
