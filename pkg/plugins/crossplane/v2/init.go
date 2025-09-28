@@ -1,7 +1,10 @@
 package v2
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
@@ -19,9 +22,11 @@ var _ plugin.InitSubcommand = &initSubcommand{}
 type initSubcommand struct {
 	config config.Config
 
-	domain string
-	repo   string
-	owner  string
+	domain   string
+	repo     string
+	owner    string
+	gitName  string
+	gitEmail string
 
 	pluginConfig *PluginConfig
 }
@@ -46,8 +51,12 @@ This command scaffolds a complete Crossplane provider project with:
   %s init --domain=example.com
 
   # Initialize with owner for copyright
-  %s init --domain=example.com --repo=github.com/example/provider-gcp --owner="Acme Corp"`,
-		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
+  %s init --domain=example.com --repo=github.com/example/provider-gcp --owner="Acme Corp"
+
+  # Initialize with specific git user configuration
+  %s init --domain=example.com --repo=github.com/example/provider-aws \
+    --git-name="Crossplane Provider Generator" --git-email="noreply@crossplane.io"`,
+		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
 }
 
 func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {
@@ -56,11 +65,16 @@ func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&p.domain, "domain", p.pluginConfig.Defaults.Domain, "domain for API groups")
 	fs.StringVar(&p.repo, "repo", "", "name to use for go module (e.g., github.com/user/repo)")
 	fs.StringVar(&p.owner, "owner", p.pluginConfig.Defaults.Owner, "owner to add to the copyright")
+	fs.StringVar(&p.gitName, "git-name", "", "git user name for commits (uses system config if not provided)")
+	fs.StringVar(&p.gitEmail, "git-email", "", "git user email for commits (uses system config if not provided)")
 }
 
 func (p *initSubcommand) InjectConfig(c config.Config) error {
 	p.config = c
 	p.ensureConfig()
+
+	// Resolve git configuration in priority order: CLI flags > System config > Project defaults
+	p.resolveGitConfig()
 
 	validator := validation.NewValidator()
 
@@ -133,5 +147,53 @@ func (p *initSubcommand) PostScaffold() error {
 func (p *initSubcommand) ensureConfig() {
 	if p.pluginConfig == nil {
 		p.pluginConfig = NewPluginConfig()
+	}
+}
+
+func (p *initSubcommand) resolveGitConfig() {
+	// Priority: CLI flags > System config > Project defaults
+
+	// Start with project defaults
+	finalName := p.pluginConfig.Git.Author
+	finalEmail := p.pluginConfig.Git.Email
+
+	// Override with system config if CLI flags not provided
+	p.resolveSystemConfig(&finalName, &finalEmail)
+
+	// CLI flags override everything
+	if p.gitName != "" {
+		finalName = p.gitName
+	}
+	if p.gitEmail != "" {
+		finalEmail = p.gitEmail
+	}
+
+	// Update the plugin config with resolved values
+	p.pluginConfig.Git.Author = finalName
+	p.pluginConfig.Git.Email = finalEmail
+}
+
+func (p *initSubcommand) resolveSystemConfig(name, email *string) {
+	if p.gitName != "" && p.gitEmail != "" {
+		return // Both CLI flags provided, skip system config
+	}
+
+	wd, _ := os.Getwd()
+	runner := core.NewGitCommandRunner(wd)
+
+	if p.gitName == "" {
+		if systemName, err := runner.GetUserName(context.Background()); err == nil {
+			if trimmed := strings.TrimSpace(systemName); trimmed != "" {
+				*name = trimmed
+			}
+		}
+	}
+
+	if p.gitEmail == "" {
+		if systemEmail, err := runner.GetUserEmail(context.Background()); err == nil {
+			if trimmed := strings.TrimSpace(systemEmail); trimmed != "" {
+				*email = trimmed
+			}
+		}
 	}
 }

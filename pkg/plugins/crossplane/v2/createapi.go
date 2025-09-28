@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/automation"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
@@ -155,9 +156,18 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 }
 
 func (p *createAPISubcommand) PostScaffold() error {
+	p.ensureConfig()
+
 	projectFile := core.NewProjectFile(p.config)
 	if err := projectFile.AddResource(*p.resource); err != nil {
 		return validation.CreateAPIError("PROJECT file persistence", err)
+	}
+
+	// Run API commit automation pipeline
+	pipeline := automation.NewAPICommitPipeline(p.pluginConfig, p.resource.Kind)
+	fmt.Println("Running post-scaffolding automation...")
+	if err := pipeline.Run(); err != nil {
+		fmt.Printf("Warning: Some automation steps failed: %v\n", err)
 	}
 
 	fmt.Printf("Crossplane managed resource %s created successfully!\n", p.resource.Kind)

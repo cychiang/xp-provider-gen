@@ -64,7 +64,7 @@ func NewGitCommitStep(config *core.PluginConfig, message string) *GitCommitStep 
 	return &GitCommitStep{
 		git:      NewGitOperations(config),
 		message:  message,
-		author:   config.GetDefaultAuthor(),
+		author:   config.GetDefaultAuthor(), // Use resolved config author
 		required: false,
 	}
 }
@@ -106,5 +106,51 @@ func (s *GitSubmoduleStep) Execute() error {
 }
 
 func (s *GitSubmoduleStep) IsRequired() bool {
+	return s.required
+}
+
+type MakeStep struct {
+	target   string
+	required bool
+}
+
+func NewMakeStep(target string, required bool) *MakeStep {
+	return &MakeStep{
+		target:   target,
+		required: required,
+	}
+}
+
+func (s *MakeStep) Name() string {
+	return fmt.Sprintf("Run make %s", s.target)
+}
+
+func (s *MakeStep) Execute() error {
+	return core.NewCommandRunner("").Run(context.Background(), "make", s.target)
+}
+
+func (s *MakeStep) IsRequired() bool {
+	return s.required
+}
+
+type GoModTidyStep struct {
+	required bool
+}
+
+func NewGoModTidyStep(required bool) *GoModTidyStep {
+	return &GoModTidyStep{
+		required: required,
+	}
+}
+
+func (s *GoModTidyStep) Name() string {
+	return "Download dependencies (go mod tidy)"
+}
+
+func (s *GoModTidyStep) Execute() error {
+	return core.NewCommandRunner("").Run(context.Background(), "go", "mod", "tidy")
+}
+
+func (s *GoModTidyStep) IsRequired() bool {
 	return s.required
 }
