@@ -153,6 +153,41 @@ xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
 make generate && make build && make reviewable
 ```
 
+## Development Requirements
+
+For working on this project itself (not just using it), you'll need:
+
+- Go 1.24.5+
+- Git
+- golangci-lint (for `make lint`)
+- gosec (for `make check` security scanning)
+
+### Installing gosec
+
+**macOS (via Homebrew):**
+```bash
+brew install gosec
+```
+
+**Direct binary installation:**
+```bash
+go install github.com/securego/gosec/v2/cmd/gosec@v2.22.9
+```
+
+**Verify installation:**
+```bash
+gosec --version
+```
+
+### Development Commands
+
+```bash
+make test        # Run unit tests
+make lint        # Run linter
+make check       # Run all quality checks (includes gosec)
+make build       # Build binary
+```
+
 ## Contributing
 
 Contributions welcome! Key technologies:
