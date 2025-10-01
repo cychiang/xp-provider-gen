@@ -40,7 +40,28 @@ func (g *GitOperations) Init(ctx context.Context) error {
 		return nil
 	}
 
-	return g.runner.Init(ctx)
+	if err := g.runner.Init(ctx); err != nil {
+		return err
+	}
+
+	// Set project-local git config for consistency
+	return g.configureProjectGit(ctx)
+}
+
+// configureProjectGit sets git config in the project's .git/config.
+func (g *GitOperations) configureProjectGit(ctx context.Context) error {
+	name := g.config.Git.Author
+	email := g.config.Git.Email
+
+	if name != "" && email != "" {
+		if err := g.runner.RunCommand(ctx, "config", "user.name", name); err != nil {
+			return err
+		}
+		if err := g.runner.RunCommand(ctx, "config", "user.email", email); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *GitOperations) CreateCommit(ctx context.Context, message, author string) error {
@@ -48,22 +69,13 @@ func (g *GitOperations) CreateCommit(ctx context.Context, message, author string
 		return err
 	}
 
+	// If explicit author provided via CLI, use it
 	if author != "" {
-		// Use provided author
-		if err := g.runner.CommitWithAuthor(ctx, message, author); err != nil {
-			// Fallback to system config
-			return g.runner.CommitWithSystemAuthor(ctx, message)
-		}
-		return nil
+		return g.runner.CommitWithAuthor(ctx, message, author)
 	}
 
-	// Use system git config by default, fall back to project defaults
-	if err := g.runner.CommitWithSystemAuthor(ctx, message); err != nil {
-		// If system config fails, use project defaults
-		defaultAuthor := g.config.GetDefaultAuthor()
-		return g.runner.CommitWithAuthor(ctx, message, defaultAuthor)
-	}
-	return nil
+	// Use project's local git config (set during Init)
+	return g.runner.CommitWithSystemAuthor(ctx, message)
 }
 
 func (g *GitOperations) AddSubmodule(ctx context.Context, url, path string) error {
