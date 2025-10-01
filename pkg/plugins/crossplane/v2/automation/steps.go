@@ -64,7 +64,7 @@ func NewGitCommitStep(config *core.PluginConfig, message string) *GitCommitStep 
 	return &GitCommitStep{
 		git:      NewGitOperations(config),
 		message:  message,
-		author:   config.GetDefaultAuthor(), // Use resolved config author
+		author:   "", // Empty to use system git config, fallback to default in CreateCommit
 		required: false,
 	}
 }
