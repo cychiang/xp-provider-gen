@@ -93,7 +93,7 @@ func (f *TemplateUpdater) parseExistingContent() ([]string, []string) {
 		AddMatchGroupSection("imports", "import (", ")",
 			regexp.MustCompile(`^\s*"([^"]+/internal/controller/[^"]+)"\s*$`)).
 		AddMatchGroupSection("setups", "for _, setup := range []func(ctrl.Manager, controller.Options) error{", "}",
-			regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*\.Setup),?\s*$`)).
+			regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9]*\.(Setup|SetupGated)),?\s*$`)).
 		Build()
 
 	results, err := core.ParseFileWithConfig(f.Path, config)
@@ -122,7 +122,7 @@ func (f *TemplateUpdater) buildSetupsList(existingSetups []string) []string {
 	allSetups := f.ensureStringInList(existingSetups, "config.Setup", true)
 
 	if f.Resource != nil {
-		newSetup := fmt.Sprintf("%s.Setup", strings.ToLower(f.Resource.Kind))
+		newSetup := fmt.Sprintf("%s.SetupGated", strings.ToLower(f.Resource.Kind))
 		allSetups = f.ensureStringInList(allSetups, newSetup, false)
 	}
 

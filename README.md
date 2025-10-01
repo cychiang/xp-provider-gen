@@ -2,6 +2,23 @@
 
 A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crossplane-runtime v2.
 
+## Key Features
+
+- **🚀 Safe-Start Support**: Providers include Crossplane v2.0+ safe-start capability for selective resource activation
+- **📦 Separated Controller Logic**: Setup/wiring logic isolated from business logic for better maintainability
+- **🔧 Feature Flag Ready**: Automatic support for Management Policies, ChangeLogs, and metrics
+- **🤖 Automated Workflows**: Built-in git operations, dependency management, and code generation
+- **📝 Template Auto-Discovery**: Add new templates and they're automatically included
+
+## What's New (v1.24.7)
+
+- ✅ Safe-Start capability with gate-based controller activation
+- ✅ Controller split: `controller.go` (business logic) + `setup.go` (wiring/features)
+- ✅ Automated git workflows and build pipeline integration
+- 🔧 Go 1.24.7 support
+
+> **Breaking Change:** Controller structure changed. Existing projects need regeneration.
+
 ## Quick Start
 
 ### Build the Generator
@@ -74,43 +91,13 @@ make reviewable  # Make code ready for review
 
 ### End-to-End Testing
 
-For comprehensive validation of the entire workflow:
-
 ```bash
-make e2e-test
+make e2e-test  # Validates complete workflow: init → create APIs → build → verify
 ```
-
-This command:
-1. **Builds** the generator binary
-2. **Creates** a test project at `/tmp/provider-template`
-3. **Initializes** provider with `--domain=template.crossplane.io --repo=github.com/example/provider-template`
-4. **Verifies** initial build targets (`make submodules`, `make generate`, `make reviewable`)
-5. **Creates** two APIs: `sample/v1/MyType` and `sample/v1/MyValue`
-6. **Validates** CRD and example generation
-7. **Confirms** all build targets still work
-8. **Cleans up** test artifacts
-
-The e2e test provides confidence that the complete workflow functions correctly before committing changes.
 
 ### Working with Templates
 
-The generator uses Go templates (`.tmpl` files) for code generation:
-
-```bash
-# Templates are located in:
-pkg/templates/files/
-
-# After modifying templates, rebuild:
-make build
-
-# Test changes with e2e test:
-make e2e-test
-```
-
-**Template organization:**
-- `pkg/templates/files/project/` - Project initialization templates
-- `pkg/templates/files/api/` - API creation templates
-- Templates support auto-discovery - add new `.tmpl` files and they're automatically included
+Templates are in `pkg/templates/files/` with auto-discovery support. After changes: `make build && make e2e-test`
 
 ### Generated Project Structure
 
@@ -122,7 +109,15 @@ provider-awesome/
 │   └── storage/v1/            # Storage resources
 ├── cmd/provider/              # Provider binary
 ├── internal/controller/       # Controllers
-├── package/crds/              # Generated CRDs
+│   ├── bucket/
+│   │   ├── controller.go      # External client, CRUD logic
+│   │   └── setup.go           # SetupGated + feature flags
+│   ├── config/
+│   │   └── config.go
+│   └── register.go            # Controller registration
+├── package/
+│   ├── crossplane.yaml        # Provider metadata (with safe-start capability)
+│   └── crds/                  # Generated CRDs
 ├── examples/                  # Usage examples
 └── Makefile                   # Build automation
 ```

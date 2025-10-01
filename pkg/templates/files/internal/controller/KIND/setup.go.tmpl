@@ -1,0 +1,73 @@
+{{ .Boilerplate }}
+
+package {{ .Resource.Kind | lower }}
+
+import (
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/statemetrics"
+	"github.com/pkg/errors"
+	ctrl "sigs.k8s.io/controller-runtime"
+
+	"{{ .Repo }}/apis/{{ .Resource.Group }}/{{ .Resource.Version }}"
+	apisv1alpha1 "{{ .Repo }}/apis/v1alpha1"
+)
+
+// SetupGated adds a controller that reconciles {{ .Resource.Kind }} managed resources with safe-start support.
+func SetupGated(mgr ctrl.Manager, o controller.Options) error {
+	o.Gate.Register(func() {
+		if err := Setup(mgr, o); err != nil {
+			panic(errors.Wrap(err, "cannot setup {{ .Resource.Kind }} controller"))
+		}
+	}, {{ .Resource.Version }}.{{ .Resource.Kind }}GroupVersionKind)
+	return nil
+}
+
+// Setup adds a controller that reconciles {{ .Resource.Kind }} managed resources.
+func Setup(mgr ctrl.Manager, o controller.Options) error {
+	name := managed.ControllerName({{ .Resource.Version }}.{{ .Resource.Kind }}GroupKind)
+
+	opts := []managed.ReconcilerOption{
+		managed.WithExternalConnector(&connector{
+			kube:         mgr.GetClient(),
+			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
+			newServiceFn: newNoOpService}),
+		managed.WithLogger(o.Logger.WithValues("controller", name)),
+		managed.WithPollInterval(o.PollInterval),
+		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
+	}
+
+	if o.Features.Enabled(feature.EnableBetaManagementPolicies) {
+		opts = append(opts, managed.WithManagementPolicies())
+	}
+
+	if o.Features.Enabled(feature.EnableAlphaChangeLogs) {
+		opts = append(opts, managed.WithChangeLogger(o.ChangeLogOptions.ChangeLogger))
+	}
+
+	if o.MetricOptions != nil {
+		opts = append(opts, managed.WithMetricRecorder(o.MetricOptions.MRMetrics))
+	}
+
+	if o.MetricOptions != nil && o.MetricOptions.MRStateMetrics != nil {
+		stateMetricsRecorder := statemetrics.NewMRStateRecorder(
+			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &{{ .Resource.Version }}.{{ .Resource.Kind }}List{}, o.MetricOptions.PollStateMetricInterval,
+		)
+		if err := mgr.Add(stateMetricsRecorder); err != nil {
+			return errors.Wrap(err, "cannot register MR state metrics recorder for kind {{ .Resource.Version }}.{{ .Resource.Kind }}List")
+		}
+	}
+
+	r := managed.NewReconciler(mgr, resource.ManagedKind({{ .Resource.Version }}.{{ .Resource.Kind }}GroupVersionKind), opts...)
+
+	return ctrl.NewControllerManagedBy(mgr).
+		Named(name).
+		WithOptions(o.ForControllerRuntime()).
+		WithEventFilter(resource.DesiredStateChanged()).
+		For(&{{ .Resource.Version }}.{{ .Resource.Kind }}{}).
+		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
+}
