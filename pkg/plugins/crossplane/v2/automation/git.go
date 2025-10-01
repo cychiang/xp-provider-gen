@@ -48,7 +48,7 @@ func (g *GitOperations) Init(ctx context.Context) error {
 	return g.configureProjectGit(ctx)
 }
 
-// configureProjectGit sets git config in the project's .git/config
+// configureProjectGit sets git config in the project's .git/config.
 func (g *GitOperations) configureProjectGit(ctx context.Context) error {
 	name := g.config.Git.Author
 	email := g.config.Git.Email
