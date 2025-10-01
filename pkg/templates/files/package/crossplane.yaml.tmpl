@@ -18,5 +18,7 @@ metadata:
       * Implementations of Crossplane's portable resource abstractions, enabling {{ .ProviderName }} resources to fulfill a user's general need for cloud services
 
 spec:
+  capabilities:
+  - safe-start
   controller:
     image: {{ .Repo }}:latest
