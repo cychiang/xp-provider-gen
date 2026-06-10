@@ -152,7 +152,7 @@ func (f *TemplateUpdater) buildImportsSection(imports []string) string {
 	section.WriteString("\t\"github.com/crossplane/crossplane-runtime/v2/pkg/controller\"\n")
 	section.WriteString("\n")
 	for _, imp := range imports {
-		section.WriteString(fmt.Sprintf("\t\"%s\"\n", imp))
+		fmt.Fprintf(&section, "\t\"%s\"\n", imp)
 	}
 	return section.String()
 }
@@ -161,7 +161,7 @@ func (f *TemplateUpdater) buildImportsSection(imports []string) string {
 func (f *TemplateUpdater) buildSetupsSection(setups []string) string {
 	var section strings.Builder
 	for _, setup := range setups {
-		section.WriteString(fmt.Sprintf("\t\t%s,\n", setup))
+		fmt.Fprintf(&section, "\t\t%s,\n", setup)
 	}
 	return section.String()
 }
