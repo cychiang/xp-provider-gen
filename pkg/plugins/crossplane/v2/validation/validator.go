@@ -24,6 +24,15 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 )
 
+// Field names used in validation errors.
+const (
+	fieldDomain     = "domain"
+	fieldRepository = "repository"
+	fieldGroup      = "group"
+	fieldVersion    = "version"
+	fieldKind       = "kind"
+)
+
 // FieldValidationError represents a user input field validation error.
 type FieldValidationError struct {
 	Field   string
@@ -47,7 +56,7 @@ func NewValidator() *Validator {
 func (v *Validator) ValidateDomain(domain string) error {
 	if domain == "" {
 		return FieldValidationError{
-			Field:   "domain",
+			Field:   fieldDomain,
 			Value:   domain,
 			Message: "domain is required",
 		}
@@ -62,7 +71,7 @@ func (v *Validator) ValidateDomain(domain string) error {
 
 	if !matched {
 		return FieldValidationError{
-			Field:   "domain",
+			Field:   fieldDomain,
 			Value:   domain,
 			Message: "must be a valid domain name (e.g., example.com)",
 		}
@@ -71,7 +80,7 @@ func (v *Validator) ValidateDomain(domain string) error {
 	// Prevent common mistakes
 	if strings.HasSuffix(domain, ".local") {
 		return FieldValidationError{
-			Field:   "domain",
+			Field:   fieldDomain,
 			Value:   domain,
 			Message: ".local domains are not recommended for production use",
 		}
@@ -84,7 +93,7 @@ func (v *Validator) ValidateDomain(domain string) error {
 func (v *Validator) ValidateRepository(repo string) error {
 	if repo == "" {
 		return FieldValidationError{
-			Field:   "repository",
+			Field:   fieldRepository,
 			Value:   repo,
 			Message: "repository is required",
 		}
@@ -99,7 +108,7 @@ func (v *Validator) ValidateRepository(repo string) error {
 
 	if !matched {
 		return FieldValidationError{
-			Field:   "repository",
+			Field:   fieldRepository,
 			Value:   repo,
 			Message: "must be a valid go module name (e.g., github.com/example/provider-name)",
 		}
@@ -108,7 +117,7 @@ func (v *Validator) ValidateRepository(repo string) error {
 	// Validate common patterns
 	if !strings.Contains(repo, "/") {
 		return FieldValidationError{
-			Field:   "repository",
+			Field:   fieldRepository,
 			Value:   repo,
 			Message: "must include hosting provider (e.g., github.com/user/repo)",
 		}
@@ -117,7 +126,7 @@ func (v *Validator) ValidateRepository(repo string) error {
 	parts := strings.Split(repo, "/")
 	if len(parts) < 3 {
 		return FieldValidationError{
-			Field:   "repository",
+			Field:   fieldRepository,
 			Value:   repo,
 			Message: "must follow pattern: host/user/repository",
 		}
@@ -161,7 +170,7 @@ func (v *Validator) ValidateResource(res *resource.Resource) error {
 func (v *Validator) validateGroup(group string) error {
 	if group == "" {
 		return FieldValidationError{
-			Field:   "group",
+			Field:   fieldGroup,
 			Value:   group,
 			Message: "group is required",
 		}
@@ -176,7 +185,7 @@ func (v *Validator) validateGroup(group string) error {
 
 	if !matched {
 		return FieldValidationError{
-			Field:   "group",
+			Field:   fieldGroup,
 			Value:   group,
 			Message: "must be lowercase alphanumeric with hyphens (e.g., compute, storage)",
 		}
@@ -185,7 +194,7 @@ func (v *Validator) validateGroup(group string) error {
 	// Length validation following Kubernetes conventions
 	if len(group) > 63 {
 		return FieldValidationError{
-			Field:   "group",
+			Field:   fieldGroup,
 			Value:   group,
 			Message: "must be 63 characters or less",
 		}
@@ -198,7 +207,7 @@ func (v *Validator) validateGroup(group string) error {
 func (v *Validator) validateVersion(version string) error {
 	if version == "" {
 		return FieldValidationError{
-			Field:   "version",
+			Field:   fieldVersion,
 			Value:   version,
 			Message: "version is required",
 		}
@@ -213,7 +222,7 @@ func (v *Validator) validateVersion(version string) error {
 
 	if !matched {
 		return FieldValidationError{
-			Field:   "version",
+			Field:   fieldVersion,
 			Value:   version,
 			Message: "must follow Kubernetes version format (e.g., v1alpha1, v1beta1, v1)",
 		}
@@ -226,7 +235,7 @@ func (v *Validator) validateVersion(version string) error {
 func (v *Validator) validateKind(kind string) error {
 	if kind == "" {
 		return FieldValidationError{
-			Field:   "kind",
+			Field:   fieldKind,
 			Value:   kind,
 			Message: "kind is required",
 		}
@@ -241,7 +250,7 @@ func (v *Validator) validateKind(kind string) error {
 
 	if !matched {
 		return FieldValidationError{
-			Field:   "kind",
+			Field:   fieldKind,
 			Value:   kind,
 			Message: "must be PascalCase (e.g., Instance, Bucket, Database)",
 		}
@@ -250,7 +259,7 @@ func (v *Validator) validateKind(kind string) error {
 	// Length validation
 	if len(kind) > 63 {
 		return FieldValidationError{
-			Field:   "kind",
+			Field:   fieldKind,
 			Value:   kind,
 			Message: "must be 63 characters or less",
 		}
@@ -264,7 +273,7 @@ func (v *Validator) validateKind(kind string) error {
 	for _, reserved := range reservedKinds {
 		if strings.EqualFold(kind, reserved) {
 			return FieldValidationError{
-				Field:   "kind",
+				Field:   fieldKind,
 				Value:   kind,
 				Message: fmt.Sprintf("'%s' is a reserved Kubernetes resource name", reserved),
 			}

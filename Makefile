@@ -28,7 +28,7 @@ COVERAGE_DIR=coverage
 # Binary names
 BINARY=xp-provider-gen
 
-.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable integration-test ci-test ci-lint ci-gosec e2e-test docs
+.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable ci-test ci-lint ci-gosec e2e-test
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -37,7 +37,7 @@ help: ## Show this help message
 	@grep -E '^(build|clean):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Testing:"
-	@grep -E '^(test|coverage|e2e-test|integration-test):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@grep -E '^(test|coverage|e2e-test):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Code Quality:"
 	@grep -E '^(fmt|vet|lint|lint-fix|gosec|check|reviewable):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -49,7 +49,7 @@ help: ## Show this help message
 	@grep -E '^(ci-test|ci-lint|ci-gosec):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Other:"
-	@grep -E '^(help|docs):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@grep -E '^(help):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
 build: ## Build the standalone Crossplane provider generator
 	@echo "Building Crossplane provider generator..."
@@ -92,7 +92,6 @@ lint: lint-install ## Run golangci-lint with configuration
 
 gosec: ## Run gosec security scanner
 	@echo "Running gosec security scanner..."
-	@echo "Running gosec security scanner..."
 	gosec -fmt=text -out=gosec-report.txt -stdout -verbose=text -severity=medium -confidence=medium ./...
 
 mod-tidy: ## Run go mod tidy
@@ -123,17 +122,4 @@ ci-gosec: ## Run gosec for CI with JSON output
 lint-fix: lint-install ## Run golangci-lint with auto-fixing
 	@echo "Running golangci-lint with auto-fix..."
 	golangci-lint run --config .golangci.yml --fix
-
-# Documentation
-
-docs: ## Generate documentation (placeholder)
-	@echo "Documentation generation not yet implemented"
-	@echo "See README.md and IMPLEMENTATION_PLAN.md for current documentation"
-
-# Integration testing
-
-integration-test: build ## Run comprehensive integration tests
-	@echo "Running integration tests..."
-	./scripts/integration-test.sh
-	@echo "Integration tests completed!"
 

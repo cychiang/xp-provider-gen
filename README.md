@@ -60,44 +60,23 @@ xp-provider-gen create api --group=GROUP --version=VERSION --kind=KIND [--force]
 
 ## Working on This Project
 
-### Requirements
-- Go 1.24.7+
-- Git
-- golangci-lint (for linting)
-- gosec (for security scanning)
-
-### Install Development Dependencies
-
-**gosec (macOS):**
-```bash
-brew install gosec
-```
-
-**gosec (direct):**
-```bash
-go install github.com/securego/gosec/v2/cmd/gosec@v2.22.9
-```
-
-### Development Commands
+Quick start for contributors:
 
 ```bash
-make help        # Show all available commands
 make build       # Build the binary
-make test        # Run unit tests
-make lint        # Run linter
-make check       # Run all quality checks
-make reviewable  # Make code ready for review
+make reviewable  # fmt + vet + lint + gosec + test (run before pushing)
+make e2e-test    # Full scaffold → build workflow
+make help        # List all targets
 ```
 
-### End-to-End Testing
+Requires Go 1.26+, Git, and gosec (`brew install gosec`). golangci-lint installs on demand.
 
-```bash
-make e2e-test  # Validates complete workflow: init → create APIs → build → verify
-```
+For the full developer guide see:
 
-### Working with Templates
-
-Templates are in `pkg/templates/files/` with auto-discovery support. After changes: `make build && make e2e-test`
+- [CLAUDE.md](CLAUDE.md) — project principles and conventions
+- [docs/architecture.md](docs/architecture.md) — how the generator works
+- [docs/development.md](docs/development.md) — environment, tooling, and workflow
+- [docs/testing.md](docs/testing.md) — unit and end-to-end testing
 
 ### Generated Project Structure
 

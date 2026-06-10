@@ -22,6 +22,13 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 )
 
+// Sample GVK values reused across validation test cases.
+const (
+	testGroup   = "compute"
+	testVersion = "v1alpha1"
+	testKind    = "Instance"
+)
+
 func TestValidator_ValidateDomain(t *testing.T) {
 	validator := NewValidator()
 
@@ -134,9 +141,9 @@ func TestValidator_ValidateResource(t *testing.T) {
 			name: "valid resource",
 			resource: &resource.Resource{
 				GVK: resource.GVK{
-					Group:   "compute",
-					Version: "v1alpha1",
-					Kind:    "Instance",
+					Group:   testGroup,
+					Version: testVersion,
+					Kind:    testKind,
 				},
 			},
 			wantErr: false,
@@ -162,8 +169,8 @@ func TestValidator_ValidateResource(t *testing.T) {
 			resource: &resource.Resource{
 				GVK: resource.GVK{
 					Group:   "",
-					Version: "v1alpha1",
-					Kind:    "Instance",
+					Version: testVersion,
+					Kind:    testKind,
 				},
 			},
 			wantErr: true,
@@ -172,9 +179,9 @@ func TestValidator_ValidateResource(t *testing.T) {
 			name: "invalid version",
 			resource: &resource.Resource{
 				GVK: resource.GVK{
-					Group:   "compute",
+					Group:   testGroup,
 					Version: "alpha1",
-					Kind:    "Instance",
+					Kind:    testKind,
 				},
 			},
 			wantErr: true,
@@ -183,8 +190,8 @@ func TestValidator_ValidateResource(t *testing.T) {
 			name: "invalid kind",
 			resource: &resource.Resource{
 				GVK: resource.GVK{
-					Group:   "compute",
-					Version: "v1alpha1",
+					Group:   testGroup,
+					Version: testVersion,
 					Kind:    "instance",
 				},
 			},
@@ -194,8 +201,8 @@ func TestValidator_ValidateResource(t *testing.T) {
 			name: "reserved kind",
 			resource: &resource.Resource{
 				GVK: resource.GVK{
-					Group:   "compute",
-					Version: "v1alpha1",
+					Group:   testGroup,
+					Version: testVersion,
 					Kind:    "Pod",
 				},
 			},

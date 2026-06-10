@@ -111,12 +111,12 @@ func (f *APIRegistrationUpdater) addRegistrationIfNeeded(
 func (f *APIRegistrationUpdater) buildTemplate(imports, registrations []string) string {
 	var importsBuilder strings.Builder
 	for _, imp := range imports {
-		importsBuilder.WriteString(fmt.Sprintf("\t%s\n", imp))
+		fmt.Fprintf(&importsBuilder, "\t%s\n", imp)
 	}
 
 	var registrationsBuilder strings.Builder
 	for _, reg := range registrations {
-		registrationsBuilder.WriteString(fmt.Sprintf("\t\t%s,\n", reg))
+		fmt.Fprintf(&registrationsBuilder, "\t\t%s,\n", reg)
 	}
 
 	return fmt.Sprintf(`{{ .Boilerplate }}
