@@ -17,10 +17,21 @@ limitations under the License.
 package automation
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
+
+// fakeStep records whether it ran and optionally fails.
+type fakeStep struct {
+	name string
+	err  error
+	ran  *bool
+}
+
+func (s fakeStep) Name() string   { return s.name }
+func (s fakeStep) Execute() error { *s.ran = true; return s.err }
 
 func stepNames(p *Pipeline) []string {
 	names := make([]string, 0, len(p.steps))
@@ -66,4 +77,24 @@ func TestNewAPICommitPipeline_CommitsLast(t *testing.T) {
 		"Run make generate",
 		stepNameInitialCommit,
 	})
+}
+
+func TestPipeline_Run_AbortsOnFirstFailure(t *testing.T) {
+	firstRan, secondRan := false, false
+	wantErr := errors.New("boom")
+	p := &Pipeline{steps: []Step{
+		fakeStep{name: "first", err: wantErr, ran: &firstRan},
+		fakeStep{name: "second", ran: &secondRan},
+	}}
+
+	err := p.Run()
+	if err == nil || !errors.Is(err, wantErr) {
+		t.Fatalf("Run() error = %v, want wrapped %v", err, wantErr)
+	}
+	if !firstRan {
+		t.Error("first step should have run")
+	}
+	if secondRan {
+		t.Error("second step must not run after a failure")
+	}
 }
