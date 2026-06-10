@@ -235,9 +235,9 @@ main() {
 
     # Show final project structure
     log_info "Final project structure:"
-    find . -type f -name "*.go" -o -name "*.yaml" -o -name "Makefile" -o -name "go.mod" | \
-        head -20 | \
+    find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "Makefile" -o -name "go.mod" \) | \
         sort | \
+        head -20 | \
         sed 's/^/  /'
 
     if [[ $(find . -type f \( -name "*.go" -o -name "*.yaml" \) | wc -l) -gt 20 ]]; then
@@ -273,15 +273,20 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     exit 0
 fi
 
-# Cleanup function
-cleanup() {
-    log_info "Cleaning up test directory..."
-    rm -rf "$TEST_DIR"
-    log_success "Test directory cleaned up"
+# On failure: remove the (likely incomplete) test directory so the next run
+# starts clean. On success: keep it so the generated provider can be inspected
+# (the next run recreates it from scratch anyway). This keeps the final
+# "Test artifacts available at: $TEST_DIR" message truthful.
+on_exit() {
+    local exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        log_error "E2E test failed"
+        log_info "Cleaning up incomplete test directory..."
+        rm -rf "$TEST_DIR"
+    fi
 }
 
-# Trap to ensure cleanup on exit
-trap 'if [[ $? -ne 0 ]]; then log_error "E2E test failed"; fi; cleanup' EXIT
+trap on_exit EXIT
 
 # Run the main test
 main
