@@ -1,4 +1,4 @@
-FROM golang:1.24.7-alpine AS builder
+FROM golang:1.26.3-alpine AS builder
 
 WORKDIR /workspace
 
@@ -22,7 +22,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     ./cmd/xp-provider-gen
 
 # Final image
-FROM alpine:3.22
+FROM alpine:3.23
 
 # Install dependencies
 RUN apk --no-cache add ca-certificates git
