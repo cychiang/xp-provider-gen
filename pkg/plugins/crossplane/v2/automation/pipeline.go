@@ -34,12 +34,12 @@ Scaffolded Crossplane provider project for %s`, providerName)
 	return &Pipeline{
 		steps: []Step{
 			NewGitInitStep(config),
-			NewGitCommitStep(config, commitMessage),
 			NewGitSubmoduleStep(config),
-			NewMakeStep("submodules", false),
-			NewGoModTidyStep(false),
-			NewMakeStep("generate", false),
-			NewMakeStep("reviewable", false),
+			NewMakeStep("submodules", true),
+			NewGoModTidyStep(true),
+			NewMakeStep("generate", true),
+			NewMakeStep("reviewable", true),
+			NewGitCommitStep(config, commitMessage),
 		},
 	}
 }
@@ -51,8 +51,8 @@ Scaffolded CRD, controller, and client code for %s resource`, resourceKind, reso
 
 	return &Pipeline{
 		steps: []Step{
+			NewMakeStep("generate", true),
 			NewGitCommitStep(config, commitMessage),
-			NewMakeStep("generate", false),
 		},
 	}
 }

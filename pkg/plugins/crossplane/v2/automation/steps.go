@@ -29,6 +29,9 @@ type Step interface {
 	IsRequired() bool
 }
 
+// stepNameInitialCommit is the display name of the commit step.
+const stepNameInitialCommit = "Create initial commit"
+
 type GitInitStep struct {
 	git      *GitOperations
 	required bool
@@ -37,7 +40,7 @@ type GitInitStep struct {
 func NewGitInitStep(config *core.PluginConfig) *GitInitStep {
 	return &GitInitStep{
 		git:      NewGitOperations(config),
-		required: false,
+		required: true,
 	}
 }
 
@@ -65,12 +68,12 @@ func NewGitCommitStep(config *core.PluginConfig, message string) *GitCommitStep 
 		git:      NewGitOperations(config),
 		message:  message,
 		author:   "", // Empty to use system git config, fallback to default in CreateCommit
-		required: false,
+		required: true,
 	}
 }
 
 func (s *GitCommitStep) Name() string {
-	return "Create initial commit"
+	return stepNameInitialCommit
 }
 
 func (s *GitCommitStep) Execute() error {
@@ -93,7 +96,7 @@ func NewGitSubmoduleStep(config *core.PluginConfig) *GitSubmoduleStep {
 		git:      NewGitOperations(config),
 		url:      config.Git.BuildSubmoduleURL,
 		path:     "build",
-		required: false,
+		required: true,
 	}
 }
 
