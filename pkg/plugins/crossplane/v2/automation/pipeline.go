@@ -35,10 +35,10 @@ Scaffolded Crossplane provider project for %s`, providerName)
 		steps: []Step{
 			NewGitInitStep(config),
 			NewGitSubmoduleStep(config),
-			NewMakeStep("submodules", true),
-			NewGoModTidyStep(true),
-			NewMakeStep("generate", true),
-			NewMakeStep("reviewable", true),
+			NewMakeStep("submodules"),
+			NewGoModTidyStep(),
+			NewMakeStep("generate"),
+			NewMakeStep("reviewable"),
 			NewGitCommitStep(config, commitMessage),
 		},
 	}
@@ -51,7 +51,7 @@ Scaffolded CRD, controller, and client code for %s resource`, resourceKind, reso
 
 	return &Pipeline{
 		steps: []Step{
-			NewMakeStep("generate", true),
+			NewMakeStep("generate"),
 			NewGitCommitStep(config, commitMessage),
 		},
 	}
@@ -62,10 +62,7 @@ func (p *Pipeline) Run() error {
 		fmt.Printf("  %d. %s...\n", i+1, step.Name())
 
 		if err := step.Execute(); err != nil {
-			if step.IsRequired() {
-				return fmt.Errorf("%s failed (required): %w", step.Name(), err)
-			}
-			fmt.Printf("    Warning: %s: %v (continuing...)\n", step.Name(), err)
+			return fmt.Errorf("%s failed: %w", step.Name(), err)
 		}
 	}
 

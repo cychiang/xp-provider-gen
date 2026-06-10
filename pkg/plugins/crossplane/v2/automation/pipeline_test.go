@@ -30,15 +30,6 @@ func stepNames(p *Pipeline) []string {
 	return names
 }
 
-func allRequired(p *Pipeline) bool {
-	for _, s := range p.steps {
-		if !s.IsRequired() {
-			return false
-		}
-	}
-	return true
-}
-
 func assertStepOrder(t *testing.T, p *Pipeline, want []string) {
 	t.Helper()
 	got := stepNames(p)
@@ -52,7 +43,7 @@ func assertStepOrder(t *testing.T, p *Pipeline, want []string) {
 	}
 }
 
-func TestNewInitPipeline_CommitsLastAndAllRequired(t *testing.T) {
+func TestNewInitPipeline_CommitsLast(t *testing.T) {
 	cfg := core.NewPluginConfig("crossplane")
 	p := NewInitPipeline(cfg, "provider-test")
 
@@ -65,12 +56,9 @@ func TestNewInitPipeline_CommitsLastAndAllRequired(t *testing.T) {
 		"Run make reviewable",
 		stepNameInitialCommit,
 	})
-	if !allRequired(p) {
-		t.Error("all init pipeline steps must be required")
-	}
 }
 
-func TestNewAPICommitPipeline_CommitsLastAndAllRequired(t *testing.T) {
+func TestNewAPICommitPipeline_CommitsLast(t *testing.T) {
 	cfg := core.NewPluginConfig("crossplane")
 	p := NewAPICommitPipeline(cfg, "Bucket")
 
@@ -78,7 +66,4 @@ func TestNewAPICommitPipeline_CommitsLastAndAllRequired(t *testing.T) {
 		"Run make generate",
 		stepNameInitialCommit,
 	})
-	if !allRequired(p) {
-		t.Error("all api pipeline steps must be required")
-	}
 }
