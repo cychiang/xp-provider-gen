@@ -58,6 +58,11 @@ To add or change generated output:
 
 You do **not** register templates in Go code — discovery handles it.
 
+Generated providers target **Go 1.26** (`go.mod.tmpl`) and lint with golangci-lint 2.12.2
+(`Makefile.tmpl`). Keep the generated `go` directive at the language version (`1.26.0`) with
+no `toolchain` pin — golangci-lint reads the system GOROOT, so pinning a toolchain patch above
+golangci-lint's build version breaks `make reviewable` in generated projects.
+
 ## Coding conventions
 
 - Idiomatic Go, formatted by `gofumpt`/`gci` (run `make lint-fix`).
