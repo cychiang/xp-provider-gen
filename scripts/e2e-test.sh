@@ -85,6 +85,19 @@ verify_files_exist() {
     log_success "All $description files verified"
 }
 
+assert_clean_tree() {
+    local context=$1
+    log_info "Asserting clean git tree after $context..."
+    local dirty
+    dirty="$(git status --porcelain)"
+    if [[ -n "$dirty" ]]; then
+        log_error "Working tree is dirty after $context:"
+        echo "$dirty"
+        return 1
+    fi
+    log_success "Working tree is clean after $context"
+}
+
 # Main test function
 main() {
     log_info "Starting local E2E test for xp-provider-gen"
@@ -151,6 +164,9 @@ main() {
 
     log_success "All initial build targets completed successfully"
 
+    # The init pipeline must leave a clean, fully-committed tree.
+    assert_clean_tree "init"
+
     # Step 4: Create first API (MyType)
     step_header "4" "Create first API: $GROUP/$VERSION $KIND1"
 
@@ -213,6 +229,9 @@ main() {
     run_make_target "reviewable"
 
     log_success "All build targets after API creation completed successfully"
+
+    # Adding APIs must also leave a clean, fully-committed tree.
+    assert_clean_tree "create api"
 
     # Step 7: Final verification
     step_header "7" "Final verification"
