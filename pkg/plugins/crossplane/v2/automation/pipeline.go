@@ -29,7 +29,9 @@ type Pipeline struct {
 func NewInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
 	commitMessage := fmt.Sprintf(`Initial commit
 
-Scaffolded Crossplane provider project for %s`, providerName)
+Scaffolded Crossplane provider project for %s
+
+%s`, providerName, ScaffoldCommitTrailer)
 
 	return &Pipeline{
 		steps: []Step{
@@ -52,7 +54,7 @@ Scaffolded CRD, controller, and client code for %s resource`, resourceKind, reso
 	return &Pipeline{
 		steps: []Step{
 			NewMakeStep("generate"),
-			NewGitCommitStep(config, commitMessage),
+			NewGitFoldCommitStep(config, commitMessage),
 		},
 	}
 }

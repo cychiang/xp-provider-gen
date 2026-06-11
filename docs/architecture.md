@@ -169,6 +169,10 @@ commit).
 
 **`create api`** → inject & validate resource → render API templates + **regenerate register
 files** from all resources → `AddResource` to PROJECT → API-commit pipeline (generate, commit).
+While the history is still just the tool's scaffold (the `Initial commit` carries the
+`xp-provider-gen-scaffold` trailer and the user hasn't committed yet), the commit **folds into
+that `Initial commit`** via `--amend`, so a freshly scaffolded provider has a single commit;
+once the user commits their own work, later `create api` runs add separate commits.
 
 **`update`** → require clean tree → render to memfs → reconcile via the ownership gate → bump
 deps via `go get` → tidy/generate/reviewable → stamp provenance (no commit; review the diff).
