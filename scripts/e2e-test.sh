@@ -272,6 +272,45 @@ main() {
     # Adding APIs must also leave a clean, fully-committed tree.
     assert_clean_tree "create api"
 
+    # Step U: the update command refreshes tool-owned files without touching user logic
+    step_header "U" "Test update command"
+    local ctrl="internal/controller/${KIND1_LOWER}/controller.go"
+    log_info "Hand-editing $ctrl and committing (simulating user business logic)..."
+    printf '\n// USER-EDIT-MARKER: custom reconcile logic\n' >> "$ctrl"
+    git add -A && git commit -q -m "user: customize ${KIND1} controller"
+
+    log_info "Running: $BINARY_PATH update"
+    if "$BINARY_PATH" update; then
+        log_success "update completed"
+    else
+        log_error "update failed"
+        exit 1
+    fi
+
+    if grep -q "USER-EDIT-MARKER" "$ctrl"; then
+        log_success "✓ user-owned controller.go edit preserved"
+    else
+        log_error "✗ update clobbered user-owned controller.go"
+        exit 1
+    fi
+    if grep -q "DO NOT EDIT" "internal/controller/${KIND1_LOWER}/setup.go"; then
+        log_success "✓ tool-owned setup.go refreshed (header intact)"
+    else
+        log_error "✗ tool-owned setup.go lost its header after update"
+        exit 1
+    fi
+
+    # Commit whatever update produced, then confirm update refuses a dirty tree.
+    git add -A && git commit -q -m "chore: update core components" || true
+    log_info "Verifying update refuses a dirty working tree..."
+    printf '\n// dirty\n' >> "$ctrl"
+    if "$BINARY_PATH" update >/dev/null 2>&1; then
+        log_error "✗ update should have refused a dirty working tree"
+        exit 1
+    fi
+    log_success "✓ update refused a dirty working tree"
+    git checkout -- "$ctrl" 2>/dev/null || git restore "$ctrl"
+
     # Step 7: Final verification
     step_header "7" "Final verification"
 
