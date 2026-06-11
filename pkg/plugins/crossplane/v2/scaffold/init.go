@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
 )
 
@@ -55,13 +56,23 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 		return fmt.Errorf("failed to get static templates: %w", err)
 	}
 
-	allTemplates := make([]machinery.Builder, 0, len(initTemplates)+len(staticTemplates))
+	allTemplates := make([]machinery.Builder, 0, len(initTemplates)+len(staticTemplates)+2)
 	for _, tmpl := range initTemplates {
 		allTemplates = append(allTemplates, tmpl)
 	}
 	for _, tmpl := range staticTemplates {
 		allTemplates = append(allTemplates, tmpl)
 	}
+
+	// Seed the registration files through the same deterministic generators used
+	// by `create api` (with no managed resources yet), so init and create produce
+	// byte-identical register.go for the base case — one source of truth.
+	repo := s.config.GetRepository()
+	providerName := core.ExtractProviderName(repo)
+	allTemplates = append(allTemplates,
+		engine.NewAPIRegisterGenerator(repo, providerName, nil),
+		engine.NewControllerRegisterGenerator(repo, providerName, nil),
+	)
 
 	if err := scaffold.Execute(allTemplates...); err != nil {
 		return fmt.Errorf("error scaffolding Crossplane provider project: %w", err)

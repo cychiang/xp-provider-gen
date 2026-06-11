@@ -125,26 +125,28 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		return validation.CreateAPIError("template discovery", err)
 	}
 
-	// Create updater templates for registration
-	updaterTemplates := []machinery.Builder{
-		&engine.TemplateUpdater{
-			Force:           true,
-			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
-			ProviderName:    core.ExtractProviderName(p.config.GetRepository()),
-		},
-		&engine.APIRegistrationUpdater{
-			Force:           true,
-			RepositoryMixin: machinery.RepositoryMixin{Repo: p.config.GetRepository()},
-			ProviderName:    core.ExtractProviderName(p.config.GetRepository()),
-		},
+	// Regenerate the registration files deterministically from the full resource
+	// list. The resource being created is not yet persisted to the config (that
+	// happens in PostScaffold), so include it explicitly.
+	existing, err := p.config.GetResources()
+	if err != nil {
+		return validation.CreateAPIError("reading project resources", err)
+	}
+	resources := append(append([]resource.Resource{}, existing...), *p.resource)
+
+	repo := p.config.GetRepository()
+	providerName := core.ExtractProviderName(repo)
+	registerTemplates := []machinery.Builder{
+		engine.NewAPIRegisterGenerator(repo, providerName, resources),
+		engine.NewControllerRegisterGenerator(repo, providerName, resources),
 	}
 
-	// Combine API templates and updater templates
-	allTemplates := make([]machinery.Builder, 0, len(apiTemplates)+len(updaterTemplates))
+	// Combine API templates and the regenerated registration files
+	allTemplates := make([]machinery.Builder, 0, len(apiTemplates)+len(registerTemplates))
 	for _, tmpl := range apiTemplates {
 		allTemplates = append(allTemplates, tmpl)
 	}
-	allTemplates = append(allTemplates, updaterTemplates...)
+	allTemplates = append(allTemplates, registerTemplates...)
 
 	// Execute scaffolding with discovered templates
 	if err := scaffold.Execute(allTemplates...); err != nil {
@@ -167,7 +169,7 @@ func (p *createAPISubcommand) PostScaffold() error {
 	pipeline := automation.NewAPICommitPipeline(p.pluginConfig, p.resource.Kind)
 	fmt.Println("Running post-scaffolding automation...")
 	if err := pipeline.Run(); err != nil {
-		fmt.Printf("Warning: Some automation steps failed: %v\n", err)
+		return validation.CreateAPIError("post-scaffolding automation", err)
 	}
 
 	fmt.Printf("Crossplane managed resource %s created successfully!\n", p.resource.Kind)
