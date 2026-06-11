@@ -22,4 +22,4 @@ dependencies:
   - module: k8s.io/client-go
     version: v0.33.3
   - module: sigs.k8s.io/controller-runtime
-    version: v0.21.0
+    version: v0.24.1
