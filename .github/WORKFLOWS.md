@@ -58,8 +58,11 @@ Release workflow publishes multi-platform Docker images to:
 
 **Automated dependency updates** via [Renovate Bot](https://docs.renovatebot.com/):
 - Go modules (grouped by type: Kubernetes, Crossplane, testing)
-- GitHub Actions (minor/patch + major updates)
+- GitHub Actions — pinned to commit SHAs (`helpers:pinGitHubActionDigests`) and updated by Renovate
 - Docker base images (with digest pinning)
+- **Generated-provider dependency versions** — a Renovate **custom (regex) manager** tracks
+  `pkg/versions/dependencies.yaml` (the manifest rendered into generated `go.mod`), so each
+  generated-provider dependency gets its own bump PR against this repo
 - Security vulnerability alerts (high priority)
 - Dependency Dashboard for overview
 

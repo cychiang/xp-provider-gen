@@ -9,15 +9,18 @@ A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crosspla
 - **🔧 Feature Flag Ready**: Automatic support for Management Policies, ChangeLogs, and metrics
 - **🤖 Automated Workflows**: Built-in git operations, dependency management, and code generation
 - **📝 Template Auto-Discovery**: Add new templates and they're automatically included
+- **♻️ Upgradable Core**: `update` refreshes a provider's tool-owned core (wiring, registration,
+  framework deps) without touching your business logic
 
-## What's New (v1.24.7)
+## What's New
 
-- ✅ Safe-Start capability with gate-based controller activation
-- ✅ Controller split: `controller.go` (business logic) + `setup.go` (wiring/features)
-- ✅ Automated git workflows and build pipeline integration
-- 🔧 Go 1.24.7 support
-
-> **Breaking Change:** Controller structure changed. Existing projects need regeneration.
+- ✅ `update` command — refresh the tool-owned core of an existing provider, and
+  `update --adopt` to retrofit older providers (your `controller.go`/`*_types.go` are never touched)
+- ✅ File-ownership contract via a `// Code generated … DO NOT EDIT.` header
+- ✅ Deterministic registration generation (no fragile parse-and-merge)
+- ✅ Dependency-version manifest tracked by Renovate
+- ✅ Safe-Start capability; controller split (`controller.go` logic + `setup.go` wiring)
+- 🔧 Go 1.26
 
 ## Quick Start
 
@@ -57,6 +60,15 @@ xp-provider-gen init --domain=DOMAIN --repo=REPO [--git-name=NAME] [--git-email=
 ```bash
 xp-provider-gen create api --group=GROUP --version=VERSION --kind=KIND [--force]
 ```
+
+### `update` - Refresh an existing provider's tool-owned core
+```bash
+# Run inside a generated provider with a clean working tree; review the diff, then commit.
+xp-provider-gen update            # refresh registration, setup.go wiring, main.go, framework deps
+xp-provider-gen update --adopt    # one-time: retrofit a provider made before the ownership contract
+```
+Tool-owned files (carrying the `DO NOT EDIT` header) are refreshed; your `controller.go`,
+`*_types.go`, and `go.mod` requires are preserved. The result is left uncommitted for review.
 
 ## Working on This Project
 
