@@ -163,6 +163,15 @@
       "minimumReleaseAge": "10 days"
     }
   ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track generated-provider dependency versions in pkg/versions/dependencies.yaml",
+      "managerFilePatterns": ["/^pkg/versions/dependencies\\.yaml$/"],
+      "matchStrings": ["module:\\s*(?<depName>\\S+)\\s+version:\\s*(?<currentValue>\\S+)"],
+      "datasourceTemplate": "go"
+    }
+  ],
   "osvVulnerabilityAlerts": true,
   "dependencyDashboard": true,
   "dependencyDashboardTitle": "🤖 Dependency Dashboard",
