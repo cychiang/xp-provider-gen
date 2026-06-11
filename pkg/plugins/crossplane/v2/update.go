@@ -81,25 +81,30 @@ type provenance struct {
 	Version string `json:"version"`
 }
 
-func runAdopt(ctx context.Context) error {
-	disk := afero.NewOsFs()
-
+// prepare enforces the clean-tree precondition, loads the project, and renders the
+// current template set into an in-memory FS. Both update and adopt start here.
+func prepare(ctx context.Context) (store.Store, afero.Fs, error) {
 	if err := requireCleanTree(ctx); err != nil {
+		return nil, nil, err
+	}
+	st := yaml.New(machinery.Filesystem{FS: afero.NewOsFs()})
+	if err := st.Load(); err != nil {
+		return nil, nil, fmt.Errorf("not a provider project (cannot load PROJECT): %w", err)
+	}
+	mem := afero.NewMemMapFs()
+	if err := renderToMemFS(st.Config(), machinery.Filesystem{FS: mem}); err != nil {
+		return nil, nil, fmt.Errorf("rendering tool-owned files: %w", err)
+	}
+	return st, mem, nil
+}
+
+func runAdopt(ctx context.Context) error {
+	store, mem, err := prepare(ctx)
+	if err != nil {
 		return err
 	}
 
-	store := yaml.New(machinery.Filesystem{FS: disk})
-	if err := store.Load(); err != nil {
-		return fmt.Errorf("not a provider project (cannot load PROJECT): %w", err)
-	}
-	cfg := store.Config()
-
-	mem := afero.NewMemMapFs()
-	if err := renderToMemFS(cfg, machinery.Filesystem{FS: mem}); err != nil {
-		return fmt.Errorf("rendering tool-owned files: %w", err)
-	}
-
-	adopted, err := adoptHeaders(mem, disk)
+	adopted, err := adoptHeaders(mem, afero.NewOsFs())
 	if err != nil {
 		return fmt.Errorf("adopting tool-owned files: %w", err)
 	}
@@ -188,24 +193,12 @@ func stampProvenance(store store.Store) error {
 }
 
 func runUpdate(ctx context.Context) error {
-	disk := afero.NewOsFs()
-
-	if err := requireCleanTree(ctx); err != nil {
+	store, mem, err := prepare(ctx)
+	if err != nil {
 		return err
 	}
 
-	store := yaml.New(machinery.Filesystem{FS: disk})
-	if err := store.Load(); err != nil {
-		return fmt.Errorf("not a provider project (cannot load PROJECT): %w", err)
-	}
-	cfg := store.Config()
-
-	mem := afero.NewMemMapFs()
-	if err := renderToMemFS(cfg, machinery.Filesystem{FS: mem}); err != nil {
-		return fmt.Errorf("rendering tool-owned files: %w", err)
-	}
-
-	result, err := reconcile(mem, disk)
+	result, err := reconcile(mem, afero.NewOsFs())
 	if err != nil {
 		return fmt.Errorf("reconciling generated files: %w", err)
 	}
