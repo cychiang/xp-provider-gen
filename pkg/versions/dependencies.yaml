@@ -10,7 +10,7 @@ dependencies:
   - module: github.com/alecthomas/kingpin/v2
     version: v2.4.0
   - module: github.com/crossplane/crossplane-runtime/v2
-    version: v2.0.0
+    version: v2.3.1
   - module: github.com/google/go-cmp
     version: v0.7.0
   - module: github.com/pkg/errors
