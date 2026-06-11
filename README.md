@@ -49,6 +49,11 @@ make generate && make build && make reviewable
 
 > **Important:** Always run `init` in a separate directory to avoid polluting your workspace.
 
+> **Single initial commit:** `init` + each `create api` fold into one `Initial commit` while the
+> provider is still being scaffolded. Finish scaffolding (and make your first own commit) **before
+> pushing** — folding uses `git --amend`, so pushing mid-scaffold would require a force-push. Once
+> you've committed your own work, later `create api` runs add separate commits.
+
 ## Commands
 
 ### `init` - Initialize provider project

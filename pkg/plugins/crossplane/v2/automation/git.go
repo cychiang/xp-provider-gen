@@ -89,6 +89,12 @@ func (g *GitOperations) CreateCommit(ctx context.Context, message, author string
 // while HEAD still carries the scaffold trailer (the provider is still in initial
 // setup); otherwise it creates a new commit. This keeps a freshly scaffolded
 // provider at one "Initial commit" until the user makes their own commit.
+//
+// The fold rewrites HEAD via --amend and stages the whole working tree, so it
+// assumes the intended workflow: scaffold the provider fully (init + create api)
+// before pushing or making your own commit, and don't run create-api with
+// unrelated unstaged edits you don't want folded into the Initial commit. Once
+// you commit your own work, create-api stops folding and adds separate commits.
 func (g *GitOperations) CommitOrAmendScaffold(ctx context.Context, message, author string) error {
 	if err := g.runner.Add(ctx, "."); err != nil {
 		return err
