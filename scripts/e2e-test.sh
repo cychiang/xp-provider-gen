@@ -272,6 +272,17 @@ main() {
     # Adding APIs must also leave a clean, fully-committed tree.
     assert_clean_tree "create api"
 
+    # Initial scaffolding (init + create api x2) folds into a single commit.
+    log_info "Asserting initial scaffolding is a single commit..."
+    commit_count="$(git rev-list --count HEAD)"
+    if [[ "$commit_count" == "1" && "$(git log -1 --format=%s)" == "Initial commit" ]]; then
+        log_success "✓ init + create api folded into one 'Initial commit'"
+    else
+        log_error "✗ expected a single 'Initial commit', found $commit_count commit(s):"
+        git log --oneline
+        exit 1
+    fi
+
     # Step U: the update command refreshes tool-owned files without touching user logic
     step_header "U" "Test update command"
     local ctrl="internal/controller/${KIND1_LOWER}/controller.go"

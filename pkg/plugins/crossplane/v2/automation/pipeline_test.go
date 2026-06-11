@@ -75,7 +75,7 @@ func TestNewAPICommitPipeline_CommitsLast(t *testing.T) {
 
 	assertStepOrder(t, p, []string{
 		"Run make generate",
-		stepNameInitialCommit,
+		"Commit changes (fold into initial scaffold if applicable)",
 	})
 }
 

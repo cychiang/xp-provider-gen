@@ -71,6 +71,30 @@ func (s *GitCommitStep) Execute() error {
 	return s.git.CreateCommit(context.Background(), s.message, s.author)
 }
 
+// GitFoldCommitStep commits, folding into the initial scaffold commit while the
+// provider is still in initial setup (see GitOperations.CommitOrAmendScaffold).
+type GitFoldCommitStep struct {
+	git     *GitOperations
+	message string
+	author  string
+}
+
+func NewGitFoldCommitStep(config *core.PluginConfig, message string) *GitFoldCommitStep {
+	return &GitFoldCommitStep{
+		git:     NewGitOperations(config),
+		message: message,
+		author:  "",
+	}
+}
+
+func (s *GitFoldCommitStep) Name() string {
+	return "Commit changes (fold into initial scaffold if applicable)"
+}
+
+func (s *GitFoldCommitStep) Execute() error {
+	return s.git.CommitOrAmendScaffold(context.Background(), s.message, s.author)
+}
+
 type GitSubmoduleStep struct {
 	git  *GitOperations
 	url  string

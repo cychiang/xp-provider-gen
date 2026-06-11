@@ -19,9 +19,16 @@ package automation
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
+
+// ScaffoldCommitTrailer marks the initial scaffold commit. While HEAD carries it
+// (i.e. the user hasn't committed their own work yet), `create api` folds into
+// that commit instead of adding a new one, so a freshly scaffolded provider has a
+// single "Initial commit".
+const ScaffoldCommitTrailer = "xp-provider-gen-scaffold: true"
 
 type GitOperations struct {
 	config *core.PluginConfig
@@ -76,6 +83,34 @@ func (g *GitOperations) CreateCommit(ctx context.Context, message, author string
 
 	// Use project's local git config (set during Init)
 	return g.runner.CommitWithSystemAuthor(ctx, message)
+}
+
+// CommitOrAmendScaffold folds the staged change into the existing scaffold commit
+// while HEAD still carries the scaffold trailer (the provider is still in initial
+// setup); otherwise it creates a new commit. This keeps a freshly scaffolded
+// provider at one "Initial commit" until the user makes their own commit.
+func (g *GitOperations) CommitOrAmendScaffold(ctx context.Context, message, author string) error {
+	if err := g.runner.Add(ctx, "."); err != nil {
+		return err
+	}
+	if g.headIsScaffold(ctx) {
+		// Keep the Initial commit's message and author; just add the new files.
+		return g.runner.RunCommand(ctx, "commit", "--amend", "--no-edit")
+	}
+	if author != "" {
+		return g.runner.CommitWithAuthor(ctx, message, author)
+	}
+	return g.runner.CommitWithSystemAuthor(ctx, message)
+}
+
+// headIsScaffold reports whether the current HEAD commit is the tool's scaffold
+// commit (carries the trailer and the user hasn't committed since).
+func (g *GitOperations) headIsScaffold(ctx context.Context) bool {
+	out, err := g.runner.RunCommandWithOutput(ctx, "log", "-1", "--pretty=%B")
+	if err != nil {
+		return false // no commits yet — make a normal commit
+	}
+	return strings.Contains(out, ScaffoldCommitTrailer)
 }
 
 func (g *GitOperations) AddSubmodule(ctx context.Context, url, path string) error {
