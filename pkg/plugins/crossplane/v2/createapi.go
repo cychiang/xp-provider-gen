@@ -134,19 +134,9 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	}
 	resources := append(append([]resource.Resource{}, existing...), *p.resource)
 
-	repo := p.config.GetRepository()
-	providerName := core.ExtractProviderName(repo)
-	registerTemplates := []machinery.Builder{
-		engine.NewAPIRegisterGenerator(repo, providerName, resources),
-		engine.NewControllerRegisterGenerator(repo, providerName, resources),
-	}
-
-	// Combine API templates and the regenerated registration files
-	allTemplates := make([]machinery.Builder, 0, len(apiTemplates)+len(registerTemplates))
-	for _, tmpl := range apiTemplates {
-		allTemplates = append(allTemplates, tmpl)
-	}
-	allTemplates = append(allTemplates, registerTemplates...)
+	// Combine the new resource's API templates with the regenerated registration files.
+	allTemplates := engine.AsBuilders(apiTemplates)
+	allTemplates = append(allTemplates, engine.RegisterGenerators(p.config, resources)...)
 
 	// Execute scaffolding with discovered templates
 	if err := scaffold.Execute(allTemplates...); err != nil {
