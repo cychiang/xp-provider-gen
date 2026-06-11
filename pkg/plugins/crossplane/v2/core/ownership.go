@@ -31,11 +31,10 @@ const headerScanLimit = 1024
 // IsToolOwned reports whether content carries the generated header, i.e. the
 // tool owns the file and may overwrite it.
 func IsToolOwned(content []byte) bool {
-	head := content
-	if len(head) > headerScanLimit {
-		head = head[:headerScanLimit]
+	if len(content) > headerScanLimit {
+		content = content[:headerScanLimit]
 	}
-	return bytes.Contains(head, []byte(GeneratedHeader))
+	return bytes.Contains(content, []byte(GeneratedHeader))
 }
 
 // WriteDecision is what an update should do with a single target file.
