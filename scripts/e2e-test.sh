@@ -11,6 +11,9 @@ NC='\033[0m' # No Color
 
 # Configuration
 TEST_DIR="/tmp/provider-template"
+# The update/adopt lifecycle tests run on a throwaway COPY so TEST_DIR is left as
+# the pristine, single-commit scaffold for inspection.
+LIFECYCLE_DIR="/tmp/provider-template-lifecycle"
 DOMAIN="template.crossplane.io"
 REPO="github.com/example/provider-template"
 GROUP="sample"
@@ -283,8 +286,15 @@ main() {
         exit 1
     fi
 
+    # Run the update/adopt lifecycle tests on a COPY, so they don't add commits or
+    # leave review changes in TEST_DIR (which stays the pristine single-commit scaffold).
+    log_info "Copying the scaffold to $LIFECYCLE_DIR for the update/adopt lifecycle tests..."
+    rm -rf "$LIFECYCLE_DIR"
+    cp -r "$TEST_DIR" "$LIFECYCLE_DIR"
+    cd "$LIFECYCLE_DIR"
+
     # Step U: the update command refreshes tool-owned files without touching user logic
-    step_header "U" "Test update command"
+    step_header "U" "Test update command (on a copy)"
     local ctrl="internal/controller/${KIND1_LOWER}/controller.go"
     log_info "Hand-editing $ctrl and committing (simulating user business logic)..."
     printf '\n// USER-EDIT-MARKER: custom reconcile logic\n' >> "$ctrl"
@@ -353,7 +363,11 @@ main() {
         exit 1
     fi
 
-    # Step 7: Final verification
+    # Done with the lifecycle copy — return to the pristine scaffold and drop it.
+    cd "$TEST_DIR"
+    rm -rf "$LIFECYCLE_DIR"
+
+    # Step 7: Final verification (on the pristine single-commit scaffold)
     step_header "7" "Final verification"
 
     # Check that go.mod is valid
@@ -393,9 +407,12 @@ main() {
     log_success "✅ Build targets after APIs: PASSED"
     log_success "✅ CRD generation: PASSED"
     log_success "✅ Example generation: PASSED"
+    log_success "✅ Single 'Initial commit' scaffold: PASSED"
+    log_success "✅ update / update --adopt (on a copy): PASSED"
     echo
     log_success "🎉 All E2E tests completed successfully!"
-    log_info "Test artifacts available at: $TEST_DIR"
+    log_info "Pristine scaffold (single 'Initial commit', clean tree) at: $TEST_DIR"
+    log_info "  inspect with:  git -C $TEST_DIR log --oneline && git -C $TEST_DIR status"
 }
 
 
@@ -418,6 +435,8 @@ fi
 # "Test artifacts available at: $TEST_DIR" message truthful.
 on_exit() {
     local exit_code=$?
+    # The lifecycle copy is always throwaway.
+    rm -rf "$LIFECYCLE_DIR"
     if [[ $exit_code -ne 0 ]]; then
         log_error "E2E test failed"
         log_info "Cleaning up incomplete test directory..."
