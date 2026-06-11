@@ -40,13 +40,18 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 a throwaway project in `/tmp/provider-template`:
 
 1. Build the binary and prepare a clean temp directory.
-2. `init` a provider project; verify the base structure (Makefile, go.mod, apis/, cmd/provider/,
-   internal/controller/).
-3. Run `make submodules`, `make generate`, `make reviewable` on the generated project.
-4. `create api` twice (same group/version, different kinds); verify the generated types and
-   controllers.
-5. Re-run the build targets; verify generated CRDs and examples.
-6. Verify the provider builds.
+2. `init` a provider project; verify the base structure; **assert the working tree is clean**
+   (generate-then-commit leaves nothing uncommitted).
+3. `create api` twice (same group/version, different kinds); verify the generated types,
+   controllers, CRDs, and examples; **assert the tree is clean again**.
+4. **Ownership contract:** assert tool-owned files (`register.go`, `setup.go`, `main.go`,
+   `config.go`) carry the `DO NOT EDIT` header and user files (`controller.go`, `*_types.go`)
+   do not.
+5. **`update`:** hand-edit a `controller.go` and commit, run `update`, then assert (a) the edit
+   survives, (b) `setup.go` is refreshed (header intact), (c) `update` refuses a dirty tree.
+6. **`update --adopt`:** strip the header from `setup.go` (simulate a pre-contract provider),
+   run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
+7. Verify the provider builds.
 
 On **success** the temp project is left in place for inspection (the next run recreates it).
 On **failure** the script removes the incomplete directory and exits non-zero.
