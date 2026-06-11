@@ -85,6 +85,42 @@ verify_files_exist() {
     log_success "All $description files verified"
 }
 
+assert_ownership() {
+    log_info "Asserting tool-owned vs user-owned file headers..."
+    local marker="DO NOT EDIT"
+    local failed=0
+
+    # Tool-owned: MUST carry the generated header.
+    for f in \
+        "apis/register.go" \
+        "internal/controller/register.go" \
+        "cmd/provider/main.go" \
+        "internal/controller/config/config.go" \
+        "internal/controller/${KIND1_LOWER}/setup.go"; do
+        if grep -q "$marker" "$f" 2>/dev/null; then
+            log_success "✓ tool-owned: $f"
+        else
+            log_error "✗ tool-owned file missing header: $f"
+            failed=1
+        fi
+    done
+
+    # User-owned: MUST NOT carry the header (never clobbered by update).
+    for f in \
+        "internal/controller/${KIND1_LOWER}/controller.go" \
+        "apis/$GROUP/$VERSION/${KIND1_LOWER}_types.go"; do
+        if grep -q "$marker" "$f" 2>/dev/null; then
+            log_error "✗ user-owned file unexpectedly has header: $f"
+            failed=1
+        else
+            log_success "✓ user-owned: $f"
+        fi
+    done
+
+    [[ $failed -eq 0 ]] || return 1
+    log_success "Ownership headers correct"
+}
+
 assert_clean_tree() {
     local context=$1
     log_info "Asserting clean git tree after $context..."
@@ -229,6 +265,9 @@ main() {
     run_make_target "reviewable"
 
     log_success "All build targets after API creation completed successfully"
+
+    # Tool-owned files carry the generated header; user logic does not.
+    assert_ownership
 
     # Adding APIs must also leave a clean, fully-committed tree.
     assert_clean_tree "create api"
