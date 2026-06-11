@@ -59,7 +59,9 @@ func uniqueGroupVersions(repo string, resources []resource.Resource) []apiGroupV
 		}
 		seen[key] = true
 		groups = append(groups, apiGroupVersion{
-			Alias: res.Group + res.Version,
+			// ImportAlias sanitizes the group+version into a valid Go identifier
+			// (e.g. strips '-'/'.'), matching kubebuilder's convention.
+			Alias: res.ImportAlias(),
 			Path:  fmt.Sprintf("%s/apis/%s/%s", repo, res.Group, res.Version),
 		})
 	}
