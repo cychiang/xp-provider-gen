@@ -37,6 +37,7 @@ func main() {
 		cli.WithDefaultProjectVersion(cfgv3.Version),
 		cli.WithPlugins(&crossplanev2.Plugin{}),
 		cli.WithDefaultPlugins(cfgv3.Version, &crossplanev2.Plugin{}),
+		cli.WithExtraCommands(crossplanev2.NewUpdateCommand()),
 		cli.WithCompletion(),
 	)
 	if err != nil {
