@@ -28,18 +28,21 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
+	"sigs.k8s.io/kubebuilder/v4/pkg/config/store"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config/store/yaml"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
+	"github.com/cychiang/xp-provider-gen/pkg/version"
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 // NewUpdateCommand returns the `update` command, registered on the CLI via
 // cli.WithExtraCommands (kubebuilder's plugin interface has no update hook).
 func NewUpdateCommand() *cobra.Command {
-	return &cobra.Command{
+	var adopt bool
+	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Refresh tool-owned core files of an existing provider",
 		Long: `Regenerate the tool-owned core of an existing Crossplane provider — registration,
@@ -52,14 +55,136 @@ left alone. go.mod itself is never overwritten — only its framework dependency
 are bumped via 'go get', so your own requires are preserved.
 
 The working tree must be clean; the result is left uncommitted so you can review it with
-'git diff' before committing. If a step fails midway, run 'git reset --hard' to revert.`,
+'git diff' before committing. If a step fails midway, run 'git reset --hard' to revert.
+
+Use --adopt once on a provider generated before the ownership contract existed: it stamps
+provenance and writes the header onto recognized tool-owned files so plain 'update' works.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if err := runUpdate(context.Background()); err != nil {
+			run := runUpdate
+			if adopt {
+				run = runAdopt
+			}
+			if err := run(context.Background()); err != nil {
 				return fmt.Errorf("%w\n  changes are uncommitted; run 'git reset --hard' to revert", err)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&adopt, "adopt", false,
+		"retrofit an existing provider: stamp provenance and add the generated header to "+
+			"tool-owned files, then exit (run 'update' afterward to refresh them)")
+	return cmd
+}
+
+// provenance records, in PROJECT, the generator version that last touched the project.
+type provenance struct {
+	Version string `json:"version"`
+}
+
+func runAdopt(ctx context.Context) error {
+	disk := afero.NewOsFs()
+
+	if err := requireCleanTree(ctx); err != nil {
+		return err
+	}
+
+	store := yaml.New(machinery.Filesystem{FS: disk})
+	if err := store.Load(); err != nil {
+		return fmt.Errorf("not a provider project (cannot load PROJECT): %w", err)
+	}
+	cfg := store.Config()
+
+	mem := afero.NewMemMapFs()
+	if err := renderToMemFS(cfg, machinery.Filesystem{FS: mem}); err != nil {
+		return fmt.Errorf("rendering tool-owned files: %w", err)
+	}
+
+	adopted, err := adoptHeaders(mem, disk)
+	if err != nil {
+		return fmt.Errorf("adopting tool-owned files: %w", err)
+	}
+	if err := stampProvenance(store); err != nil {
+		return fmt.Errorf("stamping provenance: %w", err)
+	}
+
+	fmt.Printf("Adopted %d tool-owned file(s) and stamped generator version %s in PROJECT.\n",
+		len(adopted), version.Get().Version)
+	fmt.Println("Review with 'git diff', commit, then run 'xp-provider-gen update' to refresh them.")
+	return nil
+}
+
+// adoptHeaders adds the generated header to on-disk files that the templates own
+// (identified by the header in their rendered output) but that predate the
+// ownership contract. User-owned files are left untouched.
+func adoptHeaders(src, dst afero.Fs) ([]string, error) {
+	var adopted []string
+	err := afero.Walk(src, ".", func(path string, info fs.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() {
+			return walkErr
+		}
+		rel, ok, err := adoptFile(src, dst, path)
+		if err != nil {
+			return err
+		}
+		if ok {
+			adopted = append(adopted, rel)
+		}
+		return nil
+	})
+	return adopted, err
+}
+
+// adoptFile adds the header to one on-disk file if the matching rendered file is
+// tool-owned and the on-disk file exists without it. Returns whether it adopted.
+func adoptFile(src, dst afero.Fs, srcPath string) (string, bool, error) {
+	rendered, err := afero.ReadFile(src, srcPath)
+	if err != nil {
+		return "", false, err
+	}
+	if !core.IsToolOwned(rendered) {
+		return "", false, nil // user-owned template — never adopt
+	}
+	rel := strings.TrimPrefix(filepath.ToSlash(srcPath), "/")
+	exists, err := afero.Exists(dst, rel)
+	if err != nil {
+		return "", false, err
+	}
+	if !exists {
+		return "", false, nil // absent on disk — a later `update` will seed it
+	}
+	existing, err := afero.ReadFile(dst, rel)
+	if err != nil {
+		return "", false, err
+	}
+	if core.IsToolOwned(existing) {
+		return "", false, nil // already carries the header
+	}
+	if err := afero.WriteFile(dst, rel, insertGeneratedHeader(existing), 0o644); err != nil {
+		return "", false, err
+	}
+	return rel, true, nil
+}
+
+// insertGeneratedHeader places the header just before the package clause, where
+// IsToolOwned looks. It is a no-op if the header is already present.
+func insertGeneratedHeader(content []byte) []byte {
+	if core.IsToolOwned(content) {
+		return content
+	}
+	s := string(content)
+	header := core.GeneratedHeader + "\n\n"
+	if i := strings.Index(s, "\npackage "); i >= 0 {
+		return []byte(s[:i+1] + header + s[i+1:])
+	}
+	return []byte(header + s)
+}
+
+// stampProvenance records the current generator version in PROJECT and saves it.
+func stampProvenance(store store.Store) error {
+	if err := store.Config().EncodePluginConfig(pluginName, provenance{Version: version.Get().Version}); err != nil {
+		return fmt.Errorf("encoding provenance: %w", err)
+	}
+	return store.Save()
 }
 
 func runUpdate(ctx context.Context) error {
@@ -99,6 +224,10 @@ func runUpdate(ctx context.Context) error {
 		if err := runVisible(ctx, step[0], step[1:]...); err != nil {
 			return fmt.Errorf("%s failed: %w", strings.Join(step, " "), err)
 		}
+	}
+
+	if err := stampProvenance(store); err != nil {
+		return fmt.Errorf("stamping provenance: %w", err)
 	}
 
 	fmt.Println("\nUpdate complete. Review the changes with 'git diff' and commit when ready.")

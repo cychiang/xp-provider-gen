@@ -18,6 +18,7 @@ package v2
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -65,6 +66,49 @@ func TestReconcile(t *testing.T) {
 	assertContains(t, "overwritten", result.overwritten, "internal/controller/mytype/setup.go")
 	assertContains(t, "skipped", result.skipped, "internal/controller/mytype/controller.go")
 	assertContains(t, "seeded", result.seeded, "apis/register.go")
+}
+
+func TestInsertGeneratedHeader(t *testing.T) {
+	withLicense := "/*\nCopyright\n*/\n\npackage foo\n\nfunc F() {}\n"
+	got := string(insertGeneratedHeader([]byte(withLicense)))
+	if !core.IsToolOwned([]byte(got)) {
+		t.Errorf("header not detected after insertion:\n%s", got)
+	}
+	if !strings.Contains(got, core.GeneratedHeader+"\n\npackage foo") {
+		t.Errorf("header should sit just before the package clause:\n%s", got)
+	}
+	// Idempotent: a file that already has the header is unchanged.
+	if again := string(insertGeneratedHeader([]byte(got))); again != got {
+		t.Errorf("insertGeneratedHeader not idempotent:\n%s", again)
+	}
+}
+
+func TestAdoptHeaders(t *testing.T) {
+	src := afero.NewMemMapFs()
+	dst := afero.NewMemMapFs()
+
+	// Tool-owned render + an on-disk copy lacking the header (an "old" provider).
+	_ = afero.WriteFile(src, "internal/controller/mytype/setup.go", []byte(core.GeneratedHeader+"\npackage mytype\n"), 0o644)
+	_ = afero.WriteFile(dst, "internal/controller/mytype/setup.go", []byte("package mytype\n\nfunc Setup() {}\n"), 0o644)
+
+	// User-owned render (no header) + on-disk user file — must NOT be adopted.
+	_ = afero.WriteFile(src, "internal/controller/mytype/controller.go", []byte("package mytype\n// stub\n"), 0o644)
+	_ = afero.WriteFile(dst, "internal/controller/mytype/controller.go", []byte("package mytype\n// my logic\n"), 0o644)
+
+	adopted, err := adoptHeaders(src, dst)
+	if err != nil {
+		t.Fatalf("adoptHeaders: %v", err)
+	}
+
+	setup, _ := afero.ReadFile(dst, "internal/controller/mytype/setup.go")
+	if !core.IsToolOwned(setup) {
+		t.Errorf("tool-owned setup.go should have been adopted (header added):\n%s", setup)
+	}
+	ctrl, _ := afero.ReadFile(dst, "internal/controller/mytype/controller.go")
+	if core.IsToolOwned(ctrl) {
+		t.Error("user-owned controller.go must not be adopted")
+	}
+	assertContains(t, "adopted", adopted, "internal/controller/mytype/setup.go")
 }
 
 // TestReconcile_NestedSeed verifies a new file in a directory that does not yet
