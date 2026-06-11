@@ -27,6 +27,9 @@ import (
 // The register files are regenerated in full from the project's resource list
 // on every create/update, so they never need to be parsed and merged.
 
+// baseSchemeAlias is the import alias for the always-present ProviderConfig API.
+const baseSchemeAlias = "providerv1alpha1"
+
 // apiGroupVersion is one (group, version) scheme registration in apis/register.go.
 // Two kinds in the same group/version share a single scheme builder, so entries
 // are keyed by group/version, not by kind.
@@ -46,7 +49,7 @@ type controllerPackage struct {
 // entry per distinct managed (group, version), in first-seen order.
 func uniqueGroupVersions(repo string, resources []resource.Resource) []apiGroupVersion {
 	groups := []apiGroupVersion{
-		{Alias: "providerv1alpha1", Path: repo + "/apis/v1alpha1"},
+		{Alias: baseSchemeAlias, Path: repo + "/apis/v1alpha1"},
 	}
 	seen := map[string]bool{}
 	for _, res := range resources {

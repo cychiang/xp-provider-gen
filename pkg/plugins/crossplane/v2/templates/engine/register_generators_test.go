@@ -59,7 +59,7 @@ func TestAPIRegisterGenerator_DedupsByGroupVersion(t *testing.T) {
 	if len(g.Groups) != 2 {
 		t.Fatalf("Groups = %d, want 2 (base + sample/v1)", len(g.Groups))
 	}
-	if g.Groups[0].Alias != "providerv1alpha1" {
+	if g.Groups[0].Alias != baseSchemeAlias {
 		t.Errorf("Groups[0].Alias = %q, want providerv1alpha1", g.Groups[0].Alias)
 	}
 	if g.Groups[1].Alias != "samplev1" || g.Groups[1].Path != testRepo+"/apis/sample/v1" {
@@ -75,6 +75,23 @@ func TestAPIRegisterGenerator_DedupsByGroupVersion(t *testing.T) {
 	}
 	if !strings.Contains(out, `providerv1alpha1 "`+testRepo+`/apis/v1alpha1"`) {
 		t.Errorf("missing base providerv1alpha1 import\n%s", out)
+	}
+}
+
+func TestRegisterGenerators_BaseCaseOnly(t *testing.T) {
+	// init scaffolds with no managed resources; the generators must still emit
+	// the base providerv1alpha1 scheme and the config controller.
+	api := NewAPIRegisterGenerator(testRepo, "provider-test", nil)
+	if len(api.Groups) != 1 || api.Groups[0].Alias != baseSchemeAlias {
+		t.Fatalf("API base Groups = %+v, want only providerv1alpha1", api.Groups)
+	}
+	ctrl := NewControllerRegisterGenerator(testRepo, "provider-test", nil)
+	if len(ctrl.Controllers) != 1 || ctrl.Controllers[0].Setup != "config.Setup" {
+		t.Fatalf("controller base = %+v, want only config.Setup", ctrl.Controllers)
+	}
+	out := render(t, ctrl)
+	if strings.Contains(out, "SetupGated") {
+		t.Errorf("base controller register should have no managed setups\n%s", out)
 	}
 }
 
