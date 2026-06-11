@@ -67,6 +67,23 @@ func TestReconcile(t *testing.T) {
 	assertContains(t, "seeded", result.seeded, "apis/register.go")
 }
 
+// TestReconcile_NestedSeed verifies a new file in a directory that does not yet
+// exist on disk is created (MkdirAll path).
+func TestReconcile_NestedSeed(t *testing.T) {
+	src := afero.NewMemMapFs()
+	dst := afero.NewMemMapFs()
+	content := core.GeneratedHeader + "\npackage v1\n"
+	_ = afero.WriteFile(src, "apis/newgroup/v1/groupversion_info.go", []byte(content), 0o644)
+
+	if _, err := reconcile(src, dst); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	got, err := afero.ReadFile(dst, "apis/newgroup/v1/groupversion_info.go")
+	if err != nil || string(got) != content {
+		t.Errorf("nested seed = %q (err %v), want the rendered content", got, err)
+	}
+}
+
 func assertContains(t *testing.T, label string, list []string, want string) {
 	t.Helper()
 	if !slices.Contains(list, want) {
