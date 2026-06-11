@@ -252,8 +252,10 @@ func applyDependencies(ctx context.Context) error {
 }
 
 // runVisible runs a command with stdout/stderr connected so the user sees progress.
+// The name and args are always fixed tool commands (go, make) or dependency
+// coordinates from the embedded, repo-controlled manifest — never user input.
 func runVisible(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- see doc comment
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
