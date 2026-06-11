@@ -3,6 +3,8 @@ module github.com/cychiang/xp-provider-gen
 go 1.26.0
 
 require (
+	github.com/spf13/afero v1.15.0
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	sigs.k8s.io/kubebuilder/v4 v4.14.0
 	sigs.k8s.io/yaml v1.6.0
@@ -17,8 +19,6 @@ require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
-	github.com/spf13/afero v1.15.0 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
