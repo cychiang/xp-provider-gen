@@ -131,7 +131,7 @@ func (p *initSubcommand) PostScaffold() error {
 
 	fmt.Println("Running post-init automation...")
 	if err := pipeline.Run(); err != nil {
-		fmt.Printf("Warning: Some automation steps failed: %v\n", err)
+		return validation.InitError("post-init automation", err)
 	}
 
 	fmt.Println("Crossplane provider project initialized successfully!")
