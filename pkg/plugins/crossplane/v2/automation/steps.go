@@ -23,22 +23,22 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
+// Step is a single unit of post-scaffold automation. Every step is required:
+// a failure aborts the pipeline (see Pipeline.Run).
 type Step interface {
 	Name() string
 	Execute() error
-	IsRequired() bool
 }
 
+// stepNameInitialCommit is the display name of the commit step.
+const stepNameInitialCommit = "Create initial commit"
+
 type GitInitStep struct {
-	git      *GitOperations
-	required bool
+	git *GitOperations
 }
 
 func NewGitInitStep(config *core.PluginConfig) *GitInitStep {
-	return &GitInitStep{
-		git:      NewGitOperations(config),
-		required: false,
-	}
+	return &GitInitStep{git: NewGitOperations(config)}
 }
 
 func (s *GitInitStep) Name() string {
@@ -49,51 +49,39 @@ func (s *GitInitStep) Execute() error {
 	return s.git.Init(context.Background())
 }
 
-func (s *GitInitStep) IsRequired() bool {
-	return s.required
-}
-
 type GitCommitStep struct {
-	git      *GitOperations
-	message  string
-	author   string
-	required bool
+	git     *GitOperations
+	message string
+	author  string
 }
 
 func NewGitCommitStep(config *core.PluginConfig, message string) *GitCommitStep {
 	return &GitCommitStep{
-		git:      NewGitOperations(config),
-		message:  message,
-		author:   "", // Empty to use system git config, fallback to default in CreateCommit
-		required: false,
+		git:     NewGitOperations(config),
+		message: message,
+		author:  "", // Empty to use system git config, fallback to default in CreateCommit
 	}
 }
 
 func (s *GitCommitStep) Name() string {
-	return "Create initial commit"
+	return stepNameInitialCommit
 }
 
 func (s *GitCommitStep) Execute() error {
 	return s.git.CreateCommit(context.Background(), s.message, s.author)
 }
 
-func (s *GitCommitStep) IsRequired() bool {
-	return s.required
-}
-
 type GitSubmoduleStep struct {
-	git      *GitOperations
-	url      string
-	path     string
-	required bool
+	git  *GitOperations
+	url  string
+	path string
 }
 
 func NewGitSubmoduleStep(config *core.PluginConfig) *GitSubmoduleStep {
 	return &GitSubmoduleStep{
-		git:      NewGitOperations(config),
-		url:      config.Git.BuildSubmoduleURL,
-		path:     "build",
-		required: false,
+		git:  NewGitOperations(config),
+		url:  config.Git.BuildSubmoduleURL,
+		path: "build",
 	}
 }
 
@@ -105,20 +93,12 @@ func (s *GitSubmoduleStep) Execute() error {
 	return s.git.AddSubmodule(context.Background(), s.url, s.path)
 }
 
-func (s *GitSubmoduleStep) IsRequired() bool {
-	return s.required
-}
-
 type MakeStep struct {
-	target   string
-	required bool
+	target string
 }
 
-func NewMakeStep(target string, required bool) *MakeStep {
-	return &MakeStep{
-		target:   target,
-		required: required,
-	}
+func NewMakeStep(target string) *MakeStep {
+	return &MakeStep{target: target}
 }
 
 func (s *MakeStep) Name() string {
@@ -129,18 +109,10 @@ func (s *MakeStep) Execute() error {
 	return core.NewCommandRunner("").Run(context.Background(), "make", s.target)
 }
 
-func (s *MakeStep) IsRequired() bool {
-	return s.required
-}
+type GoModTidyStep struct{}
 
-type GoModTidyStep struct {
-	required bool
-}
-
-func NewGoModTidyStep(required bool) *GoModTidyStep {
-	return &GoModTidyStep{
-		required: required,
-	}
+func NewGoModTidyStep() *GoModTidyStep {
+	return &GoModTidyStep{}
 }
 
 func (s *GoModTidyStep) Name() string {
@@ -149,8 +121,4 @@ func (s *GoModTidyStep) Name() string {
 
 func (s *GoModTidyStep) Execute() error {
 	return core.NewCommandRunner("").Run(context.Background(), "go", "mod", "tidy")
-}
-
-func (s *GoModTidyStep) IsRequired() bool {
-	return s.required
 }
