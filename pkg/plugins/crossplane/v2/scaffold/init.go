@@ -24,6 +24,7 @@ import (
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
+	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 type InitScaffolder struct {
@@ -69,9 +70,14 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	// byte-identical register.go for the base case — one source of truth.
 	repo := s.config.GetRepository()
 	providerName := core.ExtractProviderName(repo)
+	deps, err := versions.GoModDependencies()
+	if err != nil {
+		return fmt.Errorf("failed to load dependency manifest: %w", err)
+	}
 	allTemplates = append(allTemplates,
 		engine.NewAPIRegisterGenerator(repo, providerName, nil),
 		engine.NewControllerRegisterGenerator(repo, providerName, nil),
+		engine.NewGoModGenerator(repo, deps),
 	)
 
 	if err := scaffold.Execute(allTemplates...); err != nil {
