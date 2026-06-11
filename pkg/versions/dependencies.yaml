@@ -1,0 +1,25 @@
+# Direct dependencies pinned in generated providers' go.mod.
+#
+# This is the single source of truth for the framework/Kubernetes versions a
+# generated provider targets. It is rendered into the provider's go.mod at init
+# and applied to existing providers by `xp-provider-gen update`.
+#
+# Tracked upstream by Renovate via a custom manager (see renovate.json), so each
+# entry gets its own bump PR against this repository, gated by CI + e2e.
+dependencies:
+  - module: github.com/alecthomas/kingpin/v2
+    version: v2.4.0
+  - module: github.com/crossplane/crossplane-runtime/v2
+    version: v2.0.0
+  - module: github.com/google/go-cmp
+    version: v0.7.0
+  - module: github.com/pkg/errors
+    version: v0.9.1
+  - module: google.golang.org/grpc
+    version: v1.74.2
+  - module: k8s.io/apimachinery
+    version: v0.33.3
+  - module: k8s.io/client-go
+    version: v0.33.3
+  - module: sigs.k8s.io/controller-runtime
+    version: v0.21.0
