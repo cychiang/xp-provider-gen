@@ -142,11 +142,12 @@
       "minimumReleaseAge": "7 days"
     },
     {
-      "description": "GitHub Actions - major updates",
+      "description": "GitHub Actions - major updates: automerge after a 14-day soak once CI passes. Actions are SHA-pinned and gated by the full PR CI (lint/test/e2e/build); only release.yml-exclusive actions aren't exercised by PR CI, so watch the first release after a docker/* action major.",
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["major"],
-      "automerge": false,
-      "addLabels": ["github-actions", "dependencies", "major-update"],
+      "automerge": true,
+      "automergeType": "pr",
+      "addLabels": ["github-actions", "dependencies", "major-update", "automerge"],
       "prPriority": 8,
       "semanticCommitType": "ci",
       "semanticCommitScope": "actions",
