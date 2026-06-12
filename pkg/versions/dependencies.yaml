@@ -10,7 +10,7 @@ dependencies:
   - module: github.com/alecthomas/kingpin/v2
     version: v2.4.0
   - module: github.com/crossplane/crossplane-runtime/v2
-    version: v2.0.0
+    version: v2.3.1
   - module: github.com/google/go-cmp
     version: v0.7.0
   - module: github.com/pkg/errors
@@ -18,8 +18,8 @@ dependencies:
   - module: google.golang.org/grpc
     version: v1.81.1
   - module: k8s.io/apimachinery
-    version: v0.33.3
+    version: v0.36.1
   - module: k8s.io/client-go
-    version: v0.33.3
+    version: v0.36.1
   - module: sigs.k8s.io/controller-runtime
-    version: v0.21.0
+    version: v0.24.1
