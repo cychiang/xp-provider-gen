@@ -8,8 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
-	xpv2 "github.com/crossplane/crossplane-runtime/v2/apis/common/v2"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 )
 
 // {{ .Resource.Kind }}Parameters are the configurable fields of a {{ .Resource.Kind }}.
@@ -37,7 +36,7 @@ type {{ .Resource.Kind }}Spec struct {
 // A {{ .Resource.Kind }}Status represents the observed state of a {{ .Resource.Kind }}.
 // +kubebuilder:object:generate=true
 type {{ .Resource.Kind }}Status struct {
-	xpv1.ResourceStatus `json:",inline"`
+	xpv2.ManagedResourceStatus `json:",inline"`
 	AtProvider          {{ .Resource.Kind }}Observation `json:"atProvider,omitempty"`
 }
 

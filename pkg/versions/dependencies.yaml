@@ -10,16 +10,23 @@ dependencies:
   - module: github.com/alecthomas/kingpin/v2
     version: v2.4.0
   - module: github.com/crossplane/crossplane-runtime/v2
-    version: v2.0.0
+    version: v2.3.2
+  # crossplane-runtime v2.3 moved the common APIs (conditions, ManagedResourceSpec,
+  # ProviderConfig types) into this module; keep it on the version crossplane-runtime
+  # v2.3.2 requires so the set stays compatible.
+  - module: github.com/crossplane/crossplane/apis/v2
+    version: v2.0.0-20260424160951-8f231230ebb6
   - module: github.com/google/go-cmp
     version: v0.7.0
   - module: github.com/pkg/errors
     version: v0.9.1
   - module: google.golang.org/grpc
     version: v1.81.1
+  # k8s + controller-runtime pinned to the set crossplane-runtime v2.3.2 builds against
+  # (NOT latest-of-each, which skews and breaks the build).
   - module: k8s.io/apimachinery
-    version: v0.33.3
+    version: v0.35.1
   - module: k8s.io/client-go
-    version: v0.33.3
+    version: v0.35.1
   - module: sigs.k8s.io/controller-runtime
-    version: v0.21.0
+    version: v0.23.1
