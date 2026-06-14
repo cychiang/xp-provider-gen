@@ -18,8 +18,8 @@ dependencies:
   - module: google.golang.org/grpc
     version: v1.81.1
   - module: k8s.io/apimachinery
-    version: v0.35.0
+    version: v0.36.1
   - module: k8s.io/client-go
-    version: v0.35.0
+    version: v0.36.1
   - module: sigs.k8s.io/controller-runtime
-    version: v0.23.1
+    version: v0.24.1

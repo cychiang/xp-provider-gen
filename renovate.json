@@ -164,7 +164,7 @@
       "minimumReleaseAge": "10 days"
     },
     {
-      "description": "Generated-provider framework deps (pkg/versions/dependencies.yaml) - bump together so crossplane-runtime, controller-runtime, and k8s.io/* stay mutually compatible (individual bumps break the e2e)",
+      "description": "Generated-provider framework deps (pkg/versions/dependencies.yaml) - bump together so crossplane-runtime, controller-runtime, and k8s.io/* stay mutually compatible (individual bumps break the e2e). crossplane-runtime is additionally capped below v2.3.0 by the rule that follows.",
       "matchFileNames": ["pkg/versions/dependencies.yaml"],
       "groupName": "provider framework dependencies",
       "addLabels": ["dependencies", "provider-framework"],
@@ -172,6 +172,12 @@
       "semanticCommitScope": "provider",
       "prPriority": 14,
       "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "Hold generated providers' crossplane-runtime at v2.2.x. v2.3.0 relocated the common APIs (apis/common/v1, apis/common/v2) into the separate github.com/crossplane/crossplane/apis/v2/core module, but crossplane-tools/angryjet does not yet emit methodsets for the relocated types, so a v2.3.x bump breaks codegen for every scaffolded provider (verified via make e2e-test; the official crossplane/provider-template is likewise still on the v2.x common APIs). Lift this cap once angryjet supports core/v2.",
+      "matchFileNames": ["pkg/versions/dependencies.yaml"],
+      "matchPackageNames": ["github.com/crossplane/crossplane-runtime/v2"],
+      "allowedVersions": "<2.3.0"
     }
   ],
   "customManagers": [
