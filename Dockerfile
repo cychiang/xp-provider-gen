@@ -22,7 +22,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     ./cmd/xp-provider-gen
 
 # Final image
-FROM alpine:3.23
+FROM alpine:3.24
 
 # Install dependencies
 RUN apk --no-cache add ca-certificates git
