@@ -164,6 +164,11 @@ the kind via `resource.ManagedKind(...)`, so the concrete assertion was a redund
 can change in a future crossplane-runtime bump without being a breaking change to any provider.
 Only the six names in §3.2 are frozen.
 
+**Error constants move with the code.** `errTrackPCUsage`, `errGetPC`, `errGetCPC`,
+`errGetCreds` and `errNewClient` relocate to tool-owned `connector.go` as a single set. The
+per-kind `errNot<Kind>` constants disappear entirely — they existed only for the concrete-kind
+assertion, which `ModernManaged` replaces.
+
 ### 3.4 Custom credentials need no new seam
 
 The `Source` enum already includes `None`, for which `CommonCredentialExtractor` returns
@@ -227,12 +232,20 @@ which satisfies the match while rendering invisibly.
 
 ## 5. Testing
 
-**Unit — golden ownership test.** Enumerate every template found by
-`templates/engine/autodiscovery.go` and assert its bucket. Anchoring to discovery rather than a
-hand-maintained list means the test cannot drift from reality: adding a template forces a
-deliberate ownership decision plus a one-line test change. This closes a real gap — today,
-forgetting the header on a new tool-owned template silently makes it user-owned, so `update`
-never refreshes it and nothing notices.
+**Unit — golden ownership test.** Enumerate every template and assert its bucket. Anchoring to
+the templates themselves rather than a hand-maintained list means the test cannot drift from
+reality: adding a template forces a deliberate ownership decision plus a one-line test change.
+This closes a real gap — today, forgetting the header on a new tool-owned template silently
+makes it user-owned, so `update` never refreshes it and nothing notices.
+
+**Enumerate the template filesystem, not `DiscoverTemplates()`.** That function returns
+`map[string]TemplateInfo` keyed by `GetTemplateBaseName` — the plain base name. The tree
+currently holds **22 template files but only 21 distinct base names**: `Makefile.tmpl` exists at
+both `project/` and `cluster/images/IMAGENAME/`, so one silently overwrites the other in the map.
+Both files still generate (the scaffold builders resolve them by path), but any audit built on
+the map under-reports by one file — which would quietly defeat the point of this test. Walk
+`templates.TemplateFS` directly and assert the enumerated count equals the file count, so a
+future base-name collision fails the test instead of hiding a file.
 
 **e2e — extend `scripts/e2e-test.sh`,** reusing the existing Step U pattern rather than adding
 a harness:
@@ -250,8 +263,9 @@ a harness:
 ## 6. Documentation
 
 **`docs/ownership.md` — tool-owned, generated** by a small deterministic generator following
-the existing `register_generators.go` / `gomod_generator.go` pattern, rendered from template
-discovery. Because it is generated from the same data the golden test asserts against, the
+the existing `register_generators.go` / `gomod_generator.go` pattern, rendered by walking
+`templates.TemplateFS` — **not** `DiscoverTemplates()`, for the base-name collision reason in
+§5. Because it is generated from the same enumeration the golden test asserts against, the
 published contract cannot drift from the enforced one.
 
 **`AGENTS.md` — seed-once,** linking to `docs/ownership.md`. Splitting these matters: a
@@ -280,8 +294,11 @@ Neither restates the ownership map — both link to it.
   `setup.go.tmpl` and `controller.go.tmpl`.
 - `pkg/templates/files/cmd/provider/main.go.tmpl` — call `Flags` before parse, `Configure` after.
 - `pkg/templates/files/AGENTS.md.tmpl` — new, no header.
-- `pkg/plugins/crossplane/v2/templates/engine/` — ownership-doc generator; verify
-  `autodiscovery.go` classifies `internal/provider/*` as init/static templates.
+- `pkg/plugins/crossplane/v2/templates/engine/` — ownership-doc generator. **No discovery change
+  needed:** `determineCategory` treats only `apis/GROUP/VERSION/`, `internal/controller/KIND/`
+  and `examples/GROUP/` as API templates and defaults everything else to `InitCategory`, so
+  `internal/provider/*.tmpl` and a root `AGENTS.md.tmpl` render once at init, while
+  `internal/controller/KIND/{wiring,external}.go.tmpl` render per resource (verified 2026-07-31).
 - Golden ownership test (new).
 - `scripts/e2e-test.sh` — assertions in §5.
 - `docs/architecture.md`, `README.md`.
@@ -290,6 +307,11 @@ Neither restates the ownership map — both link to it.
 
 | Risk | Mitigation |
 |------|------------|
-| `autodiscovery.go` misclassifies the new `internal/provider/*` paths | Verify classification first; the golden ownership test makes any misclassification a test failure rather than a silent bug |
+| Template base-name collision hides a file from the ownership audit | Real today (`Makefile`, §5). Enumerate `templates.TemplateFS` directly and assert the count matches, so a collision fails the test |
 | `ModernManaged` assertion fails at runtime for an unusual type | The scaffold only generates modern managed resources; `managed.NewReconciler` is already kind-bound |
 | Ownership-doc generator adds a moving part | It follows an established pattern in the same package and is covered by the golden test |
+
+**Checked, not a risk:** import direction. `apis/v1alpha1/types.go` and
+`apis/GROUP/VERSION/KIND_types.go` import only `xpv2` and `metav1` — no `{{ .Repo }}` imports —
+so `apis/` never imports `internal/`. `internal/provider → apis/v1alpha1` and
+`internal/controller/<kind> → internal/provider` are both cycle-free (verified 2026-07-31).
