@@ -99,7 +99,9 @@ assert_ownership() {
         "internal/controller/register.go" \
         "cmd/provider/main.go" \
         "internal/controller/config/config.go" \
-        "internal/controller/${KIND1_LOWER}/setup.go"; do
+        "internal/provider/connector.go" \
+        "internal/controller/${KIND1_LOWER}/wiring.go" \
+        "docs/ownership.md"; do
         if grep -q "$marker" "$f" 2>/dev/null; then
             log_success "✓ tool-owned: $f"
         else
@@ -110,8 +112,12 @@ assert_ownership() {
 
     # User-owned: MUST NOT carry the header (never clobbered by update).
     for f in \
-        "internal/controller/${KIND1_LOWER}/controller.go" \
-        "apis/$GROUP/$VERSION/${KIND1_LOWER}_types.go"; do
+        "internal/controller/${KIND1_LOWER}/external.go" \
+        "internal/provider/client.go" \
+        "internal/provider/options.go" \
+        "apis/$GROUP/$VERSION/${KIND1_LOWER}_types.go" \
+        "apis/v1alpha1/types.go" \
+        "AGENTS.md"; do
         if grep -q "$marker" "$f" 2>/dev/null; then
             log_error "✗ user-owned file unexpectedly has header: $f"
             failed=1
@@ -223,7 +229,13 @@ main() {
         "apis/$GROUP/$VERSION" \
         "apis/$GROUP/$VERSION/${KIND1_LOWER}_types.go" \
         "internal/controller/${KIND1_LOWER}" \
-        "internal/controller/${KIND1_LOWER}/controller.go"
+        "internal/controller/${KIND1_LOWER}/external.go" \
+        "internal/controller/${KIND1_LOWER}/wiring.go" \
+        "internal/provider/connector.go" \
+        "internal/provider/client.go" \
+        "internal/provider/options.go" \
+        "docs/ownership.md" \
+        "AGENTS.md"
 
     # Step 5: Create second API (MyValue)
     step_header "5" "Create second API: $GROUP/$VERSION $KIND2"
@@ -241,7 +253,8 @@ main() {
     verify_files_exist "second API files" \
         "apis/$GROUP/$VERSION/${KIND2_LOWER}_types.go" \
         "internal/controller/${KIND2_LOWER}" \
-        "internal/controller/${KIND2_LOWER}/controller.go"
+        "internal/controller/${KIND2_LOWER}/external.go" \
+        "internal/controller/${KIND2_LOWER}/wiring.go"
 
     # Step 6: Test build targets after API creation
     step_header "6" "Test build targets after API creation"
@@ -295,10 +308,14 @@ main() {
 
     # Step U: the update command refreshes tool-owned files without touching user logic
     step_header "U" "Test update command (on a copy)"
-    local ctrl="internal/controller/${KIND1_LOWER}/controller.go"
-    log_info "Hand-editing $ctrl and committing (simulating user business logic)..."
+    local ctrl="internal/controller/${KIND1_LOWER}/external.go"
+    local client="internal/provider/client.go"
+    local opts="internal/provider/options.go"
+    log_info "Hand-editing all three user-owned seam files (simulating user code)..."
     printf '\n// USER-EDIT-MARKER: custom reconcile logic\n' >> "$ctrl"
-    git add -A && git commit -q -m "user: customize ${KIND1} controller"
+    printf '\n// USER-EDIT-MARKER: custom client construction\n' >> "$client"
+    printf '\n// USER-EDIT-MARKER: custom provider options\n' >> "$opts"
+    git add -A && git commit -q -m "user: customize ${KIND1} controller, client and options"
 
     log_info "Running: $BINARY_PATH update"
     if "$BINARY_PATH" update; then
@@ -308,16 +325,29 @@ main() {
         exit 1
     fi
 
-    if grep -q "USER-EDIT-MARKER" "$ctrl"; then
-        log_success "✓ user-owned controller.go edit preserved"
+    for f in "$ctrl" "$client" "$opts"; do
+        if grep -q "USER-EDIT-MARKER" "$f"; then
+            log_success "✓ user-owned edit preserved: $f"
+        else
+            log_error "✗ update clobbered user-owned file: $f"
+            exit 1
+        fi
+    done
+    for f in \
+        "internal/controller/${KIND1_LOWER}/wiring.go" \
+        "internal/provider/connector.go" \
+        "docs/ownership.md"; do
+        if grep -q "DO NOT EDIT" "$f"; then
+            log_success "✓ tool-owned refreshed (header intact): $f"
+        else
+            log_error "✗ tool-owned file lost its header after update: $f"
+            exit 1
+        fi
+    done
+    if grep -q "USER-EDIT-MARKER" "AGENTS.md" 2>/dev/null || ! grep -q "DO NOT EDIT" "AGENTS.md"; then
+        log_success "✓ seed-once AGENTS.md left alone by update"
     else
-        log_error "✗ update clobbered user-owned controller.go"
-        exit 1
-    fi
-    if grep -q "DO NOT EDIT" "internal/controller/${KIND1_LOWER}/setup.go"; then
-        log_success "✓ tool-owned setup.go refreshed (header intact)"
-    else
-        log_error "✗ tool-owned setup.go lost its header after update"
+        log_error "✗ update took ownership of AGENTS.md"
         exit 1
     fi
 
@@ -334,7 +364,7 @@ main() {
 
     # Step A: `update --adopt` retrofits a provider generated before the ownership contract
     step_header "A" "Test update --adopt"
-    local setup="internal/controller/${KIND1_LOWER}/setup.go"
+    local setup="internal/controller/${KIND1_LOWER}/wiring.go"
     log_info "Simulating a pre-contract provider: stripping the header from $setup..."
     grep -v "Code generated by xp-provider-gen" "$setup" > "$setup.tmp" && mv "$setup.tmp" "$setup"
     if grep -q "DO NOT EDIT" "$setup"; then
@@ -408,6 +438,7 @@ main() {
     log_success "✅ CRD generation: PASSED"
     log_success "✅ Example generation: PASSED"
     log_success "✅ Single 'Initial commit' scaffold: PASSED"
+    log_success "✅ update preserves all 3 user-owned seam files: PASSED"
     log_success "✅ update / update --adopt (on a copy): PASSED"
     echo
     log_success "🎉 All E2E tests completed successfully!"
