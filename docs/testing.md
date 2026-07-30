@@ -32,6 +32,20 @@ for _, tt := range tests {
 }
 ```
 
+### The golden ownership test
+
+`pkg/plugins/crossplane/v2/templates/engine/ownership_test.go` walks the embedded
+template FS and asserts each template's ownership bucket against a golden map, plus
+that the map covers exactly the files on disk.
+
+**Adding a template fails this test until you add it to `wantOwnership`.** That is
+deliberate: a tool-owned template that forgets the header would otherwise be silently
+user-owned, and `update` would never refresh it — a bug nobody would notice for months.
+
+Walk the FS directly rather than keying by template name: base names are not unique
+(`Makefile.tmpl` exists at both `project/` and `cluster/images/IMAGENAME/`), so a
+name-keyed map silently drops a file.
+
 Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 
 ## End-to-end test
@@ -44,12 +58,15 @@ a throwaway project in `/tmp/provider-template`:
    (generate-then-commit leaves nothing uncommitted).
 3. `create api` twice (same group/version, different kinds); verify the generated types,
    controllers, CRDs, and examples; **assert the tree is clean again**.
-4. **Ownership contract:** assert tool-owned files (`register.go`, `setup.go`, `main.go`,
-   `config.go`) carry the `DO NOT EDIT` header and user files (`controller.go`, `*_types.go`)
-   do not.
-5. **`update`:** hand-edit a `controller.go` and commit, run `update`, then assert (a) the edit
-   survives, (b) `setup.go` is refreshed (header intact), (c) `update` refuses a dirty tree.
-6. **`update --adopt`:** strip the header from `setup.go` (simulate a pre-contract provider),
+4. **Ownership contract:** assert tool-owned files (`register.go`, `wiring.go`,
+   `internal/provider/connector.go`, `main.go`, `config.go`, `docs/ownership.md`) carry the
+   `DO NOT EDIT` header, and that user files (`external.go`, `internal/provider/client.go`,
+   `internal/provider/options.go`, `*_types.go`, `apis/v1alpha1/types.go`, `AGENTS.md`) do not.
+5. **`update` (the upgrade guarantee):** append a marker to **all three** user-owned seam
+   files and commit, run `update`, then assert (a) every marker survives, (b) `wiring.go`,
+   `connector.go` and `docs/ownership.md` are refreshed with headers intact, (c) seed-once
+   `AGENTS.md` is untouched, (d) `update` refuses a dirty tree.
+6. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
    run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
 7. Verify the provider builds.
 

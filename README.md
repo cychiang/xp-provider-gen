@@ -14,12 +14,16 @@ A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crosspla
 
 ## What's New
 
+- ✅ **Modular layout** — framework plumbing is tool-owned; you write six named seams
+  (`NewClient`, `Flags`, `Configure`, `NewExternal`, `ReconcilerOptions`, `Client`)
 - ✅ `update` command — refresh the tool-owned core of an existing provider, and
-  `update --adopt` to retrofit older providers (your `controller.go`/`*_types.go` are never touched)
-- ✅ File-ownership contract via a `// Code generated … DO NOT EDIT.` header
+  `update --adopt` to retrofit older providers (your `external.go`/`client.go`/`options.go`/
+  `*_types.go` are never touched)
+- ✅ File-ownership contract via a `// Code generated … DO NOT EDIT.` header, enforced by a
+  golden test and published as a generated `docs/ownership.md` in every provider
 - ✅ Deterministic registration generation (no fragile parse-and-merge)
 - ✅ Dependency-version manifest tracked by Renovate
-- ✅ Safe-Start capability; controller split (`controller.go` logic + `setup.go` wiring)
+- ✅ Safe-Start capability; per-kind split (`external.go` logic + `wiring.go` wiring)
 - 🔧 Go 1.26
 
 ## Quick Start
@@ -69,11 +73,18 @@ xp-provider-gen create api --group=GROUP --version=VERSION --kind=KIND [--force]
 ### `update` - Refresh an existing provider's tool-owned core
 ```bash
 # Run inside a generated provider with a clean working tree; review the diff, then commit.
-xp-provider-gen update            # refresh registration, setup.go wiring, main.go, framework deps
+xp-provider-gen update            # refresh registration, controller wiring, main.go, framework deps
 xp-provider-gen update --adopt    # one-time: retrofit a provider made before the ownership contract
 ```
-Tool-owned files (carrying the `DO NOT EDIT` header) are refreshed; your `controller.go`,
-`*_types.go`, and `go.mod` requires are preserved. The result is left uncommitted for review.
+Tool-owned files (carrying the `DO NOT EDIT` header) are refreshed; your `external.go`,
+`internal/provider/client.go`, `internal/provider/options.go`, `*_types.go`, and `go.mod`
+requires are preserved. The result is left uncommitted for review.
+
+> Providers generated before the modular layout — those with `controller.go` / `setup.go`
+> per kind and no `internal/provider` package — must be **regenerated**. There is no
+> in-place migration for that change.
+
+See [docs/provider-guide.md](docs/provider-guide.md) for the full build-and-upgrade workflow.
 
 ## Working on This Project
 
@@ -91,6 +102,7 @@ Requires Go 1.26+, Git, and gosec (`brew install gosec`). golangci-lint installs
 For the full developer guide see:
 
 - [CLAUDE.md](CLAUDE.md) — project principles and conventions
+- [docs/provider-guide.md](docs/provider-guide.md) — **for provider authors**: what to write, where, and how to upgrade
 - [docs/architecture.md](docs/architecture.md) — how the generator works
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow
 - [docs/testing.md](docs/testing.md) — unit and end-to-end testing
@@ -104,13 +116,20 @@ provider-awesome/
 │   ├── compute/v1alpha1/      # Compute resources
 │   └── storage/v1/            # Storage resources
 ├── cmd/provider/              # Provider binary
-├── internal/controller/       # Controllers
-│   ├── bucket/
-│   │   ├── controller.go      # External client, CRUD logic
-│   │   └── setup.go           # SetupGated + feature flags
-│   ├── config/
-│   │   └── config.go
-│   └── register.go            # Controller registration
+├── internal/
+│   ├── provider/              # Provider-wide concerns
+│   │   ├── client.go          # YOURS — build the API client from credentials
+│   │   ├── options.go         # YOURS — CLI flags, controller options
+│   │   └── connector.go       # generated — ProviderConfig + credential resolution
+│   └── controller/
+│       ├── bucket/
+│       │   ├── external.go    # YOURS — observe/create/update/delete
+│       │   └── wiring.go      # generated — SetupGated, reconciler construction
+│       ├── config/
+│       │   └── config.go
+│       └── register.go        # Controller registration
+├── docs/ownership.md          # generated — which files are yours
+├── AGENTS.md                  # yours — orientation for humans and agents
 ├── package/
 │   ├── crossplane.yaml        # Provider metadata (with safe-start capability)
 │   └── crds/                  # Generated CRDs
