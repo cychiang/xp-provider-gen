@@ -136,7 +136,7 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 	// Combine the new resource's API templates with the regenerated registration files.
 	allTemplates := engine.AsBuilders(apiTemplates)
-	allTemplates = append(allTemplates, engine.RegisterGenerators(p.config, resources)...)
+	allTemplates = append(allTemplates, engine.CoreGenerators(p.config, resources)...)
 
 	// Execute scaffolding with discovered templates
 	if err := scaffold.Execute(allTemplates...); err != nil {

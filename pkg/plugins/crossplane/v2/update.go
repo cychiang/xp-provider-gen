@@ -265,7 +265,7 @@ func renderToMemFS(cfg config.Config, memFS machinery.Filesystem) error {
 		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
 	)
 	builders := append(engine.AsBuilders(initTemplates), engine.AsBuilders(staticTemplates)...)
-	builders = append(builders, engine.RegisterGenerators(cfg, resources)...)
+	builders = append(builders, engine.CoreGenerators(cfg, resources)...)
 	if err := base.Execute(builders...); err != nil {
 		return fmt.Errorf("rendering base templates: %w", err)
 	}

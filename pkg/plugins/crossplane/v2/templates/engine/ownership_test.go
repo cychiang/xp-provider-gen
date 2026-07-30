@@ -55,6 +55,7 @@ var wantOwnership = map[string]bool{
 	"internal/provider/client.go":             false,
 	"internal/provider/options.go":            false,
 	"internal/version/version.go":             true,
+	"AGENTS.md":                               false,
 	"LICENSE":                                 false,
 	"package/crossplane.yaml":                 false,
 	".gitignore":                              false,

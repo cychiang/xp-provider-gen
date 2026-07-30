@@ -34,13 +34,15 @@ func AsBuilders(products []TemplateProduct) []machinery.Builder {
 	return builders
 }
 
-// RegisterGenerators returns the two registration-file generators, which are
-// always emitted together, for the given project and resource list.
-func RegisterGenerators(cfg config.Config, resources []resource.Resource) []machinery.Builder {
+// CoreGenerators returns every deterministically generated tool-owned file:
+// the two registration files and the ownership doc. They are always emitted
+// together so init, create api and update cannot drift from one another.
+func CoreGenerators(cfg config.Config, resources []resource.Resource) []machinery.Builder {
 	repo := cfg.GetRepository()
 	providerName := core.ExtractProviderName(repo)
 	return []machinery.Builder{
 		NewAPIRegisterGenerator(repo, providerName, resources),
 		NewControllerRegisterGenerator(repo, providerName, resources),
+		NewOwnershipDocGenerator(),
 	}
 }
