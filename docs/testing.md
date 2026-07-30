@@ -70,6 +70,26 @@ a throwaway project in `/tmp/provider-template`:
    run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
 7. Verify the provider builds.
 
+## Upgrade-path simulation (`make upgrade-sim`)
+
+`scripts/upgrade-sim.sh` covers a gap the e2e cannot: e2e Step U runs `update` with
+the **same** generator, so tool-owned files come out byte-identical and it can only
+prove that user files survive — never that tool-owned files actually receive a new
+generator's changes.
+
+The simulation scaffolds a provider, writes **real** logic into every user-owned seam
+(an HTTP client reading a user-added `ProviderConfigSpec` field, a `--region` flag
+with validation, custom `ReconcilerOptions` and observe logic), commits it, then
+mutates the tool-owned templates to stand in for a new generator version, rebuilds,
+and runs `update`. It asserts:
+
+- no user-owned file appears in the update diff,
+- both tool-owned files received the simulated change,
+- every piece of user logic is still present,
+- the upgraded provider still passes `make reviewable` and `make build`.
+
+It restores the templates it mutated. **Run it before shipping a framework bump.**
+
 On **success** the temp project is left in place for inspection (the next run recreates it).
 On **failure** the script removes the incomplete directory and exits non-zero.
 
