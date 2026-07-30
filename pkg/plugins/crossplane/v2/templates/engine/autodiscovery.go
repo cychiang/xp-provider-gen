@@ -39,25 +39,7 @@ type TemplateInfo struct {
 	OutputDir string
 }
 
-func DiscoverTemplates() (map[string]TemplateInfo, error) {
-	templates := make(map[string]TemplateInfo)
-
-	processor := core.NewTemplatePathProcessor()
-
-	err := walkTemplateFS("files", func(path string, isDir bool) error {
-		if isDir || !processor.IsTemplateFile(path) {
-			return nil
-		}
-
-		info := AnalyzeTemplatePath(path)
-		templates[info.Name] = info
-
-		return nil
-	})
-
-	return templates, err
-}
-
+// walkTemplateFS walks the embedded template tree, calling fn for every entry.
 func walkTemplateFS(root string, fn func(path string, isDir bool) error) error {
 	entries, err := templates.TemplateFS.ReadDir(root)
 	if err != nil {

@@ -227,9 +227,11 @@ Expected: PASS. This is a characterization test — it must describe the tree as
 
 - [ ] **Step 3: Delete the dead enumerator**
 
-In `pkg/plugins/crossplane/v2/templates/engine/autodiscovery.go`, delete the `DiscoverTemplates` function (lines 42-59) and the `walkTemplateFS` function (lines 61-82) entirely. Keep `AnalyzeTemplatePath`, `determineCategory`, `TemplateInfo`, `TemplateCategory` and the category constants — the factory uses them.
+In `pkg/plugins/crossplane/v2/templates/engine/autodiscovery.go`, delete **only** the `DiscoverTemplates` function (lines 42-59).
 
-Then remove the now-unused import of `github.com/cychiang/xp-provider-gen/pkg/templates` from that file if nothing else in it references `templates.`.
+**Correction to an earlier draft of this plan:** do NOT delete `walkTemplateFS`. It is live — `builder_common.go:33` (`findTemplateInfoByCategory`) calls it to resolve a template by category and type. Only `DiscoverTemplates` is unused. Both imports (`path/filepath`, `pkg/templates`) stay, because `walkTemplateFS` needs them.
+
+Keep `AnalyzeTemplatePath`, `determineCategory`, `TemplateInfo`, `TemplateCategory` and the category constants — the factory uses them.
 
 - [ ] **Step 4: Verify nothing referenced it**
 
