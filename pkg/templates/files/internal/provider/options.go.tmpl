@@ -1,0 +1,33 @@
+{{ .Boilerplate }}
+
+package provider
+
+import (
+	"github.com/alecthomas/kingpin/v2"
+
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+)
+
+// Flags registers provider-specific command line flags. It runs before the
+// command line is parsed.
+//
+// THIS FILE IS YOURS. xp-provider-gen never overwrites it.
+//
+// Store what you register in package-level variables — this file and client.go
+// are the same package, so NewClient can read them directly:
+//
+//	var region = new(string)
+//
+//	func Flags(app *kingpin.Application) {
+//		region = app.Flag("region", "Target region.").Envar("REGION").String()
+//	}
+func Flags(_ *kingpin.Application) {}
+
+// Configure adjusts controller options after the standard flags are parsed and
+// the built-in feature gates are applied.
+//
+// Return an error to abort startup with a clear message rather than failing
+// later inside a controller.
+func Configure(_ *controller.Options) error {
+	return nil
+}
