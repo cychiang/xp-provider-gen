@@ -238,14 +238,28 @@ reality: adding a template forces a deliberate ownership decision plus a one-lin
 This closes a real gap — today, forgetting the header on a new tool-owned template silently
 makes it user-owned, so `update` never refreshes it and nothing notices.
 
-**Enumerate the template filesystem, not `DiscoverTemplates()`.** That function returns
-`map[string]TemplateInfo` keyed by `GetTemplateBaseName` — the plain base name. The tree
-currently holds **22 template files but only 21 distinct base names**: `Makefile.tmpl` exists at
-both `project/` and `cluster/images/IMAGENAME/`, so one silently overwrites the other in the map.
-Both files still generate (the scaffold builders resolve them by path), but any audit built on
-the map under-reports by one file — which would quietly defeat the point of this test. Walk
-`templates.TemplateFS` directly and assert the enumerated count equals the file count, so a
-future base-name collision fails the test instead of hiding a file.
+**Do not build the audit on `DiscoverTemplates()`.** The package enumerates templates two
+different ways, with different map keys:
+
+| Enumerator | Key | Distinct keys |
+|---|---|---|
+| `DiscoverTemplates()` (`autodiscovery.go`) | `GetTemplateBaseName` — plain base name | **21** of 22 |
+| `discoverAndRegisterTemplates()` (`factory.go`) | `GenerateTemplateType()` — full output path | 22 of 22 |
+
+`Makefile.tmpl` exists at both `project/` and `cluster/images/IMAGENAME/`, so the base name
+collides and one entry silently overwrites the other. Scaffolding is unaffected, because the live
+registry never uses that key — the factory walks `templates.TemplateFS` itself and keys by path.
+
+The hazard is that `DiscoverTemplates()` is **exported, named as though it were authoritative,
+and called by nothing**. It is the obvious function to reach for when writing this audit, and it
+would compile, pass, and silently report 21 of 22 files — the missing one a seed-once `Makefile`
+nobody would notice. A test covering 21 of 22 files while reading as full coverage is worse than
+no test.
+
+Therefore: **delete `DiscoverTemplates()` as dead code**, walk `templates.TemplateFS` directly,
+and assert the enumerated count equals the `.tmpl` file count. `GenerateTemplateType` is itself
+lossy in principle — it strips `-`, `_`, `.` and case-folds, so `bar_baz.go` and `barbaz.go`
+would collide — and no such pair exists today; the count assertion is what keeps that true.
 
 **e2e — extend `scripts/e2e-test.sh`,** reusing the existing Step U pattern rather than adding
 a harness:
@@ -299,6 +313,8 @@ Neither restates the ownership map — both link to it.
   and `examples/GROUP/` as API templates and defaults everything else to `InitCategory`, so
   `internal/provider/*.tmpl` and a root `AGENTS.md.tmpl` render once at init, while
   `internal/controller/KIND/{wiring,external}.go.tmpl` render per resource (verified 2026-07-31).
+- `pkg/plugins/crossplane/v2/templates/engine/autodiscovery.go` — delete the unused, lossy
+  `DiscoverTemplates()` (§5).
 - Golden ownership test (new).
 - `scripts/e2e-test.sh` — assertions in §5.
 - `docs/architecture.md`, `README.md`.
@@ -307,7 +323,7 @@ Neither restates the ownership map — both link to it.
 
 | Risk | Mitigation |
 |------|------------|
-| Template base-name collision hides a file from the ownership audit | Real today (`Makefile`, §5). Enumerate `templates.TemplateFS` directly and assert the count matches, so a collision fails the test |
+| Ownership audit silently covers 21 of 22 templates | Real today (§5): `DiscoverTemplates()` keys by base name and `Makefile` collides. Delete that dead function, walk `templates.TemplateFS`, assert the count |
 | `ModernManaged` assertion fails at runtime for an unusual type | The scaffold only generates modern managed resources; `managed.NewReconciler` is already kind-bound |
 | Ownership-doc generator adds a moving part | It follows an established pattern in the same package and is covered by the golden test |
 
