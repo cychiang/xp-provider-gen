@@ -42,7 +42,7 @@ var generatorOutputs = map[string]bool{
 	"apis/register.go":                true,
 	"internal/controller/register.go": true,
 	"docs/ownership.md":               true,
-	"go.mod":                          false,
+	goModPath:                         false,
 }
 
 // OwnershipDocGenerator renders docs/ownership.md: the authoritative list of

@@ -22,6 +22,10 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
+// goModPath is the generated provider's go.mod, named in both the generator
+// that seeds it and the ownership doc that classifies it.
+const goModPath = "go.mod"
+
 // GoModGenerator seeds a generated provider's go.mod from the dependency
 // manifest. go.mod is user-owned (no header, seeded once): `update` bumps the
 // framework versions via `go get`, never by overwriting the file, so users keep
@@ -46,7 +50,7 @@ func NewGoModGenerator(repo string, deps []versions.Dependency) *GoModGenerator 
 }
 
 func (f *GoModGenerator) SetTemplateDefaults() error {
-	f.Path = "go.mod"
+	f.Path = goModPath
 	// Seed once: never clobber a provider's go.mod (it holds user requires).
 	f.IfExistsAction = machinery.SkipFile
 	f.TemplateBody = goModTemplate
