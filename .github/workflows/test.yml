@@ -113,6 +113,10 @@ jobs:
 
         # Verify API files
         [ -f "apis/compute/v1alpha1/instance_types.go" ] || (echo "instance_types.go not found" && exit 1)
-        [ -f "internal/controller/instance/controller.go" ] || (echo "controller.go not found" && exit 1)
+        [ -f "internal/controller/instance/external.go" ] || (echo "external.go not found" && exit 1)
+        [ -f "internal/controller/instance/wiring.go" ] || (echo "wiring.go not found" && exit 1)
+        [ -f "internal/provider/connector.go" ] || (echo "connector.go not found" && exit 1)
+        [ -f "internal/provider/client.go" ] || (echo "client.go not found" && exit 1)
+        [ -f "internal/provider/options.go" ] || (echo "options.go not found" && exit 1)
 
         echo "E2E test completed successfully"
