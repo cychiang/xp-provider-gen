@@ -3,6 +3,9 @@
 How to scaffold a Crossplane provider with `xp-provider-gen`, write your logic in
 the right places, and take framework upgrades without losing that logic.
 
+Prefer a walkthrough? [The tutorial](tutorial.md) builds a working provider
+end-to-end on a local kind cluster.
+
 If you only read one thing: **files carrying a generated-code header are rewritten
 by `xp-provider-gen update`; everything else is yours forever.** Your provider ships
 a generated `docs/ownership.md` listing exactly which is which.

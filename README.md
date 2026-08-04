@@ -28,6 +28,9 @@ A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crosspla
 
 ## Quick Start
 
+Prefer a guided walkthrough? [The tutorial](docs/tutorial.md) builds a complete
+provider and runs it on a local kind cluster in about thirty minutes.
+
 ### Build the Generator
 
 ```bash
