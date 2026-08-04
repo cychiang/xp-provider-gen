@@ -385,7 +385,20 @@ else
     red "  ✗ upgraded provider does not build"; FAIL=1
 fi
 
-blue "=== 9. Restore generator templates ==="
+blue "=== 9. Behavior unchanged after upgrade? ==="
+if go test ./... >/dev/null 2>&1; then
+    green "  ✓ behavioral tests pass after upgrade"
+else
+    red "  ✗ behavioral tests FAIL after upgrade"; go test ./... | tail -20; FAIL=1
+fi
+if go build -o /tmp/upgrade-sim-provider ./cmd/provider &&
+   /tmp/upgrade-sim-provider --help 2>&1 | grep -q -- '--region'; then
+    green "  ✓ user flag --region still reachable after upgrade"
+else
+    red "  ✗ user flag --region lost after upgrade"; FAIL=1
+fi
+
+blue "=== 10. Restore generator templates ==="
 cp /tmp/connector.bak "$REPO/pkg/templates/files/internal/provider/connector.go.tmpl"
 cp /tmp/wiring.bak "$REPO/pkg/templates/files/internal/controller/KIND/wiring.go.tmpl"
 cd "$REPO" && make build >/dev/null 2>&1
