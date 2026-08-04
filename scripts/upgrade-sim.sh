@@ -150,13 +150,177 @@ s = s.replace(
 p.write_text(s)
 PY
 
+# USER tests: pin the behavior of every seam. Run before AND after the upgrade —
+# passing both times is the sim's proof that the upgrade changed plumbing, not semantics.
+cat > internal/provider/client_test.go <<'EOF'
+/*
+Copyright 2025 The Crossplane Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package provider
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/alecthomas/kingpin/v2"
+
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+
+	apisv1alpha1 "github.com/example/provider-acme/apis/v1alpha1"
+)
+
+func TestNewClientRequiresEndpoint(t *testing.T) {
+	if _, err := NewClient(context.Background(), ClientConfig{}); err == nil {
+		t.Fatal("NewClient with empty endpoint: want error, got nil")
+	}
+}
+
+func TestNewClientBuildsFromSpecAndFlag(t *testing.T) {
+	*region = "eu-central-1"
+	c, err := NewClient(context.Background(), ClientConfig{
+		Spec:        apisv1alpha1.ProviderConfigSpec{Endpoint: "https://api.acme.io"},
+		Credentials: []byte("secret-token"),
+	})
+	if err != nil {
+		t.Fatalf("NewClient: unexpected error: %v", err)
+	}
+	if c.Endpoint != "https://api.acme.io" || c.Token != "secret-token" || c.Region != "eu-central-1" {
+		t.Fatalf("NewClient: unexpected client %+v", c)
+	}
+}
+
+func TestFlagsParseRegion(t *testing.T) {
+	app := kingpin.New("test", "")
+	Flags(app)
+	if _, err := app.Parse([]string{"--region=eu-west-1"}); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if *region != "eu-west-1" {
+		t.Fatalf("region: want eu-west-1, got %q", *region)
+	}
+}
+
+func TestConfigureDoublesPollInterval(t *testing.T) {
+	*region = "us-east-1"
+	o := &controller.Options{PollInterval: time.Minute}
+	if err := Configure(o); err != nil {
+		t.Fatalf("Configure: unexpected error: %v", err)
+	}
+	if o.PollInterval != 2*time.Minute {
+		t.Fatalf("PollInterval: want 2m0s, got %s", o.PollInterval)
+	}
+}
+
+func TestConfigureRejectsEmptyRegion(t *testing.T) {
+	*region = ""
+	if err := Configure(&controller.Options{}); err == nil {
+		t.Fatal("Configure with empty region: want error, got nil")
+	}
+}
+EOF
+
+cat > internal/controller/instance/external_test.go <<'EOF'
+/*
+Copyright 2025 The Crossplane Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package instance
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource/fake"
+	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/example/provider-acme/apis/compute/v1alpha1"
+	"github.com/example/provider-acme/internal/provider"
+)
+
+// stubManager is a non-nil ctrl.Manager whose methods are never called:
+// the user's ReconcilerOptions only nil-checks it.
+type stubManager struct{ ctrl.Manager }
+
+func TestObserveNewInstanceEntersCreateFlow(t *testing.T) {
+	e := NewExternal(&provider.Client{Endpoint: "https://api.acme.io", Region: "us-east-1"})
+	obs, err := e.Observe(context.Background(), &v1alpha1.Instance{})
+	if err != nil {
+		t.Fatalf("Observe: unexpected error: %v", err)
+	}
+	if obs.ResourceExists {
+		t.Fatal("Observe on a fresh Instance: want ResourceExists=false (create flow)")
+	}
+}
+
+func TestObserveRejectsWrongKind(t *testing.T) {
+	e := NewExternal(&provider.Client{})
+	if _, err := e.Observe(context.Background(), &fake.Managed{}); err == nil || err.Error() != errNotInstance {
+		t.Fatalf("Observe(wrong kind): want %q, got %v", errNotInstance, err)
+	}
+}
+
+func TestReconcilerOptions(t *testing.T) {
+	if _, err := ReconcilerOptions(nil, controller.Options{}); err == nil {
+		t.Fatal("ReconcilerOptions(nil manager): want error, got nil")
+	}
+	opts, err := ReconcilerOptions(stubManager{}, controller.Options{PollInterval: time.Minute})
+	if err != nil {
+		t.Fatalf("ReconcilerOptions: unexpected error: %v", err)
+	}
+	if len(opts) != 1 {
+		t.Fatalf("ReconcilerOptions: want 1 option, got %d", len(opts))
+	}
+}
+EOF
+
 make generate >/dev/null 2>&1
 make reviewable >/dev/null 2>&1 && green "user logic compiles and lints"
 git add -A && git commit -q -m "feat: real ACME provider logic"
 BEFORE=$(git rev-parse HEAD)
 green "committed user logic at $BEFORE"
 
-blue "=== 3. Simulate a NEW generator version (change tool-owned templates) ==="
+blue "=== 3. Baseline behavior: seam tests + flag reachability ==="
+if go test ./... >/dev/null 2>&1; then
+    green "  ✓ behavioral tests pass before upgrade"
+else
+    red "  ✗ behavioral tests FAIL before upgrade — harness broken"; go test ./...; exit 1
+fi
+go build -o /tmp/upgrade-sim-provider ./cmd/provider
+if /tmp/upgrade-sim-provider --help 2>&1 | grep -q -- '--region'; then
+    green "  ✓ user flag --region reachable before upgrade"
+else
+    red "  ✗ user flag --region missing before upgrade — harness broken"; exit 1
+fi
+
+blue "=== 4. Simulate a NEW generator version (change tool-owned templates) ==="
 cd "$REPO"
 cp pkg/templates/files/internal/provider/connector.go.tmpl /tmp/connector.bak
 cp pkg/templates/files/internal/controller/KIND/wiring.go.tmpl /tmp/wiring.bak
@@ -179,14 +343,14 @@ PY
 make build >/dev/null 2>&1
 green "generator v2 built"
 
-blue "=== 4. Run update in the provider ==="
+blue "=== 5. Run update in the provider ==="
 cd "$SIM"
 $B update >/dev/null 2>&1 && green "update completed" || { red "update FAILED"; exit 1; }
 
-blue "=== 5. What did the update diff touch? ==="
+blue "=== 6. What did the update diff touch? ==="
 git diff --stat | sed 's/^/  /'
 
-blue "=== 6. Verdict ==="
+blue "=== 7. Verdict ==="
 FAIL=0
 for f in internal/provider/client.go internal/provider/options.go \
          internal/controller/instance/external.go apis/v1alpha1/types.go AGENTS.md; do
@@ -214,14 +378,14 @@ else
     red "  ✗ user logic was lost"; FAIL=1
 fi
 
-blue "=== 7. Does the upgraded provider still build? ==="
+blue "=== 8. Does the upgraded provider still build? ==="
 if make reviewable >/dev/null 2>&1 && make build >/dev/null 2>&1; then
     green "  ✓ upgraded provider builds and passes reviewable"
 else
     red "  ✗ upgraded provider does not build"; FAIL=1
 fi
 
-blue "=== 8. Restore generator templates ==="
+blue "=== 9. Restore generator templates ==="
 cp /tmp/connector.bak "$REPO/pkg/templates/files/internal/provider/connector.go.tmpl"
 cp /tmp/wiring.bak "$REPO/pkg/templates/files/internal/controller/KIND/wiring.go.tmpl"
 cd "$REPO" && make build >/dev/null 2>&1
