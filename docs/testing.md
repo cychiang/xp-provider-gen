@@ -79,14 +79,18 @@ generator's changes.
 
 The simulation scaffolds a provider, writes **real** logic into every user-owned seam
 (an HTTP client reading a user-added `ProviderConfigSpec` field, a `--region` flag
-with validation, custom `ReconcilerOptions` and observe logic), commits it, then
+with validation, custom `ReconcilerOptions` and observe logic) plus unit tests that
+pin that behavior, commits it, then
 mutates the tool-owned templates to stand in for a new generator version, rebuilds,
 and runs `update`. It asserts:
 
 - no user-owned file appears in the update diff,
 - both tool-owned files received the simulated change,
 - every piece of user logic is still present,
-- the upgraded provider still passes `make reviewable` and `make build`.
+- the upgraded provider still passes `make reviewable` and `make build`,
+- the behavioral tests pass before **and after** the upgrade — same tests, same
+  results, so the upgrade changed plumbing, not semantics,
+- the user's `--region` flag still appears in the rebuilt binary's `--help`.
 
 It restores the templates it mutated. **Run it before shipping a framework bump.**
 
