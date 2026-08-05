@@ -43,6 +43,7 @@ XPKG_REG_ORGS ?= xpkg.upbound.io/crossplane
 XPKG_REG_ORGS_NO_PROMOTE ?= xpkg.upbound.io/crossplane
 XPKGS = {{ .ProviderName }}
 -include build/makelib/xpkg.mk
+-include build/makelib/local.xpkg.mk
 
 # NOTE(hasheddan): we force image building to happen prior to xpkg build so that
 # we ensure image is present in daemon.
@@ -56,11 +57,20 @@ xpkg.build.{{ .ProviderName }}: do.build.images $(CROSSPLANE_CLI)
 # integration tests
 e2e.run: test-integration
 
-# Run integration tests.
-test-integration: $(KIND) $(KUBECTL) $(CROSSPLANE_CLI) $(HELM3)
+# Run integration tests: reconcile the example resources for real on a
+# throwaway kind cluster (see cluster/local/integration_tests.sh).
+test-integration: $(KIND) $(KUBECTL)
 	@$(INFO) running integration tests using kind $(KIND_VERSION)
-	@KIND_NODE_IMAGE_TAG=${KIND_NODE_IMAGE_TAG} $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
+	@bash $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
 	@$(OK) integration tests passed
+
+# Prove the production install path: build the xpkg, install Crossplane into a
+# throwaway kind cluster, install this provider from the local build and wait
+# for it to report Healthy (see cluster/local/package_tests.sh).
+e2e-package: $(KIND) $(KUBECTL) $(HELM) $(CROSSPLANE_CLI)
+	@$(INFO) running packaging e2e using kind $(KIND_VERSION)
+	@bash $(ROOT_DIR)/cluster/local/package_tests.sh || $(FAIL)
+	@$(OK) packaging e2e passed
 
 # Update the submodules, such as the common build scripts.
 submodules:
@@ -99,7 +109,7 @@ dev-clean: $(KIND) $(KUBECTL)
 	@$(INFO) Deleting kind cluster
 	@$(KIND) delete cluster --name=$(PROJECT_NAME)-dev
 
-.PHONY: submodules fallthrough test-integration run dev dev-clean
+.PHONY: submodules fallthrough test-integration e2e-package run dev dev-clean
 
 # ====================================================================================
 # Special Targets
@@ -145,6 +155,7 @@ define CROSSPLANE_MAKE_HELP
 Crossplane Targets:
     submodules            Update the submodules, such as the common build scripts.
     test-integration      Run integration tests using kind.
+    e2e-package           Build the xpkg and install it into a kind cluster via Crossplane.
     run                   Run crossplane locally, out-of-cluster. Useful for development.
     dev                   Create kind cluster and run provider with CRDs.
     dev-clean             Clean up development kind cluster.
