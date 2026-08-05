@@ -449,6 +449,9 @@ diff and how `--adopt` works for providers that predate the ownership contract.
 
 ## Where to go next
 
+- Run your provider's own test suites: `make e2e` reconciles your example
+  resources on a throwaway kind cluster, and `make e2e-package` proves the
+  production install path (xpkg → Crossplane → Healthy; needs Docker + Helm).
 - Add a CLI flag or tune controller options in `internal/provider/options.go` —
   see [CLI flags](provider-guide.md#cli-flags).
 - Point `NewClient` at a real API: parse `cfg.Credentials`, keep the same shape.

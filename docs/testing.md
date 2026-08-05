@@ -68,7 +68,13 @@ a throwaway project in `/tmp/provider-template`:
    `AGENTS.md` is untouched, (d) `update` refuses a dirty tree.
 6. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
    run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
-7. Verify the provider builds.
+7. **The generated provider's own e2e:** run `make e2e` inside the scaffold — a throwaway kind
+   cluster, CRDs installed, the controller running out-of-cluster, and every example resource
+   reconciled to `Ready` then deleted cleanly. Skipped with a warning when no Docker daemon is
+   available. (Generated providers also ship `make e2e-package`, which builds the xpkg and
+   installs it into kind via a Helm-installed Crossplane; that path needs Docker + Helm and is
+   not part of this harness.)
+8. Verify the provider builds.
 
 ## Upgrade-path simulation (`make upgrade-sim`)
 

@@ -193,7 +193,9 @@ main() {
         ".gitignore" \
         "apis" \
         "cmd/provider" \
-        "internal/controller"
+        "internal/controller" \
+        "cluster/local/integration_tests.sh" \
+        "cluster/local/package_tests.sh"
 
     # Step 3: Test initial build targets
     step_header "3" "Test initial build targets"
@@ -397,6 +399,24 @@ main() {
     cd "$TEST_DIR"
     rm -rf "$LIFECYCLE_DIR"
 
+    # Step E: the generated provider's own e2e must pass (reconcile the examples
+    # for real on a throwaway kind cluster). Needs a running Docker daemon for
+    # kind; skipped with a warning when unavailable so docker-less machines can
+    # still run the rest of the harness.
+    step_header "E" "Generated provider's own e2e (make e2e)"
+    PROVIDER_E2E_RESULT="SKIPPED (no docker daemon)"
+    if docker info >/dev/null 2>&1; then
+        if make e2e; then
+            log_success "generated provider's make e2e passed"
+            PROVIDER_E2E_RESULT="PASSED"
+        else
+            log_error "generated provider's make e2e FAILED"
+            exit 1
+        fi
+    else
+        log_warning "docker daemon unavailable — skipping the generated provider's make e2e"
+    fi
+
     # Step 7: Final verification (on the pristine single-commit scaffold)
     step_header "7" "Final verification"
 
@@ -438,6 +458,7 @@ main() {
     log_success "✅ CRD generation: PASSED"
     log_success "✅ Example generation: PASSED"
     log_success "✅ Single 'Initial commit' scaffold: PASSED"
+    log_success "✅ Generated provider's own e2e (make e2e): ${PROVIDER_E2E_RESULT}"
     log_success "✅ update preserves all 3 user-owned seam files: PASSED"
     log_success "✅ update / update --adopt (on a copy): PASSED"
     echo
