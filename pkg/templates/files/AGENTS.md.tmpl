@@ -30,10 +30,10 @@ of a file, so quoting it here would make this user-owned file look tool-owned.
 
 ## Names you must not rename
 
-Tool-owned files call these. Renaming any of them breaks the build:
-
-`provider.Client`, `provider.NewClient`, `provider.Flags`, `provider.Configure`,
-`NewExternal`, `ReconcilerOptions`.
+Tool-owned files call a small set of names in your files; renaming any of them
+breaks the build. The authoritative list lives in the regenerated
+[docs/ownership.md](docs/ownership.md) ("The seam names") — this file is seeded
+once and never refreshed, so it does not repeat a list that could go stale.
 
 ## Keeping up to date
 

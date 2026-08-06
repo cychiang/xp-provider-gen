@@ -40,9 +40,10 @@ func AsBuilders(products []TemplateProduct) []machinery.Builder {
 func CoreGenerators(cfg config.Config, resources []resource.Resource) []machinery.Builder {
 	repo := cfg.GetRepository()
 	providerName := core.ExtractProviderName(repo)
-	return []machinery.Builder{
-		NewAPIRegisterGenerator(repo, providerName, resources),
-		NewControllerRegisterGenerator(repo, providerName, resources),
-		NewOwnershipDocGenerator(),
-	}
+	api := NewAPIRegisterGenerator(repo, providerName, resources)
+	controller := NewControllerRegisterGenerator(repo, providerName, resources)
+	// The go.mod seeder is wired separately by init (it needs the dependency
+	// manifest); a zero-dep instance supplies its path and ownership here.
+	doc := NewOwnershipDocGenerator(api, controller, NewGoModGenerator(repo, nil))
+	return []machinery.Builder{api, controller, doc}
 }

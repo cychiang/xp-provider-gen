@@ -17,6 +17,7 @@ limitations under the License.
 package engine
 
 import (
+	"fmt"
 	"io/fs"
 	"sort"
 
@@ -29,21 +30,14 @@ import (
 // docPlaceholders rewrite the scaffolding placeholders into reader-friendly
 // form for the generated ownership map.
 var docPlaceholders = map[string]string{
-	"GROUP":     "<group>",
-	"VERSION":   "<version>",
-	"KIND":      "<kind>",
-	"IMAGENAME": "<provider>",
+	"GROUP":              "<group>",
+	"VERSION":            "<version>",
+	"KIND":               "<kind>",
+	placeholderImageName: "<provider>",
 }
 
-// generatorOutputs are files produced by generators rather than by templates,
-// so a template-FS walk cannot see them. Keep in sync with CoreGenerators and
-// NewGoModGenerator.
-var generatorOutputs = map[string]bool{
-	"apis/register.go":                true,
-	"internal/controller/register.go": true,
-	"docs/ownership.md":               true,
-	goModPath:                         false,
-}
+// ownershipDocPath is where the generated ownership map lives in a provider.
+const ownershipDocPath = "docs/ownership.md"
 
 // OwnershipDocGenerator renders docs/ownership.md: the authoritative list of
 // which files a provider's owner may edit and which `update` overwrites.
@@ -60,8 +54,11 @@ type OwnershipDocGenerator struct {
 
 var _ machinery.Template = &OwnershipDocGenerator{}
 
-// NewOwnershipDocGenerator builds the ownership doc generator.
-func NewOwnershipDocGenerator() *OwnershipDocGenerator {
+// NewOwnershipDocGenerator builds the ownership doc generator. siblings are
+// the other generator-emitted files (invisible to the template-FS walk); their
+// path and ownership are read from the generators themselves — OverwriteFile
+// means tool-owned, SkipFile means seeded once and then the user's.
+func NewOwnershipDocGenerator(siblings ...machinery.Template) *OwnershipDocGenerator {
 	g := &OwnershipDocGenerator{}
 	processor := core.NewTemplatePathProcessor()
 
@@ -71,7 +68,7 @@ func NewOwnershipDocGenerator() *OwnershipDocGenerator {
 	// GenerateOutputPath, not GetOutputPath: only the former strips the
 	// "project/" prefix and applies the path placeholders, so the doc lists
 	// paths that actually exist in a generated provider.
-	_ = fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !processor.IsTemplateFile(path) {
 			return err
 		}
@@ -82,9 +79,18 @@ func NewOwnershipDocGenerator() *OwnershipDocGenerator {
 		g.add(processor.GenerateOutputPath(path, docPlaceholders), core.IsToolOwned(body))
 		return nil
 	})
+	if err != nil {
+		// The template FS is embedded at compile time, so a walk failure is a
+		// build defect — fail loudly rather than emit an incomplete doc.
+		panic(fmt.Errorf("enumerating embedded templates for the ownership doc: %w", err))
+	}
 
-	for path, tool := range generatorOutputs {
-		g.add(path, tool)
+	g.add(ownershipDocPath, true)
+	for _, sib := range siblings {
+		if err := sib.SetTemplateDefaults(); err != nil {
+			panic(fmt.Errorf("deriving generator outputs for the ownership doc: %w", err))
+		}
+		g.add(sib.GetPath(), sib.GetIfExistsAction() == machinery.OverwriteFile)
 	}
 
 	sort.Strings(g.ToolOwned)
@@ -102,7 +108,7 @@ func (f *OwnershipDocGenerator) add(path string, toolOwned bool) {
 }
 
 func (f *OwnershipDocGenerator) SetTemplateDefaults() error {
-	f.Path = "docs/ownership.md"
+	f.Path = ownershipDocPath
 	f.IfExistsAction = machinery.OverwriteFile
 	f.TemplateBody = ownershipDocTemplate
 	return nil
