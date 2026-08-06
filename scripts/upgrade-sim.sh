@@ -301,8 +301,8 @@ func TestReconcilerOptions(t *testing.T) {
 }
 EOF
 
-make generate >/dev/null 2>&1
-make reviewable >/dev/null 2>&1 && green "user logic compiles and lints"
+# generate+lint here; the baseline behavioral step below is the single test run
+make generate >/dev/null 2>&1 && make lint >/dev/null 2>&1 && green "user logic compiles and lints"
 git add -A && git commit -q -m "feat: real ACME provider logic"
 BEFORE=$(git rev-parse HEAD)
 green "committed user logic at $BEFORE"
@@ -324,6 +324,18 @@ blue "=== 4. Simulate a NEW generator version (change tool-owned templates) ==="
 cd "$REPO"
 cp pkg/templates/files/internal/provider/connector.go.tmpl /tmp/connector.bak
 cp pkg/templates/files/internal/controller/KIND/wiring.go.tmpl /tmp/wiring.bak
+
+# From here on the repo's templates are mutated: restore them on ANY exit —
+# success, assertion failure, or a set -e abort mid-sim — so a failed run can
+# never leave the working tree (and bin/) built from simulated-v2 templates.
+restore_templates() {
+    blue "=== Restore generator templates ==="
+    cp /tmp/connector.bak "$REPO/pkg/templates/files/internal/provider/connector.go.tmpl"
+    cp /tmp/wiring.bak "$REPO/pkg/templates/files/internal/controller/KIND/wiring.go.tmpl"
+    (cd "$REPO" && make build >/dev/null 2>&1) || true
+    green "templates restored"
+}
+trap restore_templates EXIT
 
 # A framework change lands in tool-owned code only.
 python3 - <<'PY'
@@ -379,8 +391,9 @@ else
 fi
 
 blue "=== 8. Does the upgraded provider still build? ==="
-if make reviewable >/dev/null 2>&1 && make build >/dev/null 2>&1; then
-    green "  ✓ upgraded provider builds and passes reviewable"
+# generate+lint+build; step 9 is the single post-upgrade test run
+if make generate >/dev/null 2>&1 && make lint >/dev/null 2>&1 && make build >/dev/null 2>&1; then
+    green "  ✓ upgraded provider generates, lints and builds"
 else
     red "  ✗ upgraded provider does not build"; FAIL=1
 fi
@@ -397,11 +410,5 @@ if go build -o /tmp/upgrade-sim-provider ./cmd/provider &&
 else
     red "  ✗ user flag --region lost after upgrade"; FAIL=1
 fi
-
-blue "=== 10. Restore generator templates ==="
-cp /tmp/connector.bak "$REPO/pkg/templates/files/internal/provider/connector.go.tmpl"
-cp /tmp/wiring.bak "$REPO/pkg/templates/files/internal/controller/KIND/wiring.go.tmpl"
-cd "$REPO" && make build >/dev/null 2>&1
-green "templates restored"
 
 exit $FAIL

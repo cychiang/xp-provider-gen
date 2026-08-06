@@ -186,16 +186,8 @@ main() {
         exit 1
     fi
 
-    # Verify basic project structure
-    verify_files_exist "basic project structure" \
-        "Makefile" \
-        "go.mod" \
-        ".gitignore" \
-        "apis" \
-        "cmd/provider" \
-        "internal/controller" \
-        "cluster/local/integration_tests.sh" \
-        "cluster/local/package_tests.sh"
+    # Verify basic project structure (shared list with the CI smoke test)
+    "$SCRIPT_DIR/assert-layout.sh" "$TEST_DIR"
 
     # Step 3: Test initial build targets
     step_header "3" "Test initial build targets"
@@ -225,19 +217,9 @@ main() {
         exit 1
     fi
 
-    # Verify first API files
+    # Verify first API files (shared list with the CI smoke test)
     KIND1_LOWER=$(echo "$KIND1" | tr '[:upper:]' '[:lower:]')
-    verify_files_exist "first API files" \
-        "apis/$GROUP/$VERSION" \
-        "apis/$GROUP/$VERSION/${KIND1_LOWER}_types.go" \
-        "internal/controller/${KIND1_LOWER}" \
-        "internal/controller/${KIND1_LOWER}/external.go" \
-        "internal/controller/${KIND1_LOWER}/wiring.go" \
-        "internal/provider/connector.go" \
-        "internal/provider/client.go" \
-        "internal/provider/options.go" \
-        "docs/ownership.md" \
-        "AGENTS.md"
+    "$SCRIPT_DIR/assert-layout.sh" "$TEST_DIR" "$GROUP" "$VERSION" "$KIND1"
 
     # Step 5: Create second API (MyValue)
     step_header "5" "Create second API: $GROUP/$VERSION $KIND2"
@@ -250,13 +232,9 @@ main() {
         exit 1
     fi
 
-    # Verify second API files
+    # Verify second API files (shared list with the CI smoke test)
     KIND2_LOWER=$(echo "$KIND2" | tr '[:upper:]' '[:lower:]')
-    verify_files_exist "second API files" \
-        "apis/$GROUP/$VERSION/${KIND2_LOWER}_types.go" \
-        "internal/controller/${KIND2_LOWER}" \
-        "internal/controller/${KIND2_LOWER}/external.go" \
-        "internal/controller/${KIND2_LOWER}/wiring.go"
+    "$SCRIPT_DIR/assert-layout.sh" "$TEST_DIR" "$GROUP" "$VERSION" "$KIND2"
 
     # Step 6: Test build targets after API creation
     step_header "6" "Test build targets after API creation"
@@ -346,7 +324,7 @@ main() {
             exit 1
         fi
     done
-    if grep -q "USER-EDIT-MARKER" "AGENTS.md" 2>/dev/null || ! grep -q "DO NOT EDIT" "AGENTS.md"; then
+    if ! grep -q "DO NOT EDIT" "AGENTS.md"; then
         log_success "✓ seed-once AGENTS.md left alone by update"
     else
         log_error "✗ update took ownership of AGENTS.md"
@@ -399,24 +377,6 @@ main() {
     cd "$TEST_DIR"
     rm -rf "$LIFECYCLE_DIR"
 
-    # Step E: the generated provider's own e2e must pass (reconcile the examples
-    # for real on a throwaway kind cluster). Needs a running Docker daemon for
-    # kind; skipped with a warning when unavailable so docker-less machines can
-    # still run the rest of the harness.
-    step_header "E" "Generated provider's own e2e (make e2e)"
-    PROVIDER_E2E_RESULT="SKIPPED (no docker daemon)"
-    if docker info >/dev/null 2>&1; then
-        if make e2e; then
-            log_success "generated provider's make e2e passed"
-            PROVIDER_E2E_RESULT="PASSED"
-        else
-            log_error "generated provider's make e2e FAILED"
-            exit 1
-        fi
-    else
-        log_warning "docker daemon unavailable — skipping the generated provider's make e2e"
-    fi
-
     # Step 7: Final verification (on the pristine single-commit scaffold)
     step_header "7" "Final verification"
 
@@ -445,6 +405,24 @@ main() {
 
     if [[ $(find . -type f \( -name "*.go" -o -name "*.yaml" \) | wc -l) -gt 20 ]]; then
         echo "  ... and more files"
+    fi
+
+    # Step E: the generated provider's own e2e must pass (reconcile the examples
+    # for real on a throwaway kind cluster). Needs a running Docker daemon for
+    # kind; skipped with a warning when unavailable so docker-less machines can
+    # still run the rest of the harness.
+    step_header "E" "Generated provider's own e2e (make e2e)"
+    PROVIDER_E2E_RESULT="SKIPPED (no docker daemon)"
+    if docker info >/dev/null 2>&1; then
+        if make e2e; then
+            log_success "generated provider's make e2e passed"
+            PROVIDER_E2E_RESULT="PASSED"
+        else
+            log_error "generated provider's make e2e FAILED"
+            exit 1
+        fi
+    else
+        log_warning "docker daemon unavailable — skipping the generated provider's make e2e"
     fi
 
     # Summary
