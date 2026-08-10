@@ -48,7 +48,7 @@ func NewFactory(cfg config.Config) TemplateFactory {
 func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
 	processor := core.NewTemplatePathProcessor()
 
-	_ = fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -68,11 +68,16 @@ func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
 		case StaticCategory:
 			f.staticRegistry[templateType] = NewBaseTemplateBuilder(templateType, &StaticBuildStrategy{})
 		default:
-			// Handle unknown category - could log or ignore
+			return fmt.Errorf("template %q has no category", path)
 		}
 
 		return nil
 	})
+	if err != nil {
+		// The template FS is embedded at compile time, so a discovery failure
+		// is a build defect — fail loudly rather than scaffold incompletely.
+		panic(fmt.Errorf("discovering templates: %w", err))
+	}
 }
 
 func (f *CrossplaneTemplateFactory) CreateInitTemplate(templateType TemplateType,

@@ -54,24 +54,18 @@ func AnalyzeTemplatePath(path string) TemplateInfo {
 	}
 }
 
+// determineCategory infers when a template renders from its path placeholders:
+// GROUP/VERSION/KIND mean the output path depends on a resource, so the
+// template renders per kind at `create api`. IMAGENAME (the provider name) and
+// placeholder-free paths render once at `init`. LICENSE is static.
 func determineCategory(path string) TemplateCategory {
 	processor := core.NewTemplatePathProcessor()
 
-	apiPatterns := []string{
-		"apis/GROUP/VERSION/",
-		"internal/controller/KIND/",
-		"examples/GROUP/",
-	}
-
-	staticPatterns := []string{
-		"LICENSE",
-	}
-
-	if processor.PathHasPattern(path, apiPatterns) {
+	if processor.PathHasPattern(path, []string{placeholderGroup, placeholderVersion, placeholderKind}) {
 		return APICategory
 	}
 
-	if processor.PathHasPattern(path, staticPatterns) {
+	if processor.PathHasPattern(path, []string{"LICENSE"}) {
 		return StaticCategory
 	}
 

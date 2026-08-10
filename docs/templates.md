@@ -40,13 +40,16 @@ build and e2e.
 
 ## When is a template rendered?
 
-The engine infers a category from the path:
+The placeholders in the path decide — nothing else:
 
-- Paths under `apis/GROUP/VERSION/`, `internal/controller/KIND/`, or
-  `examples/GROUP/` are **API templates** — rendered once per kind, at
-  `create api` (and re-rendered for every kind by `update`).
-- `LICENSE` is **static**.
-- Everything else is an **init template** — rendered once, at `init`.
+- A path containing `GROUP`, `VERSION`, or `KIND` is a **per-kind template** —
+  its output depends on a resource, so it renders at `create api` (and is
+  re-rendered for every kind by `update`).
+- `IMAGENAME` and placeholder-free paths render once, at `init`.
+  (`LICENSE` is special-cased as static.)
+
+A template the engine cannot categorize fails discovery loudly — it cannot
+silently vanish from scaffolds.
 
 ## Template variables
 
@@ -66,18 +69,23 @@ patterns before inventing one.
 ## When a file is not enough: generators
 
 A few files can't come from a plain template because they need computed data —
-the resource list, the dependency manifest, or the ownership buckets:
+the resource list, the dependency manifest, or the ownership buckets. Their
+**bodies** are still template files, under `pkg/templates/generators/`
+(deliberately outside `files/`, so auto-discovery never renders them directly);
+the Go generator supplies the data:
 
-| File | Generator | Data it needs |
+| File | Body | Data from |
 |---|---|---|
-| `apis/register.go`, `internal/controller/register.go` | `register_generators.go` | one entry per group/version and per kind |
-| `go.mod` (seed once) | `gomod_generator.go` | the pinned dependency manifest |
-| `docs/ownership.md` | `ownership_doc_generator.go` | the computed tool/user buckets |
+| `apis/register.go`, `internal/controller/register.go` | `generators/apis_register.go.tmpl`, `generators/controller_register.go.tmpl` | `register_generators.go` |
+| `go.mod` (seed once) | `generators/gomod.tmpl` | `gomod_generator.go` |
+| `docs/ownership.md` | `generators/ownership_doc.md.tmpl` | `ownership_doc_generator.go` |
 
-If your new file needs data like that, you're writing a generator, not a
-template: model it on the existing ones and add it to `CoreGenerators`
-(`assembly.go`) so `init`, `create api`, and `update` all emit it — the
-ownership doc derives its entry from the generator automatically.
+Editing a body is a template change; adding new *data* to one is a Go change.
+For a brand-new generated file that needs computed data, model a generator on
+the existing ones and add it to `CoreGenerators` (`assembly.go`) so `init`,
+`create api`, and `update` all emit it — the ownership doc derives its entry
+from the generator automatically. Keep the `DO NOT EDIT` header in tool-owned
+bodies: a test fails if it goes missing.
 
 ## Rules that keep this safe
 

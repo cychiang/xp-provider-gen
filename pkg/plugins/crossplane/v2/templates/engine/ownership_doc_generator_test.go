@@ -19,7 +19,30 @@ package engine
 import (
 	"slices"
 	"testing"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
+
+// TestGeneratorBodiesCarryOwnershipHeader pins the header literal in the
+// generator body files: it used to be spliced in from core.GeneratedHeader at
+// compile time, but the bodies now live as files under pkg/templates/generators,
+// so drift there would silently stop `update` from refreshing these files.
+func TestGeneratorBodiesCarryOwnershipHeader(t *testing.T) {
+	for _, name := range []string{
+		"apis_register.go.tmpl",
+		"controller_register.go.tmpl",
+		"ownership_doc.md.tmpl",
+	} {
+		if !core.IsToolOwned([]byte(templates.GeneratorBody(name))) {
+			t.Errorf("generator body %q lost the %q header — update would stop refreshing its output",
+				name, core.GeneratedHeader)
+		}
+	}
+	if core.IsToolOwned([]byte(templates.GeneratorBody("gomod.tmpl"))) {
+		t.Error("gomod.tmpl must NOT carry the generated header: go.mod is seeded once and user-owned")
+	}
+}
 
 // TestOwnershipDocClassifiesGeneratorOutputs verifies the doc's entries for
 // generator-emitted files (invisible to the template-FS walk) are derived from
