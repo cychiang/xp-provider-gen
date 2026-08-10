@@ -16,7 +16,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"{{ .Repo }}/apis/{{ .Resource.Group }}/{{ .Resource.Version }}"
-	apisv1alpha1 "{{ .Repo }}/apis/v1alpha1"
+	"{{ .Repo }}/internal/provider"
 )
 
 // SetupGated adds a controller that reconciles {{ .Resource.Kind }} managed resources with safe-start support.
@@ -34,10 +34,8 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName({{ .Resource.Version }}.{{ .Resource.Kind }}GroupKind)
 
 	opts := []managed.ReconcilerOption{
-		managed.WithExternalConnector(&connector{
-			kube:         mgr.GetClient(),
-			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
-			newServiceFn: newNoOpService}),
+		managed.WithExternalConnector(provider.NewConnector(mgr,
+			func(c *provider.Client) managed.ExternalClient { return NewExternal(c) })),
 		managed.WithLogger(o.Logger.WithValues("controller", name)),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
@@ -63,6 +61,13 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 			return errors.Wrap(err, "cannot register MR state metrics recorder for kind {{ .Resource.Version }}.{{ .Resource.Kind }}List")
 		}
 	}
+
+	// Your per-kind options, from external.go.
+	extra, err := ReconcilerOptions(mgr, o)
+	if err != nil {
+		return errors.Wrap(err, "cannot build reconciler options for {{ .Resource.Kind }}")
+	}
+	opts = append(opts, extra...)
 
 	r := managed.NewReconciler(mgr, resource.ManagedKind({{ .Resource.Version }}.{{ .Resource.Kind }}GroupVersionKind), opts...)
 

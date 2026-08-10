@@ -17,11 +17,9 @@ limitations under the License.
 package engine
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
-	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
 type TemplateCategory string
@@ -37,48 +35,6 @@ type TemplateInfo struct {
 	Path      string
 	Category  TemplateCategory
 	OutputDir string
-}
-
-func DiscoverTemplates() (map[string]TemplateInfo, error) {
-	templates := make(map[string]TemplateInfo)
-
-	processor := core.NewTemplatePathProcessor()
-
-	err := walkTemplateFS("files", func(path string, isDir bool) error {
-		if isDir || !processor.IsTemplateFile(path) {
-			return nil
-		}
-
-		info := AnalyzeTemplatePath(path)
-		templates[info.Name] = info
-
-		return nil
-	})
-
-	return templates, err
-}
-
-func walkTemplateFS(root string, fn func(path string, isDir bool) error) error {
-	entries, err := templates.TemplateFS.ReadDir(root)
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		path := filepath.Join(root, entry.Name())
-
-		if err := fn(path, entry.IsDir()); err != nil {
-			return err
-		}
-
-		if entry.IsDir() {
-			if err := walkTemplateFS(path, fn); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 func AnalyzeTemplatePath(path string) TemplateInfo {

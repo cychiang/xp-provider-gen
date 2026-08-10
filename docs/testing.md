@@ -32,6 +32,20 @@ for _, tt := range tests {
 }
 ```
 
+### The golden ownership test
+
+`pkg/plugins/crossplane/v2/templates/engine/ownership_test.go` walks the embedded
+template FS and asserts each template's ownership bucket against a golden map, plus
+that the map covers exactly the files on disk.
+
+**Adding a template fails this test until you add it to `wantOwnership`.** That is
+deliberate: a tool-owned template that forgets the header would otherwise be silently
+user-owned, and `update` would never refresh it — a bug nobody would notice for months.
+
+Walk the FS directly rather than keying by template name: base names are not unique
+(`Makefile.tmpl` exists at both `project/` and `cluster/images/IMAGENAME/`), so a
+name-keyed map silently drops a file.
+
 Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 
 ## End-to-end test
@@ -44,14 +58,47 @@ a throwaway project in `/tmp/provider-template`:
    (generate-then-commit leaves nothing uncommitted).
 3. `create api` twice (same group/version, different kinds); verify the generated types,
    controllers, CRDs, and examples; **assert the tree is clean again**.
-4. **Ownership contract:** assert tool-owned files (`register.go`, `setup.go`, `main.go`,
-   `config.go`) carry the `DO NOT EDIT` header and user files (`controller.go`, `*_types.go`)
-   do not.
-5. **`update`:** hand-edit a `controller.go` and commit, run `update`, then assert (a) the edit
-   survives, (b) `setup.go` is refreshed (header intact), (c) `update` refuses a dirty tree.
-6. **`update --adopt`:** strip the header from `setup.go` (simulate a pre-contract provider),
+4. **Ownership contract:** assert tool-owned files (`register.go`, `wiring.go`,
+   `internal/provider/connector.go`, `main.go`, `config.go`, `docs/ownership.md`) carry the
+   `DO NOT EDIT` header, and that user files (`external.go`, `internal/provider/client.go`,
+   `internal/provider/options.go`, `*_types.go`, `apis/v1alpha1/types.go`, `AGENTS.md`) do not.
+5. **`update` (the upgrade guarantee):** append a marker to **all three** user-owned seam
+   files and commit, run `update`, then assert (a) every marker survives, (b) `wiring.go`,
+   `connector.go` and `docs/ownership.md` are refreshed with headers intact, (c) seed-once
+   `AGENTS.md` is untouched, (d) `update` refuses a dirty tree.
+6. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
    run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
-7. Verify the provider builds.
+7. **The generated provider's own e2e:** run `make e2e` inside the scaffold — a throwaway kind
+   cluster, CRDs installed, the controller running out-of-cluster, and every example resource
+   reconciled to `Ready` then deleted cleanly. Skipped with a warning when no Docker daemon is
+   available. (Generated providers also ship `make e2e-package`, which builds the xpkg and
+   installs it into kind via a Helm-installed Crossplane; that path needs Docker + Helm and is
+   not part of this harness.)
+8. Verify the provider builds.
+
+## Upgrade-path simulation (`make upgrade-sim`)
+
+`scripts/upgrade-sim.sh` covers a gap the e2e cannot: e2e Step U runs `update` with
+the **same** generator, so tool-owned files come out byte-identical and it can only
+prove that user files survive — never that tool-owned files actually receive a new
+generator's changes.
+
+The simulation scaffolds a provider, writes **real** logic into every user-owned seam
+(an HTTP client reading a user-added `ProviderConfigSpec` field, a `--region` flag
+with validation, custom `ReconcilerOptions` and observe logic) plus unit tests that
+pin that behavior, commits it, then
+mutates the tool-owned templates to stand in for a new generator version, rebuilds,
+and runs `update`. It asserts:
+
+- no user-owned file appears in the update diff,
+- both tool-owned files received the simulated change,
+- every piece of user logic is still present,
+- the upgraded provider still passes `make reviewable` and `make build`,
+- the behavioral tests pass before **and after** the upgrade — same tests, same
+  results, so the upgrade changed plumbing, not semantics,
+- the user's `--region` flag still appears in the rebuilt binary's `--help`.
+
+It restores the templates it mutated. **Run it before shipping a framework bump.**
 
 On **success** the temp project is left in place for inspection (the next run recreates it).
 On **failure** the script removes the incomplete directory and exits non-zero.

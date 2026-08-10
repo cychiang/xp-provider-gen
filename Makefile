@@ -73,6 +73,10 @@ e2e-test: build ## Run local end-to-end test
 	@echo "Running local E2E test..."
 	@./scripts/e2e-test.sh
 
+upgrade-sim: build ## Simulate a generator version bump against a provider with real user logic
+	@echo "Running upgrade-path simulation..."
+	@./scripts/upgrade-sim.sh
+
 fmt: ## Format Go code
 	$(GOCMD) fmt ./...
 

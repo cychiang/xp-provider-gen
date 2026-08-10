@@ -55,6 +55,7 @@ Everything below serves these two.
 
 ## Deeper docs
 
+- [docs/tutorial.md](docs/tutorial.md) — build and run a provider end-to-end locally
 - [docs/architecture.md](docs/architecture.md) — how the generator is structured
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow
 - [docs/testing.md](docs/testing.md) — unit and end-to-end testing

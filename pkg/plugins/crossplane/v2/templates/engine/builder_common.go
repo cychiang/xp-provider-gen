@@ -18,10 +18,12 @@ package engine
 
 import (
 	"fmt"
+	"io/fs"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
 func findTemplateInfoByCategory(category TemplateCategory, templateType TemplateType) (TemplateInfo, error) {
@@ -30,9 +32,9 @@ func findTemplateInfoByCategory(category TemplateCategory, templateType Template
 
 	processor := core.NewTemplatePathProcessor()
 
-	err := walkTemplateFS("files", func(path string, isDir bool) error {
-		if isDir || !processor.IsTemplateFile(path) {
-			return nil
+	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !processor.IsTemplateFile(path) {
+			return err
 		}
 
 		info := AnalyzeTemplatePath(path)

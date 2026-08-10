@@ -65,7 +65,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	if err != nil {
 		return fmt.Errorf("failed to load dependency manifest: %w", err)
 	}
-	allTemplates = append(allTemplates, engine.RegisterGenerators(s.config, nil)...)
+	allTemplates = append(allTemplates, engine.CoreGenerators(s.config, nil)...)
 	allTemplates = append(allTemplates, engine.NewGoModGenerator(s.config.GetRepository(), deps))
 
 	if err := scaffold.Execute(allTemplates...); err != nil {

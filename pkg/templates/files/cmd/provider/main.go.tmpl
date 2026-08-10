@@ -34,6 +34,7 @@ import (
 
 	"{{ .Repo }}/apis"
 	providercontroller "{{ .Repo }}/internal/controller"
+	"{{ .Repo }}/internal/provider"
 	"{{ .Repo }}/internal/version"
 )
 
@@ -53,6 +54,9 @@ func main() {
 		enableChangeLogs         = app.Flag("enable-changelogs", "Enable support for capturing change logs during reconciliation.").Default("false").Envar("ENABLE_CHANGE_LOGS").Bool()
 		changelogsSocketPath     = app.Flag("changelogs-socket-path", "Path for changelogs socket (if enabled)").Default("/var/run/changelogs/changelogs.sock").Envar("CHANGELOGS_SOCKET_PATH").String()
 	)
+	// Your provider-specific flags, from internal/provider/options.go.
+	provider.Flags(app)
+
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	zl := zap.New(zap.UseDevMode(*debug))
@@ -135,6 +139,9 @@ func main() {
 		}
 		o.ChangeLogOptions = &clo
 	}
+
+	// Your controller-option adjustments, from internal/provider/options.go.
+	kingpin.FatalIfError(provider.Configure(&o), "Cannot configure provider options")
 
 	kingpin.FatalIfError(customresourcesgate.Setup(mgr, o), "Cannot setup CRD gate controller")
 	kingpin.FatalIfError(providercontroller.Setup(mgr, o), "Cannot setup {{ .ProviderName }} controllers")

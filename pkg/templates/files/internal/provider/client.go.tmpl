@@ -1,0 +1,26 @@
+{{ .Boilerplate }}
+
+package provider
+
+import "context"
+
+// Client talks to the external API this provider manages.
+//
+// THIS FILE IS YOURS. xp-provider-gen never overwrites it. Replace the empty
+// struct with whatever your API needs — an SDK client, an HTTP client, a set
+// of per-service sub-clients.
+type Client struct{}
+
+// NewClient builds a Client from the resolved ProviderConfig.
+//
+// cfg.Credentials holds the credentials extracted per the ProviderConfig's
+// credentials source. cfg.Spec is the full spec, so any field you add to
+// ProviderConfigSpec in apis/v1alpha1/types.go (a region, an endpoint, a role
+// to assume) is available here without changing anything in between.
+//
+// For ambient identity — pod identity, IRSA, workload identity — set the
+// ProviderConfig's credentials source to "None", ignore cfg.Credentials, and
+// build the client however your platform expects.
+func NewClient(_ context.Context, _ ClientConfig) (*Client, error) {
+	return &Client{}, nil
+}

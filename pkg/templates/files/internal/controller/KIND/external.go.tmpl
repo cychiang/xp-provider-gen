@@ -1,0 +1,142 @@
+{{ .Boilerplate }}
+
+package {{ .Resource.Kind | lower }}
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/errors"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
+
+	"{{ .Repo }}/apis/{{ .Resource.Group }}/{{ .Resource.Version }}"
+	"{{ .Repo }}/internal/provider"
+)
+
+const errNot{{ .Resource.Kind }} = "managed resource is not a {{ .Resource.Kind }} custom resource"
+
+// External implements the observe/create/update/delete logic for {{ .Resource.Kind }}.
+//
+// THIS FILE IS YOURS. xp-provider-gen never overwrites it. The ProviderConfig
+// resolution, credential extraction and controller wiring live in tool-owned
+// files (internal/provider/connector.go and wiring.go in this directory), so
+// framework upgrades reach you through `xp-provider-gen update` without
+// touching anything below.
+type External struct {
+	client *provider.Client
+}
+
+// NewExternal builds the {{ .Resource.Kind }} external client. The connector calls it
+// once the ProviderConfig has been resolved into a *provider.Client.
+func NewExternal(c *provider.Client) *External {
+	return &External{client: c}
+}
+
+// ReconcilerOptions returns extra reconciler options for {{ .Resource.Kind }} — for
+// example managed.WithInitializers or a custom connection publisher. Return
+// nil when you need none.
+//
+// Any error is wrapped with this kind's name by Setup. Return one rather than
+// panicking: the controller starts from inside a CRD-readiness gate callback,
+// where a panic surfaces without context.
+func ReconcilerOptions(_ ctrl.Manager, _ controller.Options) ([]managed.ReconcilerOption, error) {
+	return nil, nil
+}
+
+func (e *External) Observe(_ context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
+	// If the managed resource is marked for deletion then delete it. Because
+	// there is no external resource to observe, we return false for
+	// ResourceExists.
+	if meta.WasDeleted(mg) {
+		return managed.ExternalObservation{
+			ResourceExists: false,
+		}, nil
+	}
+
+	cr, ok := mg.(*{{ .Resource.Version }}.{{ .Resource.Kind }})
+	if !ok {
+		return managed.ExternalObservation{}, errors.New(errNot{{ .Resource.Kind }})
+	}
+
+	// These fmt statements should be removed in the real implementation.
+	fmt.Printf("Observing: %+v", cr)
+
+	// Simulate the external resource not existing, and enter the create flow.
+	if meta.GetExternalName(cr) == "" {
+		return managed.ExternalObservation{
+			ResourceExists: false,
+		}, nil
+	}
+
+	// Now the resource is in sync and ready to use, so mark it as available.
+	cr.Status.SetConditions(xpv2.Available())
+	return managed.ExternalObservation{
+		// Return false when the external resource does not exist. This lets
+		// the managed resource reconciler know that it needs to call Create to
+		// (re)create the resource, or that it has successfully been deleted.
+		ResourceExists: true,
+
+		// Return false when the external resource exists, but is not up to date
+		// with the desired managed resource state. This lets the managed
+		// resource reconciler know that it needs to call Update.
+		ResourceUpToDate: true,
+
+		// Return any details that may be required to connect to the external
+		// resource. These will be stored as the connection secret.
+		ConnectionDetails: managed.ConnectionDetails{},
+	}, nil
+}
+
+func (e *External) Create(_ context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
+	cr, ok := mg.(*{{ .Resource.Version }}.{{ .Resource.Kind }})
+	if !ok {
+		return managed.ExternalCreation{}, errors.New(errNot{{ .Resource.Kind }})
+	}
+	cr.Status.SetConditions(xpv2.Creating())
+
+	fmt.Printf("Creating: %+v", cr)
+
+	meta.SetExternalName(cr, "my-external-name")
+
+	return managed.ExternalCreation{
+		// Optionally return any details that may be required to connect to the
+		// external resource. These will be stored as the connection secret.
+		ConnectionDetails: managed.ConnectionDetails{},
+	}, nil
+}
+
+func (e *External) Update(_ context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
+	cr, ok := mg.(*{{ .Resource.Version }}.{{ .Resource.Kind }})
+	if !ok {
+		return managed.ExternalUpdate{}, errors.New(errNot{{ .Resource.Kind }})
+	}
+
+	fmt.Printf("Updating: %+v", cr)
+
+	return managed.ExternalUpdate{
+		// Optionally return any details that may be required to connect to the
+		// external resource. These will be stored as the connection secret.
+		ConnectionDetails: managed.ConnectionDetails{},
+	}, nil
+}
+
+func (e *External) Delete(_ context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
+	cr, ok := mg.(*{{ .Resource.Version }}.{{ .Resource.Kind }})
+	if !ok {
+		return managed.ExternalDelete{}, errors.New(errNot{{ .Resource.Kind }})
+	}
+	cr.Status.SetConditions(xpv2.Deleting())
+
+	fmt.Printf("Deleting: %+v", cr)
+
+	return managed.ExternalDelete{}, nil
+}
+
+func (e *External) Disconnect(_ context.Context) error {
+	return nil
+}

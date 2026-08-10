@@ -101,18 +101,10 @@ jobs:
 
         # Test init command
         ${{ github.workspace }}/bin/xp-provider-gen init --domain=test.io --repo=github.com/test/provider-e2e
-
-        # Verify generated files
-        [ -f "Makefile" ] || (echo "Makefile not found" && exit 1)
-        [ -f "go.mod" ] || (echo "go.mod not found" && exit 1)
-        [ -f ".gitignore" ] || (echo ".gitignore not found" && exit 1)
-        [ -d "apis" ] || (echo "apis directory not found" && exit 1)
+        ${{ github.workspace }}/scripts/assert-layout.sh .
 
         # Test create api command
         ${{ github.workspace }}/bin/xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
-
-        # Verify API files
-        [ -f "apis/compute/v1alpha1/instance_types.go" ] || (echo "instance_types.go not found" && exit 1)
-        [ -f "internal/controller/instance/controller.go" ] || (echo "controller.go not found" && exit 1)
+        ${{ github.workspace }}/scripts/assert-layout.sh . compute v1alpha1 Instance
 
         echo "E2E test completed successfully"
