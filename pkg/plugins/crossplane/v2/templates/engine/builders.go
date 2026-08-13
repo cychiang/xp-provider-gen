@@ -25,8 +25,15 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
-// placeholderImageName is the template replacement key for the provider image name.
-const placeholderImageName = "IMAGENAME"
+// Path placeholder tokens: uppercase segments in template paths replaced at
+// render time. GROUP/VERSION/KIND mark per-kind templates; IMAGENAME marks the
+// provider name (init-phase).
+const (
+	placeholderGroup     = "GROUP"
+	placeholderVersion   = "VERSION"
+	placeholderKind      = "KIND"
+	placeholderImageName = "IMAGENAME"
+)
 
 // BuildStrategy defines different strategies for building templates.
 type BuildStrategy interface {
@@ -121,9 +128,9 @@ func (s *APIBuildStrategy) GenerateReplacements(
 ) (map[string]string, error) {
 	projectName := core.ExtractProjectName(cfg)
 	return map[string]string{
-		"GROUP":              strings.ToLower(options.Resource.Group),
-		"VERSION":            options.Resource.Version,
-		"KIND":               strings.ToLower(options.Resource.Kind),
+		placeholderGroup:     strings.ToLower(options.Resource.Group),
+		placeholderVersion:   options.Resource.Version,
+		placeholderKind:      strings.ToLower(options.Resource.Kind),
 		placeholderImageName: projectName,
 	}, nil
 }

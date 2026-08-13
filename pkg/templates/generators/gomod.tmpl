@@ -1,0 +1,13 @@
+module {{ .Repo }}
+
+go {{ .GoVersion }}
+
+tool sigs.k8s.io/controller-tools/cmd/controller-gen
+
+tool github.com/crossplane/crossplane-tools/cmd/angryjet
+
+require (
+{{- range .Dependencies }}
+	{{ .Module }} {{ .Version }}
+{{- end }}
+)

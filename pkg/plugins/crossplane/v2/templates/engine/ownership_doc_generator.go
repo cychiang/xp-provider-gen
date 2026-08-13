@@ -30,9 +30,9 @@ import (
 // docPlaceholders rewrite the scaffolding placeholders into reader-friendly
 // form for the generated ownership map.
 var docPlaceholders = map[string]string{
-	"GROUP":              "<group>",
-	"VERSION":            "<version>",
-	"KIND":               "<kind>",
+	placeholderGroup:     "<group>",
+	placeholderVersion:   "<version>",
+	placeholderKind:      "<kind>",
 	placeholderImageName: "<provider>",
 }
 
@@ -110,51 +110,6 @@ func (f *OwnershipDocGenerator) add(path string, toolOwned bool) {
 func (f *OwnershipDocGenerator) SetTemplateDefaults() error {
 	f.Path = ownershipDocPath
 	f.IfExistsAction = machinery.OverwriteFile
-	f.TemplateBody = ownershipDocTemplate
+	f.TemplateBody = templates.GeneratorBody("ownership_doc.md.tmpl")
 	return nil
 }
-
-// The generated header must appear literally for core.IsToolOwned to match it,
-// but Markdown has no comment syntax — an HTML comment satisfies both.
-const ownershipDocTemplate = `<!-- ` + core.GeneratedHeader + ` -->
-
-# File ownership
-
-This provider is scaffolded by ` + "`xp-provider-gen`" + `. Every file falls into exactly
-one bucket, decided by whether it carries this header:
-
-    ` + core.GeneratedHeader + `
-
-**This file is generated.** Editing it has no effect — it is rewritten by
-` + "`xp-provider-gen update`" + `.
-
-## Tool-owned — overwritten by ` + "`update`" + `
-
-Do not edit these. Your changes are lost on the next update, and everything in
-here is framework wiring you should not need to touch.
-{{ range .ToolOwned }}
-- ` + "`{{ . }}`" + `
-{{- end }}
-
-## Yours — never touched
-
-The generator creates these once and then leaves them alone forever.
-{{ range .UserOwned }}
-- ` + "`{{ . }}`" + `
-{{- end }}
-
-## Also generated
-
-` + "`zz_generated.*.go`" + ` and ` + "`package/crds/*`" + ` are produced by ` + "`make generate`" + `
-(controller-gen and angryjet), not by ` + "`xp-provider-gen`" + `. Do not edit them either.
-
-## The seam names
-
-Tool-owned code calls these by name. Renaming any of them breaks the build:
-
-| Name | Where you define it |
-|---|---|
-| ` + "`Client`" + `, ` + "`NewClient`" + ` | ` + "`internal/provider/client.go`" + ` |
-| ` + "`Flags`" + `, ` + "`Configure`" + ` | ` + "`internal/provider/options.go`" + ` |
-| ` + "`NewExternal`" + `, ` + "`ReconcilerOptions`" + ` | ` + "`internal/controller/<kind>/external.go`" + ` |
-`

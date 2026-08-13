@@ -28,7 +28,7 @@ Everything below serves these two.
 - **Match the surrounding code.** Idiomatic Go: small files, explicit error wrapping
   (`fmt.Errorf("...: %w", err)`), table-driven tests.
 - **Templates are data.** Provider scaffolding lives in `pkg/templates/files/**/*.tmpl`
-  and is auto-discovered (see [docs/architecture.md](docs/architecture.md)). Add a template
+  and is auto-discovered (see [docs/templates.md](docs/templates.md)). Add a template
   file — do not wire it in by hand.
 - **Conventional commits**, small and focused: `feat:`, `fix:`, `refactor:`, `chore:`,
   `ci:`, `docs:`, `test:`.
@@ -56,6 +56,7 @@ Everything below serves these two.
 ## Deeper docs
 
 - [docs/tutorial.md](docs/tutorial.md) — build and run a provider end-to-end locally
+- [docs/templates.md](docs/templates.md) — add or change generated-provider templates
 - [docs/architecture.md](docs/architecture.md) — how the generator is structured
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow
 - [docs/testing.md](docs/testing.md) — unit and end-to-end testing

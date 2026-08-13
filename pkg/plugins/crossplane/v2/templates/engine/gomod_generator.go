@@ -19,6 +19,7 @@ package engine
 import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
+	"github.com/cychiang/xp-provider-gen/pkg/templates"
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
@@ -53,21 +54,6 @@ func (f *GoModGenerator) SetTemplateDefaults() error {
 	f.Path = goModPath
 	// Seed once: never clobber a provider's go.mod (it holds user requires).
 	f.IfExistsAction = machinery.SkipFile
-	f.TemplateBody = goModTemplate
+	f.TemplateBody = templates.GeneratorBody("gomod.tmpl")
 	return nil
 }
-
-const goModTemplate = `module {{ .Repo }}
-
-go {{ .GoVersion }}
-
-tool sigs.k8s.io/controller-tools/cmd/controller-gen
-
-tool github.com/crossplane/crossplane-tools/cmd/angryjet
-
-require (
-{{- range .Dependencies }}
-	{{ .Module }} {{ .Version }}
-{{- end }}
-)
-`
