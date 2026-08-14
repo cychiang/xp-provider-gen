@@ -1,0 +1,41 @@
+# Chainsaw behavior test scaffolded by xp-provider-gen create-test.
+# Docs: https://kyverno.github.io/chainsaw/
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: {{ .TestName }}
+spec:
+  timeouts:
+    apply: 1m
+    assert: 2m
+    delete: 2m
+  steps:
+    - name: {{ .Resource.Kind }} becomes Ready
+      try:
+        - apply:
+            resource:
+              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              kind: {{ .Resource.Kind }}
+              metadata:
+                name: behavior-{{ .TestName }}
+                namespace: default
+              spec:
+                forProvider:
+                  configurableField: "{{ .TestName }}"
+                providerConfigRef:
+                  name: example
+                  kind: ProviderConfig
+        - assert:
+            resource:
+              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              kind: {{ .Resource.Kind }}
+              metadata:
+                name: behavior-{{ .TestName }}
+                namespace: default
+              status:
+                ((conditions[?type == 'Ready'])[0]):
+                  status: "True"
+    # TODO: this scaffold only proves the resource reconciles. Replace or
+    # extend the steps with the behavior you actually want to pin — error
+    # paths, drift, pause, config resolution. See the pause test in
+    # test/behavior/ for a worked multi-step example.
