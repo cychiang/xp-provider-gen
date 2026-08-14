@@ -50,12 +50,33 @@ XPKGS = {{ .ProviderName }}
 xpkg.build.{{ .ProviderName }}: do.build.images $(CROSSPLANE_CLI)
 
 # ====================================================================================
+# Setup Uptest
+
+CROSSPLANE_VERSION ?= 2.3.4
+-include build/makelib/controlplane.mk
+
+# A dedicated cluster name so e2e's controlplane.down can never delete an
+# unrelated kind cluster (the build system default is "local-dev").
+KIND_CLUSTER_NAME ?= $(PROJECT_NAME)-e2e
+
+UPTEST_LOCAL_DEPLOY_TARGET = local.xpkg.deploy.provider.$(PROJECT_NAME)
+# Every kind's lifecycle file is picked up automatically; create api adds one
+# per kind, so this Makefile never needs editing for new kinds.
+UPTEST_INPUT_MANIFESTS = $(wildcard test/e2e/*-lifecycle.yaml)
+-include build/makelib/uptest.mk
+
+# Controller behavior tests (chainsaw). Appended to e2e's prerequisites so a
+# serial make runs them after uptest; also usable alone against a live cluster.
+test-behavior: $(CHAINSAW) $(KUBECTL)
+	@$(INFO) running chainsaw behavior tests
+	@$(CHAINSAW) test test/behavior --parallel 1 --quiet || $(FAIL)
+	@$(OK) chainsaw behavior tests passed
+e2e: test-behavior
+
+# ====================================================================================
 # Targets
 
 # NOTE: We rely on the default reviewable target from build/makelib/common.mk
-
-# integration tests
-e2e.run: test-integration
 
 # Run integration tests: reconcile the example resources for real on a
 # throwaway kind cluster (see cluster/local/integration_tests.sh).
@@ -63,14 +84,6 @@ test-integration: $(KIND) $(KUBECTL)
 	@$(INFO) running integration tests using kind $(KIND_VERSION)
 	@bash $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
 	@$(OK) integration tests passed
-
-# Prove the production install path: build the xpkg, install Crossplane into a
-# throwaway kind cluster, install this provider from the local build and wait
-# for it to report Healthy (see cluster/local/package_tests.sh).
-e2e-package: $(KIND) $(KUBECTL) $(HELM) $(CROSSPLANE_CLI)
-	@$(INFO) running packaging e2e using kind $(KIND_VERSION)
-	@bash $(ROOT_DIR)/cluster/local/package_tests.sh || $(FAIL)
-	@$(OK) packaging e2e passed
 
 # Update the submodules, such as the common build scripts.
 submodules:
@@ -109,7 +122,7 @@ dev-clean: $(KIND) $(KUBECTL)
 	@$(INFO) Deleting kind cluster
 	@$(KIND) delete cluster --name=$(PROJECT_NAME)-dev
 
-.PHONY: submodules fallthrough test-integration e2e-package run dev dev-clean
+.PHONY: submodules fallthrough test-integration test-behavior run dev dev-clean
 
 # ====================================================================================
 # Special Targets
@@ -154,8 +167,9 @@ provider.addtype: $(GOMPLATE)
 define CROSSPLANE_MAKE_HELP
 Crossplane Targets:
     submodules            Update the submodules, such as the common build scripts.
-    test-integration      Run integration tests using kind.
-    e2e-package           Build the xpkg and install it into a kind cluster via Crossplane.
+    test-integration      Fast loop: run the controller from source against kind.
+    test-behavior         Run the chainsaw behavior tests against a live cluster.
+    e2e                   Full e2e: package, deploy via Crossplane, uptest + chainsaw.
     run                   Run crossplane locally, out-of-cluster. Useful for development.
     dev                   Create kind cluster and run provider with CRDs.
     dev-clean             Clean up development kind cluster.

@@ -45,7 +45,6 @@ var wantOwnership = map[string]bool{
 	"cluster/images/IMAGENAME/Dockerfile":         false,
 	"cluster/images/IMAGENAME/Makefile":           false,
 	"cluster/local/integration_tests.sh":          true,
-	"cluster/local/package_tests.sh":              true,
 	"cmd/provider/main.go":                        true,
 	"examples/GROUP/KIND.yaml":                    false,
 	"examples/provider/config.yaml":               false,
