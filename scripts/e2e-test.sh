@@ -373,6 +373,18 @@ main() {
         exit 1
     fi
 
+    # Step T: create-test scaffolds a chainsaw behavior test (non-interactive path).
+    step_header "T" "create-test scaffolds a chainsaw test"
+    if "$BINARY_PATH" create-test --name smoke-test --kind "$KIND1"; then
+        verify_files_exist "create-test output" "test/behavior/smoke-test/chainsaw-test.yaml"
+        if "$BINARY_PATH" create-test --name smoke-test --kind "$KIND1" 2>/dev/null; then
+            log_error "✗ create-test overwrote an existing test"; exit 1
+        fi
+        log_success "✓ create-test refuses to overwrite an existing test"
+    else
+        log_error "create-test failed"; exit 1
+    fi
+
     # Done with the lifecycle copy — return to the pristine scaffold and drop it.
     cd "$TEST_DIR"
     rm -rf "$LIFECYCLE_DIR"
@@ -407,11 +419,13 @@ main() {
         echo "  ... and more files"
     fi
 
-    # Step E: the generated provider's own e2e must pass (reconcile the examples
-    # for real on a throwaway kind cluster). Needs a running Docker daemon for
-    # kind; skipped with a warning when unavailable so docker-less machines can
-    # still run the rest of the harness.
-    step_header "E" "Generated provider's own e2e (make e2e)"
+    # Step E: the generated provider's own e2e must pass — the full uptest +
+    # chainsaw flow: build the xpkg, stand up a dedicated kind control plane
+    # with Crossplane, deploy the provider from the local package, run every
+    # kind's uptest lifecycle, then the chainsaw behavior suite. Needs a running
+    # Docker daemon; skipped with a warning when unavailable so docker-less
+    # machines can still run the rest of the harness.
+    step_header "E" "Generated provider's own e2e (uptest + chainsaw)"
     PROVIDER_E2E_RESULT="SKIPPED (no docker daemon)"
     if docker info >/dev/null 2>&1; then
         if make e2e; then
@@ -436,7 +450,8 @@ main() {
     log_success "✅ CRD generation: PASSED"
     log_success "✅ Example generation: PASSED"
     log_success "✅ Single 'Initial commit' scaffold: PASSED"
-    log_success "✅ Generated provider's own e2e (make e2e): ${PROVIDER_E2E_RESULT}"
+    log_success "✅ Generated provider's own e2e (uptest + chainsaw): ${PROVIDER_E2E_RESULT}"
+    log_success "✅ create-test scaffolds a chainsaw test: PASSED"
     log_success "✅ update preserves all 3 user-owned seam files: PASSED"
     log_success "✅ update / update --adopt (on a copy): PASSED"
     echo

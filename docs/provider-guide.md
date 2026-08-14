@@ -172,7 +172,30 @@ Generated code calls these six by name. Renaming any of them breaks the build:
 You can change anything else about them — add fields to `Client`, add helpers, split
 files in the package. Only the names and signatures above are fixed.
 
-## 4. Upgrading
+## 4. Testing your provider
+
+The scaffold seeds a complete e2e suite under `test/` — all user-owned, seeded
+once and never touched by `update`:
+
+- `test/e2e/<kind>-lifecycle.yaml` per kind — [uptest](https://github.com/crossplane/uptest)
+  input: create → assert `Ready,Synced` → delete, through both `ProviderConfig`
+  and `ClusterProviderConfig`. Picked up by wildcard; adding kinds needs no wiring.
+- `test/behavior/<kind>-pause/` per kind — a seed
+  [chainsaw](https://kyverno.github.io/chainsaw/) test proving `crossplane.io/paused`
+  actually stops reconciliation. Copy its pattern, or scaffold new tests with
+  `xp-provider-gen create-test`.
+
+| Command | What it proves |
+|---|---|
+| `make e2e` | the full story: xpkg builds, Crossplane installs it, every kind's lifecycle passes, behavior tests pass |
+| `make test-integration` | fast loop: your reconcile logic, controller run from source |
+| `make test-behavior` | just the chainsaw tests, against whatever cluster kubectl points at |
+
+`make e2e` uses a dedicated kind cluster named `<provider>-e2e` and deletes it
+first (`controlplane.down`) — it never touches other clusters, but it does
+switch your current kubectl context while running.
+
+## 5. Upgrading
 
 This is the payoff. When a new `xp-provider-gen` ships — a crossplane-runtime bump,
 a fix to the controller wiring, a new framework feature:
@@ -220,7 +243,14 @@ Providers generated before the modular layout (`external.go` / `wiring.go` /
 `internal/provider`) must be regenerated instead — there is no in-place migration
 for that change.
 
-## 5. Where to look next
+Providers generated before 2026-08-15 also carry a `ClusterProviderConfigUsage`
+type in user-owned `apis/v1alpha1/types.go` that nothing ever creates. `update`
+delivers the real fix by refreshing the tool-owned files (`config.go` points the
+cluster reconciler at `ProviderConfigUsage`; `register.go` drops the dead
+registration); the leftover type in your `types.go` is harmless — delete it by
+hand or leave it.
+
+## 6. Where to look next
 
 - `docs/ownership.md` **inside your provider** — the generated, always-accurate list
   of which files are yours.
