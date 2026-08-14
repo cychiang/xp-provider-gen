@@ -73,6 +73,15 @@ func (e *External) Observe(_ context.Context, mg resource.Managed) (managed.Exte
 		}, nil
 	}
 
+	// Simulate the external resource existing but drifted from the desired
+	// state; the reconciler responds by calling Update.
+	if cr.Status.AtProvider.ConfigurableField != cr.Spec.ForProvider.ConfigurableField {
+		return managed.ExternalObservation{
+			ResourceExists:   true,
+			ResourceUpToDate: false,
+		}, nil
+	}
+
 	// Now the resource is in sync and ready to use, so mark it as available.
 	cr.Status.SetConditions(xpv2.Available())
 	return managed.ExternalObservation{
@@ -103,6 +112,9 @@ func (e *External) Create(_ context.Context, mg resource.Managed) (managed.Exter
 
 	meta.SetExternalName(cr, "my-external-name")
 
+	// Simulate creation by copying the desired state into the observed state.
+	cr.Status.AtProvider.ConfigurableField = cr.Spec.ForProvider.ConfigurableField
+
 	return managed.ExternalCreation{
 		// Optionally return any details that may be required to connect to the
 		// external resource. These will be stored as the connection secret.
@@ -117,6 +129,9 @@ func (e *External) Update(_ context.Context, mg resource.Managed) (managed.Exter
 	}
 
 	fmt.Printf("Updating: %+v", cr)
+
+	// Simulate the update by copying the desired state into the observed state.
+	cr.Status.AtProvider.ConfigurableField = cr.Spec.ForProvider.ConfigurableField
 
 	return managed.ExternalUpdate{
 		// Optionally return any details that may be required to connect to the
