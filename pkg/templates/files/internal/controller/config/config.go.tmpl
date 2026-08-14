@@ -38,7 +38,7 @@ func setupNamespacedProviderConfig(mgr ctrl.Manager, o controller.Options) error
 		Named(name).
 		WithOptions(o.ForControllerRuntime()).
 		For(&v1alpha1.ProviderConfig{}).
-		Watches(&v1alpha1.ProviderConfigUsage{}, &resource.EnqueueRequestForProviderConfig{}).
+		Watches(&v1alpha1.ProviderConfigUsage{}, &resource.EnqueueRequestForProviderConfig{Kind: v1alpha1.ProviderConfigKind}).
 		Complete(ratelimiter.NewReconciler(name, providerconfig.NewReconciler(mgr, of,
 			providerconfig.WithLogger(o.Logger.WithValues("controller", name)),
 			providerconfig.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name)))), o.GlobalRateLimiter))
@@ -47,17 +47,21 @@ func setupNamespacedProviderConfig(mgr ctrl.Manager, o controller.Options) error
 func setupClusterProviderConfig(mgr ctrl.Manager, o controller.Options) error {
 	name := providerconfig.ControllerName(v1alpha1.ClusterProviderConfigGroupVersionKind.GroupKind().String())
 
+	// Every MR in this provider is namespaced, so every usage record is a namespaced
+	// ProviderConfigUsage. There is no cluster scoped usage type, even for a ClusterProviderConfig.
+	// Instead the usage lives beside the namespaced MR that created it and records which kind of
+	// config it refers to.
 	of := resource.ProviderConfigKinds{
 		Config:    v1alpha1.ClusterProviderConfigGroupVersionKind,
-		Usage:     v1alpha1.ClusterProviderConfigUsageGroupVersionKind,
-		UsageList: v1alpha1.ClusterProviderConfigUsageListGroupVersionKind,
+		Usage:     v1alpha1.ProviderConfigUsageGroupVersionKind,
+		UsageList: v1alpha1.ProviderConfigUsageListGroupVersionKind,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		WithOptions(o.ForControllerRuntime()).
 		For(&v1alpha1.ClusterProviderConfig{}).
-		Watches(&v1alpha1.ClusterProviderConfigUsage{}, &resource.EnqueueRequestForProviderConfig{}).
+		Watches(&v1alpha1.ProviderConfigUsage{}, &resource.EnqueueRequestForProviderConfig{Kind: v1alpha1.ClusterProviderConfigKind}).
 		Complete(ratelimiter.NewReconciler(name, providerconfig.NewReconciler(mgr, of,
 			providerconfig.WithLogger(o.Logger.WithValues("controller", name)),
 			providerconfig.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name)))), o.GlobalRateLimiter))
