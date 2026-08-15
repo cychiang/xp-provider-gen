@@ -8,7 +8,7 @@ provider's tool-owned core without touching the user's business logic.
 The code is organized into clearly separated layers:
 
 ```
-cmd/xp-provider-gen/            CLI entry point (Kubebuilder CLI + the `update` command)
+cmd/xp-provider-gen/            CLI entry point (Kubebuilder CLI + the `update` and `create-test` commands)
 pkg/plugins/crossplane/v2/
 ├── plugin.go, init.go,         Plugin layer — subcommands (init, create api)
 │   createapi.go, update.go     + the update / update --adopt command
@@ -23,14 +23,14 @@ pkg/versions/                   Dependency manifest (single source of truth for 
 ## 1. Entry point & command flow
 
 `cmd/xp-provider-gen/main.go` constructs a Kubebuilder CLI, registers the Crossplane plugin,
-and adds the standalone `update` command (Kubebuilder's plugin interface has no update hook):
+and adds the standalone `update` and `create-test` commands (Kubebuilder's plugin interface has no update hook):
 
 ```go
 cli.New(
     cli.WithCommandName("crossplane-provider-gen"),
     cli.WithPlugins(&crossplanev2.Plugin{}),
     cli.WithDefaultPlugins(cfgv3.Version, &crossplanev2.Plugin{}),
-    cli.WithExtraCommands(crossplanev2.NewUpdateCommand()),
+    cli.WithExtraCommands(crossplanev2.NewUpdateCommand(), crossplanev2.NewCreateTestCommand()),
 )
 ```
 
@@ -65,7 +65,7 @@ Reusable, side-effecting building blocks with no template knowledge:
 - **`project.go`** — `ProjectFile` wraps Kubebuilder config; `Save()` and `AddResource()`.
 - **`provider.go`** — `ExtractProviderName` / `ExtractProjectName` helpers.
 - **`template_path_processor.go`** — maps a template path to an output path (strips `files/`
-  and `.tmpl`, applies `{GROUP}`/`{VERSION}`/`{KIND}`/`{IMAGENAME}`).
+  and `.tmpl`, applies `GROUP`/`VERSION`/`KIND`/`IMAGENAME`).
 - **`ownership.go`** — the **ownership gate**: `GeneratedHeader`, `IsToolOwned(content)`, and
   `DecideWrite(exists, existing) → Seed | Overwrite | Skip`. This is the rule that lets `update`
   refresh tool files while never clobbering user files (§6).
@@ -111,7 +111,7 @@ aborts (no warn-and-continue) — and the **commit is last**, so the tree is lef
 fully committed.
 
 - **`steps.go`** — `Step` interface (`Name`, `Execute`); steps: `GitInitStep`, `GitCommitStep`,
-  `GitSubmoduleStep`, `MakeStep(target)`, `GoModTidyStep`, `ExecutableBitStep` (machinery
+  `GitFoldCommitStep`, `GitSubmoduleStep`, `MakeStep(target)`, `GoModTidyStep`, `ExecutableBitStep` (machinery
   writes 0644; uptest execs `test/setup.sh`, so the bit is set and committed at scaffold time).
 - **`pipeline.go`** — `NewInitPipeline()` runs git init → submodule → `make submodules` →
   `go mod tidy` → `make generate` → `make reviewable` → **commit**; `NewAPICommitPipeline()`

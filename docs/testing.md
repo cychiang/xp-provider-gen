@@ -1,6 +1,6 @@
 # Testing
 
-Two layers: fast Go unit tests, and a full end-to-end scaffold test.
+Three layers: fast Go unit tests, a full end-to-end scaffold test, and an upgrade simulation.
 
 ## Unit tests
 
@@ -51,7 +51,9 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 ## End-to-end test
 
 `scripts/e2e-test.sh` (run via `make e2e-test`) exercises the real generator workflow against
-a throwaway project in `/tmp/provider-template`:
+a throwaway project in `/tmp/provider-template`. The expected file layout lives in
+`scripts/assert-layout.sh`, shared with the CI smoke test — edit that when the scaffold
+gains or loses a file:
 
 1. Build the binary and prepare a clean temp directory.
 2. `init` a provider project; verify the base structure; **assert the working tree is clean**
