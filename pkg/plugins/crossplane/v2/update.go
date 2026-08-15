@@ -87,9 +87,9 @@ func prepare(ctx context.Context) (store.Store, afero.Fs, error) {
 	if err := requireCleanTree(ctx); err != nil {
 		return nil, nil, err
 	}
-	st := yaml.New(machinery.Filesystem{FS: afero.NewOsFs()})
-	if err := st.Load(); err != nil {
-		return nil, nil, fmt.Errorf("not a provider project (cannot load PROJECT): %w", err)
+	st, err := loadProjectStore()
+	if err != nil {
+		return nil, nil, err
 	}
 	mem := afero.NewMemMapFs()
 	if err := renderToMemFS(st.Config(), machinery.Filesystem{FS: mem}); err != nil {
@@ -227,6 +227,15 @@ func runUpdate(ctx context.Context) error {
 	return nil
 }
 
+// loadProjectStore loads the PROJECT config store from the working directory.
+func loadProjectStore() (store.Store, error) {
+	st := yaml.New(machinery.Filesystem{FS: afero.NewOsFs()})
+	if err := st.Load(); err != nil {
+		return nil, fmt.Errorf("not a provider project (cannot load PROJECT): %w", err)
+	}
+	return st, nil
+}
+
 // requireCleanTree aborts unless the working tree has no uncommitted changes, so
 // the update is reviewable as a diff and no user edits are silently overwritten.
 func requireCleanTree(ctx context.Context) error {
@@ -332,7 +341,13 @@ func applyFile(src, dst afero.Fs, srcPath, rel string) (core.WriteDecision, erro
 	if err := dst.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
 		return decision, err
 	}
-	return decision, afero.WriteFile(dst, rel, newContent, 0o644)
+	// Scripts are exec'd directly (uptest runs test/setup.sh), so the write
+	// layer owns the executable bit — seeded .sh files must not land 0644.
+	mode := fs.FileMode(0o644)
+	if strings.HasSuffix(rel, ".sh") {
+		mode = fs.FileMode(0o755) // #nosec G302 -- executable script by design
+	}
+	return decision, afero.WriteFile(dst, rel, newContent, mode)
 }
 
 type reconcileResult struct {

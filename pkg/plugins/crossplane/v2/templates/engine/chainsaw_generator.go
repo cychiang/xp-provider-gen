@@ -34,14 +34,13 @@ type ChainsawTestGenerator struct {
 
 	TestName string
 	Resource resource.Resource
-	Domain   string
 }
 
 var _ machinery.Template = &ChainsawTestGenerator{}
 
 // NewChainsawTestGenerator builds the chainsaw skeleton generator.
-func NewChainsawTestGenerator(testName string, res resource.Resource, domain string) *ChainsawTestGenerator {
-	return &ChainsawTestGenerator{TestName: testName, Resource: res, Domain: domain}
+func NewChainsawTestGenerator(testName string, res resource.Resource) *ChainsawTestGenerator {
+	return &ChainsawTestGenerator{TestName: testName, Resource: res}
 }
 
 func (f *ChainsawTestGenerator) SetTemplateDefaults() error {

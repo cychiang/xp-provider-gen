@@ -74,10 +74,13 @@ Reusable, side-effecting building blocks with no template knowledge:
 
 The engine turns embedded `.tmpl` files into Kubebuilder template products. Its defining
 trait is **auto-discovery**: templates are found by walking the embedded filesystem at factory
-init, not registered by hand.
+init, not registered by hand. ([templates.md](templates.md) is the contributor-facing guide
+to adding one — placeholders, the ownership header, the golden-test step.)
 
-- **Discovery** — `autodiscovery.go` classifies each template into `InitCategory` /
-  `APICategory` / `StaticCategory` by path pattern; `loader.go` reads template bodies.
+- **Discovery** — `autodiscovery.go` classifies each template by its path placeholders:
+  `GROUP`/`VERSION`/`KIND` mean per-kind (`APICategory`), `IMAGENAME` or none mean
+  `InitCategory` (`LICENSE` is static). Discovery fails loudly on an uncategorizable
+  template or a walk error; `loader.go` reads template bodies.
 - **Factory** — `factory.go` (`CrossplaneTemplateFactory`) registers discovered templates and
   exposes `Create*Template` / `Get*Templates`.
 - **Strategy pattern** — `builders.go` defines `BuildStrategy` with `Init`/`API`/`Static`
@@ -95,7 +98,11 @@ init, not registered by hand.
     walking the template FS and reading the same headers the ownership gate reads, so the
     published contract cannot drift from the enforced one. It walks the FS directly and uses
     `GenerateOutputPath` (not `GetOutputPath`, which keeps the `project/` prefix).
+  - `chainsaw_generator.go` — `ChainsawTestGenerator` renders the `create-test` skeleton.
   - `assembly.go` — `AsBuilders` and `CoreGenerators` helpers shared by init, create, and update.
+  - Generator template **bodies** are files too: `pkg/templates/generators/*.tmpl`, loaded via
+    `templates.GeneratorBody` — deliberately outside `files/` so auto-discovery never renders
+    them directly (see [templates.md](templates.md)).
 
 ## 5. Automation pipeline (`pkg/plugins/crossplane/v2/automation/`)
 
@@ -104,7 +111,8 @@ aborts (no warn-and-continue) — and the **commit is last**, so the tree is lef
 fully committed.
 
 - **`steps.go`** — `Step` interface (`Name`, `Execute`); steps: `GitInitStep`, `GitCommitStep`,
-  `GitSubmoduleStep`, `MakeStep(target)`, `GoModTidyStep`.
+  `GitSubmoduleStep`, `MakeStep(target)`, `GoModTidyStep`, `ExecutableBitStep` (machinery
+  writes 0644; uptest execs `test/setup.sh`, so the bit is set and committed at scaffold time).
 - **`pipeline.go`** — `NewInitPipeline()` runs git init → submodule → `make submodules` →
   `go mod tidy` → `make generate` → `make reviewable` → **commit**; `NewAPICommitPipeline()`
   runs `make generate` → **commit**. `Run()` aborts on the first failure.
@@ -197,7 +205,7 @@ could never be regenerated.
 
 | Pattern | Where |
 |---------|-------|
-| Plugin architecture | Kubebuilder v4 plugin (`plugin.go`) + `WithExtraCommands` for `update` |
+| Plugin architecture | Kubebuilder v4 plugin (`plugin.go`) + `WithExtraCommands` for `update` and `create-test` |
 | Auto-discovery | `autodiscovery.go` + `factory.go` |
 | Deterministic generation | register/go.mod generators (no parse-and-merge) |
 | Ownership gate | `core.DecideWrite` (header-based) |
@@ -217,6 +225,10 @@ While the history is still just the tool's scaffold (the `Initial commit` carrie
 `xp-provider-gen-scaffold` trailer and the user hasn't committed yet), the commit **folds into
 that `Initial commit`** via `--amend`, so a freshly scaffolded provider has a single commit;
 once the user commits their own work, later `create api` runs add separate commits.
+
+**`create-test`** → load PROJECT → resolve kind (flag, sole kind, or interactive pick-list)
+and test name (flag or prompt) → render the chainsaw skeleton to
+`test/behavior/<name>/chainsaw-test.yaml` (never overwrites).
 
 **`update`** → require clean tree → render to memfs → reconcile via the ownership gate → bump
 deps via `go get` → tidy/generate/reviewable → stamp provenance (no commit; review the diff).

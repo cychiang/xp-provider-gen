@@ -140,9 +140,8 @@ func (s *ExecutableBitStep) Name() string {
 
 func (s *ExecutableBitStep) Execute() error {
 	for _, path := range s.paths {
-		if _, err := os.Stat(path); err != nil {
-			continue // seeded conditionally; absence is not an error
-		}
+		// The paths are unconditionally scaffolded before the pipeline runs;
+		// a missing one is a defect and should fail loudly here.
 		if err := os.Chmod(path, 0o755); err != nil { // #nosec G302 -- executable script
 			return fmt.Errorf("chmod +x %s: %w", path, err)
 		}

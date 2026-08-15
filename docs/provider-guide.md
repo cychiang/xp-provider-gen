@@ -251,6 +251,13 @@ cluster reconciler at `ProviderConfigUsage`; `register.go` drops the dead
 registration); the leftover type in your `types.go` is harmless — delete it by
 hand or leave it.
 
+On such providers `update` also seeds the new `test/` tree — but two pieces it
+cannot deliver live in user-owned files: the Makefile's uptest section (copy the
+"Setup Uptest" block from a fresh scaffold to get `make e2e` / `test-behavior`)
+and the sample drift-mirroring in `external.go` that the seeded pause test's
+`status.atProvider` assertions rely on (irrelevant once you implement real
+logic — adjust or delete the seed test to match your controller's behavior).
+
 ## 6. Where to look next
 
 - `docs/ownership.md` **inside your provider** — the generated, always-accurate list

@@ -17,6 +17,7 @@ limitations under the License.
 package v2
 
 import (
+	"bufio"
 	"strings"
 	"testing"
 
@@ -52,7 +53,7 @@ func TestResolveKind(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			var out strings.Builder
-			res, err := resolveKind(kinds, tc.flag, tc.interactive, strings.NewReader(tc.stdin), &out)
+			res, err := resolveKind(kinds, tc.flag, tc.interactive, bufio.NewReader(strings.NewReader(tc.stdin)), &out)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("want error containing %q, got %v", tc.wantErr, err)
@@ -71,7 +72,7 @@ func TestResolveKind(t *testing.T) {
 
 func TestResolveKindSingleDefaults(t *testing.T) {
 	one := testKinds()[:1]
-	res, err := resolveKind(one, "", false, strings.NewReader(""), &strings.Builder{})
+	res, err := resolveKind(one, "", false, bufio.NewReader(strings.NewReader("")), &strings.Builder{})
 	if err != nil || res.Kind != "Instance" {
 		t.Fatalf("single kind should be auto-picked: kind=%q err=%v", res.Kind, err)
 	}
@@ -92,7 +93,7 @@ func TestResolveName(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got, err := resolveName(tc.flag, tc.interactive, strings.NewReader(tc.stdin), &strings.Builder{})
+			got, err := resolveName(tc.flag, tc.interactive, bufio.NewReader(strings.NewReader(tc.stdin)), &strings.Builder{})
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("want error containing %q, got %v", tc.wantErr, err)

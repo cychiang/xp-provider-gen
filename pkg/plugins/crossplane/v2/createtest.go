@@ -28,7 +28,6 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
-	"sigs.k8s.io/kubebuilder/v4/pkg/config/store/yaml"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
@@ -66,9 +65,9 @@ Missing --name or --kind are prompted for when running interactively.`,
 }
 
 func runCreateTest(name, kind string, in io.Reader, out io.Writer) error {
-	st := yaml.New(machinery.Filesystem{FS: afero.NewOsFs()})
-	if err := st.Load(); err != nil {
-		return fmt.Errorf("not a provider project (cannot load PROJECT): %w", err)
+	st, err := loadProjectStore()
+	if err != nil {
+		return err
 	}
 	cfg := st.Config()
 
@@ -77,18 +76,19 @@ func runCreateTest(name, kind string, in io.Reader, out io.Writer) error {
 		return err
 	}
 
+	prompts := bufio.NewReader(in)
 	interactive := stdinIsTerminal(in)
-	res, err := resolveKind(kinds, kind, interactive, in, out)
+	res, err := resolveKind(kinds, kind, interactive, prompts, out)
 	if err != nil {
 		return err
 	}
-	name, err = resolveName(name, interactive, in, out)
+	name, err = resolveName(name, interactive, prompts, out)
 	if err != nil {
 		return err
 	}
 
 	scaffold := machinery.NewScaffold(machinery.Filesystem{FS: afero.NewOsFs()}, machinery.WithConfig(cfg))
-	gen := engine.NewChainsawTestGenerator(name, res, cfg.GetDomain())
+	gen := engine.NewChainsawTestGenerator(name, res)
 	if err := scaffold.Execute(gen); err != nil {
 		return fmt.Errorf("scaffolding chainsaw test (does it already exist?): %w", err)
 	}
@@ -98,18 +98,13 @@ func runCreateTest(name, kind string, in io.Reader, out io.Writer) error {
 	return nil
 }
 
-// managedKinds returns the project's managed resource kinds (group != "").
+// managedKinds returns the project's managed resource kinds.
 func managedKinds(cfg config.Config) ([]resource.Resource, error) {
 	all, err := cfg.GetResources()
 	if err != nil {
 		return nil, fmt.Errorf("reading project resources: %w", err)
 	}
-	var kinds []resource.Resource
-	for _, r := range all {
-		if r.Group != "" {
-			kinds = append(kinds, r)
-		}
-	}
+	kinds := engine.ManagedResources(all)
 	if len(kinds) == 0 {
 		return nil, fmt.Errorf("no managed resource kinds in this project; run 'create api' first")
 	}
@@ -119,7 +114,7 @@ func managedKinds(cfg config.Config) ([]resource.Resource, error) {
 // resolveKind picks the kind under test: by flag (case-insensitive), by the
 // only kind there is, or by interactive choice.
 func resolveKind(
-	kinds []resource.Resource, flag string, interactive bool, in io.Reader, out io.Writer,
+	kinds []resource.Resource, flag string, interactive bool, in *bufio.Reader, out io.Writer,
 ) (resource.Resource, error) {
 	if flag != "" {
 		for _, r := range kinds {
@@ -153,7 +148,7 @@ func resolveKind(
 }
 
 // resolveName returns the test name from the flag or an interactive prompt.
-func resolveName(flag string, interactive bool, in io.Reader, out io.Writer) (string, error) {
+func resolveName(flag string, interactive bool, in *bufio.Reader, out io.Writer) (string, error) {
 	name := flag
 	if name == "" {
 		if !interactive {
@@ -180,8 +175,8 @@ func kindNames(kinds []resource.Resource) string {
 	return strings.Join(names, ", ")
 }
 
-func readLine(in io.Reader) (string, error) {
-	line, err := bufio.NewReader(in).ReadString('\n')
+func readLine(in *bufio.Reader) (string, error) {
+	line, err := in.ReadString('\n')
 	if err != nil && line == "" {
 		return "", fmt.Errorf("reading input (pass --name and --kind to run non-interactively): %w", err)
 	}

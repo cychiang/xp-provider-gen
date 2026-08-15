@@ -400,12 +400,16 @@ main() {
         log_warning "go.mod verification failed (might be expected for test)"
     fi
 
-    # Check that we can build the provider
-    log_info "Testing provider build..."
-    if make build > /dev/null 2>&1; then
-        log_success "Provider builds successfully"
-    else
-        log_warning "Provider build failed (might be expected for test)"
+    # Check that we can build the provider. When Docker is available, Step E's
+    # uptest flow performs a full build anyway — only build here when Step E
+    # will be skipped, where this is the sole build check.
+    if ! docker info >/dev/null 2>&1; then
+        log_info "Testing provider build..."
+        if make build > /dev/null 2>&1; then
+            log_success "Provider builds successfully"
+        else
+            log_warning "Provider build failed (might be expected for test)"
+        fi
     fi
 
     # Show final project structure
@@ -432,8 +436,9 @@ main() {
             log_success "generated provider's make e2e passed"
             PROVIDER_E2E_RESULT="PASSED"
             # The uptest flow leaves its kind cluster for inspection; the
-            # harness has inspected it (it passed), so clean it up.
-            kind delete cluster --name provider-template-e2e >/dev/null 2>&1 || true
+            # harness has inspected it (it passed). The scaffold owns the
+            # cluster's name, so use its own cleanup target.
+            make e2e-clean >/dev/null 2>&1 || true
         else
             log_error "generated provider's make e2e FAILED"
             exit 1

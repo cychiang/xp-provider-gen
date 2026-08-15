@@ -14,7 +14,7 @@ spec:
       try:
         - apply:
             resource:
-              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              apiVersion: {{ .Resource.QualifiedGroup }}/{{ .Resource.Version }}
               kind: {{ .Resource.Kind }}
               metadata:
                 name: behavior-{{ .TestName }}
@@ -27,7 +27,7 @@ spec:
                   kind: ProviderConfig
         - assert:
             resource:
-              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              apiVersion: {{ .Resource.QualifiedGroup }}/{{ .Resource.Version }}
               kind: {{ .Resource.Kind }}
               metadata:
                 name: behavior-{{ .TestName }}

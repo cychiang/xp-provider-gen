@@ -56,9 +56,12 @@ CROSSPLANE_VERSION ?= 2.3.4
 # unrelated kind cluster. Must be set BEFORE the local.xpkg.mk and
 # controlplane.mk includes: both default it to "local-dev" with ?=, and the
 # first definition wins.
+# ?= so CI or a developer can point e2e at a different cluster; the others are
+# fixed on purpose.
 KIND_CLUSTER_NAME ?= $(PROJECT_NAME)-e2e
 
-# Every kind cluster this project can create, one name per purpose:
+# ------------------------------------------------------------------------------
+# Cluster names — every kind cluster this project can create, one per purpose:
 #   make dev / dev-clean            -> $(DEV_CLUSTER_NAME)      (explicit lifecycle)
 #   make e2e                        -> $(KIND_CLUSTER_NAME)     (left running; e2e-clean removes it)
 #   make test-integration           -> $(INTEGRATION_CLUSTER_NAME) (auto-removed by the script)
@@ -70,11 +73,8 @@ INTEGRATION_CLUSTER_NAME := $(PROJECT_NAME)-integration
 UPTEST_LOCAL_DEPLOY_TARGET = local.xpkg.deploy.provider.$(PROJECT_NAME)
 # Every kind's lifecycle file is picked up automatically; create api adds one
 # per kind, so this Makefile never needs editing for new kinds. uptest takes
-# the manifests as ONE comma-separated argument, hence the space→comma join.
-empty :=
-space := $(empty) $(empty)
-UPTEST_INPUT_MANIFESTS = $(subst $(space),$(comma),$(strip $(wildcard test/e2e/*-lifecycle.yaml)))
-comma := ,
+# the manifests as ONE comma-separated argument, hence the join.
+UPTEST_INPUT_MANIFESTS = $(shell echo $(wildcard test/e2e/*-lifecycle.yaml) | tr ' ' ',')
 -include build/makelib/uptest.mk
 
 # The e2e flow leaves its cluster running for inspection (the next run
@@ -83,12 +83,6 @@ e2e-clean: $(KIND)
 	@$(INFO) Deleting e2e kind cluster $(KIND_CLUSTER_NAME)
 	@$(KIND) delete cluster --name=$(KIND_CLUSTER_NAME) || true
 	@$(OK) Deleted e2e kind cluster $(KIND_CLUSTER_NAME)
-
-# The scaffolder writes files 0644 but uptest execs the setup script directly;
-# self-heal the bit so freshly seeded providers work too.
-uptest-setup-perms:
-	@chmod +x test/setup.sh
-uptest: uptest-setup-perms
 
 # Controller behavior tests (chainsaw); also usable alone against a live cluster.
 test-behavior: $(CHAINSAW) $(KUBECTL)
@@ -151,7 +145,7 @@ dev-clean: $(KIND) $(KUBECTL)
 	@$(INFO) Deleting kind cluster $(DEV_CLUSTER_NAME)
 	@$(KIND) delete cluster --name=$(DEV_CLUSTER_NAME)
 
-.PHONY: submodules fallthrough test-integration test-behavior e2e.run e2e-clean uptest-setup-perms run dev dev-clean
+.PHONY: submodules fallthrough test-integration test-behavior e2e.run e2e-clean run dev dev-clean
 
 # ====================================================================================
 # Special Targets
