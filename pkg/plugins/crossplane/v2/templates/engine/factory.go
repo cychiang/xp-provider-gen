@@ -27,18 +27,16 @@ import (
 )
 
 type CrossplaneTemplateFactory struct {
-	config         config.Config
-	initRegistry   map[TemplateType]TemplateBuilder
-	apiRegistry    map[TemplateType]TemplateBuilder
-	staticRegistry map[TemplateType]TemplateBuilder
+	config       config.Config
+	initRegistry map[TemplateType]TemplateBuilder
+	apiRegistry  map[TemplateType]TemplateBuilder
 }
 
 func NewFactory(cfg config.Config) TemplateFactory {
 	factory := &CrossplaneTemplateFactory{
-		config:         cfg,
-		initRegistry:   make(map[TemplateType]TemplateBuilder),
-		apiRegistry:    make(map[TemplateType]TemplateBuilder),
-		staticRegistry: make(map[TemplateType]TemplateBuilder),
+		config:       cfg,
+		initRegistry: make(map[TemplateType]TemplateBuilder),
+		apiRegistry:  make(map[TemplateType]TemplateBuilder),
 	}
 
 	factory.discoverAndRegisterTemplates()
@@ -62,11 +60,9 @@ func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
 
 		switch info.Category {
 		case InitCategory:
-			f.initRegistry[templateType] = NewBaseTemplateBuilder(templateType, &InitBuildStrategy{})
+			f.initRegistry[templateType] = NewBaseTemplateBuilder(templateType, info)
 		case APICategory:
-			f.apiRegistry[templateType] = NewBaseTemplateBuilder(templateType, &APIBuildStrategy{})
-		case StaticCategory:
-			f.staticRegistry[templateType] = NewBaseTemplateBuilder(templateType, &StaticBuildStrategy{})
+			f.apiRegistry[templateType] = NewBaseTemplateBuilder(templateType, info)
 		default:
 			return fmt.Errorf("template %q has no category", path)
 		}
@@ -78,72 +74,6 @@ func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
 		// is a build defect — fail loudly rather than scaffold incompletely.
 		panic(fmt.Errorf("discovering templates: %w", err))
 	}
-}
-
-func (f *CrossplaneTemplateFactory) CreateInitTemplate(templateType TemplateType,
-	opts ...Option,
-) (TemplateProduct, error) {
-	builder, exists := f.initRegistry[templateType]
-	if !exists {
-		return nil, fmt.Errorf("unsupported init template type: %s", templateType)
-	}
-
-	product, err := builder.Build(f.config, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build init template %s: %w", templateType, err)
-	}
-
-	return product, nil
-}
-
-func (f *CrossplaneTemplateFactory) CreateAPITemplate(templateType TemplateType,
-	opts ...Option,
-) (TemplateProduct, error) {
-	builder, exists := f.apiRegistry[templateType]
-	if !exists {
-		return nil, fmt.Errorf("unsupported API template type: %s", templateType)
-	}
-
-	product, err := builder.Build(f.config, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build API template %s: %w", templateType, err)
-	}
-
-	return product, nil
-}
-
-func (f *CrossplaneTemplateFactory) CreateStaticTemplate(templateType TemplateType,
-	opts ...Option,
-) (TemplateProduct, error) {
-	builder, exists := f.staticRegistry[templateType]
-	if !exists {
-		return nil, fmt.Errorf("unsupported static template type: %s", templateType)
-	}
-
-	product, err := builder.Build(f.config, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build static template %s: %w", templateType, err)
-	}
-
-	return product, nil
-}
-
-func (f *CrossplaneTemplateFactory) GetSupportedTypes() []TemplateType {
-	var types []TemplateType
-
-	for templateType := range f.initRegistry {
-		types = append(types, templateType)
-	}
-
-	for templateType := range f.apiRegistry {
-		types = append(types, templateType)
-	}
-
-	for templateType := range f.staticRegistry {
-		types = append(types, templateType)
-	}
-
-	return types
 }
 
 func (f *CrossplaneTemplateFactory) GetInitTemplates(opts ...Option) ([]TemplateProduct, error) {
@@ -167,20 +97,6 @@ func (f *CrossplaneTemplateFactory) GetAPITemplates(opts ...Option) ([]TemplateP
 		product, err := builder.Build(f.config, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build API template %s: %w", templateType, err)
-		}
-		templates = append(templates, product)
-	}
-
-	return templates, nil
-}
-
-func (f *CrossplaneTemplateFactory) GetStaticTemplates(opts ...Option) ([]TemplateProduct, error) {
-	var templates []TemplateProduct
-
-	for templateType, builder := range f.staticRegistry {
-		product, err := builder.Build(f.config, opts...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build static template %s: %w", templateType, err)
 		}
 		templates = append(templates, product)
 	}

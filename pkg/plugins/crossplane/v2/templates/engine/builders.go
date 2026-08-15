@@ -35,25 +35,17 @@ const (
 	placeholderImageName = "IMAGENAME"
 )
 
-// BuildStrategy defines different strategies for building templates.
-type BuildStrategy interface {
-	GetCategory() TemplateCategory
-	ValidateOptions(options *TemplateOptions) error
-	GenerateReplacements(cfg config.Config, options *TemplateOptions) (map[string]string, error)
-}
-
-// BaseTemplateBuilder provides unified template building functionality.
+// BaseTemplateBuilder builds one discovered template. It keeps the TemplateInfo
+// found during discovery: Build needs the template's path, and re-deriving it
+// would mean walking the embedded FS again for every template built.
 type BaseTemplateBuilder struct {
 	templateType TemplateType
-	strategy     BuildStrategy
+	info         TemplateInfo
 }
 
-// NewBaseTemplateBuilder creates a new template builder with the specified strategy.
-func NewBaseTemplateBuilder(templateType TemplateType, strategy BuildStrategy) TemplateBuilder {
-	return &BaseTemplateBuilder{
-		templateType: templateType,
-		strategy:     strategy,
-	}
+// NewBaseTemplateBuilder creates a builder for an already-discovered template.
+func NewBaseTemplateBuilder(templateType TemplateType, info TemplateInfo) TemplateBuilder {
+	return &BaseTemplateBuilder{templateType: templateType, info: info}
 }
 
 func (b *BaseTemplateBuilder) GetTemplateType() TemplateType {
@@ -63,22 +55,13 @@ func (b *BaseTemplateBuilder) GetTemplateType() TemplateType {
 func (b *BaseTemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateProduct, error) {
 	options := parseOptions(opts)
 
-	// Validate options using strategy
-	if err := b.strategy.ValidateOptions(options); err != nil {
-		return nil, err
+	// Per-kind templates cannot render without the kind.
+	if b.info.Category == APICategory && options.Resource == nil {
+		return nil, fmt.Errorf("resource is required for API template %s", b.info.Path)
 	}
 
-	// Find template info using strategy's category
-	info, err := findTemplateInfoByCategory(b.strategy.GetCategory(), b.templateType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find template info: %w", err)
-	}
-
-	// Generate replacements using strategy
-	replacements, err := b.strategy.GenerateReplacements(cfg, options)
-	if err != nil {
-		return nil, err
-	}
+	info := b.info
+	replacements := replacementsFor(cfg, options)
 
 	// Create and configure template product
 	product := createTemplateProduct(b.templateType, info, replacements)
@@ -90,77 +73,17 @@ func (b *BaseTemplateBuilder) Build(cfg config.Config, opts ...Option) (Template
 	return product, nil
 }
 
-// InitBuildStrategy implements strategy for init templates.
-type InitBuildStrategy struct{}
-
-func (s *InitBuildStrategy) GetCategory() TemplateCategory {
-	return InitCategory
-}
-
-func (s *InitBuildStrategy) ValidateOptions(_ *TemplateOptions) error {
-	// Init templates don't require special validation
-	return nil
-}
-
-func (s *InitBuildStrategy) GenerateReplacements(cfg config.Config, _ *TemplateOptions) (map[string]string, error) {
-	projectName := core.ExtractProjectName(cfg)
-	return map[string]string{
-		placeholderImageName: projectName,
-	}, nil
-}
-
-// APIBuildStrategy implements strategy for API templates.
-type APIBuildStrategy struct{}
-
-func (s *APIBuildStrategy) GetCategory() TemplateCategory {
-	return APICategory
-}
-
-func (s *APIBuildStrategy) ValidateOptions(options *TemplateOptions) error {
-	if options.Resource == nil {
-		return fmt.Errorf("resource is required for API templates")
-	}
-	return nil
-}
-
-func (s *APIBuildStrategy) GenerateReplacements(
-	cfg config.Config, options *TemplateOptions,
-) (map[string]string, error) {
-	projectName := core.ExtractProjectName(cfg)
-	return map[string]string{
-		placeholderGroup:     strings.ToLower(options.Resource.Group),
-		placeholderVersion:   options.Resource.Version,
-		placeholderKind:      strings.ToLower(options.Resource.Kind),
-		placeholderImageName: projectName,
-	}, nil
-}
-
-// StaticBuildStrategy implements strategy for static templates.
-type StaticBuildStrategy struct{}
-
-func (s *StaticBuildStrategy) GetCategory() TemplateCategory {
-	return StaticCategory
-}
-
-func (s *StaticBuildStrategy) ValidateOptions(_ *TemplateOptions) error {
-	// Static templates don't require special validation
-	return nil
-}
-
-func (s *StaticBuildStrategy) GenerateReplacements(
-	cfg config.Config, options *TemplateOptions,
-) (map[string]string, error) {
-	projectName := core.ExtractProjectName(cfg)
+// replacementsFor returns the path placeholder substitutions for one template.
+// The resource placeholders appear only when a resource is in play — which is
+// exactly what separates a per-kind render from an init-time one.
+func replacementsFor(cfg config.Config, options *TemplateOptions) map[string]string {
 	replacements := map[string]string{
-		placeholderImageName: projectName,
+		placeholderImageName: core.ExtractProjectName(cfg),
 	}
-
-	// Add resource-specific replacements if available
 	if options.Resource != nil {
-		replacements["GROUP"] = strings.ToLower(options.Resource.Group)
-		replacements["VERSION"] = options.Resource.Version
-		replacements["KIND"] = strings.ToLower(options.Resource.Kind)
+		replacements[placeholderGroup] = strings.ToLower(options.Resource.Group)
+		replacements[placeholderVersion] = options.Resource.Version
+		replacements[placeholderKind] = strings.ToLower(options.Resource.Kind)
 	}
-
-	return replacements, nil
+	return replacements
 }

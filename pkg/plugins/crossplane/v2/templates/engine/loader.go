@@ -19,7 +19,6 @@ package engine
 import (
 	"embed"
 	"fmt"
-	"io/fs"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/templates"
@@ -52,34 +51,4 @@ func (tl *TemplateLoader) LoadTemplate(templatePath string) (string, error) {
 	}
 
 	return string(content), nil
-}
-
-// ListTemplates returns all available templates.
-func (tl *TemplateLoader) ListTemplates() ([]string, error) {
-	var templates []string
-	processor := core.NewTemplatePathProcessor()
-
-	err := fs.WalkDir(tl.fs, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if !d.IsDir() && processor.IsTemplateFile(path) {
-			// Remove the base path and .tmpl extension for cleaner names
-			templateName := processor.GetOutputPath(path)
-			templates = append(templates, templateName)
-		}
-
-		return nil
-	})
-
-	return templates, err
-}
-
-// TemplateExists checks if a template exists.
-func (tl *TemplateLoader) TemplateExists(templatePath string) bool {
-	processor := core.NewTemplatePathProcessor()
-	fsPath := processor.ConvertToFilesystemPath(templatePath)
-	_, err := tl.fs.ReadFile(fsPath)
-	return err == nil
 }

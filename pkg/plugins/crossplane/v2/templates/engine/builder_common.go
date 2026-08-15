@@ -18,42 +18,11 @@ package engine
 
 import (
 	"fmt"
-	"io/fs"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
-	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
-
-func findTemplateInfoByCategory(category TemplateCategory, templateType TemplateType) (TemplateInfo, error) {
-	var foundInfo TemplateInfo
-	found := false
-
-	processor := core.NewTemplatePathProcessor()
-
-	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !processor.IsTemplateFile(path) {
-			return err
-		}
-
-		info := AnalyzeTemplatePath(path)
-		if info.Category == category && info.GenerateTemplateType() == templateType {
-			foundInfo = info
-			found = true
-		}
-		return nil
-	})
-	if err != nil {
-		return TemplateInfo{}, err
-	}
-
-	if !found {
-		return TemplateInfo{}, fmt.Errorf("template not found for type: %s", templateType)
-	}
-
-	return foundInfo, nil
-}
 
 func parseOptions(opts []Option) *TemplateOptions {
 	options := &TemplateOptions{}
@@ -78,9 +47,6 @@ func configureTemplateProduct(product TemplateProduct, cfg config.Config, option
 		base := genericProduct.GetBase()
 		if options.Force {
 			base.SetForce(options.Force)
-		}
-		if options.CustomData != nil {
-			base.SetCustomData(options.CustomData)
 		}
 	}
 

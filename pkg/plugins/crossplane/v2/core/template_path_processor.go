@@ -87,13 +87,6 @@ func (p *TemplatePathProcessor) SplitPathComponents(path string) []string {
 	return strings.Split(cleanPath, "/")
 }
 
-// NormalizePath normalizes a path by cleaning up redundant separators and components.
-func (p *TemplatePathProcessor) NormalizePath(path string) string {
-	// Use filepath.Clean but convert back to forward slashes for consistency
-	cleaned := filepath.Clean(path)
-	return strings.ReplaceAll(cleaned, "\\", "/")
-}
-
 // PathHasPattern checks if a path contains any of the given patterns.
 func (p *TemplatePathProcessor) PathHasPattern(path string, patterns []string) bool {
 	for _, pattern := range patterns {
@@ -102,19 +95,4 @@ func (p *TemplatePathProcessor) PathHasPattern(path string, patterns []string) b
 		}
 	}
 	return false
-}
-
-// ExtractPathVariables extracts variable placeholders from a path (e.g., KIND, GROUP, VERSION).
-func (p *TemplatePathProcessor) ExtractPathVariables(path string) []string {
-	var variables []string
-	components := p.SplitPathComponents(path)
-
-	for _, component := range components {
-		if strings.ToUpper(component) == component && len(component) > 1 {
-			// This looks like a variable placeholder (all uppercase)
-			variables = append(variables, component)
-		}
-	}
-
-	return variables
 }

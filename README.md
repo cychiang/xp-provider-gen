@@ -102,7 +102,8 @@ Quick start for contributors:
 ```bash
 make build       # Build the binary
 make reviewable  # fmt + vet + lint + gosec + test (run before pushing)
-make e2e-test    # Full scaffold → build workflow
+make e2e-test    # Full scaffold → build → generated provider's own e2e
+make upgrade-sim # Simulate a generator bump against real user logic
 make help        # List all targets
 ```
 

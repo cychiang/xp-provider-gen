@@ -33,13 +33,8 @@ type TemplateProduct interface {
 }
 
 type TemplateFactory interface {
-	CreateInitTemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error)
-	CreateAPITemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error)
-	CreateStaticTemplate(templateType TemplateType, opts ...Option) (TemplateProduct, error)
-	GetSupportedTypes() []TemplateType
 	GetInitTemplates(opts ...Option) ([]TemplateProduct, error)
 	GetAPITemplates(opts ...Option) ([]TemplateProduct, error)
-	GetStaticTemplates(opts ...Option) ([]TemplateProduct, error)
 }
 
 type TemplateBuilder interface {
@@ -50,9 +45,8 @@ type TemplateBuilder interface {
 type Option func(*TemplateOptions)
 
 type TemplateOptions struct {
-	Force      bool
-	Resource   *resource.Resource
-	CustomData map[string]interface{}
+	Force    bool
+	Resource *resource.Resource
 }
 
 func WithForce(force bool) Option {
@@ -61,8 +55,4 @@ func WithForce(force bool) Option {
 
 func WithResource(resource *resource.Resource) Option {
 	return func(opts *TemplateOptions) { opts.Resource = resource }
-}
-
-func WithCustomData(data map[string]interface{}) Option {
-	return func(opts *TemplateOptions) { opts.CustomData = data }
 }

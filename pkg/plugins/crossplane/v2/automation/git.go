@@ -137,17 +137,3 @@ func (g *GitOperations) AddSubmodule(ctx context.Context, url, path string) erro
 	// Initialize the submodule
 	return g.runner.RunCommand(ctx, "submodule", "update", "--init", "--recursive")
 }
-
-// CreateCommitWithSystemConfig creates a commit using only system git configuration.
-func (g *GitOperations) CreateCommitWithSystemConfig(ctx context.Context, message string) error {
-	if err := g.runner.Add(ctx, "."); err != nil {
-		return err
-	}
-
-	return g.runner.CommitWithSystemAuthor(ctx, message)
-}
-
-// GetSystemAuthor retrieves the current git user configuration.
-func (g *GitOperations) GetSystemAuthor(ctx context.Context) (string, error) {
-	return g.runner.GetSystemAuthor(ctx)
-}

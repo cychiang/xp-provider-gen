@@ -90,11 +90,6 @@ func (g *GitCommandRunner) Add(ctx context.Context, files ...string) error {
 	return g.RunCommand(ctx, args...)
 }
 
-// Commit creates a commit with the provided message.
-func (g *GitCommandRunner) Commit(ctx context.Context, message string) error {
-	return g.RunCommandWithStdin(ctx, message, "commit", "-F", "-")
-}
-
 // GetUserName retrieves the git user.name from system config.
 func (g *GitCommandRunner) GetUserName(ctx context.Context) (string, error) {
 	return g.RunCommandWithOutput(ctx, "config", "--get", "user.name")
@@ -103,21 +98,6 @@ func (g *GitCommandRunner) GetUserName(ctx context.Context) (string, error) {
 // GetUserEmail retrieves the git user.email from system config.
 func (g *GitCommandRunner) GetUserEmail(ctx context.Context) (string, error) {
 	return g.RunCommandWithOutput(ctx, "config", "--get", "user.email")
-}
-
-// GetSystemAuthor retrieves the system git author in "Name <email>" format.
-func (g *GitCommandRunner) GetSystemAuthor(ctx context.Context) (string, error) {
-	name, err := g.GetUserName(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get user name: %w", err)
-	}
-
-	email, err := g.GetUserEmail(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get user email: %w", err)
-	}
-
-	return fmt.Sprintf("%s <%s>", name, email), nil
 }
 
 // CommitWithSystemAuthor creates a commit using system git configuration.
