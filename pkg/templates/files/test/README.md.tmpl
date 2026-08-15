@@ -36,10 +36,8 @@ make test-integration   # fast loop: controller from source, no packaging
 without running them — reach for it before debugging a failure, the generated
 step is often not what the annotations suggest.
 
-Cluster names are one-per-purpose and printed by every command:
-`{{ .ProviderName }}-e2e` (e2e, left running — `make e2e-clean` removes it),
-`{{ .ProviderName }}-integration` (auto-removed), `{{ .ProviderName }}-dev`
-(`make dev` / `dev-clean`).
+Each command uses its own kind cluster and prints the name it acts on;
+`make help` lists them.
 
 ## Adding a test
 

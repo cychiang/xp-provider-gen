@@ -431,13 +431,26 @@ main() {
     # machines can still run the rest of the harness.
     step_header "E" "Generated provider's own e2e (uptest + chainsaw)"
     PROVIDER_E2E_RESULT="SKIPPED (no docker daemon)"
+    CREATE_TEST_LIVE_RESULT="SKIPPED (no docker daemon)"
     if docker info >/dev/null 2>&1; then
         if make e2e; then
             log_success "generated provider's make e2e passed"
             PROVIDER_E2E_RESULT="PASSED"
-            # The uptest flow leaves its kind cluster for inspection; the
-            # harness has inspected it (it passed). The scaffold owns the
-            # cluster's name, so use its own cleanup target.
+            # The cluster is still up and kubectl still points at it: prove the
+            # full user story end to end — scaffold a NEW behavior test with
+            # create-test, then actually run it against the live provider.
+            log_info "Running a freshly scaffolded chainsaw test against the cluster..."
+            if "$BINARY_PATH" create-test --name smoke-live --kind "$KIND1" >/dev/null &&
+               make test-behavior; then
+                log_success "create-test output runs green against the live provider"
+                CREATE_TEST_LIVE_RESULT="PASSED"
+            else
+                log_error "a scaffolded chainsaw test failed against the live provider"
+                exit 1
+            fi
+            # Restore the pristine scaffold, then drop the cluster (the scaffold
+            # owns its name, so use its own cleanup target).
+            rm -rf test/behavior/smoke-live junit.xml
             make e2e-clean >/dev/null 2>&1 || true
         else
             log_error "generated provider's make e2e FAILED"
@@ -460,6 +473,7 @@ main() {
     log_success "✅ Single 'Initial commit' scaffold: PASSED"
     log_success "✅ Generated provider's own e2e (uptest + chainsaw): ${PROVIDER_E2E_RESULT}"
     log_success "✅ create-test scaffolds a chainsaw test: PASSED"
+    log_success "✅ scaffolded test runs against the live provider: ${CREATE_TEST_LIVE_RESULT}"
     log_success "✅ update preserves all 3 user-owned seam files: PASSED"
     log_success "✅ update / update --adopt (on a copy): PASSED"
     echo

@@ -449,16 +449,11 @@ diff and how `--adopt` works for providers that predate the ownership contract.
 
 ## Where to go next
 
-- Run your provider's own test suites: `make e2e` is the full flow — it builds
-  your provider package, installs Crossplane on a dedicated kind cluster,
-  deploys the provider from the local package, then runs the
-  [uptest](https://github.com/crossplane/uptest) lifecycle for every kind and
-  the [chainsaw](https://kyverno.github.io/chainsaw/) behavior tests seeded
-  under `test/behavior/`. `make test-integration` is the fast from-source loop,
-  and `make test-behavior` runs just the chainsaw tests against a live cluster.
-- Add a behavior test with `xp-provider-gen create-test` — it prompts for a
-  name and kind (or takes `--name`/`--kind`) and scaffolds a chainsaw skeleton
-  in `test/behavior/` to build on.
+- Run your provider's own test suites — `make e2e` (uptest lifecycle + chainsaw
+  behavior, from the packaged provider), `make test-integration`, or
+  `make test-behavior` — and scaffold new behavior tests with
+  `xp-provider-gen create-test`. See
+  [Testing your provider](provider-guide.md#4-testing-your-provider).
 - Add a CLI flag or tune controller options in `internal/provider/options.go` —
   see [CLI flags](provider-guide.md#cli-flags).
 - Point `NewClient` at a real API: parse `cfg.Credentials`, keep the same shape.
