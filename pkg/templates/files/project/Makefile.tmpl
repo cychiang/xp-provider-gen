@@ -57,6 +57,13 @@ CROSSPLANE_VERSION ?= 2.3.4
 # controlplane.mk includes: both default it to "local-dev" with ?=, and the
 # first definition wins.
 KIND_CLUSTER_NAME ?= $(PROJECT_NAME)-e2e
+
+# Every kind cluster this project can create, one name per purpose:
+#   make dev / dev-clean            -> $(DEV_CLUSTER_NAME)      (explicit lifecycle)
+#   make e2e                        -> $(KIND_CLUSTER_NAME)     (left running; e2e-clean removes it)
+#   make test-integration           -> $(INTEGRATION_CLUSTER_NAME) (auto-removed by the script)
+DEV_CLUSTER_NAME := $(PROJECT_NAME)-dev
+INTEGRATION_CLUSTER_NAME := $(PROJECT_NAME)-integration
 -include build/makelib/local.xpkg.mk
 -include build/makelib/controlplane.mk
 
@@ -69,6 +76,13 @@ space := $(empty) $(empty)
 UPTEST_INPUT_MANIFESTS = $(subst $(space),$(comma),$(strip $(wildcard test/e2e/*-lifecycle.yaml)))
 comma := ,
 -include build/makelib/uptest.mk
+
+# The e2e flow leaves its cluster running for inspection (the next run
+# recreates it). This removes it, by name, when you are done.
+e2e-clean: $(KIND)
+	@$(INFO) Deleting e2e kind cluster $(KIND_CLUSTER_NAME)
+	@$(KIND) delete cluster --name=$(KIND_CLUSTER_NAME) || true
+	@$(OK) Deleted e2e kind cluster $(KIND_CLUSTER_NAME)
 
 # The scaffolder writes files 0644 but uptest execs the setup script directly;
 # self-heal the bit so freshly seeded providers work too.
@@ -97,7 +111,7 @@ e2e.run: test-behavior
 # throwaway kind cluster (see cluster/local/integration_tests.sh).
 test-integration: $(KIND) $(KUBECTL)
 	@$(INFO) running integration tests using kind $(KIND_VERSION)
-	@bash $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
+	@INTEGRATION_CLUSTER_NAME=$(INTEGRATION_CLUSTER_NAME) bash $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
 	@$(OK) integration tests passed
 
 # Update the submodules, such as the common build scripts.
@@ -125,19 +139,19 @@ run: go.build
 	$(GO_OUT_DIR)/provider --debug
 
 dev: $(KIND) $(KUBECTL)
-	@$(INFO) Creating kind cluster
-	@$(KIND) create cluster --name=$(PROJECT_NAME)-dev
-	@$(KUBECTL) cluster-info --context kind-$(PROJECT_NAME)-dev
+	@$(INFO) Creating kind cluster $(DEV_CLUSTER_NAME)
+	@$(KIND) create cluster --name=$(DEV_CLUSTER_NAME)
+	@$(KUBECTL) cluster-info --context kind-$(DEV_CLUSTER_NAME)
 	@$(INFO) Installing Provider CRDs
 	@$(KUBECTL) apply -R -f package/crds
 	@$(INFO) Starting Provider controllers
 	@$(GO) run cmd/provider/main.go --debug
 
 dev-clean: $(KIND) $(KUBECTL)
-	@$(INFO) Deleting kind cluster
-	@$(KIND) delete cluster --name=$(PROJECT_NAME)-dev
+	@$(INFO) Deleting kind cluster $(DEV_CLUSTER_NAME)
+	@$(KIND) delete cluster --name=$(DEV_CLUSTER_NAME)
 
-.PHONY: submodules fallthrough test-integration test-behavior e2e.run uptest-setup-perms run dev dev-clean
+.PHONY: submodules fallthrough test-integration test-behavior e2e.run e2e-clean uptest-setup-perms run dev dev-clean
 
 # ====================================================================================
 # Special Targets
@@ -182,9 +196,13 @@ provider.addtype: $(GOMPLATE)
 define CROSSPLANE_MAKE_HELP
 Crossplane Targets:
     submodules            Update the submodules, such as the common build scripts.
-    test-integration      Fast loop: run the controller from source against kind.
+    test-integration      Fast loop: run the controller from source against kind
+                          (cluster $(INTEGRATION_CLUSTER_NAME), auto-removed).
     test-behavior         Run the chainsaw behavior tests against a live cluster.
-    e2e                   Full e2e: package, deploy via Crossplane, uptest + chainsaw.
+    e2e                   Full e2e: package, deploy via Crossplane, uptest + chainsaw
+                          (cluster $(KIND_CLUSTER_NAME), left running).
+    e2e-clean             Delete the e2e kind cluster.
+    dev / dev-clean       Create/delete the dev cluster $(DEV_CLUSTER_NAME).
     run                   Run crossplane locally, out-of-cluster. Useful for development.
     dev                   Create kind cluster and run provider with CRDs.
     dev-clean             Clean up development kind cluster.

@@ -33,6 +33,11 @@ make test-integration   # fast loop: controller from source, no packaging
 
 `make e2e UPTEST_SKIP_DELETE=true` leaves resources behind to inspect them.
 
+Cluster names are one-per-purpose and printed by every command:
+`{{ .ProviderName }}-e2e` (e2e, left running — `make e2e-clean` removes it),
+`{{ .ProviderName }}-integration` (auto-removed), `{{ .ProviderName }}-dev`
+(`make dev` / `dev-clean`).
+
 ## Adding a test
 
 ```bash

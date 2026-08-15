@@ -185,15 +185,16 @@ once and never touched by `update`:
   actually stops reconciliation. Copy its pattern, or scaffold new tests with
   `xp-provider-gen create-test`.
 
-| Command | What it proves |
-|---|---|
-| `make e2e` | the full story: xpkg builds, Crossplane installs it, every kind's lifecycle passes, behavior tests pass |
-| `make test-integration` | fast loop: your reconcile logic, controller run from source |
-| `make test-behavior` | just the chainsaw tests, against whatever cluster kubectl points at |
+| Command | What it proves | kind cluster | Lifecycle |
+|---|---|---|---|
+| `make e2e` | the full story: xpkg builds, Crossplane installs it, every kind's lifecycle passes, behavior tests pass | `<provider>-e2e` | recreated per run, **left running**; `make e2e-clean` removes it |
+| `make test-integration` | fast loop: your reconcile logic, controller run from source | `<provider>-integration` | created and removed per run |
+| `make test-behavior` | just the chainsaw tests | whatever kubectl points at | untouched |
+| `make dev` / `dev-clean` | interactive development | `<provider>-dev` | explicit create/delete |
 
-`make e2e` uses a dedicated kind cluster named `<provider>-e2e` and deletes it
-first (`controlplane.down`) — it never touches other clusters, but it does
-switch your current kubectl context while running.
+One name per purpose, printed in every message — none of these can ever touch a
+cluster the project didn't create. `make e2e` and `make dev` do switch your
+current kubectl context while running.
 
 ## 5. Upgrading
 

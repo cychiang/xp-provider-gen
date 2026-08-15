@@ -20,7 +20,8 @@ projectdir="$( cd "$( dirname "${BASH_SOURCE[0]}")"/../.. && pwd )"
 # Tool paths (KIND, KUBECTL, ...) and project facts come from the build system.
 eval "$(make --no-print-directory -C "${projectdir}" build.vars)"
 
-CLUSTER="${PROJECT_NAME}-e2e"
+# The name comes from the Makefile (single source for cluster names).
+CLUSTER="${INTEGRATION_CLUSTER_NAME:-${PROJECT_NAME}-integration}"
 WORK="${WORK_DIR}/e2e"
 mkdir -p "${WORK}"
 export KUBECONFIG="${WORK}/kubeconfig"
