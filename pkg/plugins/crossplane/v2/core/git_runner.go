@@ -23,6 +23,11 @@ import (
 	"strings"
 )
 
+// GitCommandRunner provides secure git command execution. The executable is
+// the literal "git" in every call below — never a variable — and no shell is
+// involved, so the variable argument lists carry no injection risk; git treats
+// values after -m/-- as data.
+//
 // GitCommandRunner provides secure git command execution.
 type GitCommandRunner struct {
 	workDir string
@@ -35,7 +40,7 @@ func NewGitCommandRunner(workDir string) *GitCommandRunner {
 
 // RunCommand executes a git command with the provided arguments.
 func (g *GitCommandRunner) RunCommand(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- literal binary, no shell
 	if g.workDir != "" {
 		cmd.Dir = g.workDir
 	}
@@ -48,7 +53,7 @@ func (g *GitCommandRunner) RunCommand(ctx context.Context, args ...string) error
 
 // RunCommandWithOutput executes a git command and returns its output.
 func (g *GitCommandRunner) RunCommandWithOutput(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- literal binary, no shell
 	if g.workDir != "" {
 		cmd.Dir = g.workDir
 	}
@@ -62,7 +67,7 @@ func (g *GitCommandRunner) RunCommandWithOutput(ctx context.Context, args ...str
 
 // RunCommandWithStdin executes a git command with stdin input.
 func (g *GitCommandRunner) RunCommandWithStdin(ctx context.Context, stdin string, args ...string) error {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- literal binary, no shell
 	if g.workDir != "" {
 		cmd.Dir = g.workDir
 	}
