@@ -43,7 +43,6 @@ XPKG_REG_ORGS ?= xpkg.upbound.io/crossplane
 XPKG_REG_ORGS_NO_PROMOTE ?= xpkg.upbound.io/crossplane
 XPKGS = {{ .ProviderName }}
 -include build/makelib/xpkg.mk
--include build/makelib/local.xpkg.mk
 
 # NOTE(hasheddan): we force image building to happen prior to xpkg build so that
 # we ensure image is present in daemon.
@@ -54,9 +53,11 @@ xpkg.build.{{ .ProviderName }}: do.build.images $(CROSSPLANE_CLI)
 
 CROSSPLANE_VERSION ?= 2.3.4
 # A dedicated cluster name so e2e's controlplane.down can never delete an
-# unrelated kind cluster. Must be set BEFORE including controlplane.mk, whose
-# own default ("local-dev") would otherwise win the ?= race.
+# unrelated kind cluster. Must be set BEFORE the local.xpkg.mk and
+# controlplane.mk includes: both default it to "local-dev" with ?=, and the
+# first definition wins.
 KIND_CLUSTER_NAME ?= $(PROJECT_NAME)-e2e
+-include build/makelib/local.xpkg.mk
 -include build/makelib/controlplane.mk
 
 UPTEST_LOCAL_DEPLOY_TARGET = local.xpkg.deploy.provider.$(PROJECT_NAME)
