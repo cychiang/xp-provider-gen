@@ -62,8 +62,12 @@ KIND_CLUSTER_NAME ?= $(PROJECT_NAME)-e2e
 
 UPTEST_LOCAL_DEPLOY_TARGET = local.xpkg.deploy.provider.$(PROJECT_NAME)
 # Every kind's lifecycle file is picked up automatically; create api adds one
-# per kind, so this Makefile never needs editing for new kinds.
-UPTEST_INPUT_MANIFESTS = $(wildcard test/e2e/*-lifecycle.yaml)
+# per kind, so this Makefile never needs editing for new kinds. uptest takes
+# the manifests as ONE comma-separated argument, hence the space→comma join.
+empty :=
+space := $(empty) $(empty)
+UPTEST_INPUT_MANIFESTS = $(subst $(space),$(comma),$(strip $(wildcard test/e2e/*-lifecycle.yaml)))
+comma := ,
 -include build/makelib/uptest.mk
 
 # Controller behavior tests (chainsaw); also usable alone against a live cluster.
