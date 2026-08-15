@@ -60,6 +60,7 @@ func TestNewInitPipeline_CommitsLast(t *testing.T) {
 
 	assertStepOrder(t, p, []string{
 		"Initialize git repository",
+		"Mark scaffolded scripts executable",
 		"Add build submodule from " + cfg.Git.BuildSubmoduleURL,
 		"Run make submodules",
 		"Download dependencies (go mod tidy)",

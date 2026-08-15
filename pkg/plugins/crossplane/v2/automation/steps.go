@@ -19,6 +19,7 @@ package automation
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
@@ -119,6 +120,34 @@ func (s *GitSubmoduleStep) Execute() error {
 
 type MakeStep struct {
 	target string
+}
+
+// ExecutableBitStep marks scaffolded scripts executable: kubebuilder's
+// machinery writes every file 0644, but uptest execs the setup script
+// directly, so the bit must be set (and committed) at scaffold time.
+type ExecutableBitStep struct {
+	paths []string
+}
+
+// NewExecutableBitStep builds the chmod step for the given repo-relative paths.
+func NewExecutableBitStep(paths ...string) *ExecutableBitStep {
+	return &ExecutableBitStep{paths: paths}
+}
+
+func (s *ExecutableBitStep) Name() string {
+	return "Mark scaffolded scripts executable"
+}
+
+func (s *ExecutableBitStep) Execute() error {
+	for _, path := range s.paths {
+		if _, err := os.Stat(path); err != nil {
+			continue // seeded conditionally; absence is not an error
+		}
+		if err := os.Chmod(path, 0o755); err != nil { // #nosec G302 -- executable script
+			return fmt.Errorf("chmod +x %s: %w", path, err)
+		}
+	}
+	return nil
 }
 
 func NewMakeStep(target string) *MakeStep {

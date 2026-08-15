@@ -70,6 +70,12 @@ UPTEST_INPUT_MANIFESTS = $(subst $(space),$(comma),$(strip $(wildcard test/e2e/*
 comma := ,
 -include build/makelib/uptest.mk
 
+# The scaffolder writes files 0644 but uptest execs the setup script directly;
+# self-heal the bit so freshly seeded providers work too.
+uptest-setup-perms:
+	@chmod +x test/setup.sh
+uptest: uptest-setup-perms
+
 # Controller behavior tests (chainsaw); also usable alone against a live cluster.
 test-behavior: $(CHAINSAW) $(KUBECTL)
 	@$(INFO) running chainsaw behavior tests
@@ -131,7 +137,7 @@ dev-clean: $(KIND) $(KUBECTL)
 	@$(INFO) Deleting kind cluster
 	@$(KIND) delete cluster --name=$(PROJECT_NAME)-dev
 
-.PHONY: submodules fallthrough test-integration test-behavior e2e.run run dev dev-clean
+.PHONY: submodules fallthrough test-integration test-behavior e2e.run uptest-setup-perms run dev dev-clean
 
 # ====================================================================================
 # Special Targets
