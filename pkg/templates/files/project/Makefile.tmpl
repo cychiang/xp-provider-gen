@@ -85,9 +85,15 @@ e2e-clean: $(KIND)
 	@$(OK) Deleted e2e kind cluster $(KIND_CLUSTER_NAME)
 
 # Controller behavior tests (chainsaw); also usable alone against a live cluster.
+# --quiet keeps per-operation logging down (failures and the summary still
+# print); the JUnit report lands in the project root for CI to collect.
+# CHAINSAW_ARGS appends extra flags, e.g. CHAINSAW_ARGS="--test-dir test/behavior/foo".
+CHAINSAW_ARGS ?=
 test-behavior: $(CHAINSAW) $(KUBECTL)
 	@$(INFO) running chainsaw behavior tests
-	@$(CHAINSAW) test test/behavior --parallel 1 --quiet || $(FAIL)
+	@$(CHAINSAW) test test/behavior --parallel 1 --quiet \
+		--report-format JUNIT-TEST --report-path $(ROOT_DIR) --report-name junit \
+		$(CHAINSAW_ARGS) || $(FAIL)
 	@$(OK) chainsaw behavior tests passed
 
 # Run the chainsaw suite after uptest: e2e.run is common.mk's post-prerequisite

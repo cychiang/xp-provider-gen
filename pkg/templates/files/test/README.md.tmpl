@@ -32,6 +32,9 @@ make test-integration   # fast loop: controller from source, no packaging
 ```
 
 `make e2e UPTEST_SKIP_DELETE=true` leaves resources behind to inspect them.
+`make uptest UPTEST_RENDER_ONLY=true` renders the generated lifecycle steps
+without running them — reach for it before debugging a failure, the generated
+step is often not what the annotations suggest.
 
 Cluster names are one-per-purpose and printed by every command:
 `{{ .ProviderName }}-e2e` (e2e, left running — `make e2e-clean` removes it),
