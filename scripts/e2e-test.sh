@@ -431,6 +431,9 @@ main() {
         if make e2e; then
             log_success "generated provider's make e2e passed"
             PROVIDER_E2E_RESULT="PASSED"
+            # The uptest flow leaves its kind cluster for inspection; the
+            # harness has inspected it (it passed), so clean it up.
+            kind delete cluster --name provider-template-e2e >/dev/null 2>&1 || true
         else
             log_error "generated provider's make e2e FAILED"
             exit 1
