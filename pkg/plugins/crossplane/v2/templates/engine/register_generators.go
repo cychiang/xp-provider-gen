@@ -47,6 +47,19 @@ type controllerPackage struct {
 	Setup string // setup expression, e.g. mytype.SetupGated
 }
 
+// ManagedResources filters a project's resource list down to the managed
+// resource kinds — the single definition of "managed" (has a group and kind)
+// shared by the generators and the create-test command.
+func ManagedResources(resources []resource.Resource) []resource.Resource {
+	var managed []resource.Resource
+	for _, res := range resources {
+		if res.Group != "" && res.Kind != "" {
+			managed = append(managed, res)
+		}
+	}
+	return managed
+}
+
 // uniqueGroupVersions returns the base providerv1alpha1 scheme followed by one
 // entry per distinct managed (group, version), in first-seen order.
 func uniqueGroupVersions(repo string, resources []resource.Resource) []apiGroupVersion {
@@ -54,10 +67,7 @@ func uniqueGroupVersions(repo string, resources []resource.Resource) []apiGroupV
 		{Alias: baseSchemeAlias, Path: repo + "/apis/v1alpha1"},
 	}
 	seen := map[string]bool{}
-	for _, res := range resources {
-		if res.Group == "" {
-			continue
-		}
+	for _, res := range ManagedResources(resources) {
 		key := res.Group + "/" + res.Version
 		if seen[key] {
 			continue
@@ -80,9 +90,9 @@ func controllerPackages(repo string, resources []resource.Resource) []controller
 		{Path: repo + "/internal/controller/config", Setup: "config.Setup"},
 	}
 	seen := map[string]bool{}
-	for _, res := range resources {
+	for _, res := range ManagedResources(resources) {
 		pkg := strings.ToLower(res.Kind)
-		if pkg == "" || seen[pkg] {
+		if seen[pkg] {
 			continue
 		}
 		seen[pkg] = true

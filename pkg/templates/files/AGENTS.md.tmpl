@@ -27,6 +27,8 @@ of a file, so quoting it here would make this user-owned file look tool-owned.
 | Add CLI flags or adjust controller options | `internal/provider/options.go` |
 | Add fields to the ProviderConfig | `apis/v1alpha1/types.go` |
 | Add fields to a managed resource | `apis/<group>/<version>/<kind>_types.go` |
+| Tune a kind's e2e lifecycle test | `test/e2e/<kind>-lifecycle.yaml` |
+| Add a controller behavior test | `test/behavior/` (scaffold with `xp-provider-gen create-test`) |
 
 ## Names you must not rename
 

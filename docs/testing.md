@@ -68,13 +68,14 @@ a throwaway project in `/tmp/provider-template`:
    `AGENTS.md` is untouched, (d) `update` refuses a dirty tree.
 6. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
    run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
-7. **The generated provider's own e2e:** run `make e2e` inside the scaffold — a throwaway kind
-   cluster, CRDs installed, the controller running out-of-cluster, and every example resource
-   reconciled to `Ready` then deleted cleanly. Skipped with a warning when no Docker daemon is
-   available. (Generated providers also ship `make e2e-package`, which builds the xpkg and
-   installs it into kind via a Helm-installed Crossplane; that path needs Docker + Helm and is
-   not part of this harness.)
-8. Verify the provider builds.
+7. **create-test:** scaffold a chainsaw behavior test non-interactively and assert the file
+   lands — and that an existing test is never overwritten.
+8. **The generated provider's own e2e:** run `make e2e` inside the scaffold — the full
+   uptest + chainsaw flow: build the xpkg, stand up a dedicated kind control plane with
+   Crossplane installed, deploy the provider from the local package, run every kind's
+   uptest lifecycle (create → Ready/Synced → delete), then the chainsaw behavior suite
+   (the seeded pause tests). Skipped with a warning when no Docker daemon is available.
+9. Verify the provider builds.
 
 ## Upgrade-path simulation (`make upgrade-sim`)
 

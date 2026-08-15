@@ -28,6 +28,7 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 | `make check` | fmt + vet + lint + gosec + test |
 | `make reviewable` | `mod-tidy` + `check` — run this before pushing |
 | `make e2e-test` | Build, then run the end-to-end scaffold test |
+| `make upgrade-sim` | Simulate a generator version bump against real user logic |
 
 `make reviewable` mirrors what CI enforces. If it passes locally, CI should pass too.
 
@@ -43,7 +44,8 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 ## Working with templates
 
 Provider scaffolding lives under `pkg/templates/files/` as `.tmpl` files embedded via
-`go:embed`. They are **auto-discovered** — see [architecture.md](architecture.md#4-template-engine).
+`go:embed`. They are **auto-discovered** — see [templates.md](templates.md) for the
+contributor flow and [architecture.md](architecture.md) §4 for the engine.
 
 To add or change generated output:
 

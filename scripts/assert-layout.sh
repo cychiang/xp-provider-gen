@@ -33,7 +33,8 @@ require "internal/provider/connector.go"
 require "internal/provider/client.go"
 require "internal/provider/options.go"
 require "cluster/local/integration_tests.sh"
-require "cluster/local/package_tests.sh"
+require "test/setup.sh"
+require "test/README.md"
 require "docs/ownership.md"
 require "AGENTS.md"
 
@@ -43,6 +44,8 @@ if [ -n "$kind" ]; then
     require "apis/$group/$version/${kind_lower}_types.go"
     require "internal/controller/$kind_lower/external.go"
     require "internal/controller/$kind_lower/wiring.go"
+    require "test/e2e/${kind_lower}-lifecycle.yaml"
+    require "test/behavior/${kind_lower}-pause/chainsaw-test.yaml"
 fi
 
 if [ $fail -ne 0 ]; then

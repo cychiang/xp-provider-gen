@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# uptest setup: runs once before the lifecycle tests.
+#
+# No RBAC setup is needed here: Crossplane grants each provider's service
+# account a ClusterRole that already includes what the safe-start gate needs.
+echo "Waiting for provider to become healthy..."
+${KUBECTL} wait provider.pkg {{ .ProviderName }} \
+  --for=condition=Healthy \
+  --timeout=180s
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+echo "Creating ProviderConfig and credentials from examples..."
+${KUBECTL} apply -f "${PROJECT_ROOT}/examples/provider/config.yaml"
+
+echo "Setup complete."

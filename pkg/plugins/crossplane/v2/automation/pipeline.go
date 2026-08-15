@@ -36,6 +36,7 @@ Scaffolded Crossplane provider project for %s
 	return &Pipeline{
 		steps: []Step{
 			NewGitInitStep(config),
+			NewExecutableBitStep("test/setup.sh"),
 			NewGitSubmoduleStep(config),
 			NewMakeStep("submodules"),
 			NewGoModTidyStep(),
