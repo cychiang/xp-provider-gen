@@ -172,7 +172,31 @@ Generated code calls these six by name. Renaming any of them breaks the build:
 You can change anything else about them — add fields to `Client`, add helpers, split
 files in the package. Only the names and signatures above are fixed.
 
-## 4. Upgrading
+## 4. Testing your provider
+
+The scaffold seeds a complete e2e suite under `test/` — all user-owned, seeded
+once and never touched by `update`:
+
+- `test/e2e/<kind>-lifecycle.yaml` per kind — [uptest](https://github.com/crossplane/uptest)
+  input: create → assert `Ready,Synced` → delete, through both `ProviderConfig`
+  and `ClusterProviderConfig`. Picked up by wildcard; adding kinds needs no wiring.
+- `test/behavior/<kind>-pause/` per kind — a seed
+  [chainsaw](https://kyverno.github.io/chainsaw/) test proving `crossplane.io/paused`
+  actually stops reconciliation. Copy its pattern, or scaffold new tests with
+  `xp-provider-gen create-test`.
+
+| Command | What it proves | kind cluster | Lifecycle |
+|---|---|---|---|
+| `make e2e` | the full story: xpkg builds, Crossplane installs it, every kind's lifecycle passes, behavior tests pass | `<provider>-e2e` | recreated per run, **left running**; `make e2e-clean` removes it |
+| `make test-integration` | fast loop: your reconcile logic, controller run from source | `<provider>-integration` | created and removed per run |
+| `make test-behavior` | just the chainsaw tests | whatever kubectl points at | untouched |
+| `make dev` / `dev-clean` | interactive development | `<provider>-dev` | explicit create/delete |
+
+One name per purpose, printed in every message — none of these can ever touch a
+cluster the project didn't create. `make e2e` and `make dev` do switch your
+current kubectl context while running.
+
+## 5. Upgrading
 
 This is the payoff. When a new `xp-provider-gen` ships — a crossplane-runtime bump,
 a fix to the controller wiring, a new framework feature:
@@ -220,7 +244,21 @@ Providers generated before the modular layout (`external.go` / `wiring.go` /
 `internal/provider`) must be regenerated instead — there is no in-place migration
 for that change.
 
-## 5. Where to look next
+Providers generated before 2026-08-15 also carry a `ClusterProviderConfigUsage`
+type in user-owned `apis/v1alpha1/types.go` that nothing ever creates. `update`
+delivers the real fix by refreshing the tool-owned files (`config.go` points the
+cluster reconciler at `ProviderConfigUsage`; `register.go` drops the dead
+registration); the leftover type in your `types.go` is harmless — delete it by
+hand or leave it.
+
+On such providers `update` also seeds the new `test/` tree — but two pieces it
+cannot deliver live in user-owned files: the Makefile's uptest section (copy the
+"Setup Uptest" block from a fresh scaffold to get `make e2e` / `test-behavior`)
+and the sample drift-mirroring in `external.go` that the seeded pause test's
+`status.atProvider` assertions rely on (irrelevant once you implement real
+logic — adjust or delete the seed test to match your controller's behavior).
+
+## 6. Where to look next
 
 - `docs/ownership.md` **inside your provider** — the generated, always-accurate list
   of which files are yours.

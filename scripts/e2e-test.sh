@@ -373,6 +373,18 @@ main() {
         exit 1
     fi
 
+    # Step T: create-test scaffolds a chainsaw behavior test (non-interactive path).
+    step_header "T" "create-test scaffolds a chainsaw test"
+    if "$BINARY_PATH" create-test --name smoke-test --kind "$KIND1"; then
+        verify_files_exist "create-test output" "test/behavior/smoke-test/chainsaw-test.yaml"
+        if "$BINARY_PATH" create-test --name smoke-test --kind "$KIND1" 2>/dev/null; then
+            log_error "✗ create-test overwrote an existing test"; exit 1
+        fi
+        log_success "✓ create-test refuses to overwrite an existing test"
+    else
+        log_error "create-test failed"; exit 1
+    fi
+
     # Done with the lifecycle copy — return to the pristine scaffold and drop it.
     cd "$TEST_DIR"
     rm -rf "$LIFECYCLE_DIR"
@@ -388,12 +400,16 @@ main() {
         log_warning "go.mod verification failed (might be expected for test)"
     fi
 
-    # Check that we can build the provider
-    log_info "Testing provider build..."
-    if make build > /dev/null 2>&1; then
-        log_success "Provider builds successfully"
-    else
-        log_warning "Provider build failed (might be expected for test)"
+    # Check that we can build the provider. When Docker is available, Step E's
+    # uptest flow performs a full build anyway — only build here when Step E
+    # will be skipped, where this is the sole build check.
+    if ! docker info >/dev/null 2>&1; then
+        log_info "Testing provider build..."
+        if make build > /dev/null 2>&1; then
+            log_success "Provider builds successfully"
+        else
+            log_warning "Provider build failed (might be expected for test)"
+        fi
     fi
 
     # Show final project structure
@@ -407,16 +423,35 @@ main() {
         echo "  ... and more files"
     fi
 
-    # Step E: the generated provider's own e2e must pass (reconcile the examples
-    # for real on a throwaway kind cluster). Needs a running Docker daemon for
-    # kind; skipped with a warning when unavailable so docker-less machines can
-    # still run the rest of the harness.
-    step_header "E" "Generated provider's own e2e (make e2e)"
+    # Step E: the generated provider's own e2e must pass — the full uptest +
+    # chainsaw flow: build the xpkg, stand up a dedicated kind control plane
+    # with Crossplane, deploy the provider from the local package, run every
+    # kind's uptest lifecycle, then the chainsaw behavior suite. Needs a running
+    # Docker daemon; skipped with a warning when unavailable so docker-less
+    # machines can still run the rest of the harness.
+    step_header "E" "Generated provider's own e2e (uptest + chainsaw)"
     PROVIDER_E2E_RESULT="SKIPPED (no docker daemon)"
+    CREATE_TEST_LIVE_RESULT="SKIPPED (no docker daemon)"
     if docker info >/dev/null 2>&1; then
         if make e2e; then
             log_success "generated provider's make e2e passed"
             PROVIDER_E2E_RESULT="PASSED"
+            # The cluster is still up and kubectl still points at it: prove the
+            # full user story end to end — scaffold a NEW behavior test with
+            # create-test, then actually run it against the live provider.
+            log_info "Running a freshly scaffolded chainsaw test against the cluster..."
+            if "$BINARY_PATH" create-test --name smoke-live --kind "$KIND1" >/dev/null &&
+               make test-behavior; then
+                log_success "create-test output runs green against the live provider"
+                CREATE_TEST_LIVE_RESULT="PASSED"
+            else
+                log_error "a scaffolded chainsaw test failed against the live provider"
+                exit 1
+            fi
+            # Restore the pristine scaffold, then drop the cluster (the scaffold
+            # owns its name, so use its own cleanup target).
+            rm -rf test/behavior/smoke-live junit.xml
+            make e2e-clean >/dev/null 2>&1 || true
         else
             log_error "generated provider's make e2e FAILED"
             exit 1
@@ -436,7 +471,9 @@ main() {
     log_success "✅ CRD generation: PASSED"
     log_success "✅ Example generation: PASSED"
     log_success "✅ Single 'Initial commit' scaffold: PASSED"
-    log_success "✅ Generated provider's own e2e (make e2e): ${PROVIDER_E2E_RESULT}"
+    log_success "✅ Generated provider's own e2e (uptest + chainsaw): ${PROVIDER_E2E_RESULT}"
+    log_success "✅ create-test scaffolds a chainsaw test: PASSED"
+    log_success "✅ scaffolded test runs against the live provider: ${CREATE_TEST_LIVE_RESULT}"
     log_success "✅ update preserves all 3 user-owned seam files: PASSED"
     log_success "✅ update / update --adopt (on a copy): PASSED"
     echo

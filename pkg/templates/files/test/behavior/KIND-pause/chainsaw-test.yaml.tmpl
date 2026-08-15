@@ -1,0 +1,118 @@
+# crossplane.io/paused must actually stop reconciliation, not just report it.
+# Scaffolded seed test — the pattern to copy for your own behavior tests
+# (or scaffold one with `xp-provider-gen create-test`).
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: {{ .Resource.Kind | lower }}-pause-and-resume
+spec:
+  timeouts:
+    apply: 1m
+    assert: 2m
+    delete: 2m
+  steps:
+    - name: create the resource
+      try:
+        - apply:
+            resource:
+              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              kind: {{ .Resource.Kind }}
+              metadata:
+                name: behavior-{{ .Resource.Kind | lower }}-pause
+                namespace: default
+              spec:
+                forProvider:
+                  configurableField: before-pause
+                providerConfigRef:
+                  name: example
+                  kind: ProviderConfig
+        - assert:
+            resource:
+              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              kind: {{ .Resource.Kind }}
+              metadata:
+                name: behavior-{{ .Resource.Kind | lower }}-pause
+                namespace: default
+              status:
+                atProvider:
+                  configurableField: before-pause
+                ((conditions[?type == 'Ready'])[0]):
+                  status: "True"
+
+    - name: pause it
+      try:
+        - patch:
+            resource:
+              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              kind: {{ .Resource.Kind }}
+              metadata:
+                name: behavior-{{ .Resource.Kind | lower }}-pause
+                namespace: default
+                annotations:
+                  crossplane.io/paused: "true"
+        # Ready stays True: conditions are sticky.
+        - assert:
+            resource:
+              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              kind: {{ .Resource.Kind }}
+              metadata:
+                name: behavior-{{ .Resource.Kind | lower }}-pause
+                namespace: default
+              status:
+                ((conditions[?type == 'Synced'])[0]):
+                  status: "False"
+                  reason: ReconcilePaused
+                ((conditions[?type == 'Ready'])[0]):
+                  status: "True"
+
+    - name: a paused resource ignores spec changes
+      try:
+        - patch:
+            resource:
+              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              kind: {{ .Resource.Kind }}
+              metadata:
+                name: behavior-{{ .Resource.Kind | lower }}-pause
+                namespace: default
+              spec:
+                forProvider:
+                  configurableField: changed-while-paused
+        - sleep:
+            duration: 15s
+        - assert:
+            resource:
+              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              kind: {{ .Resource.Kind }}
+              metadata:
+                name: behavior-{{ .Resource.Kind | lower }}-pause
+                namespace: default
+              status:
+                atProvider:
+                  configurableField: before-pause
+
+    - name: resume and catch up
+      try:
+        # A null value removes the annotation from the merge patch.
+        - patch:
+            resource:
+              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              kind: {{ .Resource.Kind }}
+              metadata:
+                name: behavior-{{ .Resource.Kind | lower }}-pause
+                namespace: default
+                annotations:
+                  crossplane.io/paused: null
+        - assert:
+            resource:
+              apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+              kind: {{ .Resource.Kind }}
+              metadata:
+                name: behavior-{{ .Resource.Kind | lower }}-pause
+                namespace: default
+              status:
+                atProvider:
+                  configurableField: changed-while-paused
+                ((conditions[?type == 'Synced'])[0]):
+                  status: "True"
+                ((conditions[?type == 'Ready'])[0]):
+                  status: "True"

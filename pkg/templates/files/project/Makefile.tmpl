@@ -43,34 +43,76 @@ XPKG_REG_ORGS ?= xpkg.upbound.io/crossplane
 XPKG_REG_ORGS_NO_PROMOTE ?= xpkg.upbound.io/crossplane
 XPKGS = {{ .ProviderName }}
 -include build/makelib/xpkg.mk
--include build/makelib/local.xpkg.mk
 
 # NOTE(hasheddan): we force image building to happen prior to xpkg build so that
 # we ensure image is present in daemon.
 xpkg.build.{{ .ProviderName }}: do.build.images $(CROSSPLANE_CLI)
 
 # ====================================================================================
+# Setup Uptest
+
+CROSSPLANE_VERSION ?= 2.3.4
+# A dedicated cluster name so e2e's controlplane.down can never delete an
+# unrelated kind cluster. Must be set BEFORE the local.xpkg.mk and
+# controlplane.mk includes: both default it to "local-dev" with ?=, and the
+# first definition wins.
+# ?= so CI or a developer can point e2e at a different cluster; the others are
+# fixed on purpose.
+KIND_CLUSTER_NAME ?= $(PROJECT_NAME)-e2e
+
+# ------------------------------------------------------------------------------
+# Cluster names — every kind cluster this project can create, one per purpose:
+#   make dev / dev-clean            -> $(DEV_CLUSTER_NAME)      (explicit lifecycle)
+#   make e2e                        -> $(KIND_CLUSTER_NAME)     (left running; e2e-clean removes it)
+#   make test-integration           -> $(INTEGRATION_CLUSTER_NAME) (auto-removed by the script)
+DEV_CLUSTER_NAME := $(PROJECT_NAME)-dev
+INTEGRATION_CLUSTER_NAME := $(PROJECT_NAME)-integration
+-include build/makelib/local.xpkg.mk
+-include build/makelib/controlplane.mk
+
+UPTEST_LOCAL_DEPLOY_TARGET = local.xpkg.deploy.provider.$(PROJECT_NAME)
+# Every kind's lifecycle file is picked up automatically; create api adds one
+# per kind, so this Makefile never needs editing for new kinds. uptest takes
+# the manifests as ONE comma-separated argument, hence the join.
+UPTEST_INPUT_MANIFESTS = $(shell echo $(wildcard test/e2e/*-lifecycle.yaml) | tr ' ' ',')
+-include build/makelib/uptest.mk
+
+# The e2e flow leaves its cluster running for inspection (the next run
+# recreates it). This removes it, by name, when you are done.
+e2e-clean: $(KIND)
+	@$(INFO) Deleting e2e kind cluster $(KIND_CLUSTER_NAME)
+	@$(KIND) delete cluster --name=$(KIND_CLUSTER_NAME) || true
+	@$(OK) Deleted e2e kind cluster $(KIND_CLUSTER_NAME)
+
+# Controller behavior tests (chainsaw); also usable alone against a live cluster.
+# --quiet keeps per-operation logging down (failures and the summary still
+# print); the JUnit report lands in the project root for CI to collect.
+# CHAINSAW_ARGS appends extra flags, e.g. CHAINSAW_ARGS="--test-dir test/behavior/foo".
+CHAINSAW_ARGS ?=
+test-behavior: $(CHAINSAW) $(KUBECTL)
+	@$(INFO) running chainsaw behavior tests
+	@$(CHAINSAW) test test/behavior --parallel 1 --quiet \
+		--report-format JUNIT-TEST --report-path $(ROOT_DIR) --report-name junit \
+		$(CHAINSAW_ARGS) || $(FAIL)
+	@$(OK) chainsaw behavior tests passed
+
+# Run the chainsaw suite after uptest: e2e.run is common.mk's post-prerequisite
+# hook, invoked by the e2e recipe once uptest.mk's chain has completed. (Never
+# add prerequisites to e2e itself — GNU make 3.81, macOS's default, merges them
+# in front of uptest.mk's list and breaks the ordering.)
+e2e.run: test-behavior
+
+# ====================================================================================
 # Targets
 
 # NOTE: We rely on the default reviewable target from build/makelib/common.mk
-
-# integration tests
-e2e.run: test-integration
 
 # Run integration tests: reconcile the example resources for real on a
 # throwaway kind cluster (see cluster/local/integration_tests.sh).
 test-integration: $(KIND) $(KUBECTL)
 	@$(INFO) running integration tests using kind $(KIND_VERSION)
-	@bash $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
+	@INTEGRATION_CLUSTER_NAME=$(INTEGRATION_CLUSTER_NAME) bash $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
 	@$(OK) integration tests passed
-
-# Prove the production install path: build the xpkg, install Crossplane into a
-# throwaway kind cluster, install this provider from the local build and wait
-# for it to report Healthy (see cluster/local/package_tests.sh).
-e2e-package: $(KIND) $(KUBECTL) $(HELM) $(CROSSPLANE_CLI)
-	@$(INFO) running packaging e2e using kind $(KIND_VERSION)
-	@bash $(ROOT_DIR)/cluster/local/package_tests.sh || $(FAIL)
-	@$(OK) packaging e2e passed
 
 # Update the submodules, such as the common build scripts.
 submodules:
@@ -97,19 +139,19 @@ run: go.build
 	$(GO_OUT_DIR)/provider --debug
 
 dev: $(KIND) $(KUBECTL)
-	@$(INFO) Creating kind cluster
-	@$(KIND) create cluster --name=$(PROJECT_NAME)-dev
-	@$(KUBECTL) cluster-info --context kind-$(PROJECT_NAME)-dev
+	@$(INFO) Creating kind cluster $(DEV_CLUSTER_NAME)
+	@$(KIND) create cluster --name=$(DEV_CLUSTER_NAME)
+	@$(KUBECTL) cluster-info --context kind-$(DEV_CLUSTER_NAME)
 	@$(INFO) Installing Provider CRDs
 	@$(KUBECTL) apply -R -f package/crds
 	@$(INFO) Starting Provider controllers
 	@$(GO) run cmd/provider/main.go --debug
 
 dev-clean: $(KIND) $(KUBECTL)
-	@$(INFO) Deleting kind cluster
-	@$(KIND) delete cluster --name=$(PROJECT_NAME)-dev
+	@$(INFO) Deleting kind cluster $(DEV_CLUSTER_NAME)
+	@$(KIND) delete cluster --name=$(DEV_CLUSTER_NAME)
 
-.PHONY: submodules fallthrough test-integration e2e-package run dev dev-clean
+.PHONY: submodules fallthrough test-integration test-behavior e2e.run e2e-clean run dev dev-clean
 
 # ====================================================================================
 # Special Targets
@@ -154,8 +196,13 @@ provider.addtype: $(GOMPLATE)
 define CROSSPLANE_MAKE_HELP
 Crossplane Targets:
     submodules            Update the submodules, such as the common build scripts.
-    test-integration      Run integration tests using kind.
-    e2e-package           Build the xpkg and install it into a kind cluster via Crossplane.
+    test-integration      Fast loop: run the controller from source against kind
+                          (cluster $(INTEGRATION_CLUSTER_NAME), auto-removed).
+    test-behavior         Run the chainsaw behavior tests against a live cluster.
+    e2e                   Full e2e: package, deploy via Crossplane, uptest + chainsaw
+                          (cluster $(KIND_CLUSTER_NAME), left running).
+    e2e-clean             Delete the e2e kind cluster.
+    dev / dev-clean       Create/delete the dev cluster $(DEV_CLUSTER_NAME).
     run                   Run crossplane locally, out-of-cluster. Useful for development.
     dev                   Create kind cluster and run provider with CRDs.
     dev-clean             Clean up development kind cluster.

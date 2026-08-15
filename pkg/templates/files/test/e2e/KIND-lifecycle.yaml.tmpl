@@ -1,0 +1,35 @@
+# uptest input: the {{ .Resource.Kind }} managed resource lifecycle — create,
+# assert Ready/Synced, delete. The annotations configure uptest; add
+# uptest.upbound.io/post-assert-hook (and friends) here when you need custom
+# assertions. See test/README.md.
+apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+kind: {{ .Resource.Kind }}
+metadata:
+  name: e2e-{{ .Resource.Kind | lower }}-lifecycle
+  namespace: default
+  annotations:
+    uptest.upbound.io/timeout: "120"
+    uptest.upbound.io/conditions: "Ready,Synced"
+spec:
+  forProvider:
+    configurableField: "initial-value"
+  providerConfigRef:
+    name: example
+    kind: ProviderConfig
+---
+# The same lifecycle, resolving credentials through the cluster scoped config.
+# Both configs are created by test/setup.sh from examples/provider/config.yaml.
+apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
+kind: {{ .Resource.Kind }}
+metadata:
+  name: e2e-{{ .Resource.Kind | lower }}-lifecycle-cluster
+  namespace: default
+  annotations:
+    uptest.upbound.io/timeout: "120"
+    uptest.upbound.io/conditions: "Ready,Synced"
+spec:
+  forProvider:
+    configurableField: "initial-value"
+  providerConfigRef:
+    name: example
+    kind: ClusterProviderConfig

@@ -73,6 +73,12 @@ xp-provider-gen init --domain=DOMAIN --repo=REPO [--git-name=NAME] [--git-email=
 xp-provider-gen create api --group=GROUP --version=VERSION --kind=KIND [--force]
 ```
 
+### `create-test` - Scaffold a chainsaw behavior test
+```bash
+# Run inside a generated provider; prompts for name and kind when omitted.
+xp-provider-gen create-test --name drift-check --kind MyType
+```
+
 ### `update` - Refresh an existing provider's tool-owned core
 ```bash
 # Run inside a generated provider with a clean working tree; review the diff, then commit.

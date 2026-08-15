@@ -444,14 +444,16 @@ make reviewable
 git commit -m "chore: update provider core"
 ```
 
-The [provider guide](provider-guide.md#4-upgrading) covers what to expect in that
+The [provider guide](provider-guide.md#5-upgrading) covers what to expect in that
 diff and how `--adopt` works for providers that predate the ownership contract.
 
 ## Where to go next
 
-- Run your provider's own test suites: `make e2e` reconciles your example
-  resources on a throwaway kind cluster, and `make e2e-package` proves the
-  production install path (xpkg → Crossplane → Healthy; needs Docker + Helm).
+- Run your provider's own test suites — `make e2e` (uptest lifecycle + chainsaw
+  behavior, from the packaged provider), `make test-integration`, or
+  `make test-behavior` — and scaffold new behavior tests with
+  `xp-provider-gen create-test`. See
+  [Testing your provider](provider-guide.md#4-testing-your-provider).
 - Add a CLI flag or tune controller options in `internal/provider/options.go` —
   see [CLI flags](provider-guide.md#cli-flags).
 - Point `NewClient` at a real API: parse `cfg.Credentials`, keep the same shape.
