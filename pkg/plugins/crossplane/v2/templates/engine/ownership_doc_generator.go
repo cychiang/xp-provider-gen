@@ -60,23 +60,21 @@ var _ machinery.Template = &OwnershipDocGenerator{}
 // means tool-owned, SkipFile means seeded once and then the user's.
 func NewOwnershipDocGenerator(siblings ...machinery.Template) *OwnershipDocGenerator {
 	g := &OwnershipDocGenerator{}
-	processor := core.NewTemplatePathProcessor()
 
 	// Walk the template FS directly. Template base names are not unique
 	// (Makefile.tmpl exists twice), so any name-keyed map would drop a file.
 	//
-	// GenerateOutputPath, not GetOutputPath: only the former strips the
-	// "project/" prefix and applies the path placeholders, so the doc lists
-	// paths that actually exist in a generated provider.
+	// GenerateOutputPath strips the "project/" prefix and applies the path
+	// placeholders, so the doc lists paths that actually exist in a provider.
 	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !processor.IsTemplateFile(path) {
+		if err != nil || d.IsDir() || !core.IsTemplateFile(path) {
 			return err
 		}
 		body, readErr := templates.TemplateFS.ReadFile(path)
 		if readErr != nil {
 			return readErr
 		}
-		g.add(processor.GenerateOutputPath(path, docPlaceholders), core.IsToolOwned(body))
+		g.add(core.GenerateOutputPath(path, docPlaceholders), core.IsToolOwned(body))
 		return nil
 	})
 	if err != nil {

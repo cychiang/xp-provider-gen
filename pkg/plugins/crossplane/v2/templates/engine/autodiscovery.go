@@ -17,40 +17,30 @@ limitations under the License.
 package engine
 
 import (
-	"strings"
-
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
+// TemplateCategory says when a discovered template renders.
 type TemplateCategory string
 
 const (
+	// InitCategory templates render once, at `init`.
 	InitCategory TemplateCategory = "init"
-	APICategory  TemplateCategory = "api"
+	// APICategory templates render per managed resource kind, at `create api`.
+	APICategory TemplateCategory = "api"
 )
 
+// TemplateInfo is one discovered template: its path in the embedded FS and
+// when it renders. The output path is derived from Path at render time, once
+// the placeholder values are known.
 type TemplateInfo struct {
-	Name      string
-	Path      string
-	Category  TemplateCategory
-	OutputDir string
+	Path     string
+	Category TemplateCategory
 }
 
+// AnalyzeTemplatePath classifies one embedded template path.
 func AnalyzeTemplatePath(path string) TemplateInfo {
-	processor := core.NewTemplatePathProcessor()
-
-	cleanPath := processor.CleanTemplatePath(path)
-	name := processor.GetTemplateBaseName(path)
-	outputPath := processor.GetOutputPath(path)
-
-	category := determineCategory(cleanPath)
-
-	return TemplateInfo{
-		Name:      name,
-		Path:      path,
-		Category:  category,
-		OutputDir: outputPath,
-	}
+	return TemplateInfo{Path: path, Category: determineCategory(path)}
 }
 
 // determineCategory infers when a template renders from its path placeholders:
@@ -58,31 +48,8 @@ func AnalyzeTemplatePath(path string) TemplateInfo {
 // template renders per kind at `create api`. IMAGENAME (the provider name) and
 // placeholder-free paths render once at `init`.
 func determineCategory(path string) TemplateCategory {
-	processor := core.NewTemplatePathProcessor()
-
-	if processor.PathHasPattern(path, []string{placeholderGroup, placeholderVersion, placeholderKind}) {
+	if core.PathHasPattern(path, []string{placeholderGroup, placeholderVersion, placeholderKind}) {
 		return APICategory
 	}
-
 	return InitCategory
-}
-
-func (t TemplateInfo) GenerateTemplateType() TemplateType {
-	processor := core.NewTemplatePathProcessor()
-	parts := processor.SplitPathComponents(t.OutputDir)
-	var name string
-
-	for _, part := range parts {
-		words := strings.FieldsFunc(part, func(c rune) bool {
-			return c == '-' || c == '_' || c == '.'
-		})
-
-		for _, word := range words {
-			if len(word) > 0 {
-				name += strings.ToUpper(word[:1]) + strings.ToLower(word[1:])
-			}
-		}
-	}
-
-	return TemplateType(name + "Type")
 }

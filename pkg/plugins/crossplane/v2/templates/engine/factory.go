@@ -26,47 +26,36 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
+// CrossplaneTemplateFactory holds the templates discovered in the embedded FS,
+// split by when they render. The two lists are only ever iterated, so they are
+// slices: nothing looks a template up by name.
 type CrossplaneTemplateFactory struct {
-	config       config.Config
-	initRegistry map[TemplateType]TemplateBuilder
-	apiRegistry  map[TemplateType]TemplateBuilder
+	config        config.Config
+	initTemplates []TemplateInfo
+	apiTemplates  []TemplateInfo
 }
 
 func NewFactory(cfg config.Config) TemplateFactory {
-	factory := &CrossplaneTemplateFactory{
-		config:       cfg,
-		initRegistry: make(map[TemplateType]TemplateBuilder),
-		apiRegistry:  make(map[TemplateType]TemplateBuilder),
-	}
-
-	factory.discoverAndRegisterTemplates()
+	factory := &CrossplaneTemplateFactory{config: cfg}
+	factory.discoverTemplates()
 	return factory
 }
 
-func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
-	processor := core.NewTemplatePathProcessor()
-
+func (f *CrossplaneTemplateFactory) discoverTemplates() {
 	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-
-		if d.IsDir() || !processor.IsTemplateFile(path) {
+		if d.IsDir() || !core.IsTemplateFile(path) {
 			return nil
 		}
 
 		info := AnalyzeTemplatePath(path)
-		templateType := info.GenerateTemplateType()
-
-		switch info.Category {
-		case InitCategory:
-			f.initRegistry[templateType] = NewBaseTemplateBuilder(templateType, info)
-		case APICategory:
-			f.apiRegistry[templateType] = NewBaseTemplateBuilder(templateType, info)
-		default:
-			return fmt.Errorf("template %q has no category", path)
+		if info.Category == APICategory {
+			f.apiTemplates = append(f.apiTemplates, info)
+		} else {
+			f.initTemplates = append(f.initTemplates, info)
 		}
-
 		return nil
 	})
 	if err != nil {
@@ -77,29 +66,22 @@ func (f *CrossplaneTemplateFactory) discoverAndRegisterTemplates() {
 }
 
 func (f *CrossplaneTemplateFactory) GetInitTemplates(opts ...Option) ([]TemplateProduct, error) {
-	var templates []TemplateProduct
-
-	for templateType, builder := range f.initRegistry {
-		product, err := builder.Build(f.config, opts...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build init template %s: %w", templateType, err)
-		}
-		templates = append(templates, product)
-	}
-
-	return templates, nil
+	return f.build(f.initTemplates, opts)
 }
 
 func (f *CrossplaneTemplateFactory) GetAPITemplates(opts ...Option) ([]TemplateProduct, error) {
-	var templates []TemplateProduct
+	return f.build(f.apiTemplates, opts)
+}
 
-	for templateType, builder := range f.apiRegistry {
-		product, err := builder.Build(f.config, opts...)
+// build renders each discovered template into a product.
+func (f *CrossplaneTemplateFactory) build(infos []TemplateInfo, opts []Option) ([]TemplateProduct, error) {
+	products := make([]TemplateProduct, 0, len(infos))
+	for _, info := range infos {
+		product, err := BuildTemplate(f.config, info, opts...)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build API template %s: %w", templateType, err)
+			return nil, fmt.Errorf("failed to build template %s: %w", info.Path, err)
 		}
-		templates = append(templates, product)
+		products = append(products, product)
 	}
-
-	return templates, nil
+	return products, nil
 }

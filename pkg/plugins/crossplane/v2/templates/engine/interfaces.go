@@ -22,24 +22,19 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 )
 
-type TemplateType string
-
+// TemplateProduct is a template ready for machinery to render.
 type TemplateProduct interface {
 	machinery.Template
 	machinery.Builder
-	GetTemplateType() TemplateType
 	Configure(cfg config.Config) error
 	SetResource(res *resource.Resource) error
 }
 
+// TemplateFactory serves the templates discovered in the embedded FS, split by
+// when they render.
 type TemplateFactory interface {
 	GetInitTemplates(opts ...Option) ([]TemplateProduct, error)
 	GetAPITemplates(opts ...Option) ([]TemplateProduct, error)
-}
-
-type TemplateBuilder interface {
-	Build(cfg config.Config, opts ...Option) (TemplateProduct, error)
-	GetTemplateType() TemplateType
 }
 
 type Option func(*TemplateOptions)
