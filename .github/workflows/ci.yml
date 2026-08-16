@@ -23,7 +23,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
-        go-version: '1.26.5'
+        go-version: '1.26.6'
 
     - name: Run Gosec Security Scanner
       uses: securego/gosec@9e75c0576c9878035d4221392108d458abe10fc3 # v2.28.0
