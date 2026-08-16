@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
 )
 
 // Sample GVK values reused across validation test cases.
@@ -30,7 +32,7 @@ const (
 )
 
 func TestValidator_ValidateDomain(t *testing.T) {
-	validator := NewValidator()
+	validator := validation.NewValidator()
 
 	tests := []struct {
 		name    string
@@ -80,7 +82,7 @@ func TestValidator_ValidateDomain(t *testing.T) {
 }
 
 func TestValidator_ValidateRepository(t *testing.T) {
-	validator := NewValidator()
+	validator := validation.NewValidator()
 
 	tests := []struct {
 		name    string
@@ -130,7 +132,7 @@ func TestValidator_ValidateRepository(t *testing.T) {
 }
 
 func TestValidator_ValidateResource(t *testing.T) {
-	validator := NewValidator()
+	validator := validation.NewValidator()
 
 	tests := []struct {
 		name     string

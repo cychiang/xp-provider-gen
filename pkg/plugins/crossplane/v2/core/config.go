@@ -85,7 +85,3 @@ func (c *PluginConfig) GenerateDefaultRepo() string {
 
 	return fmt.Sprintf("%s/%s", c.Defaults.RepoPrefix, dirName)
 }
-
-func (c *PluginConfig) GetDefaultAuthor() string {
-	return fmt.Sprintf("%s <%s>", c.Git.Author, c.Git.Email)
-}

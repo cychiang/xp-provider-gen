@@ -23,6 +23,11 @@ import (
 	"strings"
 )
 
+// GitCommandRunner provides secure git command execution. The executable is
+// the literal "git" in every call below — never a variable — and no shell is
+// involved, so the variable argument lists carry no injection risk; git treats
+// values after -m/-- as data.
+//
 // GitCommandRunner provides secure git command execution.
 type GitCommandRunner struct {
 	workDir string
@@ -35,7 +40,7 @@ func NewGitCommandRunner(workDir string) *GitCommandRunner {
 
 // RunCommand executes a git command with the provided arguments.
 func (g *GitCommandRunner) RunCommand(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- literal binary, no shell
 	if g.workDir != "" {
 		cmd.Dir = g.workDir
 	}
@@ -48,7 +53,7 @@ func (g *GitCommandRunner) RunCommand(ctx context.Context, args ...string) error
 
 // RunCommandWithOutput executes a git command and returns its output.
 func (g *GitCommandRunner) RunCommandWithOutput(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- literal binary, no shell
 	if g.workDir != "" {
 		cmd.Dir = g.workDir
 	}
@@ -62,7 +67,7 @@ func (g *GitCommandRunner) RunCommandWithOutput(ctx context.Context, args ...str
 
 // RunCommandWithStdin executes a git command with stdin input.
 func (g *GitCommandRunner) RunCommandWithStdin(ctx context.Context, stdin string, args ...string) error {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- literal binary, no shell
 	if g.workDir != "" {
 		cmd.Dir = g.workDir
 	}
@@ -85,11 +90,6 @@ func (g *GitCommandRunner) Add(ctx context.Context, files ...string) error {
 	return g.RunCommand(ctx, args...)
 }
 
-// Commit creates a commit with the provided message.
-func (g *GitCommandRunner) Commit(ctx context.Context, message string) error {
-	return g.RunCommandWithStdin(ctx, message, "commit", "-F", "-")
-}
-
 // GetUserName retrieves the git user.name from system config.
 func (g *GitCommandRunner) GetUserName(ctx context.Context) (string, error) {
 	return g.RunCommandWithOutput(ctx, "config", "--get", "user.name")
@@ -98,21 +98,6 @@ func (g *GitCommandRunner) GetUserName(ctx context.Context) (string, error) {
 // GetUserEmail retrieves the git user.email from system config.
 func (g *GitCommandRunner) GetUserEmail(ctx context.Context) (string, error) {
 	return g.RunCommandWithOutput(ctx, "config", "--get", "user.email")
-}
-
-// GetSystemAuthor retrieves the system git author in "Name <email>" format.
-func (g *GitCommandRunner) GetSystemAuthor(ctx context.Context) (string, error) {
-	name, err := g.GetUserName(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get user name: %w", err)
-	}
-
-	email, err := g.GetUserEmail(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get user email: %w", err)
-	}
-
-	return fmt.Sprintf("%s <%s>", name, email), nil
 }
 
 // CommitWithSystemAuthor creates a commit using system git configuration.

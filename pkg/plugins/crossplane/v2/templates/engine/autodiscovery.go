@@ -25,9 +25,8 @@ import (
 type TemplateCategory string
 
 const (
-	InitCategory   TemplateCategory = "init"
-	APICategory    TemplateCategory = "api"
-	StaticCategory TemplateCategory = "static"
+	InitCategory TemplateCategory = "init"
+	APICategory  TemplateCategory = "api"
 )
 
 type TemplateInfo struct {
@@ -57,16 +56,12 @@ func AnalyzeTemplatePath(path string) TemplateInfo {
 // determineCategory infers when a template renders from its path placeholders:
 // GROUP/VERSION/KIND mean the output path depends on a resource, so the
 // template renders per kind at `create api`. IMAGENAME (the provider name) and
-// placeholder-free paths render once at `init`. LICENSE is static.
+// placeholder-free paths render once at `init`.
 func determineCategory(path string) TemplateCategory {
 	processor := core.NewTemplatePathProcessor()
 
 	if processor.PathHasPattern(path, []string{placeholderGroup, placeholderVersion, placeholderKind}) {
 		return APICategory
-	}
-
-	if processor.PathHasPattern(path, []string{"LICENSE"}) {
-		return StaticCategory
 	}
 
 	return InitCategory

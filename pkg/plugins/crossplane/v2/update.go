@@ -34,6 +34,7 @@ import (
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
 	"github.com/cychiang/xp-provider-gen/pkg/version"
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
@@ -89,6 +90,9 @@ func prepare(ctx context.Context) (store.Store, afero.Fs, error) {
 	}
 	st, err := loadProjectStore()
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateProject(st.Config()); err != nil {
 		return nil, nil, err
 	}
 	mem := afero.NewMemMapFs()
@@ -150,6 +154,9 @@ func adoptFile(src, dst afero.Fs, srcPath string) (string, bool, error) {
 		return "", false, nil // user-owned template — never adopt
 	}
 	rel := strings.TrimPrefix(filepath.ToSlash(srcPath), "/")
+	if err := checkContained(rel); err != nil {
+		return "", false, err
+	}
 	exists, err := afero.Exists(dst, rel)
 	if err != nil {
 		return "", false, err
@@ -227,6 +234,32 @@ func runUpdate(ctx context.Context) error {
 	return nil
 }
 
+// validateProject re-checks the values PROJECT feeds into template paths and
+// generated import paths. `init` and `create api` validate them on the way in,
+// but `update` reads a file that may have been edited (or arrived in a pull
+// request) since, so it applies the same gate before rendering anything.
+func validateProject(cfg config.Config) error {
+	v := validation.NewValidator()
+	if err := v.ValidateRepository(cfg.GetRepository()); err != nil {
+		return fmt.Errorf("PROJECT is not usable: %w", err)
+	}
+	if domain := cfg.GetDomain(); domain != "" {
+		if err := v.ValidateDomain(domain); err != nil {
+			return fmt.Errorf("PROJECT is not usable: %w", err)
+		}
+	}
+	resources, err := cfg.GetResources()
+	if err != nil {
+		return fmt.Errorf("reading project resources: %w", err)
+	}
+	for i := range resources {
+		if err := v.ValidateResource(&resources[i]); err != nil {
+			return fmt.Errorf("PROJECT is not usable: %w", err)
+		}
+	}
+	return nil
+}
+
 // loadProjectStore loads the PROJECT config store from the working directory.
 func loadProjectStore() (store.Store, error) {
 	st := yaml.New(machinery.Filesystem{FS: afero.NewOsFs()})
@@ -264,16 +297,12 @@ func renderToMemFS(cfg config.Config, memFS machinery.Filesystem) error {
 	if err != nil {
 		return fmt.Errorf("init templates: %w", err)
 	}
-	staticTemplates, err := factory.GetStaticTemplates()
-	if err != nil {
-		return fmt.Errorf("static templates: %w", err)
-	}
 
 	base := machinery.NewScaffold(memFS,
 		machinery.WithConfig(cfg),
 		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
 	)
-	builders := append(engine.AsBuilders(initTemplates), engine.AsBuilders(staticTemplates)...)
+	builders := engine.AsBuilders(initTemplates)
 	builders = append(builders, engine.CoreGenerators(cfg, resources)...)
 	if err := base.Execute(builders...); err != nil {
 		return fmt.Errorf("rendering base templates: %w", err)
@@ -316,8 +345,23 @@ func reconcile(src, dst afero.Fs) (reconcileResult, error) {
 	return result, err
 }
 
+// checkContained rejects a rendered path that would write outside the project
+// directory. Rendered paths come from PROJECT (group/version/kind are
+// substituted into template paths), so a hand-edited PROJECT must not be able
+// to turn `update` into an arbitrary-file-write primitive.
+func checkContained(rel string) error {
+	clean := filepath.Clean(rel)
+	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") {
+		return fmt.Errorf("refusing to write outside the project: %q", rel)
+	}
+	return nil
+}
+
 // applyFile reconciles one rendered file onto dst per the ownership gate.
 func applyFile(src, dst afero.Fs, srcPath, rel string) (core.WriteDecision, error) {
+	if err := checkContained(rel); err != nil {
+		return core.Skip, err
+	}
 	exists, err := afero.Exists(dst, rel)
 	if err != nil {
 		return core.Skip, err

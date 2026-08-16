@@ -5,8 +5,8 @@ Guidance for working in this repository. Keep this file short — depth lives in
 ## What this is
 
 `xp-provider-gen` is a Go CLI that scaffolds [Crossplane](https://crossplane.io) providers
-using Kubebuilder v4 and crossplane-runtime v2. From `init` + `create api` commands it
-generates a complete, buildable provider project.
+using Kubebuilder v4 and crossplane-runtime v2. From `init`, `create api`, `create-test` and
+`update` it generates and maintains a complete, buildable provider project.
 
 ## Core principles
 
@@ -42,7 +42,8 @@ Everything below serves these two.
 | `make build` | Build the `bin/xp-provider-gen` binary |
 | `make test` | Unit tests with the race detector |
 | `make lint` | golangci-lint (config in `.golangci.yml`) |
-| `make e2e-test` | Full scaffold → build workflow against a temp project |
+| `make e2e-test` | Full scaffold → build → the generated provider's own e2e |
+| `make upgrade-sim` | Simulate a generator bump against real user logic |
 | `make reviewable` | Everything CI runs; do this before pushing |
 | `make help` | List all targets |
 
@@ -51,11 +52,14 @@ Everything below serves these two.
 - `cmd/xp-provider-gen/` — CLI entry point (Kubebuilder CLI wiring)
 - `pkg/plugins/crossplane/v2/` — the plugin: commands, template engine, automation, validation
 - `pkg/templates/files/` — embedded `.tmpl` scaffolding for generated providers
-- `scripts/e2e-test.sh` — local end-to-end test
+- `scripts/` — `e2e-test.sh` (end-to-end), `upgrade-sim.sh` (upgrade simulation),
+  `assert-layout.sh` (generated-layout assertions, shared with CI)
 
 ## Deeper docs
 
 - [docs/tutorial.md](docs/tutorial.md) — build and run a provider end-to-end locally
+- [docs/provider-guide.md](docs/provider-guide.md) — what provider authors edit, and upgrading
+- [docs/templates.md](docs/templates.md) — add or change generated-provider templates
 - [docs/templates.md](docs/templates.md) — add or change generated-provider templates
 - [docs/architecture.md](docs/architecture.md) — how the generator is structured
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow

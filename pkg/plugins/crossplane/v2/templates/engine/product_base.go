@@ -80,16 +80,6 @@ func (t *BaseTemplateProduct) SetResource(res *resource.Resource) error {
 	return nil
 }
 
-// SetCustomData sets custom data for the template.
-func (t *BaseTemplateProduct) SetCustomData(data map[string]interface{}) {
-	t.customData = data
-}
-
-// GetCustomData returns custom data.
-func (t *BaseTemplateProduct) GetCustomData() map[string]interface{} {
-	return t.customData
-}
-
 // SetForce sets the force flag.
 func (t *BaseTemplateProduct) SetForce(force bool) {
 	t.Force = force

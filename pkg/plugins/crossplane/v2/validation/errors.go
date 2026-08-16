@@ -17,7 +17,6 @@ limitations under the License.
 package validation
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -169,34 +168,4 @@ func ScaffoldError(operation string, cause error) error {
 		Hint("Check if you have write permissions in the target directory").
 		Hint("Ensure all required dependencies are available").
 		Build()
-}
-
-// WrapWithContext wraps an error with additional context while preserving error chains.
-func WrapWithContext(err error, component, operation string) error {
-	if err == nil {
-		return nil
-	}
-
-	// If it's already a PluginError, don't double-wrap
-	var pluginErr PluginError
-	if As(err, &pluginErr) {
-		return err
-	}
-
-	return NewError(component).
-		Operation(operation).
-		Cause(err).
-		Build()
-}
-
-// As is a compatibility function for error unwrapping.
-func As(err error, target interface{}) bool {
-	if t, ok := target.(*PluginError); ok {
-		var pe PluginError
-		if errors.As(err, &pe) {
-			*t = pe
-			return true
-		}
-	}
-	return false
 }

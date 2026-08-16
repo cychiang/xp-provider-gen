@@ -58,9 +58,11 @@ Bodies are Go `text/template`. The standard context provides:
 | Variable | Content |
 |---|---|
 | `{{ .Repo }}` | module path, e.g. `github.com/example/provider-foo` |
+| `{{ .Domain }}` | the `--domain` value, e.g. `example.com` — the API group suffix |
 | `{{ .ProviderName }}` | provider name derived from the repo, e.g. `provider-foo` |
 | `{{ .Boilerplate }}` | the license header block |
-| `{{ .Resource.Kind }}`, `{{ .Resource.Group }}`, `{{ .Resource.Version }}` | the kind being generated (API templates only) |
+| `{{ .Resource.Kind }}`, `{{ .Resource.Group }}`, `{{ .Resource.Version }}` | the kind being generated (per-kind templates only) |
+| `{{ .Resource.QualifiedGroup }}` | `<group>.<domain>`, e.g. `storage.example.com` |
 
 Escape literal `{{` in generated file content (e.g. Makefiles using Go
 templates themselves) or switch delimiters — see existing templates for
@@ -79,6 +81,10 @@ the Go generator supplies the data:
 | `apis/register.go`, `internal/controller/register.go` | `generators/apis_register.go.tmpl`, `generators/controller_register.go.tmpl` | `register_generators.go` |
 | `go.mod` (seed once) | `generators/gomod.tmpl` | `gomod_generator.go` |
 | `docs/ownership.md` | `generators/ownership_doc.md.tmpl` | `ownership_doc_generator.go` |
+
+Generator bodies see their generator's own fields, not the standard context
+above: `.Alias`/`.Path` (register files), `.Module`/`.Version`/`.GoVersion`
+(go.mod), `.TestName`/`.Resource` (chainsaw skeleton).
 
 Editing a body is a template change; adding new *data* to one is a Go change.
 For a brand-new generated file that needs computed data, model a generator on

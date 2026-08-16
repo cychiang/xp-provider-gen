@@ -51,12 +51,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 		return fmt.Errorf("failed to get init templates: %w", err)
 	}
 
-	staticTemplates, err := factory.GetStaticTemplates()
-	if err != nil {
-		return fmt.Errorf("failed to get static templates: %w", err)
-	}
-
-	allTemplates := append(engine.AsBuilders(initTemplates), engine.AsBuilders(staticTemplates)...)
+	allTemplates := engine.AsBuilders(initTemplates)
 
 	// Seed the registration files through the same deterministic generators used
 	// by `create api` (with no managed resources yet), so init and create produce
