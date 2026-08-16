@@ -19,8 +19,7 @@ import (
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
 
 type createAPISubcommand struct {
-	GenerateClient bool
-	Force          bool
+	Force bool
 
 	config       config.Config
 	resource     *resource.Resource
@@ -49,18 +48,14 @@ This command scaffolds a complete managed resource with:
   %s create api --group=network --version=v1alpha1 --kind=VPC
 
   # Create resource and force overwrite existing files
-  %s create api --group=database --version=v1alpha1 --kind=PostgreSQL --force
-
-  # Create resource without external client generation
-  %s create api --group=compute --version=v1alpha1 --kind=Server --generate-client=false`,
-		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
+  %s create api --group=database --version=v1alpha1 --kind=PostgreSQL --force`,
+		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
 }
 
 func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
 	p.ensureConfig()
 
 	defaults := p.pluginConfig.Defaults
-	fs.BoolVar(&p.GenerateClient, "generate-client", defaults.GenerateClient, "generate external client interface")
 	fs.BoolVar(&p.Force, "force", defaults.Force, "overwrite existing files if they exist")
 }
 

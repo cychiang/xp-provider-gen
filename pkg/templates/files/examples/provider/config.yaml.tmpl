@@ -21,18 +21,5 @@ spec:
   credentials:
     source: Secret
     secretRef:
-      namespace: default
-      name: example-provider-secret
-      key: credentials
----
-apiVersion: {{ .Domain }}/v1alpha1
-kind: ClusterProviderConfig
-metadata:
-  name: example
-spec:
-  credentials:
-    source: Secret
-    secretRef:
-      namespace: default
       name: example-provider-secret
       key: credentials

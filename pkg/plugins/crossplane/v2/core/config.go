@@ -31,11 +31,9 @@ type PluginConfig struct {
 }
 
 type DefaultValues struct {
-	Domain         string
-	RepoPrefix     string
-	Owner          string
-	GenerateClient bool
-	Force          bool
+	Domain     string
+	RepoPrefix string
+	Force      bool
 }
 
 type GitConfig struct {
@@ -50,11 +48,9 @@ func NewPluginConfig(pluginName string) *PluginConfig {
 		Version: "v1.0.0",
 
 		Defaults: DefaultValues{
-			Domain:         "",
-			RepoPrefix:     "github.com/crossplane-contrib",
-			Owner:          "",
-			GenerateClient: true,
-			Force:          false,
+			Domain:     "",
+			RepoPrefix: "github.com/crossplane-contrib",
+			Force:      false,
 		},
 
 		Git: GitConfig{

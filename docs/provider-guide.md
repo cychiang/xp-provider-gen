@@ -110,8 +110,7 @@ type ProviderConfigSpec struct {
 
 Run `make generate`, and it is available as `cfg.Spec.Endpoint` in `NewClient`.
 Nothing between the two needs changing — the connector passes the whole spec
-through. `ProviderConfig` and `ClusterProviderConfig` share this type, so the field
-works for both.
+through.
 
 ### Credentials you resolve yourself
 
@@ -178,8 +177,8 @@ The scaffold seeds a complete e2e suite under `test/` — all user-owned, seeded
 once and never touched by `update`:
 
 - `test/e2e/<kind>-lifecycle.yaml` per kind — [uptest](https://github.com/crossplane/uptest)
-  input: create → assert `Ready,Synced` → delete, through both `ProviderConfig`
-  and `ClusterProviderConfig`. Picked up by wildcard; adding kinds needs no wiring.
+  input: create → assert `Ready,Synced` → delete. Picked up by wildcard; adding
+  kinds needs no wiring.
 - `test/behavior/<kind>-pause/` per kind — a seed
   [chainsaw](https://kyverno.github.io/chainsaw/) test proving `crossplane.io/paused`
   actually stops reconciliation. Copy its pattern, or scaffold new tests with
@@ -244,12 +243,21 @@ Providers generated before the modular layout (`external.go` / `wiring.go` /
 `internal/provider`) must be regenerated instead — there is no in-place migration
 for that change.
 
-Providers generated before 2026-08-15 also carry a `ClusterProviderConfigUsage`
-type in user-owned `apis/v1alpha1/types.go` that nothing ever creates. `update`
-delivers the real fix by refreshing the tool-owned files (`config.go` points the
-cluster reconciler at `ProviderConfigUsage`; `register.go` drops the dead
-registration); the leftover type in your `types.go` is harmless — delete it by
-hand or leave it.
+**Providers are namespaced-only as of 2026-08-16.** `ClusterProviderConfig` is
+gone: managed resources are namespaced, so a cluster-scoped config bought
+nothing that a config in the resource's own namespace does not, while widening
+who could reach whose credentials. Credentials now use a
+`LocalSecretKeySelector` — the Secret must live in the ProviderConfig's own
+namespace — and the `Filesystem`/`Environment` sources are no longer offered,
+since both read the provider pod itself on behalf of whoever wrote the config.
+
+For an existing provider, `update` refreshes the tool-owned side (`config.go`,
+`connector.go`, `register.go`), but `apis/v1alpha1/types.go` is yours: delete
+the `ClusterProviderConfig`, `ClusterProviderConfigList` and
+`ClusterProviderConfigUsage` types by hand, switch `ProviderCredentials` to the
+form in a fresh scaffold, then `make generate`. Any `ClusterProviderConfig`
+objects in your clusters must be replaced with a `ProviderConfig` in each
+consuming namespace.
 
 On such providers `update` also seeds the new `test/` tree — but two pieces it
 cannot deliver live in user-owned files: the Makefile's uptest section (copy the

@@ -24,7 +24,6 @@ type initSubcommand struct {
 
 	domain   string
 	repo     string
-	owner    string
 	gitName  string
 	gitEmail string
 
@@ -50,13 +49,10 @@ This command scaffolds a complete Crossplane provider project with:
   # Initialize in current directory (auto-detects name)
   %s init --domain=example.com
 
-  # Initialize with owner for copyright
-  %s init --domain=example.com --repo=github.com/example/provider-gcp --owner="Acme Corp"
-
   # Initialize with specific git user configuration
   %s init --domain=example.com --repo=github.com/example/provider-aws \
     --git-name="Crossplane Provider Generator" --git-email="noreply@crossplane.io"`,
-		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
+		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
 }
 
 func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {
@@ -64,7 +60,6 @@ func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {
 
 	fs.StringVar(&p.domain, "domain", p.pluginConfig.Defaults.Domain, "domain for API groups")
 	fs.StringVar(&p.repo, "repo", "", "name to use for go module (e.g., github.com/user/repo)")
-	fs.StringVar(&p.owner, "owner", p.pluginConfig.Defaults.Owner, "owner to add to the copyright")
 	fs.StringVar(&p.gitName, "git-name", "", "git user name for commits (uses system config if not provided)")
 	fs.StringVar(&p.gitEmail, "git-email", "", "git user email for commits (uses system config if not provided)")
 }
