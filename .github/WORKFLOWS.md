@@ -6,19 +6,19 @@ This directory contains GitHub Actions workflows for automating CI/CD processes.
 
 ### 🧹 `lint.yml` - Code Quality
 **Triggers:** Push/PR to `main`, `develop`
-- Runs golangci-lint for code quality checks
+- Runs golangci-lint, pinned to the same version as the Makefile's
+  `GOLANGCILINT_VERSION` so CI and `make lint` enforce one rule set
 - Validates Go code formatting with `gofmt`
 - Ensures Go modules are tidy
-- Caches Go modules for faster builds
 
 ### 🧪 `test.yml` - Testing
 **Triggers:** Push/PR to `main`, `develop`
-- Runs unit tests with race detection
-- Tests against Go version 1.26.3
-- Generates coverage reports
-- Uploads coverage to Codecov
-- Includes E2E workflow testing
-- Creates coverage artifacts
+- Runs unit tests with race detection against Go 1.26.6
+- Generates coverage reports, uploads to Codecov, keeps them as artifacts
+- Runs an E2E smoke test (`init` + `create api`, checked with
+  `scripts/assert-layout.sh`) when source files changed. This is the layout
+  assertion only — the full scaffold-build-and-run suite is `make e2e-test`,
+  which needs Docker and is run locally (see [testing.md](../docs/testing.md))
 
 ### 🔨 `build.yml` - Build Binaries
 **Triggers:** Push/PR to `main`, `develop`
@@ -27,7 +27,8 @@ This directory contains GitHub Actions workflows for automating CI/CD processes.
   - macOS (amd64, arm64)
   - Windows (amd64)
 - Creates checksums for all binaries
-- Builds Docker image
+- Builds the repository `Dockerfile` (the same image `release.yml` publishes) and
+  smoke-tests it
 - Uploads build artifacts
 
 ### 🚀 `release.yml` - Release Management
@@ -111,7 +112,7 @@ docker run --rm ghcr.io/cychiang/xp-provider-gen:v1.2.3 --help
 1. **Feature development** - Lint and test workflows run on PRs
 2. **Merge to main** - All workflows run, binaries are built
 3. **Create release tag** - Release workflow creates GitHub release with assets
-4. **Security monitoring** - Dependabot keeps dependencies updated
+4. **Security monitoring** - Renovate keeps dependencies updated (see above)
 
 ## Required Secrets
 

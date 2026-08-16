@@ -1,7 +1,7 @@
 # Developer Tutorial — Design
 
 - **Date:** 2026-08-05
-- **Status:** Approved (design); ready for implementation planning
+- **Status:** Implemented and shipped. Kept as a design record — see [../README.md](../README.md) for what is current.
 - **Scope:** One new hands-on document, `docs/tutorial.md`, plus cross-links. No CLI,
   template, or test-harness changes.
 - **Builds on:** [2026-07-31 Modular Provider Layout](2026-07-31-modular-provider-layout-design.md)

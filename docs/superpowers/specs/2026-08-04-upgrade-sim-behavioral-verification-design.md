@@ -1,7 +1,7 @@
 # Upgrade-Sim Behavioral Verification — Design
 
 - **Date:** 2026-08-04
-- **Status:** Approved (design); ready for implementation planning
+- **Status:** Implemented and shipped. Kept as a design record — see [../README.md](../README.md) for what is current.
 - **Scope:** Extend `scripts/upgrade-sim.sh` so the upgrade proof covers *behavior*,
   not just compilation. No CLI changes, no new make targets, no new dependencies.
 - **Builds on:** [2026-07-31 Modular Provider Layout](2026-07-31-modular-provider-layout-design.md),

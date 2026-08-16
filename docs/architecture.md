@@ -51,8 +51,9 @@ the standard lifecycle: `BindFlags` → `InjectConfig` → `PreScaffold` → `Sc
   files deterministically** from `GetResources()` + the new resource; persists to PROJECT;
   runs the API-commit pipeline.
 - **`update.go`** — the `update` / `update --adopt` command. See §7.
+- **`createtest.go`** — the `create-test` command: resolves kind and test name (flag,
+  sole kind, or interactive prompt) and renders the chainsaw skeleton.
 - **`config.go`** — alias to `core.PluginConfig`; `NewPluginConfig()` seeds defaults.
-- **`errors_compat.go`** — thin shim delegating to the `validation` package.
 
 ## 3. Core layer (`pkg/plugins/crossplane/v2/core/`)
 
@@ -64,8 +65,9 @@ Reusable, side-effecting building blocks with no template knowledge:
 - **`config.go`** — `PluginConfig` (domain, repo prefix, git author, flags); `GenerateDefaultRepo()`.
 - **`project.go`** — `ProjectFile` wraps Kubebuilder config; `Save()` and `AddResource()`.
 - **`provider.go`** — `ExtractProviderName` / `ExtractProjectName` helpers.
-- **`template_path_processor.go`** — maps a template path to an output path (strips `files/`
-  and `.tmpl`, applies `GROUP`/`VERSION`/`KIND`/`IMAGENAME`).
+- **`template_path.go`** — maps a template path to an output path (strips `files/` and
+  `.tmpl`, maps the `project/` prefix to the provider root, applies
+  `GROUP`/`VERSION`/`KIND`/`IMAGENAME`). Pure functions — there is no state to carry.
 - **`ownership.go`** — the **ownership gate**: `GeneratedHeader`, `IsToolOwned(content)`, and
   `DecideWrite(exists, existing) → Seed | Overwrite | Skip`. This is the rule that lets `update`
   refresh tool files while never clobbering user files (§6).
@@ -79,14 +81,21 @@ to adding one — placeholders, the ownership header, the golden-test step.)
 
 - **Discovery** — `autodiscovery.go` classifies each template by its path placeholders:
   `GROUP`/`VERSION`/`KIND` mean per-kind (`APICategory`), `IMAGENAME` or none mean
-  `InitCategory` (`LICENSE` is static). Discovery fails loudly on an uncategorizable
-  template or a walk error; `loader.go` reads template bodies.
-- **Factory** — `factory.go` (`CrossplaneTemplateFactory`) registers discovered templates and
-  exposes `Create*Template` / `Get*Templates`.
-- **Strategy pattern** — `builders.go` defines `BuildStrategy` with `Init`/`API`/`Static`
-  implementations; `BaseTemplateBuilder` delegates to the chosen strategy.
+  `InitCategory`. Every path lands in one of the two, so discovery cannot silently drop a
+  template; a walk error panics (the FS is embedded, so it is a build defect).
+  `loader.go` reads template bodies.
+- **Factory** — `factory.go` (`CrossplaneTemplateFactory`) walks the embedded FS once and
+  keeps the discovered templates in two slices — init and per-kind — which
+  `GetInitTemplates` / `GetAPITemplates` render on demand. Slices, not maps: nothing looks
+  a template up by name, and a derived key could collide and drop a file.
+- **Building** — `builders.go` turns one `TemplateInfo` into a renderable product
+  (`BuildTemplate`): it resolves the output path's placeholders, applies the config,
+  resource and `--force`, and loads the body.
 - **Products** — `product_base.go` (`BaseTemplateProduct`) embeds Kubebuilder machinery mixins;
   `product_generic.go` (`GenericTemplateProduct`) loads any discovered template's body.
+  Without `--force` the machinery action is the zero value `SkipFile`, which a second
+  `create api` in an existing group/version depends on: `groupversion_info.go` has no
+  `KIND` in its path, so it is already on disk and must be left alone.
 - **Deterministic generators** — instead of parsing and merging existing files, the register
   and go.mod files are rendered **in full** from the project state:
   - `register_generators.go` — `APIRegisterGenerator` (renders `apis/register.go` from the
@@ -96,8 +105,9 @@ to adding one — placeholders, the ownership header, the golden-test step.)
     (seed-once; never overwritten — see §6/§8).
   - `ownership_doc_generator.go` — `OwnershipDocGenerator` renders `docs/ownership.md` by
     walking the template FS and reading the same headers the ownership gate reads, so the
-    published contract cannot drift from the enforced one. It walks the FS directly and uses
-    `GenerateOutputPath` (not `GetOutputPath`, which keeps the `project/` prefix).
+    published contract cannot drift from the enforced one. It walks the FS directly (base
+    names are not unique) and maps each template through `core.GenerateOutputPath`, so the
+    doc lists the paths a provider actually has.
   - `chainsaw_generator.go` — `ChainsawTestGenerator` renders the `create-test` skeleton.
   - `assembly.go` — `AsBuilders` and `CoreGenerators` helpers shared by init, create, and update.
   - Generator template **bodies** are files too: `pkg/templates/generators/*.tmpl`, loaded via
@@ -161,8 +171,11 @@ provenance. User files are never adopted.
 
 ## 8. Validation, templates & the dependency manifest
 
-- **Validation** (`validation/`) — `validator.go` enforces Kubebuilder/Kubernetes conventions;
-  `errors.go` provides `PluginError` with hint helpers.
+- **Validation** (`validation/`) — `validator.go` enforces Kubebuilder/Kubernetes conventions
+  (patterns compiled once, shared `checkRequired`/`checkPattern`/`checkLength` helpers);
+  `errors.go` wraps a failure as `PluginError`, attaching fix-it hints matched from the
+  cause. `update` re-runs the same validation over PROJECT before rendering, since that
+  file may have been hand-edited since `init`.
 - **Templates** (`pkg/templates/`) — `loader.go` embeds the `.tmpl` tree via `go:embed`. To add
   scaffolding, add a `.tmpl` file; discovery picks it up. Tool-owned templates include the
   generated header; user-owned ones (`external.go`, `client.go`, `options.go`, `*_types.go`)
@@ -212,6 +225,10 @@ could never be regenerated.
 | Render-then-reconcile | `update` renders to memfs, reconciles to disk via the gate |
 | Pipeline / chain | `Pipeline` + `Step` |
 | Embedded FS | `go:embed` template tree |
+
+The list is deliberately short. Scaffolding a file is a path transform plus a body, so
+the engine stays at that altitude: one `TemplateInfo` per discovered template, one
+function to build it, no registry keys, strategies or per-template types in between.
 
 ## Command flow summary
 

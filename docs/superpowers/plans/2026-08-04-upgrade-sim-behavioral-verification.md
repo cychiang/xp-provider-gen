@@ -1,5 +1,9 @@
 # Upgrade-Sim Behavioral Verification Implementation Plan
 
+> **Status: implemented and shipped.** Historical record — its unchecked boxes are
+> not open work and this plan must not be executed. See [../README.md](../README.md)
+> for how the tool behaves today.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extend `scripts/upgrade-sim.sh` so a simulated generator upgrade is verified

@@ -1,5 +1,9 @@
 # PR 5: `update` Command — Implementation Plan
 
+> **Status: implemented and shipped.** Historical record — its unchecked boxes are
+> not open work and this plan must not be executed. See [../README.md](../README.md)
+> for how the tool behaves today.
+
 **Goal:** `xp-provider-gen update` refreshes the tool-owned core of an existing provider
 (registration, controller wiring/`setup.go`, `main.go`, `config.go`, framework deps) to the
 current generator/version, without touching user logic, leaving the result as a reviewable diff.
