@@ -21,26 +21,21 @@ import (
 	"strings"
 )
 
-// PluginError represents structured error information for better user experience
-// while maintaining compatibility with kubebuilder's error handling patterns.
+// PluginError reports a failed command step and, where we can infer one, how to
+// fix it. The hints are the point: a scaffolding tool fails in a handful of
+// predictable ways, and naming the fix beats making the user guess.
 type PluginError struct {
-	Component string // e.g., "init", "createAPI", "template"
-	Operation string // e.g., "validation", "scaffolding", "configuration"
+	Component string // the command: "init", "createAPI"
+	Operation string // the step that failed: "domain validation", "scaffolding"
 	Cause     error
-	Hints     []string // User-friendly suggestions
+	Hints     []string
 }
 
-// Error implements the error interface.
 func (e PluginError) Error() string {
 	msg := fmt.Sprintf("%s %s failed: %v", e.Component, e.Operation, e.Cause)
-
 	if len(e.Hints) > 0 {
-		msg += "\n\nSuggestions:"
-		for _, hint := range e.Hints {
-			msg += fmt.Sprintf("\n  - %s", hint)
-		}
+		msg += "\n\nSuggestions:\n  - " + strings.Join(e.Hints, "\n  - ")
 	}
-
 	return msg
 }
 
@@ -49,123 +44,62 @@ func (e PluginError) Unwrap() error {
 	return e.Cause
 }
 
-// ErrorBuilder helps construct PluginError with fluent API.
-type ErrorBuilder struct {
-	component string
-	operation string
-	cause     error
-	hints     []string
+// hintRule maps a substring of the cause to the advice it warrants. Matching on
+// the message keeps the hint table next to the wording it reacts to; the hints
+// are advisory, so a miss costs nothing.
+type hintRule struct {
+	match string
+	hints []string
 }
 
-// NewError creates a new error builder.
-func NewError(component string) *ErrorBuilder {
-	return &ErrorBuilder{component: component}
-}
-
-// Operation sets the operation that failed.
-func (b *ErrorBuilder) Operation(op string) *ErrorBuilder {
-	b.operation = op
-	return b
-}
-
-// Cause sets the underlying error.
-func (b *ErrorBuilder) Cause(err error) *ErrorBuilder {
-	b.cause = err
-	return b
-}
-
-// Hint adds a user-friendly suggestion.
-func (b *ErrorBuilder) Hint(hint string) *ErrorBuilder {
-	b.hints = append(b.hints, hint)
-	return b
-}
-
-// Build creates the final PluginError.
-func (b *ErrorBuilder) Build() error {
-	return PluginError{
-		Component: b.component,
-		Operation: b.operation,
-		Cause:     b.cause,
-		Hints:     b.hints,
+var (
+	initHints = []hintRule{
+		{"domain", []string{"Ensure domain is a valid DNS name (e.g., example.com)"}},
+		{"repository", []string{
+			"Repository should be a valid go module name",
+			"Example: github.com/example/provider-example",
+		}},
+		{"git", []string{
+			"Ensure git is installed and configured",
+			"Check if you have write permissions in the directory",
+		}},
+		{"submodule", []string{
+			"You can manually add the build submodule later:",
+			"git submodule add https://github.com/crossplane/build build",
+		}},
 	}
-}
 
-// Common error constructors for frequently used patterns
+	createAPIHints = []hintRule{
+		{"group", []string{"Group should be lowercase with hyphens (e.g., compute, storage)"}},
+		{"version", []string{"Version should follow Kubernetes format (e.g., v1alpha1, v1beta1)"}},
+		{"kind", []string{"Kind should be PascalCase (e.g., Instance, Bucket)"}},
+		{"domain", []string{"Ensure the project is initialized with 'init' command first"}},
+		{"template", []string{
+			"Check if there are conflicting files in the target location",
+			"Use --force flag to overwrite existing files",
+		}},
+	}
+)
 
-// Error creates a validation error with helpful hints.
-func Error(field, value, message string) error {
-	return NewError("validation").
-		Operation("field validation").
-		Cause(fmt.Errorf("invalid %s '%s': %s", field, value, message)).
-		Hint("Check the documentation for valid formats").
-		Hint("Use --help flag to see examples").
-		Build()
-}
-
-// InitError creates an init command error with context.
+// InitError reports a failed `init` step.
 func InitError(operation string, cause error) error {
-	builder := NewError("init").
-		Operation(operation).
-		Cause(cause)
-
-	// Add context-specific hints
-	switch {
-	case strings.Contains(cause.Error(), "domain"):
-		builder = builder.Hint("Ensure domain is a valid DNS name (e.g., example.com)")
-	case strings.Contains(cause.Error(), "repository"):
-		builder = builder.Hint("Repository should be a valid go module name")
-		builder = builder.Hint("Example: github.com/example/provider-example")
-	case strings.Contains(cause.Error(), "git"):
-		builder = builder.Hint("Ensure git is installed and configured")
-		builder = builder.Hint("Check if you have write permissions in the directory")
-	case strings.Contains(cause.Error(), "submodule"):
-		builder = builder.Hint("You can manually add the build submodule later:")
-		builder = builder.Hint("git submodule add https://github.com/crossplane/build build")
-	}
-
-	return builder.Build()
+	return newPluginError("init", operation, cause, initHints)
 }
 
-// CreateAPIError creates a create api command error with context.
+// CreateAPIError reports a failed `create api` step.
 func CreateAPIError(operation string, cause error) error {
-	builder := NewError("createAPI").
-		Operation(operation).
-		Cause(cause)
+	return newPluginError("createAPI", operation, cause, createAPIHints)
+}
 
-	// Add context-specific hints
-	switch {
-	case strings.Contains(cause.Error(), "group"):
-		builder = builder.Hint("Group should be lowercase with hyphens (e.g., compute, storage)")
-	case strings.Contains(cause.Error(), "version"):
-		builder = builder.Hint("Version should follow Kubernetes format (e.g., v1alpha1, v1beta1)")
-	case strings.Contains(cause.Error(), "kind"):
-		builder = builder.Hint("Kind should be PascalCase (e.g., Instance, Bucket)")
-	case strings.Contains(cause.Error(), "domain"):
-		builder = builder.Hint("Ensure the project is initialized with 'init' command first")
-	case strings.Contains(cause.Error(), "template"):
-		builder = builder.Hint("Check if there are conflicting files in the target location")
-		builder = builder.Hint("Use --force flag to overwrite existing files")
+// newPluginError builds the error, attaching the hints of the first rule whose
+// substring appears in the cause.
+func newPluginError(component, operation string, cause error, rules []hintRule) error {
+	err := PluginError{Component: component, Operation: operation, Cause: cause}
+	for _, rule := range rules {
+		if strings.Contains(cause.Error(), rule.match) {
+			err.Hints = rule.hints
+			break
+		}
 	}
-
-	return builder.Build()
-}
-
-// TemplateError creates a template processing error with context.
-func TemplateError(templateName string, cause error) error {
-	return NewError("template").
-		Operation(fmt.Sprintf("processing %s", templateName)).
-		Cause(cause).
-		Hint("Check if all required template variables are provided").
-		Hint("Verify the template syntax is correct").
-		Build()
-}
-
-// ScaffoldError creates a scaffolding error with context.
-func ScaffoldError(operation string, cause error) error {
-	return NewError("scaffold").
-		Operation(operation).
-		Cause(cause).
-		Hint("Check if you have write permissions in the target directory").
-		Hint("Ensure all required dependencies are available").
-		Build()
+	return err
 }

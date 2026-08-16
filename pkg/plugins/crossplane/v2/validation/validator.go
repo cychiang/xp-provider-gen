@@ -33,6 +33,25 @@ const (
 	fieldKind       = "kind"
 )
 
+// maxNameLength is the Kubernetes DNS label limit applied to groups and kinds.
+const maxNameLength = 63
+
+// Input patterns, compiled once. Each mirrors the kubebuilder/Kubernetes
+// convention for the field it guards.
+var (
+	domainRe  = regexp.MustCompile(`^[a-z0-9]+([-.][a-z0-9]+)*\.[a-z]{2,}$`)
+	repoRe    = regexp.MustCompile(`^[a-z0-9.-]+/[a-z0-9._-]+/[a-z0-9._-]+$`)
+	groupRe   = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`) // DNS-1123 label
+	versionRe = regexp.MustCompile(`^v\d+(alpha\d+|beta\d+)?$`)
+	kindRe    = regexp.MustCompile(`^[A-Z][a-zA-Z0-9]*$`) // PascalCase
+)
+
+// reservedKinds are Kubernetes core kinds a managed resource must not shadow.
+var reservedKinds = []string{
+	"Node", "Pod", "Service", "Deployment", "ConfigMap",
+	"Secret", "Namespace", "CustomResourceDefinition",
+}
+
 // FieldValidationError represents a user input field validation error.
 type FieldValidationError struct {
 	Field   string
@@ -52,32 +71,44 @@ func NewValidator() *Validator {
 	return &Validator{}
 }
 
+// checkRequired rejects an empty value.
+func checkRequired(field, value string) error {
+	if value == "" {
+		return FieldValidationError{Field: field, Value: value, Message: field + " is required"}
+	}
+	return nil
+}
+
+// checkPattern rejects a value that does not match its field's pattern. message
+// describes the accepted form, so it doubles as the user-facing fix.
+func checkPattern(field, value string, re *regexp.Regexp, message string) error {
+	if !re.MatchString(value) {
+		return FieldValidationError{Field: field, Value: value, Message: message}
+	}
+	return nil
+}
+
+// checkLength rejects a value longer than the Kubernetes name limit.
+func checkLength(field, value string) error {
+	if len(value) > maxNameLength {
+		return FieldValidationError{
+			Field:   field,
+			Value:   value,
+			Message: fmt.Sprintf("must be %d characters or less", maxNameLength),
+		}
+	}
+	return nil
+}
+
 // ValidateDomain validates the domain follows kubebuilder conventions.
 func (v *Validator) ValidateDomain(domain string) error {
-	if domain == "" {
-		return FieldValidationError{
-			Field:   fieldDomain,
-			Value:   domain,
-			Message: "domain is required",
-		}
+	if err := checkRequired(fieldDomain, domain); err != nil {
+		return err
 	}
-
-	// kubebuilder domain validation pattern
-	domainPattern := `^[a-z0-9]+([-.][a-z0-9]+)*\.[a-z]{2,}$`
-	matched, err := regexp.MatchString(domainPattern, domain)
-	if err != nil {
-		return fmt.Errorf("error validating domain: %w", err)
+	if err := checkPattern(fieldDomain, domain, domainRe,
+		"must be a valid domain name (e.g., example.com)"); err != nil {
+		return err
 	}
-
-	if !matched {
-		return FieldValidationError{
-			Field:   fieldDomain,
-			Value:   domain,
-			Message: "must be a valid domain name (e.g., example.com)",
-		}
-	}
-
-	// Prevent common mistakes
 	if strings.HasSuffix(domain, ".local") {
 		return FieldValidationError{
 			Field:   fieldDomain,
@@ -85,60 +116,27 @@ func (v *Validator) ValidateDomain(domain string) error {
 			Message: ".local domains are not recommended for production use",
 		}
 	}
-
 	return nil
 }
 
 // ValidateRepository validates the repository follows go module conventions.
+// The pattern already requires exactly host/user/repository, so no further
+// structural checks are needed.
 func (v *Validator) ValidateRepository(repo string) error {
-	if repo == "" {
-		return FieldValidationError{
-			Field:   fieldRepository,
-			Value:   repo,
-			Message: "repository is required",
-		}
+	if err := checkRequired(fieldRepository, repo); err != nil {
+		return err
+	}
+	if err := checkPattern(fieldRepository, repo, repoRe,
+		"must be a valid go module name (e.g., github.com/example/provider-name)"); err != nil {
+		return err
 	}
 
-	// Go module validation pattern - follows kubebuilder's requirements
-	repoPattern := `^[a-z0-9.-]+/[a-z0-9._-]+/[a-z0-9._-]+$`
-	matched, err := regexp.MatchString(repoPattern, repo)
-	if err != nil {
-		return fmt.Errorf("error validating repository: %w", err)
-	}
-
-	if !matched {
-		return FieldValidationError{
-			Field:   fieldRepository,
-			Value:   repo,
-			Message: "must be a valid go module name (e.g., github.com/example/provider-name)",
-		}
-	}
-
-	// Validate common patterns
-	if !strings.Contains(repo, "/") {
-		return FieldValidationError{
-			Field:   fieldRepository,
-			Value:   repo,
-			Message: "must include hosting provider (e.g., github.com/user/repo)",
-		}
-	}
-
+	// A non-provider-* name is legal but unconventional for Crossplane; warn
+	// rather than reject, matching kubebuilder's flexibility.
 	parts := strings.Split(repo, "/")
-	if len(parts) < 3 {
-		return FieldValidationError{
-			Field:   fieldRepository,
-			Value:   repo,
-			Message: "must follow pattern: host/user/repository",
-		}
-	}
-
-	// Recommend provider- prefix for Crossplane convention
-	repoName := parts[len(parts)-1]
-	if !strings.HasPrefix(repoName, "provider-") {
-		// This is a warning, not an error - maintain kubebuilder flexibility
+	if repoName := parts[len(parts)-1]; !strings.HasPrefix(repoName, "provider-") {
 		fmt.Printf("Warning: Repository name '%s' doesn't follow Crossplane convention 'provider-*'\n", repoName)
 	}
-
 	return nil
 }
 
@@ -151,124 +149,47 @@ func (v *Validator) ValidateResource(res *resource.Resource) error {
 			Message: "resource is required",
 		}
 	}
-
-	// Validate group - follows kubebuilder patterns
 	if err := v.validateGroup(res.Group); err != nil {
 		return err
 	}
-
-	// Validate version - follows kubebuilder patterns
 	if err := v.validateVersion(res.Version); err != nil {
 		return err
 	}
-
-	// Validate kind - follows kubebuilder patterns
 	return v.validateKind(res.Kind)
 }
 
 // validateGroup validates API group name.
 func (v *Validator) validateGroup(group string) error {
-	if group == "" {
-		return FieldValidationError{
-			Field:   fieldGroup,
-			Value:   group,
-			Message: "group is required",
-		}
+	if err := checkRequired(fieldGroup, group); err != nil {
+		return err
 	}
-
-	// kubebuilder group validation - DNS-1123 label format
-	groupPattern := `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	matched, err := regexp.MatchString(groupPattern, group)
-	if err != nil {
-		return fmt.Errorf("error validating group: %w", err)
+	if err := checkPattern(fieldGroup, group, groupRe,
+		"must be lowercase alphanumeric with hyphens (e.g., compute, storage)"); err != nil {
+		return err
 	}
-
-	if !matched {
-		return FieldValidationError{
-			Field:   fieldGroup,
-			Value:   group,
-			Message: "must be lowercase alphanumeric with hyphens (e.g., compute, storage)",
-		}
-	}
-
-	// Length validation following Kubernetes conventions
-	if len(group) > 63 {
-		return FieldValidationError{
-			Field:   fieldGroup,
-			Value:   group,
-			Message: "must be 63 characters or less",
-		}
-	}
-
-	return nil
+	return checkLength(fieldGroup, group)
 }
 
 // validateVersion validates API version.
 func (v *Validator) validateVersion(version string) error {
-	if version == "" {
-		return FieldValidationError{
-			Field:   fieldVersion,
-			Value:   version,
-			Message: "version is required",
-		}
+	if err := checkRequired(fieldVersion, version); err != nil {
+		return err
 	}
-
-	// kubebuilder version validation pattern
-	versionPattern := `^v\d+(alpha\d+|beta\d+)?$`
-	matched, err := regexp.MatchString(versionPattern, version)
-	if err != nil {
-		return fmt.Errorf("error validating version: %w", err)
-	}
-
-	if !matched {
-		return FieldValidationError{
-			Field:   fieldVersion,
-			Value:   version,
-			Message: "must follow Kubernetes version format (e.g., v1alpha1, v1beta1, v1)",
-		}
-	}
-
-	return nil
+	return checkPattern(fieldVersion, version, versionRe,
+		"must follow Kubernetes version format (e.g., v1alpha1, v1beta1, v1)")
 }
 
 // validateKind validates resource kind.
 func (v *Validator) validateKind(kind string) error {
-	if kind == "" {
-		return FieldValidationError{
-			Field:   fieldKind,
-			Value:   kind,
-			Message: "kind is required",
-		}
+	if err := checkRequired(fieldKind, kind); err != nil {
+		return err
 	}
-
-	// kubebuilder kind validation - PascalCase
-	kindPattern := `^[A-Z][a-zA-Z0-9]*$`
-	matched, err := regexp.MatchString(kindPattern, kind)
-	if err != nil {
-		return fmt.Errorf("error validating kind: %w", err)
+	if err := checkPattern(fieldKind, kind, kindRe,
+		"must be PascalCase (e.g., Instance, Bucket, Database)"); err != nil {
+		return err
 	}
-
-	if !matched {
-		return FieldValidationError{
-			Field:   fieldKind,
-			Value:   kind,
-			Message: "must be PascalCase (e.g., Instance, Bucket, Database)",
-		}
-	}
-
-	// Length validation
-	if len(kind) > 63 {
-		return FieldValidationError{
-			Field:   fieldKind,
-			Value:   kind,
-			Message: "must be 63 characters or less",
-		}
-	}
-
-	// Prevent common reserved words
-	reservedKinds := []string{
-		"Node", "Pod", "Service", "Deployment", "ConfigMap",
-		"Secret", "Namespace", "CustomResourceDefinition",
+	if err := checkLength(fieldKind, kind); err != nil {
+		return err
 	}
 	for _, reserved := range reservedKinds {
 		if strings.EqualFold(kind, reserved) {
@@ -279,6 +200,5 @@ func (v *Validator) validateKind(kind string) error {
 			}
 		}
 	}
-
 	return nil
 }
