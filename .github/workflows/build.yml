@@ -84,35 +84,29 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-    - name: Download Linux AMD64 binary
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-      with:
-        name: binaries-linux-amd64
-        path: dist/
-
-    - name: Build Docker image
+    - name: Determine version
+      id: version
       run: |
         VERSION=${GITHUB_SHA::7}
         if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
           VERSION=${GITHUB_REF#refs/tags/}
         fi
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-        # Create Dockerfile
-        cat > Dockerfile << 'EOF'
-        FROM alpine:3.23
-        RUN apk --no-cache add ca-certificates git
-        WORKDIR /root/
-        COPY dist/xp-provider-gen_linux_amd64 /usr/local/bin/xp-provider-gen
-        RUN chmod +x /usr/local/bin/xp-provider-gen
-        ENTRYPOINT ["xp-provider-gen"]
-        EOF
-
-        docker build -t xp-provider-gen:${VERSION} .
-        docker save xp-provider-gen:${VERSION} | gzip > xp-provider-gen-${VERSION}.tar.gz
-
-    - name: Upload Docker image artifact
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+    # Builds the repository's Dockerfile — the same one release.yml publishes —
+    # so the image CI validates is the image users get. This job previously
+    # generated its own Dockerfile inline, which had drifted to an older Alpine
+    # base than the committed one.
+    - name: Build Docker image
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
       with:
-        name: docker-image
-        path: xp-provider-gen-*.tar.gz
-        retention-days: 30
+        context: .
+        push: false
+        load: true
+        tags: xp-provider-gen:${{ steps.version.outputs.version }}
+        build-args: |
+          VERSION=${{ steps.version.outputs.version }}
+          COMMIT=${{ github.sha }}
+
+    - name: Smoke-test the image
+      run: docker run --rm xp-provider-gen:${{ steps.version.outputs.version }} version

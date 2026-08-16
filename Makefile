@@ -28,7 +28,12 @@ COVERAGE_DIR=coverage
 # Binary names
 BINARY=xp-provider-gen
 
-.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable ci-test ci-lint ci-gosec e2e-test
+# Pinned so local runs and CI enforce the same rules. Keep in step with the
+# version lint.yml installs and with GOLANGCILINT_VERSION in the generated
+# provider's Makefile.tmpl.
+GOLANGCILINT_VERSION = 2.12.2
+
+.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-test upgrade-sim
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -44,9 +49,6 @@ help: ## Show this help message
 	@echo ""
 	@echo "Dependencies:"
 	@grep -E '^(mod-tidy|mod-verify):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
-	@echo ""
-	@echo "CI/CD:"
-	@grep -E '^(ci-test|ci-lint|ci-gosec):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Other:"
 	@grep -E '^(help):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -83,11 +85,12 @@ fmt: ## Format Go code
 vet: ## Run go vet
 	$(GOCMD) vet ./...
 
-# Ensure golangci-lint is installed
+# Ensure golangci-lint is installed. The v2 module path is required: .golangci.yml
+# is a version: "2" config, which a v1 binary cannot parse.
 lint-install: # Install golangci-lint if not present (internal)
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "Installing golangci-lint..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+		echo "Installing golangci-lint v$(GOLANGCILINT_VERSION)..."; \
+		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCILINT_VERSION); \
 	fi
 
 lint: lint-install ## Run golangci-lint with configuration
@@ -109,19 +112,6 @@ check: fmt vet lint gosec test ## Run all quality checks (format, vet, lint, sec
 
 reviewable: mod-tidy check ## Run all checks to make code reviewable
 	@echo "Code is ready for review!"
-
-# CI/CD targets
-
-ci-test: ## Run tests for CI with coverage
-	$(GOTEST) -race -coverprofile=coverage.out ./...
-
-ci-lint: lint-install ## Run linting for CI with extended timeout
-	@echo "Running CI linting..."
-	golangci-lint run --config .golangci.yml --timeout=5m --out-format=github-actions
-
-ci-gosec: ## Run gosec for CI with JSON output
-	@echo "Running CI security scanning..."
-	gosec -fmt=json -out=gosec-report.json -stdout -severity=medium -confidence=medium ./...
 
 lint-fix: lint-install ## Run golangci-lint with auto-fixing
 	@echo "Running golangci-lint with auto-fix..."
