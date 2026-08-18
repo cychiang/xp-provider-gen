@@ -40,12 +40,7 @@ func NewTemplateLoader() *TemplateLoader {
 
 // LoadTemplate loads a template by its name/path.
 func (tl *TemplateLoader) LoadTemplate(templatePath string) (string, error) {
-	processor := core.NewTemplatePathProcessor()
-
-	// Convert template path to filesystem path
-	fsPath := processor.ConvertToFilesystemPath(templatePath)
-
-	content, err := tl.fs.ReadFile(fsPath)
+	content, err := tl.fs.ReadFile(core.ConvertToFilesystemPath(templatePath))
 	if err != nil {
 		return "", fmt.Errorf("failed to load template %s: %w", templatePath, err)
 	}

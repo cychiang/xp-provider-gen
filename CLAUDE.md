@@ -60,7 +60,6 @@ Everything below serves these two.
 - [docs/tutorial.md](docs/tutorial.md) — build and run a provider end-to-end locally
 - [docs/provider-guide.md](docs/provider-guide.md) — what provider authors edit, and upgrading
 - [docs/templates.md](docs/templates.md) — add or change generated-provider templates
-- [docs/templates.md](docs/templates.md) — add or change generated-provider templates
 - [docs/architecture.md](docs/architecture.md) — how the generator is structured
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow
 - [docs/testing.md](docs/testing.md) — unit and end-to-end testing

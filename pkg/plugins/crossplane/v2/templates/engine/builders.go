@@ -35,41 +35,26 @@ const (
 	placeholderImageName = "IMAGENAME"
 )
 
-// BaseTemplateBuilder builds one discovered template. It keeps the TemplateInfo
-// found during discovery: Build needs the template's path, and re-deriving it
-// would mean walking the embedded FS again for every template built.
-type BaseTemplateBuilder struct {
-	templateType TemplateType
-	info         TemplateInfo
-}
-
-// NewBaseTemplateBuilder creates a builder for an already-discovered template.
-func NewBaseTemplateBuilder(templateType TemplateType, info TemplateInfo) TemplateBuilder {
-	return &BaseTemplateBuilder{templateType: templateType, info: info}
-}
-
-func (b *BaseTemplateBuilder) GetTemplateType() TemplateType {
-	return b.templateType
-}
-
-func (b *BaseTemplateBuilder) Build(cfg config.Config, opts ...Option) (TemplateProduct, error) {
-	options := parseOptions(opts)
+// BuildTemplate turns one discovered template into a renderable product: it
+// resolves the output path's placeholders and loads the template body.
+func BuildTemplate(cfg config.Config, info TemplateInfo, opts ...Option) (TemplateProduct, error) {
+	options := &TemplateOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
 
 	// Per-kind templates cannot render without the kind.
-	if b.info.Category == APICategory && options.Resource == nil {
-		return nil, fmt.Errorf("resource is required for API template %s", b.info.Path)
+	if info.Category == APICategory && options.Resource == nil {
+		return nil, fmt.Errorf("resource is required for API template %s", info.Path)
 	}
 
-	info := b.info
-	replacements := replacementsFor(cfg, options)
-
-	// Create and configure template product
-	product := createTemplateProduct(b.templateType, info, replacements)
-
-	if err := configureTemplateProduct(product, cfg, options); err != nil {
+	product := NewGenericTemplateProduct(
+		core.GenerateOutputPath(info.Path, replacementsFor(cfg, options)),
+		core.CleanTemplatePath(info.Path),
+	)
+	if err := configureProduct(product, cfg, options); err != nil {
 		return nil, err
 	}
-
 	return product, nil
 }
 
@@ -86,4 +71,28 @@ func replacementsFor(cfg config.Config, options *TemplateOptions) map[string]str
 		replacements[placeholderKind] = strings.ToLower(options.Resource.Kind)
 	}
 	return replacements
+}
+
+// configureProduct applies the project config, resource and force flag, then
+// loads the template body.
+func configureProduct(product *GenericTemplateProduct, cfg config.Config, options *TemplateOptions) error {
+	if err := product.Configure(cfg); err != nil {
+		return fmt.Errorf("failed to configure template: %w", err)
+	}
+	if options.Resource != nil {
+		if err := product.SetResource(options.Resource); err != nil {
+			return fmt.Errorf("failed to set resource: %w", err)
+		}
+	}
+	if options.Force {
+		// Without --force the zero value (machinery.SkipFile) applies, which is
+		// what a second `create api` in an existing group/version needs: the
+		// group-scoped templates (groupversion_info.go) are already on disk and
+		// must be left alone rather than erroring the whole command.
+		product.SetForce(true)
+	}
+	if err := product.SetTemplateDefaults(); err != nil {
+		return fmt.Errorf("failed to set template defaults: %w", err)
+	}
+	return nil
 }

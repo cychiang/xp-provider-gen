@@ -349,9 +349,13 @@ func reconcile(src, dst afero.Fs) (reconcileResult, error) {
 // directory. Rendered paths come from PROJECT (group/version/kind are
 // substituted into template paths), so a hand-edited PROJECT must not be able
 // to turn `update` into an arbitrary-file-write primitive.
+//
+// filepath.IsLocal is the whole check: it rejects absolute paths, any path that
+// climbs out of the working directory, and the empty path — using the host's
+// own separator rules. Hand-rolling it as a "../" prefix test missed
+// backslash-separated escapes on Windows, which is a release target.
 func checkContained(rel string) error {
-	clean := filepath.Clean(rel)
-	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") {
+	if !filepath.IsLocal(rel) {
 		return fmt.Errorf("refusing to write outside the project: %q", rel)
 	}
 	return nil

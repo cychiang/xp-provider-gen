@@ -17,6 +17,7 @@ limitations under the License.
 package v2
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -35,6 +36,16 @@ func TestApplyFileRefusesEscapes(t *testing.T) {
 		"../../../../tmp/escape.txt",
 		"/tmp/absolute-escape.txt",
 		"apis/../../escape.txt",
+		"", // an empty path must not resolve to the working directory
+	}
+	if runtime.GOOS == "windows" {
+		// Backslash is a separator on Windows only; elsewhere these are just
+		// unusual file names and are legitimately allowed.
+		escapes = append(escapes,
+			`..\escape.txt`,
+			`C:\absolute-escape.txt`,
+			`apis\..\..\escape.txt`,
+		)
 	}
 	for _, rel := range escapes {
 		t.Run(rel, func(t *testing.T) {
@@ -53,8 +64,12 @@ func TestApplyFileRefusesEscapes(t *testing.T) {
 			if decision != core.Skip {
 				t.Errorf("decision = %v, want Skip", decision)
 			}
-			if exists, _ := afero.Exists(dst, rel); exists {
-				t.Errorf("%q was written despite refusal", rel)
+			// Skip for the empty path: it resolves to the filesystem root,
+			// which always exists and says nothing about a write.
+			if rel != "" {
+				if exists, _ := afero.Exists(dst, rel); exists {
+					t.Errorf("%q was written despite refusal", rel)
+				}
 			}
 		})
 	}

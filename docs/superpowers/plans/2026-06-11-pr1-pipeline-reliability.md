@@ -1,5 +1,9 @@
 # PR 1: Pipeline Reliability — Implementation Plan
 
+> **Status: implemented and shipped.** Historical record — its unchecked boxes are
+> not open work and this plan must not be executed. See [../README.md](../README.md)
+> for how the tool behaves today.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** Make `init` and `create api` leave a clean, fully-generated, committed working tree by committing *after* all file-producing steps, making every step required, and asserting a clean tree in the e2e test.

@@ -27,8 +27,6 @@ import (
 // the literal "git" in every call below — never a variable — and no shell is
 // involved, so the variable argument lists carry no injection risk; git treats
 // values after -m/-- as data.
-//
-// GitCommandRunner provides secure git command execution.
 type GitCommandRunner struct {
 	workDir string
 }

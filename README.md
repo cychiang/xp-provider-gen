@@ -4,27 +4,23 @@ A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crosspla
 
 ## Key Features
 
-- **🚀 Safe-Start Support**: Providers include Crossplane v2.0+ safe-start capability for selective resource activation
-- **📦 Separated Controller Logic**: Setup/wiring logic isolated from business logic for better maintainability
-- **🔧 Feature Flag Ready**: Automatic support for Management Policies, ChangeLogs, and metrics
-- **🤖 Automated Workflows**: Built-in git operations, dependency management, and code generation
-- **📝 Template Auto-Discovery**: Add new templates and they're automatically included
-- **♻️ Upgradable Core**: `update` refreshes a provider's tool-owned core (wiring, registration,
-  framework deps) without touching your business logic
-
-## What's New
-
-- ✅ **Modular layout** — framework plumbing is tool-owned; you write six named seams
-  (`NewClient`, `Flags`, `Configure`, `NewExternal`, `ReconcilerOptions`, `Client`)
-- ✅ `update` command — refresh the tool-owned core of an existing provider, and
-  `update --adopt` to retrofit older providers (your `external.go`/`client.go`/`options.go`/
-  `*_types.go` are never touched)
-- ✅ File-ownership contract via a `// Code generated … DO NOT EDIT.` header, enforced by a
-  golden test and published as a generated `docs/ownership.md` in every provider
-- ✅ Deterministic registration generation (no fragile parse-and-merge)
-- ✅ Dependency-version manifest tracked by Renovate
-- ✅ Safe-Start capability; per-kind split (`external.go` logic + `wiring.go` wiring)
-- 🔧 Go 1.26
+- **♻️ Upgradable core** — `update` refreshes a provider's tool-owned plumbing (wiring,
+  registration, `main.go`, framework deps) without touching your business logic, and
+  `update --adopt` retrofits providers made before the contract existed
+- **📦 Modular layout** — the framework plumbing is tool-owned; you write six named seams
+  (`NewClient`, `Client`, `Flags`, `Configure`, `NewExternal`, `ReconcilerOptions`), split
+  per kind into your `external.go` and generated `wiring.go`
+- **🔒 File-ownership contract** — a `// Code generated … DO NOT EDIT.` header decides what
+  `update` may rewrite; enforced by a golden test and published as a generated
+  `docs/ownership.md` inside every provider
+- **🚀 Safe-Start support** — Crossplane v2.0+ selective resource activation, plus
+  Management Policies, ChangeLogs and metrics
+- **🧪 E2E out of the box** — every scaffold ships uptest lifecycle tests and chainsaw
+  behavior tests; `create-test` adds more
+- **📝 Template auto-discovery** — drop a `.tmpl` in and it appears in every provider;
+  registration files are generated deterministically, never parsed and merged
+- **📌 Tracked dependencies** — one version manifest, bumped by Renovate, applied to
+  existing providers by `update`
 
 ## Quick Start
 
@@ -97,17 +93,14 @@ See [docs/provider-guide.md](docs/provider-guide.md) for the full build-and-upgr
 
 ## Working on This Project
 
-Quick start for contributors:
-
 ```bash
 make build       # Build the binary
-make reviewable  # fmt + vet + lint + gosec + test (run before pushing)
-make e2e-test    # Full scaffold → build → generated provider's own e2e
-make upgrade-sim # Simulate a generator bump against real user logic
+make reviewable  # Everything CI enforces — run before pushing
 make help        # List all targets
 ```
 
-Requires Go 1.26+, Git, and gosec (`brew install gosec`). golangci-lint installs on demand.
+Requirements, the full target list and the contributor workflow are in
+[docs/development.md](docs/development.md).
 
 For the full developer guide see:
 

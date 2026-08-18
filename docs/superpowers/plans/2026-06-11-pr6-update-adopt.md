@@ -1,5 +1,9 @@
 # PR 6: `update --adopt` + provenance — Implementation Plan
 
+> **Status: implemented and shipped.** Historical record — its unchecked boxes are
+> not open work and this plan must not be executed. See [../README.md](../README.md)
+> for how the tool behaves today.
+
 **Goal:** Let an existing/older provider (generated before the ownership contract) opt into
 the upgrade workflow: stamp the generator version into PROJECT and write the
 `DO NOT EDIT` header onto its recognized tool-owned files, so plain `update` then works.

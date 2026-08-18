@@ -32,23 +32,13 @@ type BaseTemplateProduct struct {
 	machinery.BoilerplateMixin
 	machinery.ResourceMixin
 
-	templateType TemplateType
 	ProviderName string
 	Force        bool
-	customData   map[string]interface{}
 }
 
 // NewBaseTemplateProduct creates a new base template product.
-func NewBaseTemplateProduct(templateType TemplateType) *BaseTemplateProduct {
-	return &BaseTemplateProduct{
-		templateType: templateType,
-		customData:   make(map[string]interface{}),
-	}
-}
-
-// GetTemplateType returns the template type.
-func (t *BaseTemplateProduct) GetTemplateType() TemplateType {
-	return t.templateType
+func NewBaseTemplateProduct() *BaseTemplateProduct {
+	return &BaseTemplateProduct{}
 }
 
 // Configure sets up the template with configuration.
@@ -80,17 +70,11 @@ func (t *BaseTemplateProduct) SetResource(res *resource.Resource) error {
 	return nil
 }
 
-// SetForce sets the force flag.
+// SetForce makes the template overwrite an existing file. It is only called
+// for --force; the zero-value action (machinery.SkipFile) is the default.
 func (t *BaseTemplateProduct) SetForce(force bool) {
 	t.Force = force
 	if force {
 		t.IfExistsAction = machinery.OverwriteFile
-	} else {
-		t.IfExistsAction = machinery.Error
 	}
-}
-
-// GetBase returns the base template product for accessing common functionality.
-func (t *BaseTemplateProduct) GetBase() *BaseTemplateProduct {
-	return t
 }

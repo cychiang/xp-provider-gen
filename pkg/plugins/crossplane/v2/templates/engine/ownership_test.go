@@ -76,20 +76,19 @@ var wantOwnership = map[string]bool{
 // template base names are NOT unique (Makefile.tmpl exists at both project/ and
 // cluster/images/IMAGENAME/), so keying by base name silently drops a file.
 //
-// It uses GenerateOutputPath, not GetOutputPath: only the former strips the
-// "project/" prefix that maps project/Makefile.tmpl to the provider's root
-// Makefile. GetOutputPath would key this map on paths that do not exist.
+// GenerateOutputPath is what maps a template to the path it actually occupies
+// in a generated provider — notably stripping the "project/" prefix that puts
+// project/Makefile.tmpl at the provider's root.
 func enumerateTemplates(t *testing.T) map[string]bool {
 	t.Helper()
 
-	processor := core.NewTemplatePathProcessor()
 	got := map[string]bool{}
 
 	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !processor.IsTemplateFile(path) {
+		if d.IsDir() || !core.IsTemplateFile(path) {
 			return nil
 		}
 		body, err := templates.TemplateFS.ReadFile(path)
@@ -97,7 +96,7 @@ func enumerateTemplates(t *testing.T) map[string]bool {
 			return err
 		}
 		// nil replacements: keep GROUP/VERSION/KIND/IMAGENAME as stable map keys.
-		out := filepath.ToSlash(processor.GenerateOutputPath(path, nil))
+		out := filepath.ToSlash(core.GenerateOutputPath(path, nil))
 		if _, dup := got[out]; dup {
 			t.Fatalf("two templates produce the same output path %q", out)
 		}
@@ -135,10 +134,9 @@ func TestTemplateOwnership(t *testing.T) {
 	}
 }
 
-// TestTemplateCountMatchesGolden guards the enumeration itself. Both base-name
-// keying and GenerateTemplateType are lossy (they ignore directories, or fold
-// '-', '_', '.' and case); this asserts the golden map covers exactly the
-// template files on disk.
+// TestTemplateCountMatchesGolden guards the enumeration itself: any keying that
+// is lossy (base names ignore directories) could silently drop a template, so
+// this asserts the golden map covers exactly the template files on disk.
 func TestTemplateCountMatchesGolden(t *testing.T) {
 	var files int
 	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {

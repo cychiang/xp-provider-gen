@@ -1,7 +1,7 @@
 # Modular Provider Layout — Design
 
 - **Date:** 2026-07-31
-- **Status:** Approved (design); ready for implementation planning
+- **Status:** Implemented and shipped. Kept as a design record — see [../README.md](../README.md) for what is current.
 - **Scope:** Phase A of a two-phase program. Restructure the generated provider so
   crossplane-runtime plumbing is tool-owned and business logic is user-owned, behind a
   small set of named seams.

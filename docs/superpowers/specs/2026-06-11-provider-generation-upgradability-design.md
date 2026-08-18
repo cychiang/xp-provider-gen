@@ -1,7 +1,7 @@
 # Provider Generation & Upgradability — Design
 
 - **Date:** 2026-06-11
-- **Status:** Approved (design); ready for implementation planning
+- **Status:** Implemented and shipped. Kept as a design record — see [../README.md](../README.md) for what is current.
 - **Scope:** Unified design covering (a) clean, reliable, idempotent generation and
   (b) safe upgrade of core components in already-generated providers.
 

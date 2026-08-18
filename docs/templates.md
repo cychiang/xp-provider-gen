@@ -46,10 +46,10 @@ The placeholders in the path decide — nothing else:
   its output depends on a resource, so it renders at `create api` (and is
   re-rendered for every kind by `update`).
 - `IMAGENAME` and placeholder-free paths render once, at `init`.
-  (`LICENSE` is special-cased as static.)
 
-A template the engine cannot categorize fails discovery loudly — it cannot
-silently vanish from scaffolds.
+There is no third category and no hand-maintained list, so a template cannot
+silently vanish from scaffolds: every `.tmpl` under `files/` is discovered and
+renders in one phase or the other.
 
 ## Template variables
 

@@ -4,8 +4,11 @@
 
 - **Go 1.26+**
 - **Git**
-- **golangci-lint** — installed automatically by `make lint` if missing
+- **golangci-lint** — installed automatically by `make lint` if missing, at the version
+  pinned in `GOLANGCILINT_VERSION` (the Makefile, `lint.yml` and the generated provider's
+  `Makefile.tmpl` all name the same version; Renovate bumps them)
 - **gosec** — security scanner
+- **Docker** — only for `make e2e-test`, which stands up a kind cluster
 
 ```bash
 # gosec (macOS)
@@ -63,7 +66,7 @@ applied to existing providers by `update`. To change a generated provider's depe
 versions, edit this file (or let Renovate do it) — never hardcode versions in a template.
 
 Generated providers target **Go 1.26** (`pkg/versions.GoVersion`, rendered into `go.mod`) and
-lint with golangci-lint 2.12.2 (`Makefile.tmpl`). Keep the generated `go` directive at the
+lint with the pinned golangci-lint (`Makefile.tmpl`). Keep the generated `go` directive at the
 language version (`1.26.0`) with no `toolchain` pin — golangci-lint reads the system GOROOT, so
 pinning a toolchain patch above golangci-lint's build version breaks `make reviewable` in
 generated projects.

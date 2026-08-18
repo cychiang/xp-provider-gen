@@ -1,7 +1,7 @@
 # Uptest + Chainsaw E2E — Design
 
 - **Date:** 2026-08-15
-- **Status:** Approved (design discussed and accepted in session)
+- **Status:** Implemented and shipped. Kept as a design record — see [../README.md](../README.md) for what is current.
 - **Scope:** Generated providers adopt upstream provider-template's uptest+chainsaw
   e2e suite; a new `create-test` command scaffolds chainsaw behavior tests
   interactively; the upstream `ClusterProviderConfigUsage` fix is ported into the

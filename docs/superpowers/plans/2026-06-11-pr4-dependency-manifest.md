@@ -1,5 +1,9 @@
 # PR 4: Dependency Manifest — Implementation Plan
 
+> **Status: implemented and shipped.** Historical record — its unchecked boxes are
+> not open work and this plan must not be executed. See [../README.md](../README.md)
+> for how the tool behaves today.
+
 **Goal:** Make the generated provider's dependency versions a single, Renovate-tracked
 source of truth instead of invisible literals in `go.mod.tmpl`.
 

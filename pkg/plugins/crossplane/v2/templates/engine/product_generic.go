@@ -18,12 +18,11 @@ package engine
 
 import (
 	"fmt"
-
-	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
-// GenericTemplateProduct is a universal template product that works with any template
-// discovered through the autodiscovery system.
+// GenericTemplateProduct renders any auto-discovered template: the discovery
+// step has already resolved where the file goes, so the only per-template state
+// is that pair of paths.
 type GenericTemplateProduct struct {
 	*BaseTemplateProduct
 	loader       *TemplateLoader
@@ -31,23 +30,22 @@ type GenericTemplateProduct struct {
 	templatePath string
 }
 
-// NewGenericTemplateProduct creates a new generic template product.
-func NewGenericTemplateProduct(templateType TemplateType, outputPath, templatePath string) *GenericTemplateProduct {
+// NewGenericTemplateProduct creates a product for one discovered template.
+func NewGenericTemplateProduct(outputPath, templatePath string) *GenericTemplateProduct {
 	return &GenericTemplateProduct{
-		BaseTemplateProduct: NewBaseTemplateProduct(templateType),
+		BaseTemplateProduct: NewBaseTemplateProduct(),
 		loader:              NewTemplateLoader(),
 		outputPath:          outputPath,
 		templatePath:        templatePath,
 	}
 }
 
-// SetTemplateDefaults loads the template content from the scaffolds directory.
+// SetTemplateDefaults loads the template body from the embedded filesystem.
 func (t *GenericTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = t.outputPath
 	}
 
-	// Load template content using the original template path
 	templateContent, err := t.loader.LoadTemplate(t.templatePath)
 	if err != nil {
 		return fmt.Errorf("failed to load template %s: %w", t.templatePath, err)
@@ -55,15 +53,4 @@ func (t *GenericTemplateProduct) SetTemplateDefaults() error {
 
 	t.TemplateBody = templateContent
 	return nil
-}
-
-// GetOutputPath returns the output path for this template.
-func (t *GenericTemplateProduct) GetOutputPath() string {
-	return t.outputPath
-}
-
-// generateOutputPath converts a template info to its output path with variable replacements.
-func generateOutputPath(info TemplateInfo, replacements map[string]string) string {
-	processor := core.NewTemplatePathProcessor()
-	return processor.GenerateOutputPath(info.OutputDir, replacements)
 }

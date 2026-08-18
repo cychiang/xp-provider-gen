@@ -1,5 +1,9 @@
 # PR 2: Deterministic register.go — Implementation Plan
 
+> **Status: implemented and shipped.** Historical record — its unchecked boxes are
+> not open work and this plan must not be executed. See [../README.md](../README.md)
+> for how the tool behaves today.
+
 **Goal:** Replace the parse-and-merge updater subsystem with two deterministic generators that render `apis/register.go` and `internal/controller/register.go` in full from the PROJECT resource list. Delete `api_registration_updater.go`, `template_updater.go`, and `file_parser.go`.
 
 **Architecture:** Two `machinery.Template` builders precompute their entries in Go (so dedup is explicit) and render a fixed template body:

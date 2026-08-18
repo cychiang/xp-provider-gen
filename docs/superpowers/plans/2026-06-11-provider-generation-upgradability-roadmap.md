@@ -1,5 +1,9 @@
 # Provider Generation & Upgradability — Implementation Roadmap
 
+> **Status: implemented and shipped.** Historical record — its unchecked boxes are
+> not open work and this plan must not be executed. See [../README.md](../README.md)
+> for how the tool behaves today.
+
 > **For agentic workers:** Each PR below is implemented as its own branch → `/simplify` → `/review` → green CI → squash-merge to `main`. Plans for PRs 2–7 are written just-in-time (in this directory) immediately before each is implemented, so each reflects the merged state of prior PRs. PR 1 is fully detailed in `2026-06-11-pr1-pipeline-reliability.md`.
 
 **Source spec:** `docs/superpowers/specs/2026-06-11-provider-generation-upgradability-design.md`
