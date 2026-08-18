@@ -1,0 +1,34 @@
+{{ .Boilerplate }}
+
+// Package {{ .Resource.Kind | lower }} configures how upjet generates the
+// {{ .Resource.Kind }} managed resource from the Terraform resource
+// "{{ .TerraformResource }}".
+//
+// THIS FILE IS YOURS. xp-provider-gen never overwrites it.
+package {{ .Resource.Kind | lower }}
+
+import (
+	ujconfig "github.com/crossplane/upjet/v2/pkg/config"
+)
+
+// TerraformResource is the Terraform resource this kind is generated from.
+const TerraformResource = "{{ .TerraformResource }}"
+
+// Configure customises the generated {{ .Resource.Kind }} resource.
+func Configure(p *ujconfig.Provider) {
+	p.AddResourceConfigurator(TerraformResource, func(r *ujconfig.Resource) {
+		// The Kubernetes kind upjet generates for this Terraform resource.
+		r.Kind = "{{ .Resource.Kind }}"
+		// The API group it lands in.
+		r.ShortGroup = "{{ .Resource.Group }}"
+
+		// How Crossplane's external name maps to the Terraform ID. The default
+		// below suits resources whose ID the provider assigns; switch to
+		// config.NameAsIdentifier when the name is the ID, or write your own.
+		// See https://github.com/crossplane/upjet/blob/main/docs/configuring-a-resource.md
+		r.ExternalName = ujconfig.IdentifierFromProvider
+
+		// Add field overrides here — references to other resources, sensitive
+		// fields, ignored fields, and so on.
+	})
+}

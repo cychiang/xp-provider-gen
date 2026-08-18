@@ -22,6 +22,7 @@ package versions
 import (
 	_ "embed"
 	"fmt"
+	"sort"
 
 	"sigs.k8s.io/yaml"
 )
@@ -40,7 +41,8 @@ type Dependency struct {
 }
 
 type manifest struct {
-	Dependencies []Dependency `json:"dependencies"`
+	Dependencies      []Dependency `json:"dependencies"`
+	UpjetDependencies []Dependency `json:"upjet_dependencies"`
 }
 
 // GoModDependencies returns the direct dependencies a generated provider's
@@ -51,4 +53,16 @@ func GoModDependencies() ([]Dependency, error) {
 		return nil, fmt.Errorf("parse dependencies manifest: %w", err)
 	}
 	return m.Dependencies, nil
+}
+
+// UpjetGoModDependencies returns the dependencies an upjet-flavored provider
+// declares: the shared set plus upjet's own, sorted so go.mod renders stably.
+func UpjetGoModDependencies() ([]Dependency, error) {
+	var m manifest
+	if err := yaml.Unmarshal(dependenciesYAML, &m); err != nil {
+		return nil, fmt.Errorf("parse dependencies manifest: %w", err)
+	}
+	deps := append(m.Dependencies, m.UpjetDependencies...) //nolint:gocritic // deliberate copy
+	sort.Slice(deps, func(i, j int) bool { return deps[i].Module < deps[j].Module })
+	return deps, nil
 }

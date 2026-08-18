@@ -26,6 +26,29 @@ type Pipeline struct {
 	steps []Step
 }
 
+// NewUpjetInitPipeline is the init pipeline for an upjet provider. It stops
+// short of building: a freshly scaffolded upjet project deliberately does not
+// compile yet, because cmd/provider imports the API and controller packages
+// that `make generate` produces from the Terraform schema. Running tidy or
+// reviewable here would fail on work the user has not been able to do.
+func NewUpjetInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
+	commitMessage := fmt.Sprintf(`Initial commit
+
+Scaffolded upjet Crossplane provider project for %s
+
+%s`, providerName, ScaffoldCommitTrailer)
+
+	return &Pipeline{
+		steps: []Step{
+			NewGitInitStep(config),
+			NewExecutableBitStep(""),
+			NewGitSubmoduleStep(config),
+			NewMakeStep("submodules"),
+			NewGitCommitStep(config, commitMessage),
+		},
+	}
+}
+
 func NewInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
 	commitMessage := fmt.Sprintf(`Initial commit
 
@@ -36,7 +59,7 @@ Scaffolded Crossplane provider project for %s
 	return &Pipeline{
 		steps: []Step{
 			NewGitInitStep(config),
-			NewExecutableBitStep("test/setup.sh"),
+			NewExecutableBitStep(""),
 			NewGitSubmoduleStep(config),
 			NewMakeStep("submodules"),
 			NewGoModTidyStep(),

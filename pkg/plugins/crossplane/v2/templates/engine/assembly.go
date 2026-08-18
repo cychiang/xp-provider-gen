@@ -37,6 +37,15 @@ func AsBuilders(products []TemplateProduct) []machinery.Builder {
 // CoreGenerators returns every deterministically generated tool-owned file:
 // the two registration files and the ownership doc. They are always emitted
 // together so init, create api and update cannot drift from one another.
+// UpjetCoreGenerators returns the deterministically generated files for an
+// upjet project: the resource aggregator plus the ownership doc. Upjet itself
+// generates the scheme and controller registration (zz_setup.go), so the
+// native register generators have no counterpart here.
+func UpjetCoreGenerators(cfg config.Config, resources []resource.Resource) []machinery.Builder {
+	res := NewUpjetResourcesGenerator(cfg.GetRepository(), resources)
+	return []machinery.Builder{res, NewOwnershipDocGenerator(res)}
+}
+
 func CoreGenerators(cfg config.Config, resources []resource.Resource) []machinery.Builder {
 	repo := cfg.GetRepository()
 	providerName := core.ExtractProviderName(repo)
