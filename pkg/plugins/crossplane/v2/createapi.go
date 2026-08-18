@@ -21,6 +21,10 @@ var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
 type createAPISubcommand struct {
 	Force bool
 
+	// terraformResource is the Terraform resource an upjet kind is generated
+	// from, e.g. kubernetes_secret. Unused by native providers.
+	terraformResource string
+
 	config       config.Config
 	resource     *resource.Resource
 	pluginConfig *PluginConfig
@@ -57,6 +61,8 @@ func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
 
 	defaults := p.pluginConfig.Defaults
 	fs.BoolVar(&p.Force, "force", defaults.Force, "overwrite existing files if they exist")
+	fs.StringVar(&p.terraformResource, "terraform-resource", "",
+		"Terraform resource this kind is generated from, e.g. kubernetes_secret (required on an upjet provider)")
 }
 
 func (p *createAPISubcommand) InjectConfig(c config.Config) error {
@@ -83,6 +89,10 @@ func (p *createAPISubcommand) InjectResource(res *resource.Resource) error {
 func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 	// Validate resource parameters before scaffolding
 	validator := validation.NewValidator()
+	if loadProjectMeta(p.config).Flavor == core.FlavorUpjet {
+		// Kinds mirror Terraform resource names on an upjet provider.
+		validator = validation.NewValidatorAllowingReservedKinds()
+	}
 	if err := validator.ValidateResource(p.resource); err != nil {
 		return validation.CreateAPIError("resource validation", err)
 	}
@@ -108,13 +118,26 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		machinery.WithResource(p.resource),
 	)
 
-	// Create template factory
-	factory := engine.NewFactory(p.config)
+	meta := loadProjectMeta(p.config)
+	if meta.Flavor == core.FlavorUpjet && p.terraformResource == "" {
+		return validation.CreateAPIError("missing flag",
+			fmt.Errorf("--terraform-resource is required on an upjet provider "+
+				"(e.g. --terraform-resource=%s_secret)", meta.Upjet.TerraformResourcePrefix))
+	}
 
-	// Get API templates automatically from discovered templates
+	// Per-resource templates need the Terraform coordinates as well as the kind.
+	upjet := meta.Upjet
+	if upjet != nil {
+		settings := *upjet
+		settings.TerraformResource = p.terraformResource
+		upjet = &settings
+	}
+
+	factory := engine.NewFactoryForFlavor(p.config, meta.Flavor)
 	apiTemplates, err := factory.GetAPITemplates(
 		engine.WithForce(p.Force),
 		engine.WithResource(p.resource),
+		engine.WithUpjet(upjet),
 	)
 	if err != nil {
 		return validation.CreateAPIError("template discovery", err)
@@ -131,7 +154,11 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 	// Combine the new resource's API templates with the regenerated registration files.
 	allTemplates := engine.AsBuilders(apiTemplates)
-	allTemplates = append(allTemplates, engine.CoreGenerators(p.config, resources)...)
+	if meta.Flavor == core.FlavorUpjet {
+		allTemplates = append(allTemplates, engine.UpjetCoreGenerators(p.config, resources)...)
+	} else {
+		allTemplates = append(allTemplates, engine.CoreGenerators(p.config, resources)...)
+	}
 
 	// Execute scaffolding with discovered templates
 	if err := scaffold.Execute(allTemplates...); err != nil {
@@ -139,6 +166,10 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	}
 
 	fmt.Printf("Successfully scaffolded Crossplane managed resource %s\n", p.resource.Kind)
+	if meta.Flavor == core.FlavorUpjet {
+		fmt.Printf("Configured %s in config/%s/config.go. Run 'make generate' to generate its API types and controller.\n",
+			p.terraformResource, strings.ToLower(p.resource.Kind))
+	}
 	return nil
 }
 
@@ -152,6 +183,9 @@ func (p *createAPISubcommand) PostScaffold() error {
 
 	// Run API commit automation pipeline
 	pipeline := automation.NewAPICommitPipeline(p.pluginConfig, p.resource.Kind)
+	if loadProjectMeta(p.config).Flavor == core.FlavorUpjet {
+		pipeline = automation.NewUpjetAPICommitPipeline(p.pluginConfig, p.resource.Kind)
+	}
 	fmt.Println("Running post-scaffolding automation...")
 	if err := pipeline.Run(); err != nil {
 		return validation.CreateAPIError("post-scaffolding automation", err)

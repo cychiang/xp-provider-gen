@@ -70,6 +70,24 @@ Scaffolded Crossplane provider project for %s
 	}
 }
 
+// NewUpjetAPICommitPipeline commits a newly configured upjet resource without
+// running `make generate`. Generation there downloads Terraform, the provider
+// schema and the provider's docs, then runs the upjet pipeline — minutes of
+// network work the user should start deliberately, not as a side effect of
+// adding a resource.
+func NewUpjetAPICommitPipeline(config *core.PluginConfig, resourceKind string) *Pipeline {
+	commitMessage := fmt.Sprintf(`Configure %s managed resource
+
+Added the upjet configuration for %s; run 'make generate' to generate its
+API types and controller.`, resourceKind, resourceKind)
+
+	return &Pipeline{
+		steps: []Step{
+			NewGitFoldCommitStep(config, commitMessage),
+		},
+	}
+}
+
 func NewAPICommitPipeline(config *core.PluginConfig, resourceKind string) *Pipeline {
 	commitMessage := fmt.Sprintf(`Add %s managed resource
 
