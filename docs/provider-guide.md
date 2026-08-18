@@ -112,12 +112,17 @@ Run `make generate`, and it is available as `cfg.Spec.Endpoint` in `NewClient`.
 Nothing between the two needs changing — the connector passes the whole spec
 through.
 
-### Credentials you resolve yourself
+### Where credentials come from
 
-For pod identity, IRSA or workload identity, set the ProviderConfig's credentials
-source to `None`. `cfg.Credentials` is then empty, and you build the client from
-ambient identity. `cfg.Kube` is available for any lookup the generator did not do
-for you.
+A ProviderConfig is namespaced, and so are its credentials: `secretRef` names a
+Secret in **the ProviderConfig's own namespace** (it has no `namespace` field).
+That is deliberate — it keeps one tenant's config from reaching another's
+Secrets. The available sources are `Secret`, `None` and `InjectedIdentity`.
+
+For pod identity, IRSA or workload identity, set the credentials source to
+`None`. `cfg.Credentials` is then empty, and you build the client from ambient
+identity. `cfg.Kube` is available for any lookup the generator did not do for
+you.
 
 ### CLI flags
 
