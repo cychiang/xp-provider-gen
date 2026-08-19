@@ -19,7 +19,9 @@ package automation
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
@@ -122,16 +124,22 @@ type MakeStep struct {
 	target string
 }
 
-// ExecutableBitStep marks scaffolded scripts executable: kubebuilder's
-// machinery writes every file 0644, but uptest execs the setup script
-// directly, so the bit must be set (and committed) at scaffold time.
+// ExecutableBitStep marks scaffolded shell scripts executable: kubebuilder's
+// machinery writes every file 0644, but scripts are exec'd directly (uptest
+// runs test/setup.sh), so the bit must be set — and committed — at scaffold
+// time. It applies the same ".sh means executable" rule `update` uses when it
+// writes files, rather than a per-flavor list of paths that would need editing
+// whenever a scaffold gains a script.
 type ExecutableBitStep struct {
-	paths []string
+	root string
 }
 
-// NewExecutableBitStep builds the chmod step for the given repo-relative paths.
-func NewExecutableBitStep(paths ...string) *ExecutableBitStep {
-	return &ExecutableBitStep{paths: paths}
+// NewExecutableBitStep builds the chmod step for a scaffolded project root.
+func NewExecutableBitStep(root string) *ExecutableBitStep {
+	if root == "" {
+		root = "."
+	}
+	return &ExecutableBitStep{root: root}
 }
 
 func (s *ExecutableBitStep) Name() string {
@@ -139,14 +147,32 @@ func (s *ExecutableBitStep) Name() string {
 }
 
 func (s *ExecutableBitStep) Execute() error {
-	for _, path := range s.paths {
-		// The paths are unconditionally scaffolded before the pipeline runs;
-		// a missing one is a defect and should fail loudly here.
-		if err := os.Chmod(path, 0o755); err != nil { // #nosec G302 -- executable script
+	// os.Root confines every operation below to the project directory, so a
+	// symlink planted mid-walk cannot redirect a chmod outside it.
+	root, err := os.OpenRoot(s.root)
+	if err != nil {
+		return fmt.Errorf("opening project root %s: %w", s.root, err)
+	}
+	defer root.Close()
+
+	return fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if d.Name() == ".git" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".sh") {
+			return nil
+		}
+		if err := root.Chmod(path, 0o755); err != nil { // #nosec G302 -- executable script
 			return fmt.Errorf("chmod +x %s: %w", path, err)
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 func NewMakeStep(target string) *MakeStep {
@@ -159,6 +185,25 @@ func (s *MakeStep) Name() string {
 
 func (s *MakeStep) Execute() error {
 	return core.NewCommandRunner("").Run(context.Background(), "make", s.target)
+}
+
+// GoModDownloadStep populates go.sum for the declared dependencies. An upjet
+// project cannot be tidied at init — cmd/provider imports packages `make
+// generate` has not produced yet — but the generation tools still need their
+// checksums, and download works from go.mod alone.
+type GoModDownloadStep struct{}
+
+// NewGoModDownloadStep builds the dependency download step.
+func NewGoModDownloadStep() *GoModDownloadStep {
+	return &GoModDownloadStep{}
+}
+
+func (s *GoModDownloadStep) Name() string {
+	return "Download dependencies (go mod download)"
+}
+
+func (s *GoModDownloadStep) Execute() error {
+	return core.NewCommandRunner("").Run(context.Background(), "go", "mod", "download")
 }
 
 type GoModTidyStep struct{}

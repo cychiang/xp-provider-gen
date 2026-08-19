@@ -34,6 +34,11 @@ type BaseTemplateProduct struct {
 
 	ProviderName string
 	Force        bool
+
+	// Upjet carries the Terraform coordinates an upjet-flavored provider is
+	// generated from. Empty for native providers, whose templates never
+	// reference it.
+	core.UpjetSettings
 }
 
 // NewBaseTemplateProduct creates a new base template product.
@@ -52,6 +57,12 @@ func (t *BaseTemplateProduct) Configure(cfg config.Config) error {
 
 	if t.ProviderName == "" && t.Repo != "" {
 		t.ProviderName = core.ExtractProviderName(t.Repo)
+	}
+
+	// The namespaced API group upjet uses is the domain with ".m" inserted,
+	// matching upstream (template.crossplane.io -> template.m.crossplane.io).
+	if t.NamespacedDomain == "" && t.Domain != "" {
+		t.NamespacedDomain = core.NamespacedDomain(t.Domain)
 	}
 
 	// Set default boilerplate

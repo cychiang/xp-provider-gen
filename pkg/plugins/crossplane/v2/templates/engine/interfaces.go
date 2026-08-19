@@ -20,6 +20,8 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
 // TemplateProduct is a template ready for machinery to render.
@@ -42,6 +44,9 @@ type Option func(*TemplateOptions)
 type TemplateOptions struct {
 	Force    bool
 	Resource *resource.Resource
+	// Upjet is the Terraform coordinates an upjet project renders with. Nil for
+	// native projects, whose templates never reference them.
+	Upjet *core.UpjetSettings
 }
 
 func WithForce(force bool) Option {
@@ -50,4 +55,9 @@ func WithForce(force bool) Option {
 
 func WithResource(resource *resource.Resource) Option {
 	return func(opts *TemplateOptions) { opts.Resource = resource }
+}
+
+// WithUpjet supplies the Terraform coordinates for upjet templates.
+func WithUpjet(settings *core.UpjetSettings) Option {
+	return func(opts *TemplateOptions) { opts.Upjet = settings }
 }

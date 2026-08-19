@@ -6,6 +6,11 @@ engine discovers it; nothing is wired by hand.
 
 ## The three-step flow
 
+There are two template roots, one per provider flavor: `pkg/templates/files/`
+(native) and `pkg/templates/upjet/` (upjet). Each is self-contained — everything
+a provider of that flavor gets is visible in one directory — and the steps below
+apply to either; substitute the root you are working in.
+
 1. **Create `pkg/templates/files/<path>.tmpl`.** The path (minus `.tmpl`)
    becomes the file's path inside every generated provider. Use placeholder
    segments where the path depends on the project:

@@ -50,7 +50,7 @@ func BuildTemplate(cfg config.Config, info TemplateInfo, opts ...Option) (Templa
 
 	product := NewGenericTemplateProduct(
 		core.GenerateOutputPath(info.Path, replacementsFor(cfg, options)),
-		core.CleanTemplatePath(info.Path),
+		info.Path,
 	)
 	if err := configureProduct(product, cfg, options); err != nil {
 		return nil, err
@@ -78,6 +78,9 @@ func replacementsFor(cfg config.Config, options *TemplateOptions) map[string]str
 func configureProduct(product *GenericTemplateProduct, cfg config.Config, options *TemplateOptions) error {
 	if err := product.Configure(cfg); err != nil {
 		return fmt.Errorf("failed to configure template: %w", err)
+	}
+	if options.Upjet != nil {
+		product.UpjetSettings = *options.Upjet
 	}
 	if options.Resource != nil {
 		if err := product.SetResource(options.Resource); err != nil {
