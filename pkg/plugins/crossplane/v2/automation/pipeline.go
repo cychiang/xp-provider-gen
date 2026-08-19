@@ -44,6 +44,7 @@ Scaffolded upjet Crossplane provider project for %s
 			NewExecutableBitStep(""),
 			NewGitSubmoduleStep(config),
 			NewMakeStep("submodules"),
+			NewGoModDownloadStep(),
 			NewGitCommitStep(config, commitMessage),
 		},
 	}

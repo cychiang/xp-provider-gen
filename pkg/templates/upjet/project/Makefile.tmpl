@@ -140,6 +140,27 @@ generate.init: $(TERRAFORM_PROVIDER_SCHEMA) pull-docs
 
 .PHONY: $(TERRAFORM_PROVIDER_SCHEMA) pull-docs check-terraform-version
 # ====================================================================================
+# Generation
+#
+# The build submodule generates over every package in GO_SUBDIRS, but a provider
+# that has not been generated yet has no apis/{cluster,namespaced} or
+# internal/controller/{cluster,namespaced} packages — upjet creates them — so
+# loading cmd/... fails before the first run. Generation only ever needs
+# ./apis/..., whose go:generate chain produces everything else, so scope it
+# there. `go mod tidy -e` first: the generator tools are behind the "generate"
+# build tag, so their checksums are missing until something asks for them, and
+# -e tolerates the packages that do not exist yet.
+# Replaces the submodule's go.generate recipe (make warns about the override;
+# that is expected). Overriding generate.run instead would not work: the
+# submodule declares `generate.run: go.generate`, and make merges prerequisites,
+# so the wide generation would still run.
+go.generate:
+	@$(INFO) go generate ./apis/...
+	@$(GOHOST) mod tidy -e || $(FAIL)
+	@CGO_ENABLED=0 $(GOHOST) generate -tags generate ./apis/... || $(FAIL)
+	@$(OK) go generate ./apis/...
+
+# ====================================================================================
 # Targets
 
 # NOTE: the build submodule currently overrides XDG_CACHE_HOME in order to

@@ -187,6 +187,25 @@ func (s *MakeStep) Execute() error {
 	return core.NewCommandRunner("").Run(context.Background(), "make", s.target)
 }
 
+// GoModDownloadStep populates go.sum for the declared dependencies. An upjet
+// project cannot be tidied at init — cmd/provider imports packages `make
+// generate` has not produced yet — but the generation tools still need their
+// checksums, and download works from go.mod alone.
+type GoModDownloadStep struct{}
+
+// NewGoModDownloadStep builds the dependency download step.
+func NewGoModDownloadStep() *GoModDownloadStep {
+	return &GoModDownloadStep{}
+}
+
+func (s *GoModDownloadStep) Name() string {
+	return "Download dependencies (go mod download)"
+}
+
+func (s *GoModDownloadStep) Execute() error {
+	return core.NewCommandRunner("").Run(context.Background(), "go", "mod", "download")
+}
+
 type GoModTidyStep struct{}
 
 func NewGoModTidyStep() *GoModTidyStep {

@@ -66,6 +66,25 @@ tool-owned. The golden ownership test covers both roots.
 and generates both trees. We follow upjet rather than imposing the native path's
 namespaced-only decision; that decision governed our own templates, not upjet's pipeline.
 
+## 3b. The bootstrap problem (found while implementing)
+
+A provider generated from upstream's template always has upjet's output already
+committed. A *freshly scaffolded* one does not, and three things follow that the
+design has to handle explicitly:
+
+1. **The project does not compile until `make generate` runs.** `cmd/provider`
+   imports `apis/{cluster,namespaced}` and `internal/controller/{cluster,namespaced}`,
+   packages upjet creates. So the init pipeline stops before building, and the
+   next-steps text says to generate first.
+2. **Generation must be scoped to `./apis/...`.** The build submodule generates
+   over every package in `GO_SUBDIRS`, which includes `cmd` — unloadable before
+   the first generation. Overriding `generate.run` does not work, because the
+   submodule declares `generate.run: go.generate` and make merges prerequisites;
+   the recipe-bearing `go.generate` is what has to be replaced.
+3. **`go.sum` must cover the generator tools.** They sit behind the `generate`
+   build tag, so a plain `go mod download` never fetches them; `go mod tidy -e`
+   does, and tolerates the packages that do not exist yet.
+
 ## 4. Non-goals
 
 - No vendoring of Terraform or the Terraform provider — the generated Makefile downloads
