@@ -14,8 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/upjet/v2/pkg/terraform"
-
 	clusterv1beta1 "{{ .Repo }}/apis/cluster/v1beta1"
 	namespacedv1beta1 "{{ .Repo }}/apis/namespaced/v1beta1"
 )
@@ -27,8 +25,8 @@ const (
 	errTrackUsage           = "cannot track ProviderConfig usage"
 )
 
-// TerraformSetupBuilder builds Terraform a terraform.SetupFn function which
-// returns Terraform provider setup configuration
+// toSharedPCSpec converts a cluster-scoped ProviderConfig spec into the
+// namespaced shape the rest of this file works with.
 func toSharedPCSpec(pc *clusterv1beta1.ProviderConfig) (*namespacedv1beta1.ProviderConfigSpec, error) {
 	if pc == nil {
 		return nil, nil

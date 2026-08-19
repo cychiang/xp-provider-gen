@@ -50,6 +50,7 @@ Everything below serves these two.
 | `make lint` | golangci-lint (config in `.golangci.yml`) |
 | `make e2e-test` | Full scaffold → build → the generated provider's own e2e |
 | `make upgrade-sim` | Simulate a generator bump against real user logic |
+| `make e2e-upjet` | Upjet flavor: scaffold, generate with upjet, build (network) |
 | `make reviewable` | Everything CI runs; do this before pushing |
 | `make help` | List all targets |
 

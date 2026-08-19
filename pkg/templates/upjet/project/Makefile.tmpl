@@ -154,10 +154,18 @@ generate.init: $(TERRAFORM_PROVIDER_SCHEMA) pull-docs
 # that is expected). Overriding generate.run instead would not work: the
 # submodule declares `generate.run: go.generate`, and make merges prerequisites,
 # so the wide generation would still run.
-go.generate:
+# upjet's pipeline shells out to goimports to tidy the code it writes, so make
+# sure it is on PATH before generating.
+GOIMPORTS_VERSION ?= v0.38.0
+goimports.install:
+	@command -v goimports >/dev/null 2>&1 || \
+		$(GOHOST) install golang.org/x/tools/cmd/goimports@$(GOIMPORTS_VERSION)
+
+go.generate: goimports.install
 	@$(INFO) go generate ./apis/...
 	@$(GOHOST) mod tidy -e || $(FAIL)
-	@CGO_ENABLED=0 $(GOHOST) generate -tags generate ./apis/... || $(FAIL)
+	@CGO_ENABLED=0 PATH="$(GOBIN):$(shell $(GOHOST) env GOPATH)/bin:$$PATH" \
+		$(GOHOST) generate -tags generate ./apis/... || $(FAIL)
 	@$(OK) go generate ./apis/...
 
 # ====================================================================================
@@ -255,7 +263,7 @@ schema-version-diff:
 	./scripts/version_diff.py config/generated.lst "$(WORK_DIR)/schema.json.$${PREV_PROVIDER_VERSION}" config/schema.json
 	@$(OK) Checking for native state schema version changes
 
-.PHONY: cobertura submodules fallthrough run crds.clean
+.PHONY: cobertura submodules fallthrough run crds.clean goimports.install
 
 # ====================================================================================
 # Special Targets
