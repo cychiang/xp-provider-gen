@@ -1,6 +1,6 @@
 module github.com/cychiang/xp-provider-gen
 
-go 1.26.6
+go 1.27.0
 
 require (
 	github.com/spf13/afero v1.15.0
