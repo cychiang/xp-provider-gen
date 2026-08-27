@@ -31,7 +31,7 @@ jobs:
       with:
         # Pinned so CI enforces the same rules as `make lint` locally; keep in
         # step with GOLANGCILINT_VERSION in the Makefile. Renovate bumps both.
-        version: v2.13.0
+        version: v2.13.1
         args: --timeout=5m
 
     - name: Check Go formatting
