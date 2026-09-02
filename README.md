@@ -69,6 +69,16 @@ xp-provider-gen init --domain=DOMAIN --repo=REPO [--git-name=NAME] [--git-email=
 xp-provider-gen create api --group=GROUP --version=VERSION --kind=KIND [--force]
 ```
 
+### `init --upjet` - Scaffold a provider that wraps a Terraform provider
+```bash
+xp-provider-gen init --domain=example.com --repo=github.com/you/provider-k8s \
+  --upjet --terraform-provider=hashicorp/kubernetes --terraform-provider-version=2.38.0
+xp-provider-gen create api --group=core --version=v1alpha1 --kind=Secret \
+  --terraform-resource=kubernetes_secret
+make generate   # upjet generates the API types and controllers
+```
+See [docs/upjet-provider.md](docs/upjet-provider.md).
+
 ### `create-test` - Scaffold a chainsaw behavior test
 ```bash
 # Run inside a generated provider; prompts for name and kind when omitted.

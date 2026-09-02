@@ -31,18 +31,25 @@ import (
 // slices: nothing looks a template up by name.
 type CrossplaneTemplateFactory struct {
 	config        config.Config
+	root          string
 	initTemplates []TemplateInfo
 	apiTemplates  []TemplateInfo
 }
 
+// NewFactory returns a factory over the native flavor's templates.
 func NewFactory(cfg config.Config) TemplateFactory {
-	factory := &CrossplaneTemplateFactory{config: cfg}
+	return NewFactoryForFlavor(cfg, core.FlavorNative)
+}
+
+// NewFactoryForFlavor returns a factory over the given flavor's template tree.
+func NewFactoryForFlavor(cfg config.Config, flavor core.Flavor) TemplateFactory {
+	factory := &CrossplaneTemplateFactory{config: cfg, root: flavor.TemplateRoot()}
 	factory.discoverTemplates()
 	return factory
 }
 
 func (f *CrossplaneTemplateFactory) discoverTemplates() {
-	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(templates.TemplateFS, f.root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

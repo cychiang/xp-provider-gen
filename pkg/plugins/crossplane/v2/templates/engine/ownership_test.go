@@ -69,6 +69,44 @@ var wantOwnership = map[string]bool{
 	"README.md":               false,
 }
 
+// wantOwnershipUpjet is the golden ownership map for the upjet flavor. Same
+// contract as wantOwnership: the upjet plumbing (generator entrypoint, the
+// generate chain, ProviderConfig controllers) is tool-owned and refreshed by
+// `update`; everything the provider author configures — per-resource config,
+// the credentials seam, the ProviderConfig types — is theirs forever.
+var wantOwnershipUpjet = map[string]bool{
+	"LICENSE":                                                 false,
+	"apis/cluster/v1alpha1/doc.go":                            true,
+	"apis/cluster/v1alpha1/register.go":                       true,
+	"apis/cluster/v1beta1/doc.go":                             true,
+	"apis/cluster/v1beta1/register.go":                        true,
+	"apis/cluster/v1beta1/types.go":                           false,
+	"apis/generate.go":                                        true,
+	"apis/namespaced/v1alpha1/doc.go":                         true,
+	"apis/namespaced/v1alpha1/register.go":                    true,
+	"apis/namespaced/v1beta1/doc.go":                          true,
+	"apis/namespaced/v1beta1/register.go":                     true,
+	"apis/namespaced/v1beta1/types.go":                        false,
+	"cluster/images/IMAGENAME/Dockerfile":                     false,
+	"cluster/images/IMAGENAME/Makefile":                       false,
+	"cmd/generator/main.go":                                   true,
+	"cmd/provider/main.go":                                    true,
+	"config/KIND/config.go":                                   false,
+	"config/provider.go":                                      true,
+	"examples/providerconfig/providerconfig.yaml":             false,
+	"hack/boilerplate.go.txt":                                 false,
+	"internal/clients/clients.go":                             false,
+	"internal/clients/resolve.go":                             true,
+	"internal/controller/cluster/providerconfig/config.go":    true,
+	"internal/controller/doc.go":                              true,
+	"internal/controller/namespaced/providerconfig/config.go": true,
+	"internal/features/features.go":                           true,
+	"internal/version/version.go":                             true,
+	"package/crossplane.yaml":                                 false,
+	".gitignore":                                              false,
+	"Makefile":                                                false,
+}
+
 // enumerateTemplates walks the embedded template filesystem and returns each
 // template's output path mapped to its tool-owned status.
 //
@@ -79,12 +117,12 @@ var wantOwnership = map[string]bool{
 // GenerateOutputPath is what maps a template to the path it actually occupies
 // in a generated provider — notably stripping the "project/" prefix that puts
 // project/Makefile.tmpl at the provider's root.
-func enumerateTemplates(t *testing.T) map[string]bool {
+func enumerateTemplates(t *testing.T, root string) map[string]bool {
 	t.Helper()
 
 	got := map[string]bool{}
 
-	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(templates.TemplateFS, root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -110,7 +148,13 @@ func enumerateTemplates(t *testing.T) map[string]bool {
 }
 
 func TestTemplateOwnership(t *testing.T) {
-	got := enumerateTemplates(t)
+	for root, want := range map[string]map[string]bool{"files": wantOwnership, "upjet": wantOwnershipUpjet} {
+		t.Run(root, func(t *testing.T) { assertOwnership(t, root, want) })
+	}
+}
+
+func assertOwnership(t *testing.T, root string, wantOwnership map[string]bool) {
+	got := enumerateTemplates(t, root)
 
 	for path, wantTool := range wantOwnership {
 		gotTool, ok := got[path]
@@ -138,8 +182,14 @@ func TestTemplateOwnership(t *testing.T) {
 // is lossy (base names ignore directories) could silently drop a template, so
 // this asserts the golden map covers exactly the template files on disk.
 func TestTemplateCountMatchesGolden(t *testing.T) {
+	for root, want := range map[string]map[string]bool{"files": wantOwnership, "upjet": wantOwnershipUpjet} {
+		t.Run(root, func(t *testing.T) { assertCount(t, root, want) })
+	}
+}
+
+func assertCount(t *testing.T, root string, wantOwnership map[string]bool) {
 	var files int
-	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(templates.TemplateFS, root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

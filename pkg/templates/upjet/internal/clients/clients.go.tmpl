@@ -1,0 +1,62 @@
+{{ .Boilerplate }}
+
+// Package clients turns a resolved ProviderConfig into the Terraform setup the
+// generated controllers run with.
+//
+// THIS FILE IS YOURS. xp-provider-gen never overwrites it. Map your
+// ProviderConfig's credentials onto ps.Configuration below — the keys are the
+// Terraform provider's own configuration arguments.
+package clients
+
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	"github.com/crossplane/upjet/v2/pkg/terraform"
+	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	errExtractCredentials   = "cannot extract credentials"
+	errUnmarshalCredentials = "cannot unmarshal credentials as JSON"
+)
+
+// TerraformSetupBuilder returns the setup every generated controller uses to
+// talk to Terraform.
+func TerraformSetupBuilder(version, providerSource, providerVersion string) terraform.SetupFn {
+	return func(ctx context.Context, c client.Client, mg resource.Managed) (terraform.Setup, error) {
+		ps := terraform.Setup{
+			Version: version,
+			Requirement: terraform.ProviderRequirement{
+				Source:  providerSource,
+				Version: providerVersion,
+			},
+		}
+
+		spec, err := resolveProviderConfig(ctx, c, mg)
+		if err != nil {
+			return terraform.Setup{}, errors.Wrap(err, "cannot resolve provider config")
+		}
+
+		data, err := resource.CommonCredentialExtractor(ctx, spec.Credentials.Source, c,
+			spec.Credentials.CommonCredentialSelectors)
+		if err != nil {
+			return ps, errors.Wrap(err, errExtractCredentials)
+		}
+
+		creds := map[string]any{}
+		if len(data) > 0 {
+			if err := json.Unmarshal(data, &creds); err != nil {
+				return ps, errors.Wrap(err, errUnmarshalCredentials)
+			}
+		}
+
+		// The credentials JSON is passed straight to the Terraform provider as
+		// its configuration. Reshape it here if your provider expects a
+		// different form.
+		ps.Configuration = creds
+		return ps, nil
+	}
+}
