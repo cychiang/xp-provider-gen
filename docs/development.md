@@ -5,10 +5,13 @@
 - **Go 1.26+**
 - **Git**
 - **golangci-lint** — installed automatically by `make lint` if missing, at the version
-  pinned in `GOLANGCILINT_VERSION` (the Makefile, `lint.yml` and the generated provider's
-  `Makefile.tmpl` all name the same version; Renovate bumps them)
+  pinned in `GOLANGCILINT_VERSION`. The same version must be set by hand in four places:
+  `Makefile`, `.github/workflows/lint.yml`, `pkg/templates/files/project/Makefile.tmpl` and
+  `pkg/templates/upjet/project/Makefile.tmpl`. Renovate currently bumps only `lint.yml`; align
+  the other three in the same PR.
 - **gosec** — security scanner
-- **Docker** — only for `make e2e-test`, which stands up a kind cluster
+- **Docker** — for `make e2e-test`, which stands up a kind cluster; `make e2e-upjet` needs
+  network access instead
 
 ```bash
 # gosec (macOS)
@@ -47,10 +50,10 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 
 ## Working with templates
 
-Provider scaffolding lives in `pkg/templates/files/**/*.tmpl` and is auto-discovered:
-drop a file in and it appears in every generated provider. The full contributor flow —
-path placeholders, the ownership header, the golden-test step — is in
-[templates.md](templates.md).
+Provider scaffolding lives in `pkg/templates/files/**` (native) and `pkg/templates/upjet/**`
+(upjet), both `*.tmpl` and auto-discovered: drop a file in and it appears in every generated
+provider of that flavor. The full contributor flow — path placeholders, the ownership header,
+the golden-test step — is in [templates.md](templates.md).
 
 ## Updating an existing provider
 
@@ -61,10 +64,11 @@ code. The contract, the review workflow, and `--adopt` are documented in
 ## Dependency manifest
 
 `pkg/versions/dependencies.yaml` is the single source of truth for the framework/Kubernetes
-versions a generated provider declares. It is rendered into the provider's `go.mod`, tracked by
-a Renovate custom manager (so each dependency gets its own bump PR against this repo), and
-applied to existing providers by `update`. To change a generated provider's dependency
-versions, edit this file (or let Renovate do it) — never hardcode versions in a template.
+versions a generated provider declares (plus an `upjet_dependencies` block layered on top for
+the upjet flavor). It is rendered into the provider's `go.mod`, tracked by a Renovate custom
+manager (so each dependency gets its own bump PR against this repo), and applied to existing
+providers by `update`. To change a generated provider's dependency versions, edit this file (or
+let Renovate do it) — never hardcode versions in a template.
 
 Generated providers target **Go 1.26** (`pkg/versions.GoVersion`, rendered into `go.mod`) and
 lint with the pinned golangci-lint (`Makefile.tmpl`). Keep the generated `go` directive at the

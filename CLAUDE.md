@@ -33,9 +33,9 @@ Everything below serves these two.
   test). CI runs the same checks — green locally means green in CI.
 - **Match the surrounding code.** Idiomatic Go: small files, explicit error wrapping
   (`fmt.Errorf("...: %w", err)`), table-driven tests.
-- **Templates are data.** Provider scaffolding lives in `pkg/templates/files/**/*.tmpl`
-  and is auto-discovered (see [docs/templates.md](docs/templates.md)). Add a template
-  file — do not wire it in by hand.
+- **Templates are data.** Provider scaffolding lives in `pkg/templates/files/**` (native) and
+  `pkg/templates/upjet/**` (upjet), both auto-discovered (see [docs/templates.md](docs/templates.md)).
+  Add a template file — do not wire it in by hand.
 - **Conventional commits**, small and focused: `feat:`, `fix:`, `refactor:`, `chore:`,
   `ci:`, `docs:`, `test:`.
 - **Pin GitHub Actions to commit SHAs**, never floating tags (supply-chain safety).
@@ -59,8 +59,9 @@ Everything below serves these two.
 - `cmd/xp-provider-gen/` — CLI entry point (Kubebuilder CLI wiring)
 - `pkg/plugins/crossplane/v2/` — the plugin: commands, template engine, automation, validation
 - `pkg/templates/files/` — embedded `.tmpl` scaffolding for generated providers
-- `scripts/` — `e2e-test.sh` (end-to-end), `upgrade-sim.sh` (upgrade simulation),
-  `assert-layout.sh` (generated-layout assertions, shared with CI)
+- `scripts/` — `e2e-test.sh` (end-to-end), `e2e-upjet.sh` (upjet-flavor end-to-end),
+  `upgrade-sim.sh` (upgrade simulation), `assert-layout.sh` (generated-layout assertions,
+  shared with CI)
 
 ## Deeper docs
 

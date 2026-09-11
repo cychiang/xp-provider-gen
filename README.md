@@ -15,8 +15,8 @@ A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crosspla
   `docs/ownership.md` inside every provider
 - **🚀 Safe-Start support** — Crossplane v2.0+ selective resource activation, plus
   Management Policies, ChangeLogs and metrics
-- **🧪 E2E out of the box** — every scaffold ships uptest lifecycle tests and chainsaw
-  behavior tests; `create-test` adds more
+- **🧪 E2E out of the box** — every **native** scaffold ships uptest lifecycle tests and
+  chainsaw behavior tests; `create-test` adds more
 - **📝 Template auto-discovery** — drop a `.tmpl` in and it appears in every provider;
   registration files are generated deterministically, never parsed and merged
 - **📌 Tracked dependencies** — one version manifest, bumped by Renovate, applied to
@@ -81,7 +81,9 @@ See [docs/upjet-provider.md](docs/upjet-provider.md).
 
 ### `create-test` - Scaffold a chainsaw behavior test
 ```bash
-# Run inside a generated provider; prompts for name and kind when omitted.
+# Run inside a generated provider. Interactively (a terminal on stdin), missing
+# --name/--kind are prompted for. Non-interactively, --name is required, and
+# --kind is required unless the project has exactly one kind.
 xp-provider-gen create-test --name drift-check --kind MyType
 ```
 
@@ -122,12 +124,16 @@ For the full developer guide see:
 
 ### Generated Project Structure
 
+Native flavor (an upjet scaffold's layout differs — see
+[docs/upjet-provider.md](docs/upjet-provider.md)):
+
 ```
 provider-awesome/
 ├── apis/
 │   ├── v1alpha1/              # ProviderConfig types
 │   ├── compute/v1alpha1/      # Compute resources
-│   └── storage/v1/            # Storage resources
+│   ├── storage/v1/            # Storage resources
+│   └── register.go            # generated — scheme registration
 ├── cmd/provider/              # Provider binary
 ├── internal/
 │   ├── provider/              # Provider-wide concerns
@@ -141,8 +147,17 @@ provider-awesome/
 │       ├── config/
 │       │   └── config.go
 │       └── register.go        # Controller registration
+├── test/                      # YOURS — uptest lifecycle + chainsaw behavior tests
+│   ├── setup.sh
+│   ├── e2e/                   # per-kind uptest lifecycle manifests
+│   └── behavior/               # chainsaw behavior tests
+├── cluster/local/integration_tests.sh
+├── hack/                      # boilerplate license header for generated code
 ├── docs/ownership.md          # generated — which files are yours
 ├── AGENTS.md                  # yours — orientation for humans and agents
+├── OWNERS.md
+├── LICENSE
+├── .gitignore
 ├── package/
 │   ├── crossplane.yaml        # Provider metadata (with safe-start capability)
 │   └── crds/                  # Generated CRDs

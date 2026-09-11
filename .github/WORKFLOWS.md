@@ -6,8 +6,10 @@ This directory contains GitHub Actions workflows for automating CI/CD processes.
 
 ### 🧹 `lint.yml` - Code Quality
 **Triggers:** Push/PR to `main`, `develop`
-- Runs golangci-lint, pinned to the same version as the Makefile's
-  `GOLANGCILINT_VERSION` so CI and `make lint` enforce one rule set
+- Runs golangci-lint at the version pinned in this workflow (`version:`). The same version
+  must also be set by hand in three other places — see
+  [docs/development.md](../docs/development.md#requirements) — since Renovate bumps only
+  this workflow's pin
 - Validates Go code formatting with `gofmt`
 - Ensures Go modules are tidy
 
@@ -15,10 +17,28 @@ This directory contains GitHub Actions workflows for automating CI/CD processes.
 **Triggers:** Push/PR to `main`, `develop`
 - Runs unit tests with race detection against Go 1.26.6
 - Generates coverage reports, uploads to Codecov, keeps them as artifacts
-- Runs an E2E smoke test (`init` + `create api`, checked with
-  `scripts/assert-layout.sh`) when source files changed. This is the layout
-  assertion only — the full scaffold-build-and-run suite is `make e2e-test`,
-  which needs Docker and is run locally (see [testing.md](../docs/testing.md))
+- When source files changed, runs the real native-flavor e2e
+  (`scripts/e2e-test.sh`): init, two APIs, CRD/example generation, the
+  `update` / `update --adopt` / `create-test` lifecycle, ownership-header
+  checks. `E2E_SKIP_DOCKER=1` is set explicitly so its Step E — the generated
+  provider's own uptest+chainsaw suite against a kind cluster, minutes of
+  Docker/cluster time — is skipped deliberately rather than by accident (the
+  runner does have a docker daemon). Run Step E locally with
+  `./scripts/e2e-test.sh` (no env var) or `make e2e-test` — see
+  [testing.md](../docs/testing.md)
+
+### 🧱 `e2e-upjet.yml` - Upjet Flavor E2E
+**Triggers:** Daily schedule; PRs touching `pkg/templates/upjet/**`,
+`scripts/e2e-upjet.sh`, or `hack/envtest-provider-check/**`
+- Runs `scripts/e2e-upjet.sh`: scaffold an upjet provider wrapping
+  hashicorp/kubernetes, configure a resource, run the real upjet generation
+  pipeline (downloads Terraform, reads the provider schema, scrapes docs),
+  build, then prove the generated provider actually **runs** — binary
+  `--help`, scheme registration against an unreachable API server, and (when
+  envtest/kubebuilder-tools assets can be resolved; skipped with a warning
+  otherwise, never failing the build) controller registration against a real
+  ephemeral API server. Not run on every PR because it needs network and
+  takes several minutes
 
 ### 🔨 `build.yml` - Build Binaries
 **Triggers:** Push/PR to `main`, `develop`
@@ -70,7 +90,7 @@ Release workflow publishes multi-platform Docker images to:
 ### Renovate Setup
 1. Install [Renovate GitHub App](https://github.com/apps/renovate)
 2. Configure via `renovate.json` (already included)
-3. Renovate runs weekly on Mondays before 6 AM Pacific
+3. Renovate runs weekly, before 6 AM UTC on Mondays
 4. Creates grouped PRs for related dependencies
 5. Provides detailed release notes and changelogs
 
