@@ -206,6 +206,13 @@ run: go.build
 # ====================================================================================
 # End to End Testing
 CROSSPLANE_NAMESPACE = crossplane-system
+# A dedicated cluster name so e2e's controlplane.down can never delete an
+# unrelated kind cluster. Must be set BEFORE the local.xpkg.mk and
+# controlplane.mk includes: both default it to "local-dev" with ?=, and the
+# first definition wins.
+# ?= so CI or a developer can point e2e at a different cluster; the others are
+# fixed on purpose.
+KIND_CLUSTER_NAME ?= $(PROJECT_NAME)-e2e
 -include build/makelib/local.xpkg.mk
 -include build/makelib/controlplane.mk
 
