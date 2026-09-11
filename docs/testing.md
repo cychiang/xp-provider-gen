@@ -1,6 +1,6 @@
 # Testing
 
-Three layers: fast Go unit tests, a full end-to-end scaffold test, and an upgrade simulation.
+Four layers: fast Go unit tests, a full end-to-end scaffold test, an upgrade simulation, and an upjet-flavor e2e.
 
 ## Unit tests
 
@@ -114,8 +114,21 @@ make e2e-test            # build + run
 Run the e2e test whenever you change templates, the template engine, or the automation
 pipeline — unit tests alone do not catch broken generated output.
 
+## Upjet-flavor e2e (`make e2e-upjet`)
+
+`scripts/e2e-upjet.sh` proves the other flavor end to end: scaffold a provider
+wrapping `hashicorp/kubernetes`, configure `kubernetes_secret` with `create api`,
+then run the **real** upjet pipeline — `make generate` downloads Terraform, reads
+the provider schema, scrapes the provider's docs and generates API types,
+controllers, scheme registration and CRDs — and finally build the result.
+
+That is the only test that proves the config files this tool scaffolds satisfy
+upjet's contract; a unit test cannot, because the contract is upjet's generator.
+It needs network access and takes several minutes, so it is a separate target
+rather than part of `make e2e-test`.
+
 ## In CI
 
-Both layers run on every push/PR (see [.github/WORKFLOWS.md](../.github/WORKFLOWS.md)):
+Unit tests and the native e2e run on every push/PR (see [.github/WORKFLOWS.md](../.github/WORKFLOWS.md)):
 `test.yml` runs unit tests with coverage and the e2e workflow; `lint.yml` and `ci.yml` add
 linting, gosec, and Trivy scanning.

@@ -32,6 +32,7 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 | `make reviewable` | `mod-tidy` + `check` — run this before pushing |
 | `make e2e-test` | Build, then run the end-to-end scaffold test |
 | `make upgrade-sim` | Simulate a generator version bump against real user logic |
+| `make e2e-upjet` | Scaffold an upjet provider and run the real upjet pipeline (network) |
 
 `make reviewable` mirrors what CI enforces. If it passes locally, CI should pass too.
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-//go:embed files files/project/.gitignore.tmpl generators
+//go:embed files files/project/.gitignore.tmpl upjet upjet/project/.gitignore.tmpl generators
 var TemplateFS embed.FS
 
 // GeneratorBody returns the template body for a generator-emitted file.

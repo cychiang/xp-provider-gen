@@ -77,11 +77,6 @@ provenance and writes the header onto recognized tool-owned files so plain 'upda
 	return cmd
 }
 
-// provenance records, in PROJECT, the generator version that last touched the project.
-type provenance struct {
-	Version string `json:"version"`
-}
-
 // prepare enforces the clean-tree precondition, loads the project, and renders the
 // current template set into an in-memory FS. Both update and adopt start here.
 func prepare(ctx context.Context) (store.Store, afero.Fs, error) {
@@ -193,7 +188,9 @@ func insertGeneratedHeader(content []byte) []byte {
 
 // stampProvenance records the current generator version in PROJECT and saves it.
 func stampProvenance(store store.Store) error {
-	if err := store.Config().EncodePluginConfig(pluginName, provenance{Version: version.Get().Version}); err != nil {
+	if err := saveProjectMeta(store.Config(), func(m *projectMeta) {
+		m.Version = version.Get().Version
+	}); err != nil {
 		return fmt.Errorf("encoding provenance: %w", err)
 	}
 	return store.Save()

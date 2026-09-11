@@ -42,7 +42,7 @@ help: ## Show this help message
 	@grep -E '^(build|clean):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Testing:"
-	@grep -E '^(test|coverage|e2e-test|upgrade-sim):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@grep -E '^(test|coverage|e2e-test|e2e-upjet|upgrade-sim):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Code Quality:"
 	@grep -E '^(fmt|vet|lint|lint-fix|gosec|check|reviewable):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -74,6 +74,9 @@ coverage: ## Generate test coverage report
 e2e-test: build ## Run local end-to-end test
 	@echo "Running local E2E test..."
 	@./scripts/e2e-test.sh
+
+e2e-upjet: build ## Run the upjet-flavor end-to-end test (network, several minutes)
+	@./scripts/e2e-upjet.sh
 
 upgrade-sim: build ## Simulate a generator version bump against a provider with real user logic
 	@echo "Running upgrade-path simulation..."

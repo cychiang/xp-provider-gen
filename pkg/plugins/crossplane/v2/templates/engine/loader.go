@@ -20,7 +20,6 @@ import (
 	"embed"
 	"fmt"
 
-	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
@@ -40,7 +39,7 @@ func NewTemplateLoader() *TemplateLoader {
 
 // LoadTemplate loads a template by its name/path.
 func (tl *TemplateLoader) LoadTemplate(templatePath string) (string, error) {
-	content, err := tl.fs.ReadFile(core.ConvertToFilesystemPath(templatePath))
+	content, err := tl.fs.ReadFile(templatePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to load template %s: %w", templatePath, err)
 	}

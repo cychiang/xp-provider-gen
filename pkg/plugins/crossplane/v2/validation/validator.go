@@ -64,11 +64,25 @@ func (e FieldValidationError) Error() string {
 }
 
 // Validator provides validation utilities that follow kubebuilder patterns.
-type Validator struct{}
+type Validator struct {
+	// allowReservedKinds lets a kind shadow a core Kubernetes name. Upjet
+	// providers need it: their kinds mirror Terraform resource names, and a
+	// Terraform provider for Kubernetes legitimately offers secret, deployment
+	// and configmap. A managed resource lives in its own API group, so the
+	// shadowing is only a readability concern, which is why the native flavor
+	// still refuses it.
+	allowReservedKinds bool
+}
 
 // NewValidator creates a new validator instance.
 func NewValidator() *Validator {
 	return &Validator{}
+}
+
+// NewValidatorAllowingReservedKinds creates a validator that permits kinds
+// named after core Kubernetes resources.
+func NewValidatorAllowingReservedKinds() *Validator {
+	return &Validator{allowReservedKinds: true}
 }
 
 // checkRequired rejects an empty value.
@@ -190,6 +204,9 @@ func (v *Validator) validateKind(kind string) error {
 	}
 	if err := checkLength(fieldKind, kind); err != nil {
 		return err
+	}
+	if v.allowReservedKinds {
+		return nil
 	}
 	for _, reserved := range reservedKinds {
 		if strings.EqualFold(kind, reserved) {

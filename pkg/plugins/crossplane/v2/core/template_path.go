@@ -17,7 +17,6 @@ limitations under the License.
 package core
 
 import (
-	"path/filepath"
 	"strings"
 )
 
@@ -29,21 +28,23 @@ func IsTemplateFile(path string) bool {
 	return strings.HasSuffix(path, ".tmpl")
 }
 
-// CleanTemplatePath removes the "files/" prefix from a template path.
-func CleanTemplatePath(path string) string {
-	return strings.TrimPrefix(path, "files/")
-}
+// templateRoots are the top-level directories of the embedded template FS, one
+// per provider flavor. Output paths are relative to whichever root a template
+// came from.
+var templateRoots = []string{"files/", "upjet/"}
 
-// ConvertToFilesystemPath converts a template path back to its location within
-// the embedded template FS.
-func ConvertToFilesystemPath(templatePath string) string {
-	// Ensure we always use forward slashes for embedded filesystem paths.
-	cleanPath := strings.ReplaceAll(templatePath, "\\", "/")
-	return filepath.Join("files", cleanPath)
+// CleanTemplatePath removes the flavor root prefix from a template path.
+func CleanTemplatePath(path string) string {
+	for _, root := range templateRoots {
+		if strings.HasPrefix(path, root) {
+			return strings.TrimPrefix(path, root)
+		}
+	}
+	return path
 }
 
 // GenerateOutputPath converts a template path to its final path inside a
-// generated provider: the "files/" prefix and ".tmpl" suffix are dropped, the
+// generated provider: the flavor root and ".tmpl" suffix are dropped, the
 // special "project/" prefix maps to the provider root, and any placeholder
 // segments (GROUP, VERSION, KIND, IMAGENAME) are substituted.
 func GenerateOutputPath(templatePath string, replacements map[string]string) string {

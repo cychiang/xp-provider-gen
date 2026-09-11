@@ -23,3 +23,21 @@ dependencies:
     version: v0.36.3
   - module: sigs.k8s.io/controller-runtime
     version: v0.24.1
+
+# Additional direct dependencies for upjet-flavored providers. Rendered on top
+# of the shared set above when `init --upjet` scaffolds a project.
+upjet_dependencies:
+  - module: github.com/crossplane/upjet/v2
+    version: v2.4.1-0.20260728103920-4f6e6e10dff2
+  - module: github.com/crossplane/crossplane-tools
+    version: v0.0.0-20260715161912-60e57f817ad1
+  - module: github.com/pkg/errors
+    version: v0.9.1
+  - module: dario.cat/mergo
+    version: v1.0.2
+  - module: k8s.io/api
+    version: v0.36.3
+  - module: k8s.io/apiextensions-apiserver
+    version: v0.36.3
+  - module: sigs.k8s.io/controller-tools
+    version: v0.20.1

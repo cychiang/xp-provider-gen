@@ -8,6 +8,12 @@ Guidance for working in this repository. Keep this file short — depth lives in
 using Kubebuilder v4 and crossplane-runtime v2. From `init`, `create api`, `create-test` and
 `update` it generates and maintains a complete, buildable provider project.
 
+It scaffolds two **flavors**, chosen once at `init` and recorded in PROJECT:
+**native** (you write the reconcile logic behind the seam contract) and **upjet**
+(`init --upjet`: types and controllers are generated from a Terraform provider's
+schema, and you write configuration). Each flavor is a self-contained template
+root — `pkg/templates/files/` and `pkg/templates/upjet/`.
+
 ## Core principles
 
 These two override cleverness. If a change makes the code harder to understand, stop and reconsider.
@@ -44,6 +50,7 @@ Everything below serves these two.
 | `make lint` | golangci-lint (config in `.golangci.yml`) |
 | `make e2e-test` | Full scaffold → build → the generated provider's own e2e |
 | `make upgrade-sim` | Simulate a generator bump against real user logic |
+| `make e2e-upjet` | Upjet flavor: scaffold, generate with upjet, build (network) |
 | `make reviewable` | Everything CI runs; do this before pushing |
 | `make help` | List all targets |
 
@@ -60,6 +67,7 @@ Everything below serves these two.
 - [docs/tutorial.md](docs/tutorial.md) — build and run a provider end-to-end locally
 - [docs/provider-guide.md](docs/provider-guide.md) — what provider authors edit, and upgrading
 - [docs/templates.md](docs/templates.md) — add or change generated-provider templates
+- [docs/upjet-provider.md](docs/upjet-provider.md) — build a provider that wraps a Terraform provider
 - [docs/architecture.md](docs/architecture.md) — how the generator is structured
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow
 - [docs/testing.md](docs/testing.md) — unit and end-to-end testing
