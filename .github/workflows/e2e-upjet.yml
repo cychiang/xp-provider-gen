@@ -1,0 +1,48 @@
+name: E2E Upjet
+
+permissions:
+  contents: read
+
+# scripts/e2e-upjet.sh needs network (Terraform download, Terraform Registry
+# schema read, provider docs scrape) and takes several minutes, so it does not
+# run on every PR. It runs on a daily schedule, and on PRs that touch the
+# upjet flavor's templates or the script/helper that exercise it.
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'pkg/templates/upjet/**'
+      - 'scripts/e2e-upjet.sh'
+      - 'hack/envtest-provider-check/**'
+
+jobs:
+  e2e-upjet:
+    name: E2E Test (upjet)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: '1.26.6'
+
+    - name: Configure git identity for generated commits
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Build binary
+      run: make build
+
+    # Runs the full scaffold -> configure -> generate -> build -> run pipeline
+    # against the real hashicorp/kubernetes Terraform provider. Stage 6c (the
+    # envtest-backed real-controller-setup check) resolves its own kube-
+    # apiserver/etcd assets and degrades to a skip-with-warning, not a
+    # failure, if they can't be fetched — no extra CI wiring needed for that.
+    - name: Run upjet E2E test
+      run: ./scripts/e2e-upjet.sh

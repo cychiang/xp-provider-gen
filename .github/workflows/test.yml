@@ -35,7 +35,7 @@ jobs:
         echo "Changed files: $CHANGED_FILES"
 
         # Check if any Go source files, templates, or build files changed
-        if echo "$CHANGED_FILES" | grep -E '\.(go|tmpl|yaml|yml|mod|sum)$|Makefile|Dockerfile'; then
+        if echo "$CHANGED_FILES" | grep -E '\.(go|tmpl|yaml|yml|mod|sum|sh)$|Makefile|Dockerfile'; then
           echo "source=true" >> $GITHUB_OUTPUT
           echo "Source code changes detected"
         else
@@ -80,7 +80,7 @@ jobs:
         path: coverage.html
 
   e2e-test:
-    name: E2E Test
+    name: E2E Test (native)
     runs-on: ubuntu-latest
     needs: [changes, test]
     if: needs.changes.outputs.source == 'true'
@@ -94,20 +94,22 @@ jobs:
       with:
         go-version: '1.26.6'
 
+    - name: Configure git identity for generated commits
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
     - name: Build binary
       run: make build
 
-    - name: Run E2E test
-      run: |
-        cd /tmp
-        mkdir e2e-test && cd e2e-test
-
-        # Test init command
-        ${{ github.workspace }}/bin/xp-provider-gen init --domain=test.io --repo=github.com/test/provider-e2e
-        ${{ github.workspace }}/scripts/assert-layout.sh .
-
-        # Test create api command
-        ${{ github.workspace }}/bin/xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
-        ${{ github.workspace }}/scripts/assert-layout.sh . compute v1alpha1 Instance
-
-        echo "E2E test completed successfully"
+    # scripts/e2e-test.sh is the real native-flavor e2e: init, two APIs,
+    # update/adopt/create-test lifecycle, ownership-header checks. It also has
+    # a Step E that runs the generated provider's own uptest+chainsaw suite
+    # against a kind cluster — minutes of Docker/cluster time that doesn't
+    # belong on every PR, so it's skipped explicitly here rather than relying
+    # on the runner happening not to have a docker daemon (it does). Step E
+    # still runs locally / can be added to a scheduled job later if desired.
+    - name: Run native E2E test (Docker-dependent step skipped)
+      env:
+        E2E_SKIP_DOCKER: "1"
+      run: ./scripts/e2e-test.sh
