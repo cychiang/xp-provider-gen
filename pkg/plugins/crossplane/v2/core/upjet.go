@@ -32,25 +32,27 @@ const (
 type UpjetSettings struct {
 	// TerraformProvider is the Terraform registry source, e.g.
 	// "hashicorp/kubernetes".
-	TerraformProvider string
+	TerraformProvider string `json:"terraform_provider,omitempty"`
 	// TerraformProviderName is the source's name half, e.g. "kubernetes".
-	TerraformProviderName string
+	TerraformProviderName string `json:"terraform_provider_name,omitempty"`
 	// TerraformProviderVersion is the provider version, e.g. "2.38.0".
-	TerraformProviderVersion string
+	TerraformProviderVersion string `json:"terraform_provider_version,omitempty"`
 	// TerraformProviderRepo is the git repository its docs are scraped from.
-	TerraformProviderRepo string
+	TerraformProviderRepo string `json:"terraform_provider_repo,omitempty"`
 	// TerraformDocsPath is where resource docs live in that repository.
-	TerraformDocsPath string
+	TerraformDocsPath string `json:"terraform_docs_path,omitempty"`
 	// TerraformVersion is the Terraform CLI version used to read the schema.
-	TerraformVersion string
+	TerraformVersion string `json:"terraform_version,omitempty"`
 	// TerraformResourcePrefix is the resource name prefix, e.g. "kubernetes"
 	// for kubernetes_secret.
-	TerraformResourcePrefix string
+	TerraformResourcePrefix string `json:"terraform_resource_prefix,omitempty"`
 	// NamespacedDomain is the API group upjet uses for namespaced resources.
-	NamespacedDomain string
+	NamespacedDomain string `json:"namespaced_domain,omitempty"`
 	// TerraformResource is the Terraform resource a single kind maps to. Only
-	// set when rendering per-resource templates.
-	TerraformResource string
+	// set when rendering per-resource templates — excluded from persistence:
+	// it is per-kind and PROJECT does not track per-kind coordinates, so a
+	// value here is always transient and must never round-trip through PROJECT.
+	TerraformResource string `json:"-"`
 }
 
 // ProviderNameFromSource returns the name half of "org/name".

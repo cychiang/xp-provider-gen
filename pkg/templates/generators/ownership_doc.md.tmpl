@@ -33,9 +33,15 @@ The generator creates these once and then leaves them alone forever.
 ## The seam names
 
 Tool-owned code calls these by name. Renaming any of them breaks the build:
-
+{{ if eq .Flavor "upjet" }}
+| Name | Where you define it |
+|---|---|
+| `TerraformSetupBuilder` | `internal/clients/clients.go` |
+| `Configure` (per kind) | `config/<kind>/config.go` |
+{{- else }}
 | Name | Where you define it |
 |---|---|
 | `Client`, `NewClient` | `internal/provider/client.go` |
 | `Flags`, `Configure` | `internal/provider/options.go` |
 | `NewExternal`, `ReconcilerOptions` | `internal/controller/<kind>/external.go` |
+{{- end }}

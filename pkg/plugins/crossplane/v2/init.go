@@ -66,7 +66,7 @@ This command scaffolds a complete Crossplane provider project with:
 func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {
 	p.ensureConfig()
 
-	fs.StringVar(&p.domain, "domain", p.pluginConfig.Defaults.Domain, "domain for API groups")
+	fs.StringVar(&p.domain, "domain", p.pluginConfig.Defaults.Domain, "domain for API groups (required)")
 	fs.StringVar(&p.repo, "repo", "", "name to use for go module (e.g., github.com/user/repo)")
 	fs.StringVar(&p.gitName, "git-name", "", "git user name for commits (uses system config if not provided)")
 	fs.StringVar(&p.gitEmail, "git-email", "", "git user email for commits (uses system config if not provided)")
@@ -119,14 +119,12 @@ func (p *initSubcommand) InjectConfig(c config.Config) error {
 
 	validator := validation.NewValidator()
 
-	if p.domain != "" {
-		if err := validator.ValidateDomain(p.domain); err != nil {
-			return validation.InitError("domain validation", err)
-		}
+	if err := validator.ValidateDomain(p.domain); err != nil {
+		return validation.InitError("domain validation", err)
+	}
 
-		if err := p.config.SetDomain(p.domain); err != nil {
-			return validation.InitError("configuration", err)
-		}
+	if err := p.config.SetDomain(p.domain); err != nil {
+		return validation.InitError("configuration", err)
 	}
 
 	repo := p.repo

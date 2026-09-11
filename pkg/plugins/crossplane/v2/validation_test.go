@@ -31,6 +31,10 @@ const (
 	testKind    = "Instance"
 )
 
+// testProviderRepo is a sample go module repository reused across this
+// package's tests (validation and init).
+const testProviderRepo = "github.com/example/provider-test"
+
 func TestValidator_ValidateDomain(t *testing.T) {
 	validator := validation.NewValidator()
 
@@ -91,7 +95,7 @@ func TestValidator_ValidateRepository(t *testing.T) {
 	}{
 		{
 			name:    "valid github repo",
-			repo:    "github.com/example/provider-test",
+			repo:    testProviderRepo,
 			wantErr: false,
 		},
 		{
@@ -217,6 +221,51 @@ func TestValidator_ValidateResource(t *testing.T) {
 			err := validator.ValidateResource(tt.resource)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidateResource() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateTerraformResource(t *testing.T) {
+	const prefix = "kubernetes"
+
+	tests := []struct {
+		name     string
+		resource string
+		wantErr  bool
+	}{
+		{
+			name:     "valid resource under the provider's prefix",
+			resource: "kubernetes_secret",
+			wantErr:  false,
+		},
+		{
+			name:     "empty resource",
+			resource: "",
+			wantErr:  true,
+		},
+		{
+			name:     "wrong prefix silently matches nothing in upjet's include list",
+			resource: "aws_instance",
+			wantErr:  true,
+		},
+		{
+			name:     "uppercase is not a valid Terraform resource name",
+			resource: "Kubernetes_Secret",
+			wantErr:  true,
+		},
+		{
+			name:     "a stray quote would break the generated Go source",
+			resource: `kubernetes_secret"`,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validation.ValidateTerraformResource(tt.resource, prefix)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateTerraformResource() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

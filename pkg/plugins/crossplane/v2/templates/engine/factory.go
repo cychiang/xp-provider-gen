@@ -36,11 +36,6 @@ type CrossplaneTemplateFactory struct {
 	apiTemplates  []TemplateInfo
 }
 
-// NewFactory returns a factory over the native flavor's templates.
-func NewFactory(cfg config.Config) TemplateFactory {
-	return NewFactoryForFlavor(cfg, core.FlavorNative)
-}
-
 // NewFactoryForFlavor returns a factory over the given flavor's template tree.
 func NewFactoryForFlavor(cfg config.Config, flavor core.Flavor) TemplateFactory {
 	factory := &CrossplaneTemplateFactory{config: cfg, root: flavor.TemplateRoot()}

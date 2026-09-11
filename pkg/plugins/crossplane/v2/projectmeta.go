@@ -17,6 +17,9 @@ limitations under the License.
 package v2
 
 import (
+	"errors"
+	"fmt"
+
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
@@ -32,21 +35,34 @@ type projectMeta struct {
 }
 
 // loadProjectMeta reads this plugin's block. A project scaffolded before the
-// block existed reads as the native flavor, which is what it is.
-func loadProjectMeta(cfg config.Config) projectMeta {
+// block existed reads as the native flavor, which is what it is. A block that
+// declares flavor: upjet but carries no upjet: settings is not a missing
+// block, it is a corrupt one — callers dereference meta.Upjet, so this is
+// reported rather than silently defaulted.
+func loadProjectMeta(cfg config.Config) (projectMeta, error) {
 	var meta projectMeta
-	// A missing or unreadable block is not an error: it just means defaults.
-	_ = cfg.DecodePluginConfig(pluginName, &meta)
+	if err := cfg.DecodePluginConfig(pluginName, &meta); err != nil &&
+		!errors.Is(err, config.PluginKeyNotFoundError{Key: pluginName}) {
+		return projectMeta{}, fmt.Errorf("decoding %s project block: %w", pluginName, err)
+	}
 	if !meta.Flavor.Valid() {
 		meta.Flavor = core.FlavorNative
 	}
-	return meta
+	if meta.Flavor == core.FlavorUpjet && meta.Upjet == nil {
+		return projectMeta{}, fmt.Errorf(
+			"PROJECT declares flavor %q but has no upjet: settings block; "+
+				"the file is corrupt or was hand-edited", meta.Flavor)
+	}
+	return meta, nil
 }
 
 // saveProjectMeta writes the block back, preserving every field the caller did
 // not set — stamping a new generator version must never drop the flavor.
 func saveProjectMeta(cfg config.Config, mutate func(*projectMeta)) error {
-	meta := loadProjectMeta(cfg)
+	meta, err := loadProjectMeta(cfg)
+	if err != nil {
+		return err
+	}
 	mutate(&meta)
 	return cfg.EncodePluginConfig(pluginName, meta)
 }

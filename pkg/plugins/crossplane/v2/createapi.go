@@ -87,9 +87,14 @@ func (p *createAPISubcommand) InjectResource(res *resource.Resource) error {
 }
 
 func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
+	meta, err := loadProjectMeta(p.config)
+	if err != nil {
+		return validation.CreateAPIError("configuration check", err)
+	}
+
 	// Validate resource parameters before scaffolding
 	validator := validation.NewValidator()
-	if loadProjectMeta(p.config).Flavor == core.FlavorUpjet {
+	if meta.Flavor == core.FlavorUpjet {
 		// Kinds mirror Terraform resource names on an upjet provider.
 		validator = validation.NewValidatorAllowingReservedKinds()
 	}
@@ -101,6 +106,17 @@ func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 	if p.resource.Domain == "" {
 		return validation.CreateAPIError("configuration check",
 			fmt.Errorf("resource domain is required - ensure project is properly initialized"))
+	}
+
+	if meta.Flavor == core.FlavorUpjet {
+		if p.terraformResource == "" {
+			return validation.CreateAPIError("missing flag",
+				fmt.Errorf("--terraform-resource is required on an upjet provider "+
+					"(e.g. --terraform-resource=%s_secret)", meta.Upjet.TerraformResourcePrefix))
+		}
+		if err := validation.ValidateTerraformResource(p.terraformResource, meta.Upjet.TerraformResourcePrefix); err != nil {
+			return validation.CreateAPIError("terraform resource validation", err)
+		}
 	}
 
 	return nil
@@ -118,14 +134,13 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		machinery.WithResource(p.resource),
 	)
 
-	meta := loadProjectMeta(p.config)
-	if meta.Flavor == core.FlavorUpjet && p.terraformResource == "" {
-		return validation.CreateAPIError("missing flag",
-			fmt.Errorf("--terraform-resource is required on an upjet provider "+
-				"(e.g. --terraform-resource=%s_secret)", meta.Upjet.TerraformResourcePrefix))
+	meta, err := loadProjectMeta(p.config)
+	if err != nil {
+		return validation.CreateAPIError("configuration check", err)
 	}
 
 	// Per-resource templates need the Terraform coordinates as well as the kind.
+	// --terraform-resource presence and shape were already validated in PreScaffold.
 	upjet := meta.Upjet
 	if upjet != nil {
 		settings := *upjet
@@ -181,9 +196,14 @@ func (p *createAPISubcommand) PostScaffold() error {
 		return validation.CreateAPIError("PROJECT file persistence", err)
 	}
 
+	meta, err := loadProjectMeta(p.config)
+	if err != nil {
+		return validation.CreateAPIError("configuration check", err)
+	}
+
 	// Run API commit automation pipeline
 	pipeline := automation.NewAPICommitPipeline(p.pluginConfig, p.resource.Kind)
-	if loadProjectMeta(p.config).Flavor == core.FlavorUpjet {
+	if meta.Flavor == core.FlavorUpjet {
 		pipeline = automation.NewUpjetAPICommitPipeline(p.pluginConfig, p.resource.Kind)
 	}
 	fmt.Println("Running post-scaffolding automation...")
