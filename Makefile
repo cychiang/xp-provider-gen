@@ -31,7 +31,7 @@ BINARY=xp-provider-gen
 # Pinned so local runs and CI enforce the same rules. Keep in step with the
 # version lint.yml installs and with GOLANGCILINT_VERSION in the generated
 # provider's Makefile.tmpl.
-GOLANGCILINT_VERSION = 2.12.2
+GOLANGCILINT_VERSION = 2.13.2
 
 .PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-test upgrade-sim
 
