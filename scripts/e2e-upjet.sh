@@ -71,17 +71,24 @@ green "  ✓ builds"
 
 blue "=== 6. The generated provider starts, not just builds ==="
 
-blue "  --- 6a. Provider binary builds and --help works ---"
-mkdir -p "$DIR/bin"
-go build -o "$DIR/bin/provider" ./cmd/provider/ >/tmp/e2e-upjet-provider-build.log 2>&1 || {
+blue "  --- 6a. Provider binary builds via the scaffold's own build system, and --help works ---"
+# Use the scaffold's own "make go.build" (the Docker-free half of "make build")
+# rather than a bare "go build -o", which bypasses the Makefile's GO_PROJECT/
+# PROJECT_REPO-based import path resolution entirely — that is exactly how a
+# hard-coded PROJECT_REPO in the upjet Makefile stayed invisible before.
+make go.build >/tmp/e2e-upjet-provider-build.log 2>&1 || {
   tail -20 /tmp/e2e-upjet-provider-build.log
-  fail "provider binary failed to build"
+  fail "provider binary failed to build via the scaffold's own build system (make go.build)"
 }
+PROVIDER_BIN="$(find _output/bin -type f -name provider | head -1)"
+[ -n "$PROVIDER_BIN" ] || fail "make go.build reported success but produced no provider binary"
+mkdir -p "$DIR/bin"
+cp "$PROVIDER_BIN" "$DIR/bin/provider"
 "$DIR/bin/provider" --help >/tmp/e2e-upjet-provider-help.log 2>&1 || {
   tail -20 /tmp/e2e-upjet-provider-help.log
   fail "provider --help failed"
 }
-green "  ✓ provider binary builds and --help exits cleanly"
+green "  ✓ provider binary builds via 'make go.build' and --help exits cleanly"
 
 blue "  --- 6b. Scheme registration runs against an unreachable API server (no cluster needed) ---"
 FAKE_KUBECONFIG="$(mktemp)"
@@ -173,6 +180,133 @@ else
 fi
 rm -f "$ENVTEST_SETUP_LOG"
 
+blue "=== 7. Full ConfigMap lifecycle against a live cluster (create/update/delete) ==="
+if [ -z "${E2E_SKIP_DOCKER:-}" ] && docker info >/dev/null 2>&1; then
+  blue "  --- 7a. Configure and generate a ConfigMap resource ---"
+  "$BIN" create api --group=core --version=v1alpha1 --kind=ConfigMap \
+    --terraform-resource=kubernetes_config_map >/dev/null
+  make generate >/tmp/e2e-upjet-configmap-generate.log 2>&1 || {
+    tail -20 /tmp/e2e-upjet-configmap-generate.log
+    fail "make generate failed for the ConfigMap resource"
+  }
+  green "  ✓ kubernetes_config_map configured and generated"
+
+  LIVE_TEARDOWN_DONE=0
+  cleanup_live_cluster() {
+    if [ "$LIVE_TEARDOWN_DONE" -eq 0 ]; then
+      make controlplane.down >/tmp/e2e-upjet-controlplane-down.log 2>&1 || true
+      LIVE_TEARDOWN_DONE=1
+    fi
+  }
+  trap cleanup_live_cluster EXIT
+
+  blue "  --- 7b. Build, stand up a kind cluster with Crossplane, deploy the provider ---"
+  make local-deploy >/tmp/e2e-upjet-local-deploy.log 2>&1 || {
+    tail -40 /tmp/e2e-upjet-local-deploy.log
+    fail "make local-deploy failed (build / kind / Crossplane / provider deploy)"
+  }
+  green "  ✓ kind cluster up, Crossplane installed, provider deployed and Healthy"
+
+  LIVE_KUBECTL="$(find .cache/tools -type f -name 'kubectl-*' | head -1)"
+  [ -n "$LIVE_KUBECTL" ] || fail "could not locate the kubectl binary the build system downloaded"
+
+  blue "  --- 7c. Apply ProviderConfig and credentials ---"
+  KUBECTL="$LIVE_KUBECTL" ./cluster/test/setup.sh >/tmp/e2e-upjet-cluster-setup.log 2>&1 || {
+    tail -20 /tmp/e2e-upjet-cluster-setup.log
+    fail "cluster/test/setup.sh failed"
+  }
+  green "  ✓ ProviderConfig and credentials applied"
+
+  blue "  --- 7d. CREATE: apply a ConfigMap MR and verify the real object ---"
+  LIVE_MR="$(mktemp)"
+  cat >"$LIVE_MR" <<'EOF'
+apiVersion: core.example.m.com/v1alpha1
+kind: ConfigMap
+metadata:
+  name: e2e-configmap
+  namespace: crossplane-system
+spec:
+  forProvider:
+    metadata:
+      - name: e2e-configmap
+        namespace: default
+    data:
+      hello: world
+  providerConfigRef:
+    name: default
+    kind: ProviderConfig
+EOF
+  "$LIVE_KUBECTL" apply -f "$LIVE_MR" || fail "failed to apply the ConfigMap MR"
+  "$LIVE_KUBECTL" wait configmap.core.example.m.com/e2e-configmap -n crossplane-system \
+    --for=condition=Ready --timeout=5m >/tmp/e2e-upjet-configmap-wait.log 2>&1 || {
+    cat /tmp/e2e-upjet-configmap-wait.log
+    "$LIVE_KUBECTL" -n crossplane-system get configmap.core.example.m.com e2e-configmap -o yaml
+    fail "ConfigMap MR never became Ready"
+  }
+  EXTERNAL_NAME="$("$LIVE_KUBECTL" get configmap.core.example.m.com e2e-configmap -n crossplane-system \
+    -o jsonpath='{.metadata.annotations.crossplane\.io/external-name}')"
+  [ "$EXTERNAL_NAME" = "default/e2e-configmap" ] || fail "unexpected external-name: '$EXTERNAL_NAME' (expected 'default/e2e-configmap')"
+  REAL_DATA="$("$LIVE_KUBECTL" -n default get configmap e2e-configmap -o jsonpath='{.data.hello}')"
+  [ "$REAL_DATA" = "world" ] || fail "real ConfigMap data mismatch after create: got '$REAL_DATA', want 'world'"
+  green "  ✓ CREATE: MR Ready/Synced, external-name=$EXTERNAL_NAME, real ConfigMap data.hello=$REAL_DATA"
+
+  blue "  --- 7e. UPDATE: change spec.forProvider.data and verify the real object changes ---"
+  LIVE_MR_UPDATED="$(mktemp)"
+  cat >"$LIVE_MR_UPDATED" <<'EOF'
+apiVersion: core.example.m.com/v1alpha1
+kind: ConfigMap
+metadata:
+  name: e2e-configmap
+  namespace: crossplane-system
+spec:
+  forProvider:
+    metadata:
+      - name: e2e-configmap
+        namespace: default
+    data:
+      hello: updated-value
+  providerConfigRef:
+    name: default
+    kind: ProviderConfig
+EOF
+  "$LIVE_KUBECTL" apply -f "$LIVE_MR_UPDATED" || fail "failed to apply the updated ConfigMap MR"
+  UPDATED_DATA=""
+  for _ in $(seq 1 30); do
+    UPDATED_DATA="$("$LIVE_KUBECTL" -n default get configmap e2e-configmap -o jsonpath='{.data.hello}' 2>/dev/null || true)"
+    [ "$UPDATED_DATA" = "updated-value" ] && break
+    sleep 2
+  done
+  [ "$UPDATED_DATA" = "updated-value" ] || fail "real ConfigMap data did not update: got '$UPDATED_DATA', want 'updated-value'"
+  green "  ✓ UPDATE: real ConfigMap data.hello changed to '$UPDATED_DATA'"
+  rm -f "$LIVE_MR" "$LIVE_MR_UPDATED"
+
+  blue "  --- 7f. DELETE: remove the MR and verify the real object is gone ---"
+  "$LIVE_KUBECTL" delete configmap.core.example.m.com e2e-configmap -n crossplane-system --timeout=60s ||
+    fail "failed to delete the ConfigMap MR"
+  if "$LIVE_KUBECTL" -n default get configmap e2e-configmap >/dev/null 2>&1; then
+    fail "real ConfigMap still exists after the MR was deleted"
+  fi
+  green "  ✓ DELETE: real ConfigMap no longer exists"
+
+  blue "  --- 7g. Provider pod health and reconcile evidence ---"
+  LIVE_POD="$("$LIVE_KUBECTL" -n crossplane-system get pods -o name | grep '^pod/provider-k8s-' | head -1)"
+  [ -n "$LIVE_POD" ] || fail "could not find the provider pod"
+  LIVE_PHASE="$("$LIVE_KUBECTL" -n crossplane-system get "$LIVE_POD" -o jsonpath='{.status.phase}')"
+  [ "$LIVE_PHASE" = "Running" ] || fail "provider pod is not Running (phase=$LIVE_PHASE)"
+  RECONCILE_LINE="$("$LIVE_KUBECTL" -n crossplane-system logs "$LIVE_POD" | grep -m1 'Reconciling.*kind=configmap' || true)"
+  [ -n "$RECONCILE_LINE" ] || fail "no reconcile log line found for the configmap controller"
+  echo "$RECONCILE_LINE" >/tmp/e2e-upjet-configmap-reconcile-line.log
+  green "  ✓ provider pod ($LIVE_POD) Running, reconciled the ConfigMap controller"
+
+  cleanup_live_cluster
+  trap - EXIT
+  green "  ✓ kind cluster torn down"
+  LIFECYCLE="→ manage (live ConfigMap create/update/delete)"
+else
+  yellow "  ⚠ docker unavailable (or E2E_SKIP_DOCKER set) — skipping the live ConfigMap lifecycle stage"
+  LIFECYCLE="(live ConfigMap lifecycle SKIPPED)"
+fi
+
 blue "=== Summary ==="
-green "✅ upjet e2e passed: scaffold → configure → generate → build → run"
+green "✅ upjet e2e passed: scaffold → configure → generate → build → run ${LIFECYCLE}"
 echo "   provider left at $DIR for inspection"
