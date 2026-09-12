@@ -1,6 +1,6 @@
 module github.com/cychiang/xp-provider-gen/hack/envtest-provider-check
 
-go 1.26.6
+go 1.27.1
 
 require (
 	k8s.io/client-go v0.37.0
