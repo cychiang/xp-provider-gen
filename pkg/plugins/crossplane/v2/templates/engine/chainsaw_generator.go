@@ -29,18 +29,37 @@ import (
 // into test/behavior/<name>/chainsaw-test.yaml. The output is user-owned (no
 // generated header) and is never overwritten: scaffolding an existing test
 // name is an error.
+//
+// APIVersion, Namespace and Spec are read from the project's own
+// examples/<group>/<kind>.yaml by the caller (loadExampleManifest in package
+// v2) rather than derived here from Resource — that is what lets one
+// template body serve both flavors with no flavor branch: whichever flavor
+// produced the example, these three strings are already in its shape.
 type ChainsawTestGenerator struct {
 	machinery.TemplateMixin
 
-	TestName string
-	Resource resource.Resource
+	TestName   string
+	Resource   resource.Resource
+	APIVersion string
+	Namespace  string
+	// Spec is the example's spec, re-marshaled to YAML and indented to
+	// splice directly under the skeleton's `spec:` key.
+	Spec string
 }
 
 var _ machinery.Template = &ChainsawTestGenerator{}
 
 // NewChainsawTestGenerator builds the chainsaw skeleton generator.
-func NewChainsawTestGenerator(testName string, res resource.Resource) *ChainsawTestGenerator {
-	return &ChainsawTestGenerator{TestName: testName, Resource: res}
+func NewChainsawTestGenerator(
+	testName string, res resource.Resource, apiVersion, namespace, specYAML string,
+) *ChainsawTestGenerator {
+	return &ChainsawTestGenerator{
+		TestName:   testName,
+		Resource:   res,
+		APIVersion: apiVersion,
+		Namespace:  namespace,
+		Spec:       specYAML,
+	}
 }
 
 func (f *ChainsawTestGenerator) SetTemplateDefaults() error {

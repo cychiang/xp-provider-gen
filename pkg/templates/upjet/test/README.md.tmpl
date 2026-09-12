@@ -1,0 +1,49 @@
+# End-to-end tests
+
+These run {{ .ProviderName }} against a kind control plane with Crossplane
+installed and the provider deployed from a locally built image.
+
+```
+test/
+├── setup.sh            # runs once before the tests; applies the ProviderConfig + Secret
+└── behavior/           # controller behaviour, plain chainsaw tests (created by create-test)
+```
+
+The managed resource lifecycle — create, observe, delete — is driven by
+`examples/<group>/<kind>.yaml`, one file per kind. [uptest](https://github.com/crossplane/uptest)
+reads the `uptest.upbound.io/*` annotations on each one; the Makefile picks
+them up by wildcard, so nothing needs wiring once the file exists.
+
+## Producing an example for a kind
+
+`create api` cannot seed one: nothing about a valid `spec.forProvider` is
+knowable before the Terraform schema is generated. After `make generate`:
+
+1. Copy `examples-generated/namespaced/<group>/<version>/<kind>.yaml` to
+   `examples/<group>/<kind>.yaml`.
+2. Resolve any `${...}` Terraform interpolations (e.g. `file()`,
+   `filebase64()`) — the scraped doc example does not resolve them for you.
+3. Keep `namespace: crossplane-system` and `providerConfigRef: {name: default,
+   kind: ProviderConfig}` — that's where the scaffolded credentials Secret and
+   ProviderConfig live. Worked example:
+   [docs/upjet-provider.md §6](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#6-worked-example-managing-a-configmap-with-hashicorpkubernetes).
+4. Add `uptest.upbound.io/timeout` and `uptest.upbound.io/conditions:
+   "Ready,Synced"` annotations under `metadata`.
+
+## Running
+
+```bash
+make e2e              # full flow: build image, kind + Crossplane, deploy, uptest
+make test-behavior    # chainsaw behavior tests only, against a live cluster
+make e2e-clean        # delete the e2e kind cluster when you're done
+```
+
+## Adding a behavior test
+
+Once a kind has an example:
+
+```bash
+xp-provider-gen create-test --name drift-check --kind MyKind
+```
+
+These files are yours: the generator seeds them once and never overwrites them.

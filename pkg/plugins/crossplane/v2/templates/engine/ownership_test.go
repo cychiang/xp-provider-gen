@@ -58,7 +58,6 @@ var wantOwnership = map[string]bool{
 	"internal/version/version.go":                 true,
 	"test/setup.sh":                               false,
 	"test/README.md":                              false,
-	"test/e2e/KIND-lifecycle.yaml":                false,
 	"test/behavior/KIND-pause/chainsaw-test.yaml": false,
 	"AGENTS.md":               false,
 	"LICENSE":                 false,
@@ -75,7 +74,10 @@ var wantOwnership = map[string]bool{
 // `update`; everything the provider author configures — per-resource config,
 // the credentials seam, the ProviderConfig types — is theirs forever.
 var wantOwnershipUpjet = map[string]bool{
+	"AGENTS.md":                                               false,
 	"LICENSE":                                                 false,
+	"OWNERS.md":                                               false,
+	"README.md":                                               false,
 	"apis/cluster/v1alpha1/doc.go":                            true,
 	"apis/cluster/v1alpha1/register.go":                       true,
 	"apis/cluster/v1beta1/doc.go":                             true,
@@ -90,7 +92,6 @@ var wantOwnershipUpjet = map[string]bool{
 	"cluster/images/IMAGENAME/Dockerfile":                     false,
 	"cluster/images/IMAGENAME/Makefile":                       false,
 	"cluster/images/IMAGENAME/terraformrc.hcl":                false,
-	"cluster/test/setup.sh":                                   false,
 	"cmd/generator/main.go":                                   true,
 	"cmd/provider/main.go":                                    true,
 	"config/KIND/config.go":                                   false,
@@ -105,6 +106,8 @@ var wantOwnershipUpjet = map[string]bool{
 	"internal/features/features.go":                           true,
 	"internal/version/version.go":                             true,
 	"package/crossplane.yaml":                                 false,
+	"test/setup.sh":                                           false,
+	"test/README.md":                                          false,
 	".gitignore":                                              false,
 	"Makefile":                                                false,
 }

@@ -147,9 +147,8 @@ provider-awesome/
 │       ├── config/
 │       │   └── config.go
 │       └── register.go        # Controller registration
-├── test/                      # YOURS — uptest lifecycle + chainsaw behavior tests
+├── test/                      # YOURS — chainsaw behavior tests + setup script
 │   ├── setup.sh
-│   ├── e2e/                   # per-kind uptest lifecycle manifests
 │   └── behavior/               # chainsaw behavior tests
 ├── cluster/local/integration_tests.sh
 ├── hack/                      # boilerplate license header for generated code
@@ -161,7 +160,7 @@ provider-awesome/
 ├── package/
 │   ├── crossplane.yaml        # Provider metadata (with safe-start capability)
 │   └── crds/                  # Generated CRDs
-├── examples/                  # Usage examples
+├── examples/                  # usage examples — also uptest's lifecycle input (make e2e)
 └── Makefile                   # Build automation
 ```
 

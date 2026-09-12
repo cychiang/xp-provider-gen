@@ -1,0 +1,49 @@
+# {{ .ProviderName }}
+
+A Crossplane provider for managing `{{ .TerraformProvider }}` resources,
+generated from its Terraform provider schema via
+[upjet](https://github.com/crossplane/upjet).
+
+## Getting Started
+
+### Install Provider
+
+Apply a `Provider` package pointing at your built (and pushed) image:
+
+```yaml
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: {{ .ProviderName }}
+spec:
+  package: {{ .Repo }}:latest
+```
+
+For local development without pushing anywhere, use `make local-deploy` instead
+(see Development below) — it builds the image, spins up a kind cluster, and
+deploys it in one step.
+
+### Configure Provider
+
+Apply a ProviderConfig and its credentials Secret:
+
+```bash
+kubectl apply -f examples/providerconfig/providerconfig.yaml
+```
+
+## Development
+
+### Build
+
+```bash
+make generate   # fetch the Terraform schema, generate types and controllers
+make build      # build the provider binary and the deployable image
+```
+
+### Test
+
+```bash
+make test           # unit tests
+make local-deploy   # kind cluster + Crossplane + this provider
+make e2e             # + uptest against examples/*/*.yaml
+```

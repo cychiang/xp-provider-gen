@@ -178,12 +178,13 @@ files in the package. Only the names and signatures above are fixed.
 
 ## 4. Testing your provider
 
-The scaffold seeds a complete e2e suite under `test/` — all user-owned, seeded
-once and never touched by `update`:
+The scaffold seeds a complete e2e suite — `test/` plus a per-kind example under
+`examples/` — all user-owned, seeded once and never touched by `update`:
 
-- `test/e2e/<kind>-lifecycle.yaml` per kind — [uptest](https://github.com/crossplane/uptest)
-  input: create → assert `Ready,Synced` → delete. Picked up by wildcard; adding
-  kinds needs no wiring.
+- `examples/<group>/<kind>.yaml` per kind — both a usage example and
+  [uptest](https://github.com/crossplane/uptest)'s lifecycle input via its
+  `uptest.upbound.io/*` annotations: create → assert `Ready,Synced` → delete.
+  Picked up by wildcard; adding kinds needs no wiring.
 - `test/behavior/<kind>-pause/` per kind — a seed
   [chainsaw](https://kyverno.github.io/chainsaw/) test proving `crossplane.io/paused`
   actually stops reconciliation. Copy its pattern, or scaffold new tests with

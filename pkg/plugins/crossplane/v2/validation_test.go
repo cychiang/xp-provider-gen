@@ -26,9 +26,10 @@ import (
 
 // Sample GVK values reused across validation test cases.
 const (
-	testGroup   = "compute"
-	testVersion = "v1alpha1"
-	testKind    = "Instance"
+	testGroup       = "compute"
+	testVersion     = "v1alpha1"
+	testVersionBeta = "v1beta1"
+	testKind        = "Instance"
 )
 
 // testProviderRepo is a sample go module repository reused across this
@@ -159,7 +160,7 @@ func TestValidator_ValidateResource(t *testing.T) {
 			resource: &resource.Resource{
 				GVK: resource.GVK{
 					Group:   "storage",
-					Version: "v1beta1",
+					Version: testVersionBeta,
 					Kind:    "Bucket",
 				},
 			},

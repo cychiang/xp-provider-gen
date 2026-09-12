@@ -1,8 +1,14 @@
+# This manifest is both a usage example and the uptest lifecycle input for
+# {{ .Resource.Kind }} (make e2e); its annotations configure uptest. See
+# test/README.md.
 apiVersion: {{ .Resource.Group }}.{{ .Domain }}/{{ .Resource.Version }}
 kind: {{ .Resource.Kind }}
 metadata:
   name: example
   namespace: default
+  annotations:
+    uptest.upbound.io/timeout: "120"
+    uptest.upbound.io/conditions: "Ready,Synced"
 spec:
   forProvider:
     # TODO: Update with your managed resource's configurable fields
