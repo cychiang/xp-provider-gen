@@ -26,11 +26,12 @@ import (
 
 // Field names used in validation errors.
 const (
-	fieldDomain     = "domain"
-	fieldRepository = "repository"
-	fieldGroup      = "group"
-	fieldVersion    = "version"
-	fieldKind       = "kind"
+	fieldDomain            = "domain"
+	fieldRepository        = "repository"
+	fieldGroup             = "group"
+	fieldVersion           = "version"
+	fieldKind              = "kind"
+	fieldTerraformResource = "terraform-resource"
 )
 
 // maxNameLength is the Kubernetes DNS label limit applied to groups and kinds.
@@ -39,11 +40,12 @@ const maxNameLength = 63
 // Input patterns, compiled once. Each mirrors the kubebuilder/Kubernetes
 // convention for the field it guards.
 var (
-	domainRe  = regexp.MustCompile(`^[a-z0-9]+([-.][a-z0-9]+)*\.[a-z]{2,}$`)
-	repoRe    = regexp.MustCompile(`^[a-z0-9.-]+/[a-z0-9._-]+/[a-z0-9._-]+$`)
-	groupRe   = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`) // DNS-1123 label
-	versionRe = regexp.MustCompile(`^v\d+(alpha\d+|beta\d+)?$`)
-	kindRe    = regexp.MustCompile(`^[A-Z][a-zA-Z0-9]*$`) // PascalCase
+	domainRe            = regexp.MustCompile(`^[a-z0-9]+([-.][a-z0-9]+)*\.[a-z]{2,}$`)
+	repoRe              = regexp.MustCompile(`^[a-z0-9.-]+/[a-z0-9._-]+/[a-z0-9._-]+$`)
+	groupRe             = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`) // DNS-1123 label
+	versionRe           = regexp.MustCompile(`^v\d+(alpha\d+|beta\d+)?$`)
+	kindRe              = regexp.MustCompile(`^[A-Z][a-zA-Z0-9]*$`) // PascalCase
+	terraformResourceRe = regexp.MustCompile(`^[a-z0-9_]+$`)        // Terraform resource type name
 )
 
 // reservedKinds are Kubernetes core kinds a managed resource must not shadow.
@@ -170,6 +172,31 @@ func (v *Validator) ValidateResource(res *resource.Resource) error {
 		return err
 	}
 	return v.validateKind(res.Kind)
+}
+
+// ValidateTerraformResource validates a --terraform-resource value for an
+// upjet provider: it must be a syntactically valid Terraform resource type
+// name and belong to the provider's own resource namespace (e.g.
+// "kubernetes_secret" under prefix "kubernetes"). A value outside that
+// namespace matches nothing in upjet's generated include list, so `make
+// generate` would silently produce no type for it; this rejects that before
+// the resource is scaffolded and committed.
+func ValidateTerraformResource(resource, prefix string) error {
+	if err := checkRequired(fieldTerraformResource, resource); err != nil {
+		return err
+	}
+	if err := checkPattern(fieldTerraformResource, resource, terraformResourceRe,
+		"must be lowercase alphanumeric with underscores (e.g., kubernetes_secret)"); err != nil {
+		return err
+	}
+	if want := prefix + "_"; !strings.HasPrefix(resource, want) {
+		return FieldValidationError{
+			Field:   fieldTerraformResource,
+			Value:   resource,
+			Message: fmt.Sprintf("must start with %q (the provider's resource prefix)", want),
+		}
+	}
+	return nil
 }
 
 // validateGroup validates API group name.

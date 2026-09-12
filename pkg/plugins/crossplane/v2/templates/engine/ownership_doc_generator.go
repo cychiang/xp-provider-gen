@@ -48,25 +48,32 @@ const ownershipDocPath = "docs/ownership.md"
 type OwnershipDocGenerator struct {
 	machinery.TemplateMixin
 
+	// Flavor selects which template root the doc describes and which seam
+	// table the body renders — the two flavors define different seam names.
+	Flavor core.Flavor
+
 	ToolOwned []string
 	UserOwned []string
 }
 
 var _ machinery.Template = &OwnershipDocGenerator{}
 
-// NewOwnershipDocGenerator builds the ownership doc generator. siblings are
-// the other generator-emitted files (invisible to the template-FS walk); their
-// path and ownership are read from the generators themselves — OverwriteFile
-// means tool-owned, SkipFile means seeded once and then the user's.
-func NewOwnershipDocGenerator(siblings ...machinery.Template) *OwnershipDocGenerator {
-	g := &OwnershipDocGenerator{}
+// NewOwnershipDocGenerator builds the ownership doc generator for one
+// flavor's template root. siblings are the other generator-emitted files
+// (invisible to the template-FS walk); their path and ownership are read from
+// the generators themselves — OverwriteFile means tool-owned, SkipFile means
+// seeded once and then the user's.
+func NewOwnershipDocGenerator(flavor core.Flavor, siblings ...machinery.Template) *OwnershipDocGenerator {
+	g := &OwnershipDocGenerator{Flavor: flavor}
 
-	// Walk the template FS directly. Template base names are not unique
-	// (Makefile.tmpl exists twice), so any name-keyed map would drop a file.
+	// Walk the flavor's template root directly. Template base names are not
+	// unique across roots (Makefile.tmpl exists in both), so any name-keyed
+	// map would drop a file.
 	//
-	// GenerateOutputPath strips the "project/" prefix and applies the path
-	// placeholders, so the doc lists paths that actually exist in a provider.
-	err := fs.WalkDir(templates.TemplateFS, "files", func(path string, d fs.DirEntry, err error) error {
+	// GenerateOutputPath strips the root and "project/" prefixes and applies
+	// the path placeholders, so the doc lists paths that actually exist in a
+	// provider of this flavor.
+	err := fs.WalkDir(templates.TemplateFS, flavor.TemplateRoot(), func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !core.IsTemplateFile(path) {
 			return err
 		}

@@ -1,0 +1,64 @@
+name: E2E Upjet
+
+permissions:
+  contents: read
+
+# scripts/e2e-upjet.sh needs network (Terraform download, Terraform Registry
+# schema read, provider docs scrape) and takes several minutes, so it does not
+# run on every PR. It runs on a daily schedule, on PRs that touch the upjet
+# flavor's templates or the script/helper that exercise it, and on demand.
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch: {}
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'pkg/templates/upjet/**'
+      - 'scripts/e2e-upjet.sh'
+      - 'hack/envtest-provider-check/**'
+      - '.github/workflows/e2e-upjet.yml'
+
+jobs:
+  e2e-upjet:
+    name: E2E Test (upjet)
+    runs-on: ubuntu-latest
+    # Stage 7 of e2e-upjet.sh stands up a real kind cluster, installs
+    # Crossplane, deploys the built provider, and runs it through a full
+    # ConfigMap create/update/delete lifecycle. This workflow's runner has a
+    # Docker daemon, so that stage would run whether or not this variable is
+    # set — E2E_SKIP_DOCKER=0 makes running it here an explicit choice, not a
+    # side effect of leaving the variable unset (which is exactly the kind of
+    # accidental trigger this repo has been burned by before).
+    env:
+      E2E_SKIP_DOCKER: "0"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: '1.26.6'
+
+    - name: Configure git identity for generated commits
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Build binary
+      run: make build
+
+    # Runs the full scaffold -> configure -> generate -> build -> run pipeline
+    # against the real hashicorp/kubernetes Terraform provider, including
+    # stage 7's live kind+Crossplane+ConfigMap lifecycle (see E2E_SKIP_DOCKER
+    # above). Stage 6c (the envtest-backed real-controller-setup check)
+    # resolves its own kube-apiserver/etcd assets and degrades to a
+    # skip-with-warning, not a failure, if they can't be fetched — no extra
+    # CI wiring needed for that. kind itself is downloaded by the scaffolded
+    # project's own Makefile (KIND_VERSION is pinned there), so this runner
+    # does not need kind preinstalled — only the Docker daemon GitHub's
+    # ubuntu-latest runners already provide.
+    - name: Run upjet E2E test (including the live stage 7 lifecycle)
+      run: ./scripts/e2e-upjet.sh

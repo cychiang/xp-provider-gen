@@ -11,13 +11,19 @@ The code is organized into clearly separated layers:
 cmd/xp-provider-gen/            CLI entry point (Kubebuilder CLI + the `update` and `create-test` commands)
 pkg/plugins/crossplane/v2/
 ├── plugin.go, init.go,         Plugin layer — subcommands (init, create api)
-│   createapi.go, update.go     + the update / update --adopt command
-├── core/                       Reusable building blocks (git, exec, config, ownership gate)
-├── templates/engine/           Template discovery + deterministic generators
+│   createapi.go, update.go,    + the update / update --adopt command
+│   projectmeta.go              + the flavor/upjet settings persisted in PROJECT
+├── scaffold/                   Init scaffolder — picks templates + generators by flavor
+├── core/                       Reusable building blocks (git, exec, config, ownership gate,
+│                                flavor.go, upjet.go)
+├── templates/engine/           Template discovery + deterministic generators (+ upjet_generator.go,
+│                                boilerplate.go, interfaces.go)
 ├── automation/                 Post-scaffold pipeline (steps + git operations)
 └── validation/                 Input validation (domain, repo, group/version/kind)
 pkg/templates/                  Embedded template filesystem (go:embed) + loader
 pkg/versions/                   Dependency manifest (single source of truth for generated go.mod)
+pkg/version/                    The CLI's own version (distinct from pkg/versions/)
+scripts/                        e2e-test.sh, e2e-upjet.sh, upgrade-sim.sh, assert-layout.sh
 ```
 
 ## 1. Entry point & command flow
@@ -42,10 +48,12 @@ the standard lifecycle: `BindFlags` → `InjectConfig` → `PreScaffold` → `Sc
 
 - **`plugin.go`** — `Plugin` implements Kubebuilder's `plugin.Full`, advertises config v3 /
   plugin v2, returns the init and create-api subcommands.
-- **`init.go`** — binds `--domain`, `--repo`, `--git-name`, `--git-email`; validates inputs;
-  resolves git author (CLI flags > system git config > defaults); scaffolds the init + static
-  templates, the register generators, and the go.mod generator; saves PROJECT; runs the init
-  pipeline. Propagates pipeline errors (fails loudly).
+- **`init.go`** — binds `--domain`, `--repo`, `--git-name`, `--git-email`, plus (for `--upjet`)
+  the five `--terraform-*` coordinates validated by `upjetSettings`; validates inputs; resolves
+  git author (CLI flags > system git config > defaults); delegates scaffolding to
+  `scaffold.NewInitScaffolder(cfg, flavor, upjet)`, which renders the flavor's init templates
+  plus its generators; saves PROJECT; runs the init pipeline. Propagates pipeline errors
+  (fails loudly).
 - **`createapi.go`** — injects the Kubebuilder resource model with Crossplane defaults;
   validates the resource; renders the resource's API templates and **regenerates the register
   files deterministically** from `GetResources()` + the new resource; persists to PROJECT;
@@ -65,8 +73,8 @@ Reusable, side-effecting building blocks with no template knowledge:
 - **`config.go`** — `PluginConfig` (domain, repo prefix, git author, flags); `GenerateDefaultRepo()`.
 - **`project.go`** — `ProjectFile` wraps Kubebuilder config; `Save()` and `AddResource()`.
 - **`provider.go`** — `ExtractProviderName` / `ExtractProjectName` helpers.
-- **`template_path.go`** — maps a template path to an output path (strips `files/` and
-  `.tmpl`, maps the `project/` prefix to the provider root, applies
+- **`template_path.go`** — maps a template path to an output path (strips the flavor root —
+  `files/` or `upjet/` — and `.tmpl`, maps the `project/` prefix to the provider root, applies
   `GROUP`/`VERSION`/`KIND`/`IMAGENAME`). Pure functions — there is no state to carry.
 - **`ownership.go`** — the **ownership gate**: `GeneratedHeader`, `IsToolOwned(content)`, and
   `DecideWrite(exists, existing) → Seed | Overwrite | Skip`. This is the rule that lets `update`
@@ -84,10 +92,11 @@ to adding one — placeholders, the ownership header, the golden-test step.)
   `InitCategory`. Every path lands in one of the two, so discovery cannot silently drop a
   template; a walk error panics (the FS is embedded, so it is a build defect).
   `loader.go` reads template bodies.
-- **Factory** — `factory.go` (`CrossplaneTemplateFactory`) walks the embedded FS once and
-  keeps the discovered templates in two slices — init and per-kind — which
-  `GetInitTemplates` / `GetAPITemplates` render on demand. Slices, not maps: nothing looks
-  a template up by name, and a derived key could collide and drop a file.
+- **Factory** — `factory.go` (`CrossplaneTemplateFactory`) walks a flavor's root of the embedded
+  FS once (`NewFactoryForFlavor(cfg, flavor)`) and keeps the discovered templates in two
+  slices — init and per-kind — which `GetInitTemplates` / `GetAPITemplates` render on demand.
+  Slices, not maps: nothing looks a template up by name, and a derived key could collide and
+  drop a file.
 - **Building** — `builders.go` turns one `TemplateInfo` into a renderable product
   (`BuildTemplate`): it resolves the output path's placeholders, applies the config,
   resource and `--force`, and loads the body.
@@ -109,7 +118,8 @@ to adding one — placeholders, the ownership header, the golden-test step.)
     names are not unique) and maps each template through `core.GenerateOutputPath`, so the
     doc lists the paths a provider actually has.
   - `chainsaw_generator.go` — `ChainsawTestGenerator` renders the `create-test` skeleton.
-  - `assembly.go` — `AsBuilders` and `CoreGenerators` helpers shared by init, create, and update.
+  - `assembly.go` — `AsBuilders`, `CoreGenerators` (native) and `UpjetCoreGenerators` (upjet:
+    `config/zz_resources.go` + the ownership doc) helpers shared by init, create, and update.
   - Generator template **bodies** are files too: `pkg/templates/generators/*.tmpl`, loaded via
     `templates.GeneratorBody` — deliberately outside `files/` so auto-discovery never renders
     them directly (see [templates.md](templates.md)).
@@ -123,14 +133,21 @@ fully committed.
 - **`steps.go`** — `Step` interface (`Name`, `Execute`); steps: `GitInitStep`, `GitCommitStep`,
   `GitFoldCommitStep`, `GitSubmoduleStep`, `MakeStep(target)`, `GoModTidyStep`, `ExecutableBitStep` (machinery
   writes 0644; uptest execs `test/setup.sh`, so the bit is set and committed at scaffold time).
-- **`pipeline.go`** — `NewInitPipeline()` runs git init → submodule → `make submodules` →
-  `go mod tidy` → `make generate` → `make reviewable` → **commit**; `NewAPICommitPipeline()`
-  runs `make generate` → **commit**. `Run()` aborts on the first failure.
+- **`pipeline.go`** — `NewInitPipeline()` runs git init → exec bit → submodule →
+  `make submodules` → `go mod tidy` → `make generate` → `make reviewable` → **commit**;
+  `NewAPICommitPipeline()` runs `make generate` → **commit**. `Run()` aborts on the first
+  failure. `NewUpjetInitPipeline()` runs git init → exec bit → submodule → `make submodules` →
+  `go mod download` → **commit**, skipping tidy/generate/reviewable: the project doesn't
+  compile until `make generate` runs; the generated Makefile scopes `make generate` to
+  `./apis/...` for the same reason; and `go mod download` still fetches `go.sum` entries for
+  the generator's own tools (behind the `generate` build tag). `NewUpjetAPICommitPipeline()` is
+  a fold-commit only — no `make generate`.
 - **`git.go`** — `GitOperations`: idempotent `Init`, `CreateCommit`, idempotent `AddSubmodule`.
 
 ## 6. Ownership contract (the upgrade foundation)
 
-A file is **tool-owned** iff it carries `// Code generated by xp-provider-gen. DO NOT EDIT.`:
+A file is **tool-owned** iff it carries `// Code generated by xp-provider-gen. DO NOT EDIT.`
+within the first 1024 bytes (`headerScanLimit`, `core/ownership.go`):
 
 | Bucket | Files | On `update` |
 |--------|-------|-------------|
@@ -181,9 +198,10 @@ provenance. User files are never adopted.
   generated header; user-owned ones (`external.go`, `client.go`, `options.go`, `*_types.go`)
   do not. The golden ownership test enforces this — see §6.
 - **Dependency manifest** (`pkg/versions/`) — `dependencies.yaml` is the single source of truth
-  for the generated provider's direct dependency versions, plus the `GoVersion` constant. It is
-  rendered into `go.mod`, tracked by a Renovate custom manager, and applied to existing
-  providers by `update`.
+  for the generated provider's direct dependency versions, plus the `GoVersion` constant; an
+  `upjet_dependencies` block adds the upjet-flavor-only set (upjet, crossplane-tools, …),
+  rendered on top of the shared set by `init --upjet`. It is rendered into `go.mod`, tracked by
+  a Renovate custom manager, and applied to existing providers by `update`.
 
 ## 9. Seams (the modular layout)
 

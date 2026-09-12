@@ -67,17 +67,22 @@ gains or loses a file:
 5. **`update` (the upgrade guarantee):** append a marker to **all three** user-owned seam
    files and commit, run `update`, then assert (a) every marker survives, (b) `wiring.go`,
    `connector.go` and `docs/ownership.md` are refreshed with headers intact, (c) seed-once
-   `AGENTS.md` is untouched, (d) `update` refuses a dirty tree.
+   `AGENTS.md` is untouched, (d) `update` refuses a dirty tree. Steps 5–6 run against a copy
+   of the scaffold at `/tmp/provider-template-lifecycle` (`LIFECYCLE_DIR`), so the pristine
+   `/tmp/provider-template` keeps its single `Initial commit`.
 6. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
    run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
 7. **create-test:** scaffold a chainsaw behavior test non-interactively and assert the file
    lands — and that an existing test is never overwritten.
-8. **The generated provider's own e2e:** run `make e2e` inside the scaffold — the full
+8. Verify the provider builds — only when Docker is unavailable; otherwise `make e2e`
+   (next step) builds it as part of the flow.
+9. **The generated provider's own e2e:** run `make e2e` inside the scaffold — the full
    uptest + chainsaw flow: build the xpkg, stand up a dedicated kind control plane with
    Crossplane installed, deploy the provider from the local package, run every kind's
    uptest lifecycle (create → Ready/Synced → delete), then the chainsaw behavior suite
-   (the seeded pause tests). Skipped with a warning when no Docker daemon is available.
-9. Verify the provider builds.
+   (the seeded pause tests), then scaffold a fresh chainsaw test with `create-test` and
+   assert it also passes against the live provider. Skipped with a warning when no Docker
+   daemon is available.
 
 ## Upgrade-path simulation (`make upgrade-sim`)
 
@@ -96,15 +101,16 @@ and runs `update`. It asserts:
 - no user-owned file appears in the update diff,
 - both tool-owned files received the simulated change,
 - every piece of user logic is still present,
-- the upgraded provider still passes `make reviewable` and `make build`,
+- the upgraded provider still generates, lints and builds (`make generate`, `make lint`,
+  `make build`),
 - the behavioral tests pass before **and after** the upgrade — same tests, same
   results, so the upgrade changed plumbing, not semantics,
 - the user's `--region` flag still appears in the rebuilt binary's `--help`.
 
 It restores the templates it mutated. **Run it before shipping a framework bump.**
 
-On **success** the temp project is left in place for inspection (the next run recreates it).
-On **failure** the script removes the incomplete directory and exits non-zero.
+The temp project is left in place after each run, whether it succeeded or failed, for
+inspection; the next run removes and recreates it before scaffolding.
 
 ```bash
 make e2e-test            # build + run
@@ -130,5 +136,5 @@ rather than part of `make e2e-test`.
 ## In CI
 
 Unit tests and the native e2e run on every push/PR (see [.github/WORKFLOWS.md](../.github/WORKFLOWS.md)):
-`test.yml` runs unit tests with coverage and the e2e workflow; `lint.yml` and `ci.yml` add
-linting, gosec, and Trivy scanning.
+`test.yml` runs unit tests with coverage and the e2e layout smoke test; `lint.yml` and `ci.yml`
+add linting, gosec, and Trivy scanning.

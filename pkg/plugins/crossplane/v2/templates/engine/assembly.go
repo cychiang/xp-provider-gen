@@ -43,7 +43,7 @@ func AsBuilders(products []TemplateProduct) []machinery.Builder {
 // native register generators have no counterpart here.
 func UpjetCoreGenerators(cfg config.Config, resources []resource.Resource) []machinery.Builder {
 	res := NewUpjetResourcesGenerator(cfg.GetRepository(), resources)
-	return []machinery.Builder{res, NewOwnershipDocGenerator(res)}
+	return []machinery.Builder{res, NewOwnershipDocGenerator(core.FlavorUpjet, res)}
 }
 
 func CoreGenerators(cfg config.Config, resources []resource.Resource) []machinery.Builder {
@@ -53,6 +53,6 @@ func CoreGenerators(cfg config.Config, resources []resource.Resource) []machiner
 	controller := NewControllerRegisterGenerator(repo, providerName, resources)
 	// The go.mod seeder is wired separately by init (it needs the dependency
 	// manifest); a zero-dep instance supplies its path and ownership here.
-	doc := NewOwnershipDocGenerator(api, controller, NewGoModGenerator(repo, nil))
+	doc := NewOwnershipDocGenerator(core.FlavorNative, api, controller, NewGoModGenerator(repo, nil))
 	return []machinery.Builder{api, controller, doc}
 }

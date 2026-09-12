@@ -213,13 +213,15 @@ make reviewable
 git commit -m "chore: update provider core"
 ```
 
-`update` does four things:
+`update` does five things:
 
 1. Regenerates every tool-owned file from the current templates.
 2. Seeds any file that is new in this version.
 3. **Skips every user-owned file**, whether or not it has changed.
 4. Bumps the framework dependency versions in `go.mod` via `go get`, leaving your
    own requires alone.
+5. Runs `go mod tidy`, `make generate` and `make reviewable`, and refuses if any of
+   them fail — this is why the diff also contains regenerated `zz_generated.*` and CRDs.
 
 It stops there deliberately — no commit — so `git diff` is your review surface.
 
@@ -248,7 +250,7 @@ Providers generated before the modular layout (`external.go` / `wiring.go` /
 `internal/provider`) must be regenerated instead — there is no in-place migration
 for that change.
 
-**Providers are namespaced-only as of 2026-08-16.** `ClusterProviderConfig` is
+**Native providers are namespaced-only as of 2026-08-16.** `ClusterProviderConfig` is
 gone: managed resources are namespaced, so a cluster-scoped config bought
 nothing that a config in the resource's own namespace does not, while widening
 who could reach whose credentials. Credentials now use a
@@ -270,6 +272,12 @@ cannot deliver live in user-owned files: the Makefile's uptest section (copy the
 and the sample drift-mirroring in `external.go` that the seeded pause test's
 `status.atProvider` assertions rely on (irrelevant once you implement real
 logic — adjust or delete the seed test to match your controller's behavior).
+
+This whole namespaced-only rule, and the migration above, apply to the native
+flavor only. An upjet provider follows upjet's own contract and scaffolds both
+a namespaced `ProviderConfig` and a `ClusterProviderConfig`, with the full
+`CommonCredentialSelectors` (cross-namespace `secretRef`, `Filesystem`,
+`Environment`). See [upjet-provider.md](upjet-provider.md).
 
 ## 6. Where to look next
 

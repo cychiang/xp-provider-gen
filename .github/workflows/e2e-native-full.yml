@@ -1,0 +1,85 @@
+name: E2E Native (full) & Upgrade Sim
+
+permissions:
+  contents: read
+
+# The fast native e2e in test.yml runs on every PR with its Docker leg
+# (kind + Crossplane + uptest/chainsaw) explicitly skipped, so PRs stay fast.
+# That Docker leg — a generated native provider actually deploying to a real
+# cluster and reconciling — and `make upgrade-sim` (the check that protects
+# provider authors from a breaking generator bump) are both expensive and
+# both valuable, so they run here instead: on a daily schedule, on demand,
+# and on PRs that touch the generator surfaces these checks actually exercise
+# (so a PR that changes that surface is verified before merge, not just
+# after, without slowing down unrelated PRs).
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch: {}
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'pkg/plugins/crossplane/v2/**'
+      - 'pkg/templates/files/**'
+      - 'pkg/versions/**'
+      - 'scripts/e2e-test.sh'
+      - 'scripts/upgrade-sim.sh'
+      - 'scripts/assert-layout.sh'
+      - 'Makefile'
+      - '.github/workflows/e2e-native-full.yml'
+
+jobs:
+  e2e-test-full:
+    name: Native E2E (full, including Docker leg)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: '1.26.6'
+
+    - name: Configure git identity for generated commits
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Build binary
+      run: make build
+
+    # No E2E_SKIP_DOCKER here — the whole point of this job is Step E: the
+    # generated provider's own uptest+chainsaw e2e against a real kind
+    # cluster. kind itself is downloaded by the generated project's own
+    # Makefile (KIND_VERSION is pinned there), so this runner does not need
+    # kind preinstalled — only the Docker daemon GitHub's ubuntu-latest
+    # runners already provide.
+    - name: Run full native E2E test
+      run: ./scripts/e2e-test.sh
+
+  upgrade-sim:
+    name: Upgrade simulation
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: '1.26.6'
+
+    - name: Configure git identity for generated commits
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+    # Builds a provider with real user logic on top of it, simulates a
+    # generator version bump, and asserts the user's logic survives and the
+    # result still generates/lints/builds. The Makefile target depends on
+    # "build", so it rebuilds the binary itself.
+    - name: Run upgrade simulation
+      run: make upgrade-sim

@@ -6,8 +6,10 @@ This directory contains GitHub Actions workflows for automating CI/CD processes.
 
 ### 🧹 `lint.yml` - Code Quality
 **Triggers:** Push/PR to `main`, `develop`
-- Runs golangci-lint, pinned to the same version as the Makefile's
-  `GOLANGCILINT_VERSION` so CI and `make lint` enforce one rule set
+- Runs golangci-lint at the version pinned in this workflow (`version:`). The same version
+  must also be set by hand in three other places — see
+  [docs/development.md](../docs/development.md#requirements) — since Renovate bumps only
+  this workflow's pin
 - Validates Go code formatting with `gofmt`
 - Ensures Go modules are tidy
 
@@ -15,10 +17,56 @@ This directory contains GitHub Actions workflows for automating CI/CD processes.
 **Triggers:** Push/PR to `main`, `develop`
 - Runs unit tests with race detection against Go 1.26.6
 - Generates coverage reports, uploads to Codecov, keeps them as artifacts
-- Runs an E2E smoke test (`init` + `create api`, checked with
-  `scripts/assert-layout.sh`) when source files changed. This is the layout
-  assertion only — the full scaffold-build-and-run suite is `make e2e-test`,
-  which needs Docker and is run locally (see [testing.md](../docs/testing.md))
+- When source files changed, runs the real native-flavor e2e
+  (`scripts/e2e-test.sh`): init, two APIs, CRD/example generation, the
+  `update` / `update --adopt` / `create-test` lifecycle, ownership-header
+  checks. `E2E_SKIP_DOCKER=1` is set explicitly so its Step E — the generated
+  provider's own uptest+chainsaw suite against a kind cluster, minutes of
+  Docker/cluster time — is skipped deliberately rather than by accident (the
+  runner does have a docker daemon). Run Step E locally with
+  `./scripts/e2e-test.sh` (no env var) or `make e2e-test` — see
+  [testing.md](../docs/testing.md)
+
+### 🧱 `e2e-upjet.yml` - Upjet Flavor E2E
+**Triggers:** Daily schedule; on demand (`workflow_dispatch`); PRs touching
+`pkg/templates/upjet/**`, `scripts/e2e-upjet.sh`, `hack/envtest-provider-check/**`,
+or this workflow file
+- Runs `scripts/e2e-upjet.sh`: scaffold an upjet provider wrapping
+  hashicorp/kubernetes, configure a resource, run the real upjet generation
+  pipeline (downloads Terraform, reads the provider schema, scrapes docs),
+  build, then prove the generated provider actually **runs** — binary
+  `--help`, scheme registration against an unreachable API server, and (when
+  envtest/kubebuilder-tools assets can be resolved; skipped with a warning
+  otherwise, never failing the build) controller registration against a real
+  ephemeral API server. Not run on every PR because it needs network and
+  takes several minutes
+- Also runs Stage 7: deploys the built provider to a real kind cluster with
+  Crossplane and proves the full create/update/delete lifecycle of a live
+  ConfigMap managed resource. This needs a Docker daemon, which the runner
+  has, so the job sets `E2E_SKIP_DOCKER: "0"` explicitly — an intentional,
+  visible choice to run it here, not a side effect of leaving the variable
+  unset. kind is downloaded by the generated project's own Makefile
+  (`KIND_VERSION` pinned there); this workflow does not preinstall it
+
+### 🧭 `e2e-native-full.yml` - Native Flavor E2E (full) & Upgrade Simulation
+**Triggers:** Daily schedule; on demand (`workflow_dispatch`); PRs touching
+`pkg/plugins/crossplane/v2/**`, `pkg/templates/files/**`, `pkg/versions/**`,
+`scripts/e2e-test.sh`, `scripts/upgrade-sim.sh`, `scripts/assert-layout.sh`,
+`Makefile`, or this workflow file
+- **Native E2E (full)**: runs `scripts/e2e-test.sh` with no `E2E_SKIP_DOCKER`,
+  so its Step E runs too — the generated provider's own uptest+chainsaw suite,
+  deploying to a real kind cluster and reconciling. This is the Docker leg
+  `test.yml`'s fast per-PR job deliberately skips; it needs Docker (present on
+  the runner) and kind (downloaded by the generated project's own Makefile,
+  not preinstalled here) and takes several minutes
+- **Upgrade simulation**: runs `make upgrade-sim` — builds a provider with
+  real user logic, simulates a generator version bump, and asserts the user's
+  logic and tests survive. This is the check that protects provider authors
+  from a breaking generator change; it did not run in CI at all before
+- Both jobs configure a git identity first, since the tool's own automation
+  (`init`, `update`, the upgrade simulation) commits as it runs
+- Not run on every PR — both checks are expensive — but path-filtered so a PR
+  that changes the surfaces they exercise is verified before merge
 
 ### 🔨 `build.yml` - Build Binaries
 **Triggers:** Push/PR to `main`, `develop`
@@ -70,7 +118,7 @@ Release workflow publishes multi-platform Docker images to:
 ### Renovate Setup
 1. Install [Renovate GitHub App](https://github.com/apps/renovate)
 2. Configure via `renovate.json` (already included)
-3. Renovate runs weekly on Mondays before 6 AM Pacific
+3. Renovate runs weekly, before 6 AM UTC on Mondays
 4. Creates grouped PRs for related dependencies
 5. Provides detailed release notes and changelogs
 

@@ -49,7 +49,7 @@ func TestGeneratorBodiesCarryOwnershipHeader(t *testing.T) {
 // the generators themselves: OverwriteFile lands tool-owned, SkipFile (go.mod,
 // seeded once) lands user-owned.
 func TestOwnershipDocClassifiesGeneratorOutputs(t *testing.T) {
-	g := NewOwnershipDocGenerator(
+	g := NewOwnershipDocGenerator(core.FlavorNative,
 		NewAPIRegisterGenerator(testRepo, "provider-test", nil),
 		NewControllerRegisterGenerator(testRepo, "provider-test", nil),
 		NewGoModGenerator(testRepo, nil),
@@ -62,5 +62,22 @@ func TestOwnershipDocClassifiesGeneratorOutputs(t *testing.T) {
 	}
 	if !slices.Contains(g.UserOwned, goModPath) {
 		t.Errorf("user-owned bucket is missing %q; got %v", goModPath, g.UserOwned)
+	}
+}
+
+// TestOwnershipDocClassifiesUpjetOutputs pins A5: the doc for an upjet project
+// must describe upjet's own tree, not the native one it used to walk
+// unconditionally regardless of which flavor asked for it.
+func TestOwnershipDocClassifiesUpjetOutputs(t *testing.T) {
+	res := NewUpjetResourcesGenerator(testRepo, nil)
+	g := NewOwnershipDocGenerator(core.FlavorUpjet, res)
+
+	if !slices.Contains(g.ToolOwned, "config/provider.go") {
+		t.Errorf("tool-owned bucket is missing %q; got %v", "config/provider.go", g.ToolOwned)
+	}
+	if slices.Contains(g.ToolOwned, "internal/provider/connector.go") ||
+		slices.Contains(g.UserOwned, "internal/provider/connector.go") {
+		t.Errorf("upjet doc must not list the native-only %q; got tool-owned=%v user-owned=%v",
+			"internal/provider/connector.go", g.ToolOwned, g.UserOwned)
 	}
 }

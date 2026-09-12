@@ -89,6 +89,8 @@ var wantOwnershipUpjet = map[string]bool{
 	"apis/namespaced/v1beta1/types.go":                        false,
 	"cluster/images/IMAGENAME/Dockerfile":                     false,
 	"cluster/images/IMAGENAME/Makefile":                       false,
+	"cluster/images/IMAGENAME/terraformrc.hcl":                false,
+	"cluster/test/setup.sh":                                   false,
 	"cmd/generator/main.go":                                   true,
 	"cmd/provider/main.go":                                    true,
 	"config/KIND/config.go":                                   false,

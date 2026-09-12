@@ -19,62 +19,40 @@ package core
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 )
 
-// GitCommandRunner provides secure git command execution. The executable is
-// the literal "git" in every call below — never a variable — and no shell is
-// involved, so the variable argument lists carry no injection risk; git treats
-// values after -m/-- as data.
+// GitCommandRunner provides the git-specific convenience methods used by init
+// and the automation pipeline, on top of CommandRunner: the executable is
+// always the literal "git", never a variable, and CommandRunner's allowlist
+// (which already includes "git") applies uniformly instead of git commands
+// spawning exec.Command directly. The two runners used to duplicate the same
+// ~25 lines of exec plumbing; this keeps that in one place plus git treats
+// values after -m/-- as data, so no shell is involved and the variable
+// argument lists carry no injection risk either way.
 type GitCommandRunner struct {
-	workDir string
+	runner *CommandRunner
 }
 
 // NewGitCommandRunner creates a new git command runner.
 func NewGitCommandRunner(workDir string) *GitCommandRunner {
-	return &GitCommandRunner{workDir: workDir}
+	return &GitCommandRunner{runner: NewCommandRunner(workDir)}
 }
 
 // RunCommand executes a git command with the provided arguments.
 func (g *GitCommandRunner) RunCommand(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- literal binary, no shell
-	if g.workDir != "" {
-		cmd.Dir = g.workDir
-	}
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git command failed: %w", err)
-	}
-	return nil
+	return g.runner.Run(ctx, "git", args...)
 }
 
 // RunCommandWithOutput executes a git command and returns its output.
 func (g *GitCommandRunner) RunCommandWithOutput(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- literal binary, no shell
-	if g.workDir != "" {
-		cmd.Dir = g.workDir
-	}
-
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("git command failed: %w", err)
-	}
-	return strings.TrimSpace(string(output)), nil
+	output, err := g.runner.RunWithOutput(ctx, "git", args...)
+	return strings.TrimSpace(output), err
 }
 
 // RunCommandWithStdin executes a git command with stdin input.
 func (g *GitCommandRunner) RunCommandWithStdin(ctx context.Context, stdin string, args ...string) error {
-	cmd := exec.CommandContext(ctx, "git", args...) // #nosec G204 -- literal binary, no shell
-	if g.workDir != "" {
-		cmd.Dir = g.workDir
-	}
-	cmd.Stdin = strings.NewReader(stdin)
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git command failed: %w", err)
-	}
-	return nil
+	return g.runner.RunWithStdin(ctx, stdin, "git", args...)
 }
 
 // Init initializes a git repository.
