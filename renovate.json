@@ -178,6 +178,11 @@
       "semanticCommitScope": "provider",
       "prPriority": 14,
       "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "upjet/v2 is pinned to a post-v2.4.0 commit on purpose: released v2.4.0 imports crossplane-runtime/v2/apis/common/v1, which crossplane-runtime removed in its own v2.4.0, so make generate fails in a scaffolded upjet provider. With rollbackPrs enabled Renovate treats the pseudo-version as invalid and proposes the release, which is a downgrade that rolls the fix back (PRs #134, #152). Only accept versions above v2.4.0, so a genuine v2.4.1 is still proposed.",
+      "matchPackageNames": ["github.com/crossplane/upjet/v2"],
+      "allowedVersions": ">v2.4.0"
     }
   ],
   "customManagers": [
