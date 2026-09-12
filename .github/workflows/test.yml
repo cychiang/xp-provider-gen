@@ -46,9 +46,6 @@ jobs:
     name: Run Tests
     runs-on: ubuntu-latest
     needs: changes
-    strategy:
-      matrix:
-        go-version: ['1.26.6']
 
     steps:
     - name: Checkout code
@@ -57,7 +54,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
-        go-version: ${{ matrix.go-version }}
+        go-version-file: go.mod
 
     - name: Download dependencies
       run: go mod download
@@ -76,7 +73,7 @@ jobs:
     - name: Upload coverage artifact
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: coverage-report-go${{ matrix.go-version }}
+        name: coverage-report
         path: coverage.html
 
   e2e-test:
@@ -92,7 +89,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
-        go-version: '1.26.6'
+        go-version-file: go.mod
 
     - name: Configure git identity for generated commits
       run: |
