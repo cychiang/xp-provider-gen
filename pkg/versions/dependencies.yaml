@@ -14,31 +14,31 @@
 # (see .github/workflows/go-version.yml). Bump this, then bump those two to
 # match; the check fails with a clear message if you forget either one, or if
 # this value falls below what a pinned dependency below requires.
-go_version: "1.26.8"
+go_version: "1.27.1"
 
 dependencies:
   - module: github.com/alecthomas/kingpin/v2
     version: v2.4.0
   - module: github.com/crossplane/crossplane-runtime/v2
-    version: v2.3.3
+    version: v2.4.0
   - module: github.com/crossplane/crossplane/apis/v2
-    version: v2.3.4
+    version: v2.4.0
   - module: github.com/google/go-cmp
     version: v0.7.0
   - module: google.golang.org/grpc
     version: v1.83.2
   - module: k8s.io/apimachinery
-    version: v0.36.3
+    version: v0.37.0
   - module: k8s.io/client-go
-    version: v0.36.3
+    version: v0.37.0
   - module: sigs.k8s.io/controller-runtime
-    version: v0.24.1
+    version: v0.25.0
 
 # Additional direct dependencies for upjet-flavored providers. Rendered on top
 # of the shared set above when `init --upjet` scaffolds a project.
 upjet_dependencies:
   - module: github.com/crossplane/upjet/v2
-    version: v2.4.1-0.20260728103920-4f6e6e10dff2
+    version: v2.4.0
   - module: github.com/crossplane/crossplane-tools
     version: v0.0.0-20260715161912-60e57f817ad1
   - module: github.com/pkg/errors
@@ -46,8 +46,8 @@ upjet_dependencies:
   - module: dario.cat/mergo
     version: v1.0.2
   - module: k8s.io/api
-    version: v0.36.3
+    version: v0.37.0
   - module: k8s.io/apiextensions-apiserver
-    version: v0.36.3
+    version: v0.37.0
   - module: sigs.k8s.io/controller-tools
-    version: v0.20.1
+    version: v0.22.0
