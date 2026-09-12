@@ -1,4 +1,4 @@
-FROM golang:1.26.8-alpine AS builder
+FROM golang:1.27.1-alpine AS builder
 
 # The official golang images set GOTOOLCHAIN=local, so the base image tag has to
 # be at least as new as go.mod's go directive or `go mod download` refuses to
