@@ -70,6 +70,67 @@ func TestNewInitPipeline_CommitsLast(t *testing.T) {
 	})
 }
 
+// TestInitPipelines_ShareLeadingStepsAndFinalStep pins the invariant
+// pipeline.go's own comments describe but never enforce: NewInitPipeline and
+// NewUpjetInitPipeline share their first four steps (git init, executable
+// bit, git submodule, make submodules) and their last (the commit), diverging
+// only in the middle (native tidies/generates/reviews; upjet just downloads,
+// since a fresh upjet project doesn't compile until `make generate` runs).
+//
+// The two pipelines are compared directly against EACH OTHER, not against a
+// hardcoded list of expected literal step names — the point is to catch one
+// prefix drifting away from the other (someone adds a step to one and
+// forgets the other), not to re-assert today's exact wording. Step.Name()
+// already exists on the interface (Pipeline.Run itself prints it, and
+// TestNewInitPipeline_CommitsLast above already keys assertions off it), so
+// no new accessor was needed: it is already the stable, meaningful
+// identifier this codebase uses for "which step is this".
+func TestInitPipelines_ShareLeadingStepsAndFinalStep(t *testing.T) {
+	cfg := core.NewPluginConfig("crossplane")
+	native := stepNames(NewInitPipeline(cfg, "provider-test"))
+	upjet := stepNames(NewUpjetInitPipeline(cfg, "provider-test"))
+
+	tests := []struct {
+		desc     string
+		position int // index into each pipeline's step list; -1 means "last"
+	}{
+		{"1st step (git init)", 0},
+		{"2nd step (executable bit)", 1},
+		{"3rd step (git submodule)", 2},
+		{"4th step (make submodules)", 3},
+		{"final step (commit)", -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			ni, ok := resolveIndex(tt.position, len(native))
+			if !ok {
+				t.Fatalf("native init pipeline has no step at position %d (has %d steps: %v)", tt.position, len(native), native)
+			}
+			ui, ok := resolveIndex(tt.position, len(upjet))
+			if !ok {
+				t.Fatalf("upjet init pipeline has no step at position %d (has %d steps: %v)", tt.position, len(upjet), upjet)
+			}
+			if native[ni] != upjet[ui] {
+				t.Errorf("%s diverges between init pipelines: native has %q, upjet has %q", tt.desc, native[ni], upjet[ui])
+			}
+		})
+	}
+}
+
+// resolveIndex turns a possibly-negative logical index (-1 = last) into an
+// absolute index into a slice of the given length, reporting false if it is
+// out of range.
+func resolveIndex(i, length int) (int, bool) {
+	if i < 0 {
+		i += length
+	}
+	if i < 0 || i >= length {
+		return 0, false
+	}
+	return i, true
+}
+
 func TestNewAPICommitPipeline_CommitsLast(t *testing.T) {
 	cfg := core.NewPluginConfig("crossplane")
 	p := NewAPICommitPipeline(cfg, "Bucket")

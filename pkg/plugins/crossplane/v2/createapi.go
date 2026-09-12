@@ -219,7 +219,7 @@ func (p *createAPISubcommand) PostScaffold() error {
 		fmt.Printf("  3. Write examples/%s/%s.yaml: copy %s "+
 			"there and fix any Terraform interpolations (${...}) — 'create-test' and 'make e2e' both derive from it\n",
 			strings.ToLower(p.resource.Group), strings.ToLower(p.resource.Kind), generatedExamplePath(*p.resource))
-		fmt.Printf("  4. Run 'crossplane-provider-gen create-test --kind=%s' once that example exists\n", p.resource.Kind)
+		fmt.Printf("  4. Run 'xp-provider-gen create-test --kind=%s' once that example exists\n", p.resource.Kind)
 		return nil
 	}
 	fmt.Printf("  1. Customize the %sParameters and %sObservation structs\n", p.resource.Kind, p.resource.Kind)
