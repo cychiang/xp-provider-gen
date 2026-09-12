@@ -33,7 +33,7 @@ BINARY=xp-provider-gen
 # provider's Makefile.tmpl.
 GOLANGCILINT_VERSION = 2.13.2
 
-.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-test upgrade-sim
+.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-test upgrade-sim check-go-version
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -48,7 +48,7 @@ help: ## Show this help message
 	@grep -E '^(fmt|vet|lint|lint-fix|gosec|check|reviewable):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Dependencies:"
-	@grep -E '^(mod-tidy|mod-verify):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@grep -E '^(mod-tidy|mod-verify|check-go-version):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Other:"
 	@grep -E '^(help):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -109,6 +109,9 @@ mod-tidy: ## Run go mod tidy
 
 mod-verify: ## Verify go mod dependencies
 	$(GOMOD) verify
+
+check-go-version: ## Verify go.mod/Dockerfile agree with pkg/versions/dependencies.yaml's go_version (network)
+	$(GOCMD) run ./scripts/check-go-version
 
 check: fmt vet lint gosec test ## Run all quality checks (format, vet, lint, security, test)
 	@echo "All quality checks passed!"

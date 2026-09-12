@@ -164,6 +164,12 @@
       "minimumReleaseAge": "10 days"
     },
     {
+      "description": "Dockerfile's golang base image tag is not an independent dependency: it must equal pkg/versions/dependencies.yaml's go_version (enforced in CI by scripts/check-go-version, see .github/workflows/go-version.yml). Disable the built-in dockerfile manager for it so Renovate stops proposing it on its own datasource/schedule (e.g. PR #151) - the customManager below tracks it together with go_version instead, in one PR.",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["golang"],
+      "enabled": false
+    },
+    {
       "description": "Generated-provider framework deps (pkg/versions/dependencies.yaml) - bump together so crossplane-runtime, crossplane/apis, controller-runtime, and k8s.io/* stay mutually compatible (individual bumps break the e2e)",
       "matchFileNames": ["pkg/versions/dependencies.yaml"],
       "groupName": "provider framework dependencies",
@@ -181,6 +187,17 @@
       "managerFilePatterns": ["pkg/versions/dependencies.yaml"],
       "matchStrings": ["module:\\s*(?<depName>\\S+)\\s+version:\\s*(?<currentValue>\\S+)"],
       "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the Go version as ONE dependency across pkg/versions/dependencies.yaml's go_version and the Dockerfile's golang base image tag, so a bump only ever proposes both together in a single PR - never the Dockerfile alone (that drift is what broke five times this week). go.mod's own `go` directive is not tracked here: this repo's config does not otherwise enable Renovate on go.mod's go directive, so there is nothing to converge with; scripts/check-go-version still enforces it against go_version in CI regardless of who edits it.",
+      "managerFilePatterns": ["pkg/versions/dependencies.yaml", "Dockerfile"],
+      "matchStrings": [
+        "go_version:\\s*[\"'](?<currentValue>\\d+\\.\\d+\\.\\d+)[\"']",
+        "FROM golang:(?<currentValue>\\d+\\.\\d+\\.\\d+)-alpine"
+      ],
+      "depNameTemplate": "generated-provider-go-version",
+      "datasourceTemplate": "golang-version"
     }
   ],
   "osvVulnerabilityAlerts": true,

@@ -1,11 +1,21 @@
 # Direct dependencies pinned in generated providers' go.mod.
 #
-# This is the single source of truth for the framework/Kubernetes versions a
+# This is the single source of truth for the framework/Kubernetes/Go versions a
 # generated provider targets. It is rendered into the provider's go.mod at init
 # and applied to existing providers by `xp-provider-gen update`.
 #
 # Tracked upstream by Renovate via a custom manager (see renovate.json), so each
 # entry gets its own bump PR against this repository, gated by CI + e2e.
+
+# The go.mod `go` directive generated providers declare. go.mod's own `go`
+# directive (this repo's, not a generated provider's) and the Dockerfile's
+# golang base image tag both have to match this literally — neither can be
+# computed, so `scripts/check-go-version` enforces the match in CI instead
+# (see .github/workflows/go-version.yml). Bump this, then bump those two to
+# match; the check fails with a clear message if you forget either one, or if
+# this value falls below what a pinned dependency below requires.
+go_version: "1.26.8"
+
 dependencies:
   - module: github.com/alecthomas/kingpin/v2
     version: v2.4.0

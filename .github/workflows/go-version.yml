@@ -1,0 +1,34 @@
+name: Go version alignment
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  check-go-version:
+    name: Check Go version alignment
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+
+    # pkg/versions/dependencies.yaml's go_version is the single source of
+    # truth for the Go version generated providers (and this repo) target.
+    # go.mod's own `go` directive and the Dockerfile's golang base image tag
+    # cannot be computed from it (Go and Docker both require literals), so
+    # this enforces that they still agree with it, and that go_version is
+    # new enough for every dependency the manifest pins (fetched live from
+    # proxy.golang.org, not guessed) — see scripts/check-go-version.
+    - name: Check go.mod, Dockerfile, and dependency floors agree with dependencies.yaml
+      run: make check-go-version
