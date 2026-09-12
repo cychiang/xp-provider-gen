@@ -112,6 +112,11 @@ func runProvider(ctx context.Context, provider, kubeconfig string, settle time.D
 		"--terraform-provider-source=hashicorp/kubernetes",
 		"--terraform-provider-version=2.38.0",
 		"--no-leader-election",
+		// Disable the metrics server. It defaults to :8080, and this check runs
+		// the provider on the host, so anything else already bound there — a
+		// leftover process, an unrelated dev server — would fail the check for
+		// a reason that has nothing to do with the provider.
+		"--metrics-bind-address=0",
 		"--debug",
 	)
 	cmd.Cancel = func() error {

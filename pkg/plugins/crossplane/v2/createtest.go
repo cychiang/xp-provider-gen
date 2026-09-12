@@ -87,8 +87,14 @@ func runCreateTest(name, kind string, in io.Reader, out io.Writer) error {
 		return err
 	}
 
-	scaffold := machinery.NewScaffold(machinery.Filesystem{FS: afero.NewOsFs()}, machinery.WithConfig(cfg))
-	gen := engine.NewChainsawTestGenerator(name, res)
+	osFs := afero.NewOsFs()
+	apiVersion, namespace, specYAML, err := loadExampleManifest(osFs, res)
+	if err != nil {
+		return err
+	}
+
+	scaffold := machinery.NewScaffold(machinery.Filesystem{FS: osFs}, machinery.WithConfig(cfg))
+	gen := engine.NewChainsawTestGenerator(name, res, apiVersion, namespace, specYAML)
 	if err := scaffold.Execute(gen); err != nil {
 		return fmt.Errorf("scaffolding chainsaw test (does it already exist?): %w", err)
 	}

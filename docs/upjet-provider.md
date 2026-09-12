@@ -93,20 +93,26 @@ make local-deploy   # build, kind cluster, install Crossplane, deploy the provid
 `local-deploy` creates a dedicated `<provider>-e2e` kind cluster (`KIND_CLUSTER_NAME`,
 same convention as the native flavor) rather than reusing whatever cluster you
 already have, and switches your `kubectl` context to it. Apply the
-scaffolded credentials Secret and ProviderConfig with `cluster/test/setup.sh`
+scaffolded credentials Secret and ProviderConfig with `test/setup.sh`
 (yours, seeded once — waits for the provider package to become Healthy, then
 applies `examples/providerconfig/providerconfig.yaml`):
 
 ```bash
-KUBECTL=kubectl ./cluster/test/setup.sh
+KUBECTL=kubectl ./test/setup.sh
 ```
 
-`make e2e` runs the same deploy plus upstream's uptest lifecycle flow, but still
-needs `UPTEST_EXAMPLE_LIST` set by hand to real, applyable example manifests —
-the scraped ones under `examples-generated/` can contain unresolved Terraform
-interpolations (e.g. `${file(...)}`) and may need hand-editing first. The
-native flavor's `test/` tree, `make test-behavior` and `make dev` are still not
-part of an upjet scaffold.
+`make e2e` runs the same deploy, then upstream's uptest lifecycle flow against
+every file under `examples/*/*.yaml` (except the ProviderConfig example) — no
+`UPTEST_EXAMPLE_LIST` to set, the same wildcard convention the native flavor
+uses. The catch: `create api` cannot seed a real example for upjet — nothing
+about a valid `spec.forProvider` is knowable before `make generate` produces
+the schema-derived types — so a fresh scaffold's `examples/` has nothing for
+`make e2e` to test until you write one (see the worked example below, or
+`test/README.md` inside your scaffold). `make test-behavior` and `make e2e-clean`
+now exist too; `make dev`, `make dev-clean` and `make test-integration` are
+still native-only — they run the controller from source, which an upjet
+controller cannot do without Terraform, the provider plugin and the
+`TERRAFORM_*` env the image bakes in.
 
 ## 6. Worked example: managing a ConfigMap with hashicorp/kubernetes
 
@@ -118,21 +124,27 @@ xp-provider-gen create api --group=core --version=v1alpha1 --kind=ConfigMap \
 make generate
 make build
 make local-deploy
-KUBECTL=kubectl ./cluster/test/setup.sh
+KUBECTL=kubectl ./test/setup.sh
 ```
 
-Then apply a `ConfigMap` managed resource:
+Write `examples/core/configmap.yaml` — this is the one file `make e2e` and
+`create-test` will both use once it exists, so put it in place now rather than
+applying a throwaway manifest:
 
 ```yaml
+# uptest.upbound.io/* annotations make this the make e2e lifecycle input too.
 apiVersion: core.example.m.com/v1alpha1
 kind: ConfigMap
 metadata:
-  name: e2e-configmap
+  name: example
   namespace: crossplane-system
+  annotations:
+    uptest.upbound.io/timeout: "120"
+    uptest.upbound.io/conditions: "Ready,Synced"
 spec:
   forProvider:
     metadata:
-      - name: e2e-configmap
+      - name: example
         namespace: default
     data:
       hello: world
@@ -146,15 +158,22 @@ spec:
 **The MR and its ProviderConfig/Secret must share a namespace** —
 `internal/clients/resolve.go`'s namespaced lookup requires it; the scaffold's
 own `examples/providerconfig/providerconfig.yaml` places both in
-`crossplane-system`, so the MR above does too.
+`crossplane-system`, so the manifest above does too.
 
-Applying it creates a real `ConfigMap` named `e2e-configmap` in the `default`
-namespace with `data: {hello: world}`. The external name is the Terraform ID
-`kubernetes_config_map` uses — `namespace/name` — so
-`crossplane.io/external-name` becomes `default/e2e-configmap`. Editing
-`spec.forProvider.data` and re-applying updates the real object in place
-through Terraform's own update path (no delete-and-recreate); deleting the MR
-deletes the ConfigMap.
+Apply it and Crossplane creates a real `ConfigMap` named `example` in the
+`default` namespace with `data: {hello: world}`:
+
+```bash
+kubectl apply -f examples/core/configmap.yaml
+```
+
+The external name is the Terraform ID `kubernetes_config_map` uses —
+`namespace/name` — so `crossplane.io/external-name` becomes `default/example`.
+Editing `spec.forProvider.data` and re-applying updates the real object in
+place through Terraform's own update path (no delete-and-recreate); deleting
+the MR deletes the ConfigMap. Once this file exists, `make e2e` picks it up by
+wildcard with no further wiring, and `xp-provider-gen create-test --kind=ConfigMap`
+derives a chainsaw behavior test from the same file.
 
 No credentials are needed for this example: the scaffolded Secret ships
 `credentials: "{}"`, which `hashicorp/kubernetes` reads as an empty provider
@@ -179,9 +198,9 @@ fresh scaffold to pick up an updated tool-owned file for now. Everything
 without the header is yours forever, and everything upjet itself generates
 (`zz_*`) is reproduced by `make generate` and should not be edited either.
 
-An upjet scaffold has no `AGENTS.md`, `README.md`, `OWNERS.md` or `test/` tree
-— only `cluster/test/setup.sh`, for uptest's `--setup-script`. `docs/ownership.md`
-is the only generated doc.
+An upjet scaffold also ships `AGENTS.md`, `README.md`, `OWNERS.md` and a `test/`
+tree (`test/setup.sh`, `test/README.md`) — all yours, seeded once, same as the
+native flavor. `docs/ownership.md` lists the exact, always-accurate split.
 
 ## Where to look next
 

@@ -92,10 +92,13 @@ names which flavor(s) it applies to.
 ### `create-test`
 
 - **What**: scaffolds a chainsaw behavior-test skeleton under `test/behavior/<name>/`, applying
-  one managed resource and asserting it becomes Ready.
-- **When**: pinning real controller behavior (error paths, drift, pause) for a kind. Only
-  meaningful on a native provider — an upjet scaffold has no `test/` tree and no
-  `test-behavior` target to run it with.
+  one managed resource and asserting it becomes Ready. Reads the kind's
+  `examples/<group>/<kind>.yaml` for the manifest shape — same command, same output, on
+  either flavor.
+- **When**: pinning real controller behavior (error paths, drift, pause) for a kind, once that
+  kind has an example manifest. `create api` seeds one automatically on native; on upjet it
+  cannot (nothing about a valid `spec.forProvider` is knowable before `make generate` runs) —
+  write the example first, or `create-test` refuses with the exact path it looked for.
 - **Command**:
   ```bash
   xp-provider-gen create-test --name=bucket-pause --kind=Bucket
@@ -198,19 +201,24 @@ tool's supported surface.
   Makefile's own `export TERRAFORM_VERSION ?=`/etc. (no image needed) already satisfy
   `cmd/provider`'s required flags. command: `make run`. produces: the controller manager
   running in your terminal.
-- **`cluster/test/setup.sh`** — what: seeded, user-owned — waits for the provider package to
-  become Healthy, then applies `examples/providerconfig/providerconfig.yaml`. when: right after
+- **`test/setup.sh`** — what: seeded, user-owned — waits for the provider package to become
+  Healthy, then applies `examples/providerconfig/providerconfig.yaml`. when: right after
   `local-deploy`, before applying your own managed resources. command:
-  `KUBECTL=kubectl ./cluster/test/setup.sh`. produces: ProviderConfig + Secret applied. Check:
+  `KUBECTL=kubectl ./test/setup.sh`. produces: ProviderConfig + Secret applied. Check:
   **your managed resource and this ProviderConfig/Secret must share a namespace** — the
   namespaced credential lookup requires it
   ([details](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#6-worked-example-managing-a-configmap-with-hashicorpkubernetes)).
-- **`make e2e`** — what: `local-deploy` plus uptest's lifecycle flow against
-  `UPTEST_EXAMPLE_LIST`. when: proving a real resource round-trips (create/observe/update/delete).
-  command: `UPTEST_EXAMPLE_LIST=<path/to/your/example.yaml> make e2e`. produces: pass/fail per
-  example. Check: **the scraped `examples-generated/**` manifests are not applyable as-is** —
-  they can contain unresolved Terraform interpolations like `${file(...)}`/`${filebase64(...)}`
-  that silently produce garbage values; hand-edit them or write your own `examples/` manifest
+- **`make test-behavior`** / **`make e2e`** — what: runs the chainsaw suite under
+  `test/behavior/` (skips, not fails, if that directory doesn't exist yet — `create-test` seeds
+  it), or the full package-build-deploy-uptest-chainsaw cycle against every file under
+  `examples/*/*.yaml` except the ProviderConfig example — no `UPTEST_EXAMPLE_LIST` to set, same
+  wildcard convention as native. when: after `create-test`, or for release confidence. command:
+  `make e2e`. produces: a dedicated `<provider>-e2e` kind cluster left running (`make e2e-clean`
+  removes it). Check: **a fresh scaffold's `examples/` has nothing for `make e2e` to test** —
+  `create api` cannot seed a real example for upjet (nothing about a valid `spec.forProvider` is
+  knowable before `make generate` runs) — write one first; the scraped
+  `examples-generated/**` manifests are not applyable as-is (unresolved Terraform
+  interpolations like `${file(...)}`/`${filebase64(...)}`)
   ([details](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#5-build-and-deploy)).
 
 ## B. Develop `xp-provider-gen` itself

@@ -221,9 +221,9 @@ if ! docker_skip_requested && docker info >/dev/null 2>&1; then
   [ -n "$LIVE_KUBECTL" ] || fail "could not locate the kubectl binary the build system downloaded"
 
   blue "  --- 7c. Apply ProviderConfig and credentials ---"
-  KUBECTL="$LIVE_KUBECTL" ./cluster/test/setup.sh >/tmp/e2e-upjet-cluster-setup.log 2>&1 || {
+  KUBECTL="$LIVE_KUBECTL" ./test/setup.sh >/tmp/e2e-upjet-cluster-setup.log 2>&1 || {
     tail -20 /tmp/e2e-upjet-cluster-setup.log
-    fail "cluster/test/setup.sh failed"
+    fail "test/setup.sh failed"
   }
   green "  ✓ ProviderConfig and credentials applied"
 

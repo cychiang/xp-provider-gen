@@ -14,24 +14,21 @@ spec:
       try:
         - apply:
             resource:
-              apiVersion: {{ .Resource.QualifiedGroup }}/{{ .Resource.Version }}
+              apiVersion: {{ .APIVersion }}
               kind: {{ .Resource.Kind }}
               metadata:
                 name: behavior-{{ .TestName }}
-                namespace: default
+                namespace: {{ .Namespace }}
+              # .Spec below is pre-indented to specIndent (pkg/plugins/crossplane/v2/example_manifest.go) — keep them in step.
               spec:
-                forProvider:
-                  configurableField: "{{ .TestName }}"
-                providerConfigRef:
-                  name: example
-                  kind: ProviderConfig
+{{ .Spec }}
         - assert:
             resource:
-              apiVersion: {{ .Resource.QualifiedGroup }}/{{ .Resource.Version }}
+              apiVersion: {{ .APIVersion }}
               kind: {{ .Resource.Kind }}
               metadata:
                 name: behavior-{{ .TestName }}
-                namespace: default
+                namespace: {{ .Namespace }}
               status:
                 ((conditions[?type == 'Ready'])[0]):
                   status: "True"
