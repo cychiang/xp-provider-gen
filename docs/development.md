@@ -41,7 +41,7 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 
 ## Typical workflow
 
-1. Make a focused change. Keep it [KISS and DRY](../CLAUDE.md#core-principles).
+1. Make a focused change. Keep it [KISS and DRY](../AGENTS.md#code-style).
 2. `make reviewable` — fix anything it reports.
 3. `make e2e-test` if you touched templates, the engine, or the automation pipeline.
 4. Commit with a [conventional commit](https://www.conventionalcommits.org/) message

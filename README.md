@@ -116,7 +116,7 @@ Requirements, the full target list and the contributor workflow are in
 
 For the full developer guide see:
 
-- [CLAUDE.md](CLAUDE.md) — project principles and conventions
+- [AGENTS.md](AGENTS.md) — contributor guidance: setup, testing, code style, PR conventions
 - [docs/provider-guide.md](docs/provider-guide.md) — **for provider authors**: what to write, where, and how to upgrade
 - [docs/architecture.md](docs/architecture.md) — how the generator works
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow
