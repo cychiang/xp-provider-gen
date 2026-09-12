@@ -26,17 +26,28 @@ type Pipeline struct {
 	steps []Step
 }
 
+// scaffoldCommitMessage builds the initial-scaffold commit message shared by
+// NewInitPipeline and NewUpjetInitPipeline, which differ only in how they
+// describe what was scaffolded (e.g. "Crossplane provider project" vs.
+// "upjet Crossplane provider project"). Worth factoring out because the
+// message text isn't what those two functions are about — unlike their step
+// lists, which are kept flat and duplicated on purpose (see
+// TestInitPipelines_ShareLeadingStepsAndFinalStep in pipeline_test.go).
+func scaffoldCommitMessage(description, providerName string) string {
+	return fmt.Sprintf(`Initial commit
+
+Scaffolded %s for %s
+
+%s`, description, providerName, ScaffoldCommitTrailer)
+}
+
 // NewUpjetInitPipeline is the init pipeline for an upjet provider. It stops
 // short of building: a freshly scaffolded upjet project deliberately does not
 // compile yet, because cmd/provider imports the API and controller packages
 // that `make generate` produces from the Terraform schema. Running tidy or
 // reviewable here would fail on work the user has not been able to do.
 func NewUpjetInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
-	commitMessage := fmt.Sprintf(`Initial commit
-
-Scaffolded upjet Crossplane provider project for %s
-
-%s`, providerName, ScaffoldCommitTrailer)
+	commitMessage := scaffoldCommitMessage("upjet Crossplane provider project", providerName)
 
 	return &Pipeline{
 		steps: []Step{
@@ -51,11 +62,7 @@ Scaffolded upjet Crossplane provider project for %s
 }
 
 func NewInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
-	commitMessage := fmt.Sprintf(`Initial commit
-
-Scaffolded Crossplane provider project for %s
-
-%s`, providerName, ScaffoldCommitTrailer)
+	commitMessage := scaffoldCommitMessage("Crossplane provider project", providerName)
 
 	return &Pipeline{
 		steps: []Step{

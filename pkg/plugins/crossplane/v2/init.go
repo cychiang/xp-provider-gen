@@ -197,13 +197,13 @@ func (p *initSubcommand) PostScaffold() error {
 	if p.upjet {
 		// The project does not compile until upjet has generated the API types
 		// and controllers from the Terraform schema, so that comes first.
-		fmt.Printf("  1. Use 'crossplane-provider-gen create api --terraform-resource=...' to add resources\n")
+		fmt.Printf("  1. Use 'xp-provider-gen create api --terraform-resource=...' to add resources\n")
 		fmt.Printf("  2. Run 'make generate' to fetch the Terraform schema and generate types and controllers\n")
 		fmt.Printf("  3. Map your credentials in internal/clients/clients.go\n")
 		fmt.Printf("  4. Run 'make build' to build the provider\n")
 		return nil
 	}
-	fmt.Printf("  1. Use 'crossplane-provider-gen create api' to add managed resources\n")
+	fmt.Printf("  1. Use 'xp-provider-gen create api' to add managed resources\n")
 	fmt.Printf("  2. Implement external client logic for your provider\n")
 	fmt.Printf("  3. Run 'make build' to build the provider\n")
 	fmt.Printf("  4. Run 'make run' to test the provider locally\n")
