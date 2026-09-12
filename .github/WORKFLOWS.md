@@ -28,8 +28,9 @@ This directory contains GitHub Actions workflows for automating CI/CD processes.
   [testing.md](../docs/testing.md)
 
 ### 🧱 `e2e-upjet.yml` - Upjet Flavor E2E
-**Triggers:** Daily schedule; PRs touching `pkg/templates/upjet/**`,
-`scripts/e2e-upjet.sh`, or `hack/envtest-provider-check/**`
+**Triggers:** Daily schedule; on demand (`workflow_dispatch`); PRs touching
+`pkg/templates/upjet/**`, `scripts/e2e-upjet.sh`, `hack/envtest-provider-check/**`,
+or this workflow file
 - Runs `scripts/e2e-upjet.sh`: scaffold an upjet provider wrapping
   hashicorp/kubernetes, configure a resource, run the real upjet generation
   pipeline (downloads Terraform, reads the provider schema, scrapes docs),
@@ -39,6 +40,33 @@ This directory contains GitHub Actions workflows for automating CI/CD processes.
   otherwise, never failing the build) controller registration against a real
   ephemeral API server. Not run on every PR because it needs network and
   takes several minutes
+- Also runs Stage 7: deploys the built provider to a real kind cluster with
+  Crossplane and proves the full create/update/delete lifecycle of a live
+  ConfigMap managed resource. This needs a Docker daemon, which the runner
+  has, so the job sets `E2E_SKIP_DOCKER: "0"` explicitly — an intentional,
+  visible choice to run it here, not a side effect of leaving the variable
+  unset. kind is downloaded by the generated project's own Makefile
+  (`KIND_VERSION` pinned there); this workflow does not preinstall it
+
+### 🧭 `e2e-native-full.yml` - Native Flavor E2E (full) & Upgrade Simulation
+**Triggers:** Daily schedule; on demand (`workflow_dispatch`); PRs touching
+`pkg/plugins/crossplane/v2/**`, `pkg/templates/files/**`, `pkg/versions/**`,
+`scripts/e2e-test.sh`, `scripts/upgrade-sim.sh`, `scripts/assert-layout.sh`,
+`Makefile`, or this workflow file
+- **Native E2E (full)**: runs `scripts/e2e-test.sh` with no `E2E_SKIP_DOCKER`,
+  so its Step E runs too — the generated provider's own uptest+chainsaw suite,
+  deploying to a real kind cluster and reconciling. This is the Docker leg
+  `test.yml`'s fast per-PR job deliberately skips; it needs Docker (present on
+  the runner) and kind (downloaded by the generated project's own Makefile,
+  not preinstalled here) and takes several minutes
+- **Upgrade simulation**: runs `make upgrade-sim` — builds a provider with
+  real user logic, simulates a generator version bump, and asserts the user's
+  logic and tests survive. This is the check that protects provider authors
+  from a breaking generator change; it did not run in CI at all before
+- Both jobs configure a git identity first, since the tool's own automation
+  (`init`, `update`, the upgrade simulation) commits as it runs
+- Not run on every PR — both checks are expensive — but path-filtered so a PR
+  that changes the surfaces they exercise is verified before merge
 
 ### 🔨 `build.yml` - Build Binaries
 **Triggers:** Push/PR to `main`, `develop`

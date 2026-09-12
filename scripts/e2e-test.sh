@@ -49,13 +49,24 @@ step_header() {
     echo -e "${BLUE}========================================${NC}"
 }
 
+# E2E_SKIP_DOCKER is a real boolean, not a "set means yes" flag: unset, empty,
+# 0/false/no means "do not skip"; anything else (1, true, yes, ...) means
+# "skip". Centralized here so the truthiness test isn't repeated (and doesn't
+# drift) across every call site below.
+docker_skip_requested() {
+    case "${E2E_SKIP_DOCKER:-0}" in
+        0 | false | False | FALSE | no | No | NO) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 # Step E (the generated provider's own uptest + chainsaw e2e) needs a running
 # Docker daemon. Most CI runners (including GitHub's ubuntu-latest) already
 # have one, so relying on "docker info" failing to skip Step E there would be
 # accidental, not intentional — set E2E_SKIP_DOCKER=1 to skip it explicitly
 # regardless of daemon availability.
 docker_e2e_available() {
-    [[ -z "${E2E_SKIP_DOCKER:-}" ]] && docker info >/dev/null 2>&1
+    ! docker_skip_requested && docker info >/dev/null 2>&1
 }
 
 run_make_target() {
@@ -440,7 +451,7 @@ main() {
     # unavailable, or when E2E_SKIP_DOCKER is set, so docker-less machines and
     # fast CI runs can still run the rest of the harness.
     step_header "E" "Generated provider's own e2e (uptest + chainsaw)"
-    if [[ -n "${E2E_SKIP_DOCKER:-}" ]]; then
+    if docker_skip_requested; then
         PROVIDER_E2E_RESULT="SKIPPED (E2E_SKIP_DOCKER set)"
         CREATE_TEST_LIVE_RESULT="SKIPPED (E2E_SKIP_DOCKER set)"
     else
@@ -471,7 +482,7 @@ main() {
             log_error "generated provider's make e2e FAILED"
             exit 1
         fi
-    elif [[ -n "${E2E_SKIP_DOCKER:-}" ]]; then
+    elif docker_skip_requested; then
         log_warning "E2E_SKIP_DOCKER set — skipping the generated provider's make e2e"
     else
         log_warning "docker daemon unavailable — skipping the generated provider's make e2e"
@@ -512,8 +523,10 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "5. CRD and example generation verification"
     echo
     echo "Env vars:"
-    echo "  E2E_SKIP_DOCKER=1  Skip Step E (the Docker-dependent uptest + chainsaw"
-    echo "                     e2e), even if a docker daemon is available."
+    echo "  E2E_SKIP_DOCKER  Skip Step E (the Docker-dependent uptest + chainsaw e2e),"
+    echo "                   even if a docker daemon is available. Treated as a real"
+    echo "                   boolean: unset, empty, 0, false, or no means run it;"
+    echo "                   anything else (e.g. 1, true) means skip it."
     exit 0
 fi
 

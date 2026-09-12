@@ -23,6 +23,16 @@ yellow() { printf '\033[1;33m%s\033[0m\n' "$1"; }
 
 fail() { red "  ✗ $1"; exit 1; }
 
+# E2E_SKIP_DOCKER is a real boolean, not a "set means yes" flag: unset, empty,
+# 0/false/no means "do not skip"; anything else (1, true, yes, ...) means
+# "skip". Centralized here so the truthiness test isn't duplicated elsewhere.
+docker_skip_requested() {
+  case "${E2E_SKIP_DOCKER:-0}" in
+    0 | false | False | FALSE | no | No | NO) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 [ -x "$BIN" ] || fail "binary not found at $BIN — run 'make build' first"
 
 blue "=== 1. Scaffold an upjet provider for hashicorp/kubernetes ==="
@@ -181,7 +191,7 @@ fi
 rm -f "$ENVTEST_SETUP_LOG"
 
 blue "=== 7. Full ConfigMap lifecycle against a live cluster (create/update/delete) ==="
-if [ -z "${E2E_SKIP_DOCKER:-}" ] && docker info >/dev/null 2>&1; then
+if ! docker_skip_requested && docker info >/dev/null 2>&1; then
   blue "  --- 7a. Configure and generate a ConfigMap resource ---"
   "$BIN" create api --group=core --version=v1alpha1 --kind=ConfigMap \
     --terraform-resource=kubernetes_config_map >/dev/null
