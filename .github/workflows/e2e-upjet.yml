@@ -14,7 +14,15 @@ on:
   pull_request:
     branches: [ main, develop ]
     paths:
+      # Anything that can change what an upjet scaffold contains, or how this
+      # suite exercises it. pkg/versions holds upjet_dependencies, and the
+      # shared generators and plugin logic render into upjet scaffolds too —
+      # leaving them out meant a PR bumping upjet's own dependency never ran
+      # this job.
       - 'pkg/templates/upjet/**'
+      - 'pkg/templates/generators/**'
+      - 'pkg/versions/**'
+      - 'pkg/plugins/crossplane/v2/**'
       - 'scripts/e2e-upjet.sh'
       - 'hack/envtest-provider-check/**'
       - '.github/workflows/e2e-upjet.yml'
