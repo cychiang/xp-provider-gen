@@ -46,10 +46,10 @@ types and controllers for the new resource. Nothing compiles until you do.
 
 ## Keeping up to date
 
-`xp-provider-gen update` **refuses upjet projects**: its per-kind Terraform
-coordinates are not persisted in `PROJECT`, so there is nothing safe to
-re-render the tool-owned plumbing from. Pull in generator improvements by
-re-scaffolding or hand-porting for now.
+`xp-provider-gen update` **refuses upjet projects**: its render path is
+hard-wired to the native template set, not because anything is missing from
+`PROJECT`. Pull in generator improvements by re-scaffolding or hand-porting
+for now.
 
 ---
 
