@@ -5,8 +5,17 @@ are *generated* from that provider's schema, so instead of writing reconcile
 logic you write configuration saying which Terraform resources to expose and
 how. Use this flavor when a good Terraform provider already exists for your API.
 
-Prefer writing the reconcile logic yourself? That is the default flavor — see
-[the provider guide](provider-guide.md).
+The two flavors differ in **where the truth about a kind lives**, and
+everything else — what you write, what `make generate` does, what adding a
+kind means — follows from that. Here the truth is external: a Terraform
+provider's schema. You name a resource ("expose `kubernetes_config_map`");
+upjet's own generator produces the API types, the controller and the CRDs
+from that schema, so `make generate` **is** the per-kind generation step, not
+a finalize step. In the native flavor the truth is internal — your own Go
+types and hand-written reconcile logic — and `make generate` only produces
+derived artifacts (deepcopy, CRDs) from what you already wrote by hand; that
+is [the provider guide](provider-guide.md)'s subject, and where to go if
+you'd rather design the API and write the reconcile logic yourself.
 
 ## 1. Scaffold
 
@@ -107,7 +116,12 @@ every file under `examples/*/*.yaml` (except the ProviderConfig example) — no
 uses. The catch: `create api` cannot seed a real example for upjet — nothing
 about a valid `spec.forProvider` is knowable before `make generate` produces
 the schema-derived types — so a fresh scaffold's `examples/` has nothing for
-`make e2e` to test until you write one (see the worked example below, or
+`make e2e` to test until you write one: copy
+`examples-generated/namespaced/<group>/<version>/<kind>.yaml` (upjet's own
+scraped-doc example) to `examples/<group>/<kind>.yaml` and resolve any `${...}`
+Terraform interpolations (e.g. `file()`, `filebase64()`) first — the scraped
+copy does not resolve them for you, and applying it as-is silently produces
+garbage field values, not an error (see the worked example below, or
 `test/README.md` inside your scaffold). `make test-behavior` and `make e2e-clean`
 now exist too; `make dev`, `make dev-clean` and `make test-integration` are
 still native-only — they run the controller from source, which an upjet
@@ -182,6 +196,57 @@ Crossplane's own system RBAC already grants that ServiceAccount access to
 ConfigMaps. This is specific to `hashicorp/kubernetes`; a provider wrapping a
 cloud API needs real credentials in that Secret.
 
+## 7. Bumping the Terraform provider
+
+Edit `TERRAFORM_PROVIDER_VERSION` in the Makefile, clear the previous version's
+Terraform lock, then regenerate:
+
+```bash
+rm -rf .work/terraform
+make generate
+```
+
+Skip the `rm -rf` and the schema step fails outright — Terraform's own lock
+file still pins the old version:
+
+```
+Error: Failed to query available provider packages
+Could not retrieve the list of available versions for provider hashicorp/kubernetes: locked
+provider registry.terraform.io/hashicorp/kubernetes 2.38.0 does not match configured version
+constraint 3.0.0; must use terraform init -upgrade to allow selection of new versions
+```
+
+Three things to expect once generation succeeds:
+
+- **Most kinds won't change.** A bump only reshapes a kind if that resource's
+  own Terraform schema changed between the two versions. `hashicorp/kubernetes`
+  2.38.0 → 3.0.0 — a full major bump — changes 16 of its 82 resources;
+  `kubernetes_config_map` and `kubernetes_secret`, this doc's own examples, are
+  not among them and regenerate byte-identical. If you bump and `git diff`
+  shows nothing for your kind, the tool is working correctly — the schema
+  simply didn't change for that resource.
+- **`TERRAFORM_NATIVE_PROVIDER_BINARY` is a second version string**, set once
+  at `init` and never re-derived — it still names the old release's binary
+  filename after a Makefile-only bump. Update it too
+  (`terraform-provider-<name>_v<version>_x5`); nothing reads it incorrectly
+  today (Terraform's filesystem-mirror install matches by directory, not
+  filename), but a stale value there is one more thing to explain later.
+- **A resource the new version drops breaks the build, not just "stops
+  updating."** If a Terraform resource type you've configured
+  (`create api --terraform-resource=...`) disappears from the bumped schema,
+  `make generate` deletes upjet's own generated files for it cleanly but
+  leaves your `config/<kind>/config.go` and its entry in
+  `config/zz_resources.go` pointing at a Go type that no longer exists —
+  `angryjet: undefined: <Kind>`. There is no `remove api`; recover by hand:
+  delete `config/<kind>/`, drop its import, `.Configure` call and
+  `.TerraformResource` include-list entry from `config/zz_resources.go`, then
+  regenerate.
+
+`PROJECT`'s `terraform_provider_version` is stamped once at `init` and nothing
+reads it back afterward, so a Makefile-only bump leaves it stale — cosmetic
+today, not a functional bug, but don't trust it to answer "what version is
+this provider actually built against."
+
 ## What you own, and what the tool does
 
 | Yours | Tool's |
@@ -191,12 +256,19 @@ cloud API needs real credentials in that Secret.
 | `apis/*/v1beta1/types.go` — ProviderConfig spec | the `go:generate` chain, generator entrypoint, ProviderConfig controllers |
 
 Tool-owned files carry the `DO NOT EDIT` header, but `xp-provider-gen update`
-does not support the upjet flavor yet — it refuses to run on one, because the
-per-kind Terraform coordinates it would need to safely re-render tool-owned
-files live only in `config/<kind>/config.go`, not in PROJECT. Regenerate a
-fresh scaffold to pick up an updated tool-owned file for now. Everything
-without the header is yours forever, and everything upjet itself generates
-(`zz_*`) is reproduced by `make generate` and should not be edited either.
+does not support the upjet flavor yet — it refuses to run on one because its
+render path is hard-wired to the native template set, not because anything is
+missing from PROJECT. That gap is real but infrequent: tool-owned upjet files
+do occasionally need a fix that only a newer generator carries (for example, a
+wrong hard-coded API group in `apis/*/register.go`), and until `update` learns
+this flavor the only way to pick one up is to regenerate a fresh scaffold and
+port your own files over by hand. This is a different, rarer need than
+[bumping the Terraform provider](#7-bumping-the-terraform-provider) — that one
+`update` was never going to help with anyway, since it only ever touches
+tool-owned files and the provider version lives in the user-owned Makefile.
+Everything without the header is yours forever, and everything upjet itself
+generates (`zz_*`) is reproduced by `make generate` and should not be edited
+either.
 
 An upjet scaffold also ships `AGENTS.md`, `README.md`, `OWNERS.md` and a `test/`
 tree (`test/setup.sh`, `test/README.md`) — all yours, seeded once, same as the
