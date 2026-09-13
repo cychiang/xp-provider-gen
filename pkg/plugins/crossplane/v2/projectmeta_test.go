@@ -48,7 +48,7 @@ func TestLoadProjectMeta(t *testing.T) {
 				t.Helper()
 				err := cfg.EncodePluginConfig(pluginName, projectMeta{
 					Flavor: core.FlavorUpjet,
-					Upjet:  &core.UpjetSettings{TerraformProvider: "hashicorp/kubernetes"},
+					Upjet:  &core.UpjetSettings{TerraformResourcePrefix: "kubernetes"},
 				})
 				if err != nil {
 					t.Fatalf("EncodePluginConfig: %v", err)

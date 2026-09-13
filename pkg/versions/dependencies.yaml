@@ -16,6 +16,16 @@
 # this value falls below what a pinned dependency below requires.
 go_version: "1.26.8"
 
+# The Terraform CLI version an upjet-flavored provider uses to read its wrapped
+# provider's schema at `make generate`. This is not the author's call: the
+# whole upjet ecosystem sits on 1.5.x because Terraform 1.6+ is BSL-licensed
+# and the ecosystem does not ship BSL Terraform in its images — upjet's own
+# docs and upstream's provider template both pin 1.5.7 with the same reasoning
+# ("the last version before the licence change"). Rendered into the generated
+# Makefile's `TERRAFORM_VERSION` at init; there is no `--terraform-version`
+# flag, on purpose (an author who could set it could set a BSL version).
+terraform_version: "1.5.7"
+
 dependencies:
   - module: github.com/alecthomas/kingpin/v2
     version: v2.4.0

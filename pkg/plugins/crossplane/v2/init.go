@@ -15,6 +15,7 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/scaffold"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
+	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 var _ plugin.InitSubcommand = &initSubcommand{}
@@ -28,9 +29,10 @@ type initSubcommand struct {
 	gitEmail string
 
 	// upjet selects the upjet flavor and carries its Terraform coordinates.
+	// The Terraform CLI version is deliberately not here: it is a tool
+	// decision (pkg/versions.TerraformVersion), not a flag.
 	upjet             bool
 	tfProvider        string
-	tfVersion         string
 	tfProviderVersion string
 	tfProviderRepo    string
 	tfDocsPath        string
@@ -81,8 +83,6 @@ func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {
 		"git repository holding the Terraform provider's docs (defaults to its hashicorp GitHub repo)")
 	fs.StringVar(&p.tfDocsPath, "terraform-provider-docs-path", core.DefaultTerraformDocsPath,
 		"path to resource docs inside that repository")
-	fs.StringVar(&p.tfVersion, "terraform-version", core.DefaultTerraformVersion,
-		"Terraform CLI version used to read the provider schema")
 }
 
 // upjetSettings validates the Terraform coordinates and fills in defaults.
@@ -104,7 +104,7 @@ func (p *initSubcommand) upjetSettings() (*core.UpjetSettings, error) {
 		TerraformProviderVersion: p.tfProviderVersion,
 		TerraformProviderRepo:    repo,
 		TerraformDocsPath:        p.tfDocsPath,
-		TerraformVersion:         p.tfVersion,
+		TerraformVersion:         versions.TerraformVersion,
 		TerraformResourcePrefix:  name,
 		NamespacedDomain:         core.NamespacedDomain(p.domain),
 	}, nil

@@ -42,3 +42,5 @@ vendor/
 .Trashes
 ehthumbs.db
 Thumbs.db
+# `go build ./...` inside the helper module drops its binary beside the source.
+hack/envtest-provider-check/envtest-provider-check

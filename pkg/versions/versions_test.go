@@ -103,3 +103,42 @@ func TestGoVersion_MatchesManifestFile(t *testing.T) {
 		t.Errorf("versions.GoVersion = %q, want %q (dependencies.yaml's go_version)", GoVersion, doc.GoVersion)
 	}
 }
+
+// TestParseManifest_TerraformVersion mirrors TestParseManifest_GoVersion for
+// the Terraform CLI version: pins that it is genuinely parsed from the
+// manifest's terraform_version key, using arbitrary input decoupled from the
+// real embedded dependencies.yaml.
+func TestParseManifest_TerraformVersion(t *testing.T) {
+	m, err := parseManifest([]byte("terraform_version: \"9.9.9\"\ndependencies: []\n"))
+	if err != nil {
+		t.Fatalf("parseManifest() error: %v", err)
+	}
+	if m.TerraformVersion != "9.9.9" {
+		t.Errorf("TerraformVersion = %q, want %q", m.TerraformVersion, "9.9.9")
+	}
+}
+
+// TestTerraformVersion_MatchesManifestFile mirrors
+// TestGoVersion_MatchesManifestFile: cross-checks the exported
+// TerraformVersion against an independent read+parse of the real on-disk
+// dependencies.yaml, using a type distinct from the package's own manifest
+// type, so this cannot pass merely because both sides share a bug.
+func TestTerraformVersion_MatchesManifestFile(t *testing.T) {
+	raw, err := os.ReadFile("dependencies.yaml")
+	if err != nil {
+		t.Fatalf("reading dependencies.yaml: %v", err)
+	}
+	var doc struct {
+		TerraformVersion string `json:"terraform_version"`
+	}
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("independently parsing dependencies.yaml: %v", err)
+	}
+	if doc.TerraformVersion == "" {
+		t.Fatal("dependencies.yaml has no terraform_version key")
+	}
+	if TerraformVersion != doc.TerraformVersion {
+		t.Errorf("versions.TerraformVersion = %q, want %q (dependencies.yaml's terraform_version)",
+			TerraformVersion, doc.TerraformVersion)
+	}
+}
