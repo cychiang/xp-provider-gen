@@ -22,8 +22,11 @@ substitute its actual path (e.g. `./bin/xp-provider-gen`).
 
 Flavor is chosen once, at `init`, and recorded in PROJECT for every later command to read:
 **native** (you write the reconcile logic) or **upjet** (`--upjet`: types and controllers are
-generated from a wrapped Terraform provider's schema, you write configuration). Each entry below
-names which flavor(s) it applies to.
+generated from a wrapped Terraform provider's schema, you write configuration). The two differ in
+where the truth about a kind lives — external schema (upjet) vs. your own Go types (native) — and
+everything else follows from that; see
+[docs/upjet-provider.md](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md)
+for the full explanation. Each entry below names which flavor(s) it applies to.
 
 ### `init` — native
 
@@ -59,7 +62,9 @@ names which flavor(s) it applies to.
   provider's hashicorp GitHub repo), `--terraform-provider-docs-path` (default
   `docs/resources`), `--terraform-version` (default `1.5.7`). Check: **TERRAFORM_VERSION must
   stay below `1.6.0`** — Terraform 1.6+ is BSL licensed and the generated Makefile's
-  `check-terraform-version` target refuses it.
+  `check-terraform-version` target refuses it. Bumping the *wrapped* provider's own version later
+  (`TERRAFORM_PROVIDER_VERSION` in the Makefile) is a separate operation with its own gotchas —
+  see [docs/upjet-provider.md §7](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#7-bumping-the-terraform-provider).
 
 ### `create api` — native
 
@@ -121,8 +126,8 @@ names which flavor(s) it applies to.
   ```
 - **Produces**: requires a clean working tree; leaves the result uncommitted for `git diff`
   review, then your own commit. On a mid-run failure the error names the exact revert step.
-  Check: **refuses upjet projects outright** — its per-kind Terraform coordinates aren't
-  persisted in PROJECT yet, so there's nothing safe to re-render from (`update --help`).
+  Check: **refuses upjet projects outright** — its render path is hard-wired to the native
+  template set, not because of any missing data (`update --help`).
 
 ### `update --adopt`
 

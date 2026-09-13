@@ -70,6 +70,8 @@ xp-provider-gen create api --group=GROUP --version=VERSION --kind=KIND [--force]
 ```
 
 ### `init --upjet` - Scaffold a provider that wraps a Terraform provider
+Here the truth about a kind is the Terraform provider's schema, not your own
+Go types — see [docs/upjet-provider.md](docs/upjet-provider.md) for what that changes.
 ```bash
 xp-provider-gen init --domain=example.com --repo=github.com/you/provider-k8s \
   --upjet --terraform-provider=hashicorp/kubernetes --terraform-provider-version=2.38.0

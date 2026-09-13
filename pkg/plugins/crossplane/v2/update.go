@@ -55,9 +55,9 @@ and are overwritten; files without it (external.go, client.go, options.go, *_typ
 crossplane.yaml) are left alone. go.mod itself is never overwritten — only its framework
 dependency versions are bumped via 'go get', so your own requires are preserved.
 
-Not supported yet on an upjet provider: its per-kind Terraform coordinates are not
-persisted in PROJECT, so update refuses rather than re-render its plumbing from stale
-defaults.
+Not supported yet on an upjet provider: this command's render path is hard-wired to
+the native template set, so it has no correct way to re-render an upjet project's
+plumbing yet — it refuses rather than overwrite it with native files.
 
 The working tree must be clean; the result is left uncommitted so you can review it with
 'git diff' before committing. If a step fails midway, the error names exactly how to revert.
@@ -105,11 +105,13 @@ func prepare(ctx context.Context) (store.Store, afero.Fs, error) {
 
 // refuseUnsupportedFlavor rejects a PROJECT this command cannot safely handle.
 // update and adopt both render the native template set unconditionally
-// (renderToMemFS); on an upjet project that overwrites its plumbing with
-// native files and leaves it unable to build. The correct fix needs per-kind
-// Terraform coordinates that PROJECT does not persist (only the user-owned
-// config/<kind>/config.go has them), so until that lands, refusing here turns
-// what used to be silent corruption into an explicit, actionable error.
+// (renderToMemFS calls NewFactoryForFlavor(cfg, core.FlavorNative) and the
+// native CoreGenerators, with no WithUpjet path); on an upjet project that
+// overwrites its plumbing with native files and leaves it unable to build.
+// Every tool-owned upjet template only needs project-level values already in
+// PROJECT — the gap is that renderToMemFS has no upjet render path at all, not
+// any missing data — so until that lands, refusing here turns what used to be
+// silent corruption into an explicit, actionable error.
 func refuseUnsupportedFlavor(cfg config.Config) error {
 	meta, err := loadProjectMeta(cfg)
 	if err != nil {
@@ -117,8 +119,8 @@ func refuseUnsupportedFlavor(cfg config.Config) error {
 	}
 	if meta.Flavor == core.FlavorUpjet {
 		return fmt.Errorf("update does not support upjet providers yet: " +
-			"per-kind Terraform coordinates are not persisted in PROJECT, so tool-owned " +
-			"files cannot be safely re-rendered; see docs/upjet-provider.md")
+			"its render path is hard-wired to the native template set, so there is no " +
+			"correct way to re-render an upjet project's plumbing; see docs/upjet-provider.md")
 	}
 	return nil
 }

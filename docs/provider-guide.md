@@ -3,6 +3,11 @@
 How to scaffold a Crossplane provider with `xp-provider-gen`, write your logic in
 the right places, and take framework upgrades without losing that logic.
 
+This covers the **native** flavor, where you design the API and write the
+reconcile logic yourself. Wrapping a Terraform provider instead? See
+[docs/upjet-provider.md](upjet-provider.md), which explains why the two
+flavors differ and what that means for adding a kind.
+
 Prefer a walkthrough? [The tutorial](tutorial.md) builds a working provider
 end-to-end on a local kind cluster.
 
