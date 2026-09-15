@@ -88,7 +88,9 @@ func TestLoadProjectMeta(t *testing.T) {
 					t.Fatalf("EncodePluginConfig: %v", err)
 				}
 			},
-			wantErr: string(unknownTestFlavor),
+			// Pins the whole phrase, so the known list derived from core.Flavors
+			// is exercised along with the flavor name.
+			wantErr: `"` + string(unknownTestFlavor) + `" (known: native, upjet)`,
 		},
 	}
 

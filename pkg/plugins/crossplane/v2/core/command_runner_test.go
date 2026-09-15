@@ -17,6 +17,7 @@ limitations under the License.
 package core
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -56,5 +57,28 @@ func TestCommandRunner_Run_RejectsDisallowedCommand(t *testing.T) {
 	err := NewCommandRunner("").Run(context.Background(), "rm", "-rf", "/")
 	if err == nil || !strings.Contains(err.Error(), "not an allowed command") {
 		t.Fatalf("Run(\"rm\", ...) = %v, want a refusal naming the allowlist", err)
+	}
+}
+
+// TestCommandRunner_RunStreaming_RejectsDisallowedCommand pins that the
+// streaming path, which update's long-running steps use, enforces the same
+// allowlist as Run.
+func TestCommandRunner_RunStreaming_RejectsDisallowedCommand(t *testing.T) {
+	var out bytes.Buffer
+	err := NewCommandRunner("").RunStreaming(context.Background(), &out, &out, "sh", "-c", "true")
+	if err == nil || !strings.Contains(err.Error(), "not an allowed command") {
+		t.Fatalf("RunStreaming(\"sh\", ...) = %v, want a refusal naming the allowlist", err)
+	}
+}
+
+// TestCommandRunner_RunStreaming_StreamsOutput pins that the child's output
+// reaches the caller's writer rather than being buffered away.
+func TestCommandRunner_RunStreaming_StreamsOutput(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if err := NewCommandRunner("").RunStreaming(context.Background(), &stdout, &stderr, "go", "version"); err != nil {
+		t.Fatalf("RunStreaming(go version): %v", err)
+	}
+	if !strings.Contains(stdout.String(), "go version") {
+		t.Errorf("stdout = %q, want it to contain %q", stdout.String(), "go version")
 	}
 }

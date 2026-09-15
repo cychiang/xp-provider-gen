@@ -23,6 +23,12 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
+// Display names of the make steps several pipelines share.
+const (
+	stepNameMakeGenerate   = "Run make generate"
+	stepNameMakeReviewable = "Run make reviewable"
+)
+
 // fakeStep records whether it ran and optionally fails.
 type fakeStep struct {
 	name string
@@ -64,9 +70,17 @@ func TestNewInitPipeline_CommitsLast(t *testing.T) {
 		"Add build submodule from " + cfg.Git.BuildSubmoduleURL,
 		"Run make submodules",
 		"Download dependencies (go mod tidy)",
-		"Run make generate",
-		"Run make reviewable",
+		stepNameMakeGenerate,
+		stepNameMakeReviewable,
 		stepNameInitialCommit,
+	})
+}
+
+func TestNewUpdateFinalizePipeline(t *testing.T) {
+	assertStepOrder(t, NewUpdateFinalizePipeline(), []string{
+		"Run go mod tidy",
+		stepNameMakeGenerate,
+		stepNameMakeReviewable,
 	})
 }
 
@@ -136,7 +150,7 @@ func TestNewAPICommitPipeline_CommitsLast(t *testing.T) {
 	p := NewAPICommitPipeline(cfg, "Bucket")
 
 	assertStepOrder(t, p, []string{
-		"Run make generate",
+		stepNameMakeGenerate,
 		"Commit changes (fold into initial scaffold if applicable)",
 	})
 }
