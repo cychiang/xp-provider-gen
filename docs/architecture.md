@@ -249,6 +249,11 @@ The list is deliberately short. Scaffolding a file is a path transform plus a bo
 the engine stays at that altitude: one `TemplateInfo` per discovered template, one
 function to build it, no registry keys, strategies or per-template types in between.
 
+## Design proposals
+
+- [Render and apply](design/render-apply.md) — one render path and one write rule for `init`,
+  `create api` and `update` (proposed; implementation awaits acceptance).
+
 ## Command flow summary
 
 **`init`** → validate → scaffold init/static templates + register & go.mod generators → save
