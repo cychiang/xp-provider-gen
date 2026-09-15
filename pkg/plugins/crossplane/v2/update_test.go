@@ -180,10 +180,10 @@ const (
 )
 
 // TestReconcile_UpjetDoesNotSeedUserOwned pins policy C7: a user-owned file
-// missing on disk is seeded for a native project, but not for an upjet one,
-// whose user-owned templates need init-time Terraform settings PROJECT does
-// not keep — seeding them would write empty values. Tool-owned files are
-// seeded either way.
+// missing on disk is seeded for a native project, but not for an upjet one:
+// some upjet user-owned templates need init-time Terraform settings PROJECT
+// does not keep, so seeding would write empty values, and none are recreated.
+// Tool-owned files are seeded either way.
 func TestReconcile_UpjetDoesNotSeedUserOwned(t *testing.T) {
 	const (
 		headeredPath   = "config/provider.go"

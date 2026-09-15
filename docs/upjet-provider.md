@@ -270,9 +270,9 @@ generator carries (for example, a wrong hard-coded API group in
 `apis/*/register.go`). On a clean tree it re-renders the upjet plumbing, bumps
 the framework dependency set, then runs `make generate`, `go mod tidy` and
 `make reviewable`, leaving the result for `git diff`. Unlike on a native
-provider, it never seeds a missing user-owned file — those need init-time
-Terraform settings PROJECT does not keep — and lists the ones it skipped
-instead. This is a different need than
+provider, it never recreates a missing user-owned file — some need init-time
+Terraform settings PROJECT does not keep, so it recreates none — and lists the
+ones it skipped instead. This is a different need than
 [bumping the Terraform provider](#7-bumping-the-terraform-provider): `update`
 does not help with that, since the provider version lives in the user-owned
 Makefile.

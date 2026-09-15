@@ -143,6 +143,15 @@ func NewUpjetUpdateFinalizePipeline() *Pipeline {
 	}
 }
 
+// UpdateFinalizePipelineFor returns update's finalize pipeline for a project of
+// the given flavor. It is the one place update chooses between the two.
+func UpdateFinalizePipelineFor(flavor core.Flavor) *Pipeline {
+	if flavor == core.FlavorUpjet {
+		return NewUpjetUpdateFinalizePipeline()
+	}
+	return NewUpdateFinalizePipeline()
+}
+
 func (p *Pipeline) Run() error {
 	for i, step := range p.steps {
 		fmt.Printf("  %d. %s...\n", i+1, step.Name())

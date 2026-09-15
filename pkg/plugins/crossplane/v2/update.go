@@ -54,9 +54,10 @@ and are overwritten; files without it (external.go, client.go, options.go, *_typ
 crossplane.yaml) are left alone. go.mod itself is never overwritten — only its framework
 dependency versions are bumped via 'go get', so your own requires are preserved.
 
-On an upjet provider it never seeds a missing user-owned file — those need init-time
-Terraform settings PROJECT does not keep — and lists the ones it skipped instead. It does
-not change the wrapped Terraform provider's version; that lives in your Makefile.
+On an upjet provider it never recreates a missing user-owned file — some need init-time
+Terraform settings PROJECT does not keep, so it recreates none — and lists the ones it
+skipped instead. It does not change the wrapped Terraform provider's version; that lives
+in your Makefile.
 
 The working tree must be clean; the result is left uncommitted so you can review it with
 'git diff' before committing. If a step fails midway, the error names exactly how to revert.
@@ -234,11 +235,7 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	fmt.Println("Finalizing...")
-	finalize := automation.NewUpdateFinalizePipeline()
-	if meta.Flavor == core.FlavorUpjet {
-		finalize = automation.NewUpjetUpdateFinalizePipeline()
-	}
-	if err := finalize.Run(); err != nil {
+	if err := automation.UpdateFinalizePipelineFor(meta.Flavor).Run(); err != nil {
 		return fmt.Errorf("%w\n%s", err, revertAdvice(result.seeded))
 	}
 
@@ -456,7 +453,8 @@ type reconcileResult struct {
 	seeded      []string
 	skipped     []string
 	// unseeded are user-owned files missing on disk that were deliberately not
-	// seeded (upjet: they need init-time Terraform settings PROJECT lacks).
+	// seeded (upjet: some need init-time Terraform settings PROJECT lacks, so
+	// none are recreated).
 	unseeded []string
 }
 
@@ -475,7 +473,8 @@ func (r reconcileResult) print() {
 	fmt.Printf("Refreshed %d tool-owned file(s), added %d, left %d user-owned file(s) untouched.\n",
 		len(r.overwritten), len(r.seeded), len(r.skipped))
 	if len(r.unseeded) > 0 {
-		fmt.Printf("Not seeded (needs init-time Terraform settings): %s\n", strings.Join(r.unseeded, ", "))
+		fmt.Printf("Not seeded (user-owned; update does not recreate these on an upjet provider): %s\n",
+			strings.Join(r.unseeded, ", "))
 	}
 }
 

@@ -94,6 +94,24 @@ func TestUpdateFinalizePipelines(t *testing.T) {
 	}
 }
 
+// TestUpdateFinalizePipelineFor pins that update finalizes each flavor with its
+// own pipeline: swapping them passes every step-order test above and fails
+// only in e2e.
+func TestUpdateFinalizePipelineFor(t *testing.T) {
+	tests := []struct {
+		flavor core.Flavor
+		want   *Pipeline
+	}{
+		{core.FlavorNative, NewUpdateFinalizePipeline()},
+		{core.FlavorUpjet, NewUpjetUpdateFinalizePipeline()},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.flavor), func(t *testing.T) {
+			assertStepOrder(t, UpdateFinalizePipelineFor(tt.flavor), stepNames(tt.want))
+		})
+	}
+}
+
 // TestInitPipelines_ShareLeadingStepsAndFinalStep pins the invariant
 // pipeline.go's own comments describe but never enforce: NewInitPipeline and
 // NewUpjetInitPipeline share their first four steps (git init, executable

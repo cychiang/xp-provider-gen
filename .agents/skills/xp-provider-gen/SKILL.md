@@ -128,8 +128,9 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   ```
 - **Produces**: requires a clean working tree; leaves the result uncommitted for `git diff`
   review, then your own commit. On a mid-run failure the error names the exact revert step.
-  Check: on an **upjet** provider it never seeds a missing user-owned file (those need
-  init-time Terraform settings PROJECT does not keep) and lists the ones it skipped; it does
+  Check: on an **upjet** provider it never recreates a missing user-owned file (some need
+  init-time Terraform settings PROJECT does not keep, so it recreates none) and lists the
+  ones it skipped; it does
   not bump the wrapped Terraform provider — that is the Makefile's `TERRAFORM_PROVIDER_VERSION`.
 
 ### `update --adopt`
