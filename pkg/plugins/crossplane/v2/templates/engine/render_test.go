@@ -87,15 +87,8 @@ func renderProject(t *testing.T, flavor core.Flavor) afero.Fs {
 	if err != nil {
 		t.Fatalf("%s: building init templates: %v", flavor, err)
 	}
-	builders := AsBuilders(initTemplates)
-	var deps []versions.Dependency
-	if flavor == core.FlavorUpjet {
-		builders = append(builders, UpjetCoreGenerators(cfg, res)...)
-		deps, err = versions.UpjetGoModDependencies()
-	} else {
-		builders = append(builders, CoreGenerators(cfg, res)...)
-		deps, err = versions.GoModDependencies()
-	}
+	builders := append(AsBuilders(initTemplates), CoreGeneratorsFor(flavor, cfg, res)...)
+	deps, err := DependenciesFor(flavor)
 	if err != nil {
 		t.Fatalf("%s: loading go.mod dependencies: %v", flavor, err)
 	}
