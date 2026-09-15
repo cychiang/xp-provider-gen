@@ -24,7 +24,7 @@ import (
 const (
 	// ScriptMode is the permission scaffolded shell scripts carry: they are
 	// exec'd directly (uptest runs test/setup.sh), so machinery's 0644 is wrong.
-	ScriptMode fs.FileMode = 0o755 // #nosec G302 -- executable script by design
+	ScriptMode fs.FileMode = 0o755
 	fileMode   fs.FileMode = 0o644
 )
 
