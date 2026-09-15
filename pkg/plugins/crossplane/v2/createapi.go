@@ -99,12 +99,7 @@ func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 	p.meta = meta
 
 	// Validate resource parameters before scaffolding
-	validator := validation.NewValidator()
-	if meta.Flavor == core.FlavorUpjet {
-		// Kinds mirror Terraform resource names on an upjet provider.
-		validator = validation.NewValidatorAllowingReservedKinds()
-	}
-	if err := validator.ValidateResource(p.resource); err != nil {
+	if err := validation.ValidatorFor(meta.Flavor).ValidateResource(p.resource); err != nil {
 		return validation.CreateAPIError("resource validation", err)
 	}
 
