@@ -91,7 +91,7 @@ to adding one — placeholders, the ownership header, the golden-test step.)
   `GROUP`/`VERSION`/`KIND` mean per-kind (`APICategory`), `IMAGENAME` or none mean
   `InitCategory`. Every path lands in one of the two, so discovery cannot silently drop a
   template; a walk error panics (the FS is embedded, so it is a build defect).
-  `loader.go` reads template bodies.
+  `product_generic.go` reads each body straight from `templates.TemplateFS`.
 - **Factory** — `factory.go` (`CrossplaneTemplateFactory`) walks a flavor's root of the embedded
   FS once (`NewFactoryForFlavor(cfg, flavor)`) and keeps the discovered templates in two
   slices — init and per-kind — which `GetInitTemplates` / `GetAPITemplates` render on demand.
