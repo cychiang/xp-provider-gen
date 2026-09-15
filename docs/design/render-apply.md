@@ -4,13 +4,13 @@
   changes in [§4](#4-behavior-changes) and to answer [§7](#7-open-questions).
 - **Date:** 2026-09-16
 - **Author:** Chuan-Yen Chiang
-- **Scope:** `pkg/plugins/crossplane/v2/` (`scaffold/`, `createapi.go`, `update.go`,
-  `templates/engine/`). It follows the architecture review's R2 ("Render/Apply").
+- **Scope:** `pkg/plugins/crossplane/v2/` (`templates/engine/`, `scaffold/`, `createapi.go`,
+  `update.go`). It follows the architecture review's R2 ("Render/Apply").
   The review accepted unified assembly but deferred the apply-policy layer until
   someone wrote this design.
 
-All `file:line` references point at the `refactor/architecture-review` branch after
-Tasks 8 and 11. Kubebuilder references are to module `sigs.k8s.io/kubebuilder/v4@v4.15.0`
+All `file:line` references point at the `refactor/architecture-review` branch at `0dc0993`
+(after Tasks 8, 11 and 12). Kubebuilder references are to module `sigs.k8s.io/kubebuilder/v4@v4.15.0`
 (the version in `go.mod`). Line numbers there change whenever that dependency is bumped.
 
 ## 1. Summary
@@ -19,15 +19,16 @@ Today, three pieces of code decide *what* to render, and two different rules dec
 a file is written*. This document proposes:
 
 ```go
-// package scaffold
-func Render(cfg config.Config, flavor core.Flavor, upjet *core.UpjetSettings,
-    resources []resource.Resource, scope Scope) (afero.Fs, error)
+// package engine — assembly only; it writes nothing but the filesystem it is handed.
+func Render(dst machinery.Filesystem, cfg config.Config, flavor core.Flavor,
+    upjet *core.UpjetSettings, resources []resource.Resource, scope Scope, opts ...Option) error
 
+// package scaffold — the only code that decides what reaches the user's tree.
 func Apply(src, dst afero.Fs, policy Policy) (Result, error)
 ```
 
-- **Render** is the only assembly. It runs `machinery.Scaffold.Execute` into an in-memory
-  filesystem, the way `update` already does.
+- **Render** is the only assembly. It runs `machinery.Scaffold.Execute` for one scope onto the
+  filesystem it is given: an in-memory one under this proposal, the way `update` already does.
 - **Apply** is the only rule for writing to the user's tree. It is the ownership gate
   `update` already uses, with two policies: `SeedOnly` for `init` and `OwnershipGate` for `create api` and `update`.
 
@@ -43,8 +44,8 @@ after [§7](#7-open-questions) is answered.
 |------|-------------------|-----------------|
 | `scaffold/init.go:41-75` | `GetInitTemplates(WithUpjet(s.upjet))` + `CoreGeneratorsFor(flavor, cfg, nil)` + `NewGoModGenerator(repo, deps)` (`:49-66`) | Kubebuilder's injected `machinery.Filesystem` (`:44-47`, `:68`) |
 | `createapi.go:131-186` | `GetAPITemplates(WithForce, WithResource, WithUpjet)` for the new kind (`:152-157`) + `CoreGeneratorsFor` over existing kinds plus the new one (`:165-173`) | Injected filesystem (`:137-141`, `:176`) |
-| `update.go:350-388` (`renderToMemFS`) | `GetInitTemplates()` + `CoreGeneratorsFor` (`:358-371`) + `GetAPITemplates(WithForce(true), WithResource)` for every kind (`:373-386`) | An in-memory filesystem, reconciled onto disk later (`:249`) |
-| `templates/engine/render_test.go:73-138` (`renderProject`) | A test copy of init followed by `create api` for each kind | In-memory filesystem |
+| `update.go:344-382` (`renderToMemFS`) | `GetInitTemplates()` + `CoreGeneratorsFor` (`:352-365`) + `GetAPITemplates(WithForce(true), WithResource)` for every kind (`:367-380`) | An in-memory filesystem, reconciled onto disk later (`:249`) |
+| `templates/engine/render_test.go:73-131` (`renderProject`) | A test copy of init followed by `create api` for each kind | In-memory filesystem |
 
 Task 8 removed the duplicated *choices*: `CoreGeneratorsFor` at `templates/engine/assembly.go:67-72`
 and `DependenciesFor` at `templates/engine/gomod_generator.go:56-61`. The *sequences* are still
@@ -65,13 +66,13 @@ exercises its own copy of the sequence, not the production one.
 | `Error` | `ChainsawTestGenerator` (`chainsaw_generator.go:67`), used by `create-test` |
 
 Machinery writes every file with mode `0644` (`machinery/scaffold.go:47`). Scripts therefore get their executable bit
-afterwards, from `ExecutableBitStep` (`automation/steps.go:126-175`), which is wired into both init pipelines
+afterwards, from `ExecutableBitStep` (`automation/steps.go:127-176`), which is wired into both init pipelines
 (`automation/pipeline.go:55,70`).
 
 **Rule B — `core.DecideWrite`, decided by what is on disk.** It is used by `update`.
-`reconcile`/`applyFile` (`update.go:393-457`) pick an action from the *existing file's* header
+`reconcile`/`applyFile` (`update.go:387-451`) pick an action from the *existing file's* header
 (`core/ownership.go:58-67`): seed if absent, overwrite if headered, skip otherwise. They reject
-paths outside the project (`update.go:419-424`) and write `core.FileMode(rel)` (`update.go:456`,
+paths outside the project (`update.go:413-418`) and write `core.FileMode(rel)` (`update.go:450`,
 `core/filemode.go:34-39`).
 
 The two rules disagree exactly where it matters:
@@ -93,7 +94,8 @@ classifies a generator as tool-owned by `GetIfExistsAction() == machinery.Overwr
 ### 3.1 Render
 
 ```go
-// package scaffold — it already imports engine and core, and v2 already imports it.
+// package engine — next to the factory, the generators, and the tests and golden maps
+// that already exercise them. Render needs no afero write path of its own.
 type Scope int
 
 const (
@@ -102,10 +104,15 @@ const (
     ScopeProject              // init templates + generators(all resources) + every kind's per-kind templates
 )
 
-// Render assembles and renders one scope into a fresh in-memory filesystem.
-func Render(cfg config.Config, flavor core.Flavor, upjet *core.UpjetSettings,
-    resources []resource.Resource, scope Scope) (afero.Fs, error)
+// Render assembles one scope and executes it onto dst: one machinery scaffold for the
+// init templates and generators, then one per kind, as renderToMemFS does today.
+func Render(dst machinery.Filesystem, cfg config.Config, flavor core.Flavor,
+    upjet *core.UpjetSettings, resources []resource.Resource, scope Scope, opts ...Option) error
 ```
+
+`ScopeKind` is what `create api` renders today. Option B (§5) needs it, and so does the
+[Q1](#7-open-questions) fallback, so it is not speculative. `opts` reuses the engine's existing
+`Option` (`WithForce`), so option B can keep passing the user's `--force`.
 
 - `resources` is passed explicitly. `create api` must include the kind it is creating, and
   `PostScaffold` persists that kind only later (`createapi.go:165-169`, `:188-194`).
@@ -116,14 +123,15 @@ func Render(cfg config.Config, flavor core.Flavor, upjet *core.UpjetSettings,
   renders with the new kind's Terraform resource. That output is never written: it is user-owned and
   outside `inKind` (§3.3). This holds only while no *tool-owned* per-kind upjet template reads
   `.TerraformResource`; a test in step 4 of §6 pins it.
-- Per-kind templates are always rendered `WithForce(true)`, as `update.go:374` does today. Inside a
-  fresh memfs the flag only decides whether a second kind in the same group re-renders
-  `groupversion_info.go` or skips it. The output is identical either way, so force stops being a
-  user-facing decision.
+- Under Apply (option C) every caller passes a fresh memfs, and per-kind templates are rendered
+  `WithForce(true)`, as `update.go:368` does today. Inside a fresh memfs the flag only decides
+  whether a second kind in the same group re-renders `groupversion_info.go` or skips it. The output
+  is identical either way, so force stops being a user-facing decision.
 - Formatting stays where it is. `doTemplate` runs `imports.Process` on every `.go` output
   (`machinery/scaffold.go:232-239`), so unparsable Go fails inside Render, before anything
   touches the user's tree.
-- No new context type and no flavor profile. Render is the body of `renderToMemFS` with a scope switch.
+- No new context type and no flavor profile. Render is the body of `renderToMemFS` with a scope switch
+  and a destination parameter.
 
 ### 3.2 Apply
 
@@ -145,6 +153,8 @@ func OwnershipGate(seedUserOwned func(rel string) bool) Policy {
 func Apply(src, dst afero.Fs, policy Policy) (Result, error) // Result: overwritten, seeded, skipped, unseeded
 ```
 
+`SeedOnly` is simply the policy that never overwrites; `OwnershipGate` is the one that does. Apply
+lives in package `scaffold`, the write side, which `v2` already imports ([Q8](#7-open-questions)).
 Apply is `reconcile`/`applyFile` moved out of `update.go`, and keeps what they already guarantee:
 `checkContained`, `core.DecideWrite` as the base decision, and `core.FileMode` for the written mode.
 It absorbs Task 10's `seedUserOwned` flag instead of adding a second copy: that flag becomes the
@@ -159,10 +169,13 @@ It absorbs Task 10's `seedUserOwned` flag instead of adding a second copy: that 
 
 ### 3.3 Commands
 
+Every command except `create-test` renders onto a fresh memfs and then applies it to `dst`. "Injected FS" below is the
+`FS` field (an `afero.Fs`) of the `machinery.Filesystem` Kubebuilder passes to `Scaffold`.
+
 | Command | Render | Apply | `dst` |
 |---|---|---|---|
-| `init` | `ScopeInit` | `SeedOnly` | `fs.FS` from `Scaffold(fs machinery.Filesystem)` |
-| `create api` | `ScopeProject` | `OwnershipGate(inKind)`: seed user-owned only for paths of the kind being created | `fs.FS` |
+| `init` | `ScopeInit` | `SeedOnly` | Injected FS |
+| `create api` | `ScopeProject`, after a flavor-aware `validateProject` (§4.1.7) | `OwnershipGate(inKind)`: seed user-owned only for paths of the kind being created | Injected FS |
 | `update` | `ScopeProject` | `OwnershipGate(always)` for native; `OwnershipGate(never)` for upjet (C7, Task 10) | `afero.NewOsFs()`, as `update.go:249` does today |
 | `create-test` | unchanged: one generator on `machinery.Scaffold` (`createtest.go:90-100`) | unchanged (`machinery.Error`) | `afero.NewOsFs()` |
 
@@ -219,6 +232,18 @@ then removes it ([Q3](#7-open-questions)).
    correctly in that case.
 5. **`--force` becomes a no-op** (§3.4).
 6. **Scripts are written `0755` directly** instead of being chmod-ed by a pipeline step (§4.4).
+7. **`create api` becomes coupled to every kind already in PROJECT.**
+   - Today `PreScaffold` validates only the new resource (`createapi.go:94-129`, `ValidateResource` at `:107`), and
+     `Scaffold` renders only that kind's templates (`createapi.go:152-157`). Existing kinds reach the
+     generators only as import lines in the registration files (`:165-173`).
+   - Under `ScopeProject`, `create api B` renders every existing kind's full template set. So any existing
+     kind makes `create api B` fail if its hand-edited PROJECT entry is invalid, if one of its templates fails
+     to render, or if one of its output paths fails Apply's `checkContained`. Before, the command would have succeeded.
+   - `update` already guards this by validating PROJECT before rendering (`update.go:97`, `validateProject` at
+     `:295-315`). `create api` must run the same check, **flavor-aware**: upjet kinds need
+     `validation.NewValidatorAllowingReservedKinds()`, the rule `create api` already applies to
+     the new kind (`createapi.go:102-106`) and Task 10 gives `update`. It must run before
+     `Render(ScopeProject)`, so that a broken PROJECT fails with "PROJECT is not usable: …" before anything is written.
 
 ### 4.2 `init`
 
@@ -231,7 +256,7 @@ then removes it ([Q3](#7-open-questions)).
 
 - No change beyond what Task 10 already introduces: the upjet flavor, and the C7 no-seed rule for upjet.
   `update` keeps its render scope, and `go.mod` stays out of it: `ScopeProject` does not include the
-  go.mod seeder, just as `update.go:358-371` does not.
+  go.mod seeder, just as `update.go:352-365` does not.
 
 ### 4.4 Cross-cutting
 
@@ -243,8 +268,11 @@ then removes it ([Q3](#7-open-questions)).
 - **Kubebuilder's injected `machinery.Filesystem` is honored, not bypassed.**
   - Kubebuilder passes its filesystem to `Scaffold(fs)` (`plugin/subcommand.go:60`, `cli/cmd_helpers.go:503`).
   - The default is `afero.NewOsFs()` (`cli/cli.go:140`); tests can replace it with `cli.WithFilesystem` (`cli/options.go:166`).
-  - Apply writes to `fs.FS`, so the injection keeps working. `cmd/xp-provider-gen/main.go:98-106` does not override it.
+  - Apply writes to the injected `machinery.Filesystem`'s `FS` (an `afero.Fs`), so the injection keeps working. `cmd/xp-provider-gen/main.go:98-106` does not override it.
   - What is bypassed is only machinery's *write step* (`machinery/scaffold.go:511-551`): its `IfExistsAction` switch and its fixed `0644` mode.
+- **Path containment.** Apply's `checkContained` (`update.go:413-418`) now also guards `init` and
+  `create api`, where today only `update` runs it. This is hardening, not a change for valid
+  projects. It is also one of the ways an existing kind can fail `create api` (§4.1.7).
 - **File modes.** Apply writes `core.FileMode(rel)`, so `ExecutableBitStep` becomes redundant for init
   and `create api` ([Q7](#7-open-questions)). Scaffold-diff runs `diff -r`, which ignores modes, so the
   step that moves init onto Apply needs an explicit mode check.
@@ -258,8 +286,8 @@ then removes it ([Q3](#7-open-questions)).
 | Option | What it is | Benefit | Cost |
 |---|---|---|---|
 | **A. Status quo** | Keep three assembly sites and two write rules. | No work, no behavior change. | Every new per-flavor input is threaded by hand three times, and the render test checks a copy of the sequence rather than the production one. `create api` never refreshes stale tool-owned files. `--force` stays subtle. Task 10 adds a third upjet-aware copy. |
-| **B. Share assembly only** | One function returns the builders for a scope. `init` and `create api` still `Execute` onto the injected filesystem with machinery's actions; `update` still executes into memfs and reconciles. | Behavior-preserving and provable by scaffold-diff (S–M). One place threads `WithUpjet`, force and generators. `render_test.go` exercises production assembly instead of a copy. | Two write rules remain, and so do the §2.2 disagreements. |
-| **C. Full Render + Apply** | This proposal. | One write rule, which is the ownership contract. `create api` keeps projects fresh. `--force` disappears. Script modes are handled in one place. | L. Changes `create api` behavior (§4.1) and needs the §7 decisions. Adds a memfs round-trip to `init` and `create api` (negligible: `update` already does it). |
+| **B. Share assembly only** | `engine.Render` (§3.1) with the caller's destination. `init` and `create api` render straight onto the injected filesystem with machinery's actions (`ScopeInit`, and `ScopeKind` + `WithForce(p.Force)`); `update` renders `ScopeProject` into memfs and reconciles as today. | Behavior-preserving and provable by scaffold-diff. S: Render lives in `templates/engine` beside `render_test.go`, its fixtures (`newTestConfig`, `fixtureResources`) and the golden maps (`ownership_test.go`), so the existing render tests switch to the production function with no fixture moves. One place threads `WithUpjet`, force and generators. | Two write rules remain, and so do the §2.2 disagreements. |
+| **C. Full Render + Apply** | This proposal. | One write rule for `init`, `create api` and `update`, which is the ownership contract (`create-test` stays on machinery's `Error`, §4.4). `create api` keeps projects fresh. `--force` disappears. Script modes are handled in one place. | L. Changes `create api` behavior (§4.1), including its new dependence on every existing kind being valid (§4.1.7), and needs the §7 decisions. Adds a memfs round-trip to `init` and `create api` (negligible: `update` already does it). |
 
 **Recommendation: B now, C after acceptance.** B is step 1 of C's migration (§6), so nothing is
 wasted if C is accepted, and B stands on its own if it is not. This matches the review's split
@@ -276,10 +304,10 @@ Scaffold-diff means `scaffold-diff.sh <base> <head>` exits 0 for both flavors.
 
 | # | PR (type) | Change | Test first | Acceptance |
 |---|---|---|---|---|
-| 1 | `refactor:` | Extract the assembly into the `scaffold` package (option B): `init`, `create api`, `renderToMemFS` and `render_test.go`'s `renderProject` all call it. | `TestRenderAllTemplates` (`render_test.go:203`) and `TestRenderUpjetGeneratorsWithoutResources` (`:265`) already cover both flavors. They live in package `engine`, which `scaffold` imports, so in the same PR move them to package `scaffold` and have them call the production function (an `engine` test cannot import `scaffold` without an import cycle). | Scaffold-diff identical; `make test` green. |
-| 2 | `refactor:` | Extract `Apply` + `Policy` from `update.go:393-457` into `scaffold`; `update` calls `Apply(mem, OsFs, OwnershipGate(...))`. | `TestReconcile` (`update_test.go:86`), `TestReconcile_NestedSeed` (`:235`) and Task 10's upjet no-seed test move with the code. Add a table test for §3.2's decision table, including the predicate and modes. | Scaffold-diff identical (init and `create api` untouched); the controller's `make upgrade-sim` green. |
-| 3 | `refactor:` | `init` → `Render(ScopeInit)` + `Apply(SeedOnly)` into `fs.FS`. | Apply into an empty memfs gives the same path set as `renderProject`'s init stage; `.sh` files land `0755`, others `0644`. | Scaffold-diff identical, **plus a mode comparison** (`find . -type f -perm -u+x` in both trees, since `diff -r` ignores modes); `make e2e-test` and `make e2e-upjet` green (controller). |
-| 4 | `feat:` (behavior change) | `create api` → `Render(ScopeProject)` + `Apply(OwnershipGate(inKind))`; `--force` prints a deprecation notice. | (a) `init` → `create api A` → append a marker to A's `wiring.go` → delete A's `examples/<group>/<kind>.yaml` → `create api B`. Assert the marker is gone, A's `external.go` is unchanged, and the example is **not** re-seeded. (b) Re-running `create api A` without `--force` refreshes A's `wiring.go`. (c) Upjet: with persisted-only settings, delete `Makefile` and `AGENTS.md` → `create api` → neither is seeded, no tool-owned output has an empty quoted Terraform value, and no tool-owned per-kind upjet template reads `.TerraformResource`. | Scaffold-diff identical. A fresh tree has nothing stale, so identical output is expected, and tests (a)–(c) are the real acceptance. The release note lists §4.1. |
+| 1 | `refactor:` | Add `engine.Render` (option B). `scaffold/init.go` calls `Render(fs, …, ScopeInit)`, `create api` calls `Render(fs, …, ScopeKind, WithForce(p.Force))`, and `renderToMemFS` calls `Render(mem, …, ScopeProject, WithForce(true))`. | `TestRenderAllTemplates` (`render_test.go:196`) and `TestRenderUpjetGeneratorsWithoutResources` (`:258`) already cover both flavors, in the same package. In the same PR, `renderProject` (`:73-131`) becomes `Render(ScopeInit)` followed by `Render(ScopeKind)` per fixture kind (the production init + `create api` sequence), keeping its fixtures and the golden maps where they are. | Scaffold-diff identical; `make test` green. |
+| 2 | `refactor:` | Extract `Apply` + `Policy` from `update.go:387-451` into `scaffold`; `update` calls `Apply(mem, OsFs, OwnershipGate(...))`. | `TestReconcile` (`update_test.go:86`), `TestReconcile_NestedSeed` (`:235`) and Task 10's upjet no-seed test move with the code. Add a table test for §3.2's decision table, including the predicate and modes. | Scaffold-diff identical (init and `create api` untouched); the controller's `make upgrade-sim` green. |
+| 3 | `refactor:` | `init` → `Render(mem, …, ScopeInit)` + `Apply(SeedOnly)` into the injected FS. | Apply into an empty memfs gives the same path set as `renderProject`'s init stage; `.sh` files land `0755`, others `0644`. | Scaffold-diff identical, **plus a mode comparison** (`find . -type f -perm -u+x` in both trees, since `diff -r` ignores modes); `make e2e-test` and `make e2e-upjet` green (controller). |
+| 4 | `feat:` (behavior change) | `create api` → flavor-aware `validateProject` (shared with `update`, §4.1.7) → `Render(mem, …, ScopeProject)` + `Apply(OwnershipGate(inKind))`; `--force` prints a deprecation notice. | (a) `init` → `create api A` → append a marker to A's `wiring.go` → delete A's `examples/<group>/<kind>.yaml` → `create api B`. Assert the marker is gone, A's `external.go` is unchanged, and the example is **not** re-seeded. (b) Re-running `create api A` without `--force` refreshes A's `wiring.go`. (c) Upjet: with persisted-only settings, delete `Makefile` and `AGENTS.md` → `create api` → neither is seeded, no tool-owned output has an empty quoted Terraform value, and no tool-owned per-kind upjet template reads `.TerraformResource`. (d) A PROJECT whose *existing* kind is invalid (e.g. a hand-edited group with `..`) → `create api B` fails with "PROJECT is not usable" and writes nothing; on an upjet provider, an existing reserved-word kind is accepted. | Scaffold-diff identical. A fresh tree has nothing stale, so identical output is expected, and tests (a)–(d) are the real acceptance. The release note lists §4.1. |
 | 5 | `refactor:` | Clean up per §7: remove `--force` (or keep it), remove `ExecutableBitStep` from the init pipelines (`automation/pipeline.go:55,70`) if Apply's modes cover it, and optionally switch the ownership doc to `IsToolOwned(body)`. | Step 3's mode test; `TestInitPipelines_ShareLeadingStepsAndFinalStep` updated deliberately. | Scaffold-diff identical + mode comparison; both e2e scripts green. |
 
 Steps 1–3 are behavior-preserving and can merge whether or not step 4 is accepted.
@@ -287,8 +315,10 @@ Steps 1–3 are behavior-preserving and can merge whether or not step 4 is accep
 ## 7. Open questions
 
 1. **Refresh scope of `create api`.** Accept that `create api` refreshes other kinds' and init-level
-   tool-owned files (§4.1.1)? If not, `create api` uses `ScopeKind` with the same gate: it still fixes the
-   stale re-run (§4.1.2) but never touches other kinds.
+   tool-owned files (§4.1.1)? Accepting also means `create api` fails whenever any existing kind in
+   PROJECT fails validation, rendering or path containment (§4.1.7). If not, `create api` uses
+   `ScopeKind` with the same gate: it still fixes the stale re-run (§4.1.2), never touches other
+   kinds, and stays independent of them.
 2. **Version skew.** When the running generator is newer than the version stamped in PROJECT
    (`projectmeta.go:33`, `Version`), should `create api`:
    - (a) refresh anyway;
@@ -303,10 +333,11 @@ Steps 1–3 are behavior-preserving and can merge whether or not step 4 is accep
    every deleted user-owned file, like `update`?
 6. **Idempotent writes.** Should Apply skip byte-identical overwrites, so that mtimes stay untouched and
    "Refreshed N file(s)" counts only real changes?
-7. **`ExecutableBitStep`.** Remove it once Apply writes modes? `update --adopt` still writes `0644`
-   (`update.go:206`) and would need the same rule.
-8. **Package home.** `scaffold` (proposed, since `v2` already imports it) or `templates/engine`? Engine
-   has no afero write path today, and `scaffold` would be a thin package.
+7. **`ExecutableBitStep`.** Remove it from the init pipelines once Apply writes modes? (`update --adopt`
+   already uses `core.FileMode`, `update.go:206`.)
+8. **Package home for Apply.** Render belongs in `templates/engine` (§3.1). For Apply, the choice is
+   `scaffold` (proposed: the write side, already imported by `v2`, and it keeps `core` free of afero)
+   or `core`, next to `DecideWrite` and `FileMode`, which would add afero to `core`'s imports.
 
 ---
 
