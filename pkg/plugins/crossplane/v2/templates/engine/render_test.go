@@ -111,11 +111,15 @@ func renderProject(t *testing.T, flavor core.Flavor) afero.Fs {
 
 	for i := range res {
 		r := &res[i]
+		// Mirror create api: per-kind templates get only what PROJECT persists
+		// (the resource prefix) plus --terraform-resource, never init's full
+		// settings, so they render here exactly as empty as in production.
 		var perKind *core.UpjetSettings
 		if settings != nil {
-			s := *settings
-			s.TerraformResource = testTerraformProviderName + "_" + strings.ToLower(r.Kind)
-			perKind = &s
+			perKind = &core.UpjetSettings{
+				TerraformResourcePrefix: settings.TerraformResourcePrefix,
+				TerraformResource:       testTerraformProviderName + "_" + strings.ToLower(r.Kind),
+			}
 		}
 		apiTemplates, err := factory.GetAPITemplates(WithResource(r), WithUpjet(perKind))
 		if err != nil {
@@ -220,6 +224,13 @@ func TestRenderAllTemplates(t *testing.T) {
 			got := renderedPaths(t, renderProject(t, tt.flavor))
 			want := expectedPaths(t, tt.golden, tt.generators)
 
+			// A literal anchor: want expands IMAGENAME with the same function
+			// production uses, so a regression there would move both sides.
+			const anchor = "cluster/images/provider-test/Dockerfile"
+			if !got[anchor] {
+				t.Errorf("%s not rendered", anchor)
+			}
+
 			if missing := missingFrom(want, got); len(missing) > 0 {
 				t.Errorf("expected paths not rendered:\n  %s", strings.Join(missing, "\n  "))
 			}
@@ -245,5 +256,23 @@ func TestRenderUpjetDerivesNamespacedDomain(t *testing.T) {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("%s does not contain %s", path, want)
 		}
+	}
+}
+
+// TestRenderUpjetGeneratorsWithoutResources renders the generators the way
+// init does, before any kind exists: a fresh upjet provider ships the
+// zero-resource config/zz_resources.go.
+func TestRenderUpjetGeneratorsWithoutResources(t *testing.T) {
+	mem := afero.NewMemMapFs()
+	cfg := newTestConfig(t)
+	scaffold := machinery.NewScaffold(machinery.Filesystem{FS: mem},
+		machinery.WithConfig(cfg),
+		machinery.WithBoilerplate(DefaultBoilerplate()),
+	)
+	if err := scaffold.Execute(UpjetCoreGenerators(cfg, nil)...); err != nil {
+		t.Fatalf("rendering upjet generators without resources: %v", err)
+	}
+	if ok, err := afero.Exists(mem, upjetResourcesPath); err != nil || !ok {
+		t.Errorf("%s not rendered (exists=%v, err=%v)", upjetResourcesPath, ok, err)
 	}
 }
