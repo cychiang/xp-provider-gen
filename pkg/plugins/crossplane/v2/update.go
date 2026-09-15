@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -32,6 +31,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/config/store/yaml"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/automation"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
@@ -203,7 +203,7 @@ func adoptFile(src, dst afero.Fs, srcPath string) (string, bool, error) {
 	if core.IsToolOwned(existing) {
 		return "", false, nil // already carries the header
 	}
-	if err := afero.WriteFile(dst, rel, insertGeneratedHeader(existing), 0o644); err != nil {
+	if err := afero.WriteFile(dst, rel, insertGeneratedHeader(existing), core.FileMode(rel)); err != nil {
 		return "", false, err
 	}
 	return rel, true, nil
@@ -256,15 +256,9 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("%w\n%s", err, revertAdvice(result.seeded))
 	}
 
-	fmt.Println("Finalizing (go mod tidy, make generate, make reviewable)...")
-	for _, step := range [][]string{
-		{"go", "mod", "tidy"},
-		{"make", "generate"},
-		{"make", "reviewable"},
-	} {
-		if err := runVisible(ctx, step[0], step[1:]...); err != nil {
-			return fmt.Errorf("%s failed: %w\n%s", strings.Join(step, " "), err, revertAdvice(result.seeded))
-		}
+	fmt.Println("Finalizing...")
+	if err := automation.NewUpdateFinalizePipeline().Run(); err != nil {
+		return fmt.Errorf("%w\n%s", err, revertAdvice(result.seeded))
 	}
 
 	if err := stampProvenance(store); err != nil {
@@ -486,20 +480,11 @@ func applyDependencies(ctx context.Context, flavor core.Flavor) error {
 		return fmt.Errorf("loading dependency manifest: %w", err)
 	}
 	fmt.Printf("Applying %d framework dependency version(s)...\n", len(deps))
+	runner := core.NewCommandRunner("")
 	for _, d := range deps {
-		if err := runVisible(ctx, "go", "get", d.Module+"@"+d.Version); err != nil {
+		if err := runner.RunStreaming(ctx, os.Stdout, os.Stderr, "go", "get", d.Module+"@"+d.Version); err != nil {
 			return fmt.Errorf("go get %s@%s: %w", d.Module, d.Version, err)
 		}
 	}
 	return nil
-}
-
-// runVisible runs a command with stdout/stderr connected so the user sees progress.
-// The name and args are always fixed tool commands (go, make) or dependency
-// coordinates from the embedded, repo-controlled manifest — never user input.
-func runVisible(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- see doc comment
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }

@@ -109,6 +109,19 @@ Scaffolded CRD, controller, and client code for %s resource`, resourceKind, reso
 	}
 }
 
+// NewUpdateFinalizePipeline brings a native provider back to a reviewable state
+// after `update` has refreshed its files and dependency versions. Every step
+// streams, since together they take minutes.
+func NewUpdateFinalizePipeline() *Pipeline {
+	return &Pipeline{
+		steps: []Step{
+			NewStreamingCommandStep("go", "mod", "tidy"),
+			NewStreamingCommandStep("make", "generate"),
+			NewStreamingCommandStep("make", "reviewable"),
+		},
+	}
+}
+
 func (p *Pipeline) Run() error {
 	for i, step := range p.steps {
 		fmt.Printf("  %d. %s...\n", i+1, step.Name())

@@ -34,7 +34,8 @@ const (
 )
 
 // Flavors lists every flavor this tool knows how to scaffold. Valid and the
-// template roots derive from it, so adding a flavor starts here.
+// template roots derive from it, so adding a flavor starts here and in
+// TemplateRoot.
 var Flavors = []Flavor{FlavorNative, FlavorUpjet}
 
 // TemplateRoot is the directory in the embedded template FS that holds this

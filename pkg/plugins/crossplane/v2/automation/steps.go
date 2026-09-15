@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
@@ -217,4 +218,26 @@ func (s *GoModTidyStep) Name() string {
 
 func (s *GoModTidyStep) Execute() error {
 	return core.NewCommandRunner("").Run(context.Background(), "go", "mod", "tidy")
+}
+
+// StreamingCommandStep runs a command whose output the user watches live:
+// update's finalize steps take minutes, and Run's buffered output would leave
+// the terminal silent until they finish.
+type StreamingCommandStep struct {
+	name string
+	args []string
+}
+
+// NewStreamingCommandStep builds a step that runs name with args, streaming its
+// output to the terminal.
+func NewStreamingCommandStep(name string, args ...string) *StreamingCommandStep {
+	return &StreamingCommandStep{name: name, args: args}
+}
+
+func (s *StreamingCommandStep) Name() string {
+	return "Run " + strings.Join(append([]string{s.name}, s.args...), " ")
+}
+
+func (s *StreamingCommandStep) Execute() error {
+	return core.NewCommandRunner("").RunStreaming(context.Background(), os.Stdout, os.Stderr, s.name, s.args...)
 }

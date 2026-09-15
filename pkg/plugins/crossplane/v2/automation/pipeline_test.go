@@ -23,6 +23,12 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
+// Display names of the make steps several pipelines share.
+const (
+	stepNameMakeGenerate   = "Run make generate"
+	stepNameMakeReviewable = "Run make reviewable"
+)
+
 // fakeStep records whether it ran and optionally fails.
 type fakeStep struct {
 	name string
@@ -64,9 +70,17 @@ func TestNewInitPipeline_CommitsLast(t *testing.T) {
 		"Add build submodule from " + cfg.Git.BuildSubmoduleURL,
 		"Run make submodules",
 		"Download dependencies (go mod tidy)",
-		"Run make generate",
-		"Run make reviewable",
+		stepNameMakeGenerate,
+		stepNameMakeReviewable,
 		stepNameInitialCommit,
+	})
+}
+
+func TestNewUpdateFinalizePipeline(t *testing.T) {
+	assertStepOrder(t, NewUpdateFinalizePipeline(), []string{
+		"Run go mod tidy",
+		stepNameMakeGenerate,
+		stepNameMakeReviewable,
 	})
 }
 
@@ -136,7 +150,7 @@ func TestNewAPICommitPipeline_CommitsLast(t *testing.T) {
 	p := NewAPICommitPipeline(cfg, "Bucket")
 
 	assertStepOrder(t, p, []string{
-		"Run make generate",
+		stepNameMakeGenerate,
 		"Commit changes (fold into initial scaffold if applicable)",
 	})
 }
@@ -158,5 +172,26 @@ func TestPipeline_Run_AbortsOnFirstFailure(t *testing.T) {
 	}
 	if secondRan {
 		t.Error("second step must not run after a failure")
+	}
+}
+
+// TestPipeline_Run_StreamingStepFailureMessage pins the full message a user
+// sees when a streaming step fails: the step name once, then the exit status,
+// with no repeated command and no trailing space when there are no arguments.
+func TestPipeline_Run_StreamingStepFailureMessage(t *testing.T) {
+	tests := []struct {
+		step *StreamingCommandStep
+		want string
+	}{
+		{step: NewStreamingCommandStep("go", "bogus-subcommand"), want: "Run go bogus-subcommand failed: exit status 2"},
+		{step: NewStreamingCommandStep("go"), want: "Run go failed: exit status 2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.step.Name(), func(t *testing.T) {
+			err := (&Pipeline{steps: []Step{tt.step}}).Run()
+			if err == nil || err.Error() != tt.want {
+				t.Fatalf("Run() error = %q, want %q", err, tt.want)
+			}
+		})
 	}
 }
