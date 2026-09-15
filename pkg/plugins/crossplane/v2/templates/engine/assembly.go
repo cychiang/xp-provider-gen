@@ -34,18 +34,22 @@ func AsBuilders(products []TemplateProduct) []machinery.Builder {
 	return builders
 }
 
-// CoreGenerators returns every deterministically generated tool-owned file:
-// the two registration files and the ownership doc. They are always emitted
-// together so init, create api and update cannot drift from one another.
 // UpjetCoreGenerators returns the deterministically generated files for an
 // upjet project: the resource aggregator plus the ownership doc. Upjet itself
 // generates the scheme and controller registration (zz_setup.go), so the
-// native register generators have no counterpart here.
+// native register generators have no counterpart here. As for native, the
+// go.mod seeder is wired separately by init; a zero-dep instance supplies its
+// path and ownership to the doc.
 func UpjetCoreGenerators(cfg config.Config, resources []resource.Resource) []machinery.Builder {
-	res := NewUpjetResourcesGenerator(cfg.GetRepository(), resources)
-	return []machinery.Builder{res, NewOwnershipDocGenerator(core.FlavorUpjet, res)}
+	repo := cfg.GetRepository()
+	res := NewUpjetResourcesGenerator(repo, resources)
+	return []machinery.Builder{res, NewOwnershipDocGenerator(core.FlavorUpjet, res, NewGoModGenerator(repo, nil))}
 }
 
+// CoreGenerators returns every deterministically generated tool-owned file for
+// a native project: the two registration files and the ownership doc. They are
+// always emitted together so init, create api and update cannot drift from one
+// another.
 func CoreGenerators(cfg config.Config, resources []resource.Resource) []machinery.Builder {
 	repo := cfg.GetRepository()
 	providerName := core.ExtractProviderName(repo)
