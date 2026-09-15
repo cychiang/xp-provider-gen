@@ -76,8 +76,9 @@ func TestRefuseUnsupportedFlavor(t *testing.T) {
 		if err := cfg.EncodePluginConfig(pluginName, projectMeta{Flavor: unknownTestFlavor}); err != nil {
 			t.Fatalf("EncodePluginConfig: %v", err)
 		}
-		if err := refuseUnsupportedFlavor(cfg); err == nil {
-			t.Fatal("refuseUnsupportedFlavor() on a project with an unknown flavor = nil, want an error")
+		err := refuseUnsupportedFlavor(cfg)
+		if err == nil || !strings.Contains(err.Error(), string(unknownTestFlavor)) {
+			t.Fatalf("refuseUnsupportedFlavor() on a project with an unknown flavor = %v, want an error naming %q", err, unknownTestFlavor)
 		}
 	})
 }
