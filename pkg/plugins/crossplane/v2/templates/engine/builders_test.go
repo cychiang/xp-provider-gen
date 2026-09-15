@@ -44,7 +44,7 @@ func newTestConfig(t *testing.T) config.Config {
 // settings read back from PROJECT carry no NamespacedDomain (json:"-"), and
 // applying them must not wipe the value Configure derives from the domain.
 func TestBuildTemplate_DerivesNamespacedDomainFromPersistedSettings(t *testing.T) {
-	persisted := &core.UpjetSettings{TerraformResourcePrefix: "kubernetes"}
+	persisted := &core.UpjetSettings{TerraformResourcePrefix: testTerraformProviderName}
 	info := AnalyzeTemplatePath("upjet/config/provider.go.tmpl")
 
 	product, err := BuildTemplate(newTestConfig(t), info, WithUpjet(persisted))
