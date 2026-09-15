@@ -15,7 +15,6 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/scaffold"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
-	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 var _ plugin.InitSubcommand = &initSubcommand{}
@@ -30,7 +29,8 @@ type initSubcommand struct {
 
 	// upjet selects the upjet flavor and carries its Terraform coordinates.
 	// The Terraform CLI version is deliberately not here: it is a tool
-	// decision (pkg/versions.TerraformVersion), not a flag.
+	// decision (pkg/versions.TerraformVersion, applied when templates render),
+	// not a flag.
 	upjet             bool
 	tfProvider        string
 	tfProviderVersion string
@@ -104,7 +104,6 @@ func (p *initSubcommand) upjetSettings() (*core.UpjetSettings, error) {
 		TerraformProviderVersion: p.tfProviderVersion,
 		TerraformProviderRepo:    repo,
 		TerraformDocsPath:        p.tfDocsPath,
-		TerraformVersion:         versions.TerraformVersion,
 		TerraformResourcePrefix:  name,
 	}, nil
 }

@@ -153,7 +153,9 @@ provider-awesome/
 │   ├── setup.sh
 │   └── behavior/               # chainsaw behavior tests
 ├── cluster/local/integration_tests.sh
-├── hack/                      # boilerplate license header for generated code
+├── hack/
+│   ├── boilerplate.go.txt     # license header for generated code
+│   └── xp-provider-gen.mk     # generated — the build pipeline the Makefile includes
 ├── docs/ownership.md          # generated — which files are yours
 ├── AGENTS.md                  # yours — orientation for humans and agents
 ├── OWNERS.md
@@ -163,7 +165,7 @@ provider-awesome/
 │   ├── crossplane.yaml        # Provider metadata (with safe-start capability)
 │   └── crds/                  # Generated CRDs
 ├── examples/                  # usage examples — also uptest's lifecycle input (make e2e)
-└── Makefile                   # Build automation
+└── Makefile                   # YOURS — project variables, then includes hack/xp-provider-gen.mk
 ```
 
 ## License

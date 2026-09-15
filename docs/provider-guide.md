@@ -231,11 +231,12 @@ git commit -m "chore: update provider core"
 
 It stops there deliberately — no commit — so `git diff` is your review surface.
 
-**What you should see in that diff:** tool-owned files, `go.mod` / `go.sum` version
-lines, regenerated `zz_generated.*` and CRDs.
+**What you should see in that diff:** tool-owned files (including the build pipeline in
+`hack/xp-provider-gen.mk`), `go.mod` / `go.sum` version lines, regenerated
+`zz_generated.*` and CRDs.
 
 **What you should never see:** `external.go`, `client.go`, `options.go`, any
-`*_types.go`, or `AGENTS.md`. If one appears, that is a bug in the generator, not
+`*_types.go`, `AGENTS.md`, or your `Makefile`. If one appears, that is a bug in the generator, not
 something to work around — please report it with the diff.
 
 If a step fails midway, `git reset --hard` returns you to where you started. That is
@@ -251,6 +252,28 @@ xp-provider-gen update --adopt   # adds headers to recognised tool-owned files
 git diff && git commit -m "chore: adopt xp-provider-gen ownership contract"
 xp-provider-gen update           # now refreshes them normally
 ```
+
+### Moving an older Makefile onto the refreshable pipeline
+
+Newer providers keep their build pipeline in `hack/xp-provider-gen.mk`, which is
+tool-owned, and their `Makefile` holds only project variables followed by
+`include hack/xp-provider-gen.mk`. A provider scaffolded before that split has the whole
+pipeline in its user-owned `Makefile`, which `update` never edits — so pipeline fixes
+do not reach it until you migrate once:
+
+1. Run `xp-provider-gen update`. It seeds `hack/xp-provider-gen.mk`; nothing includes it
+   yet, so the build behaves exactly as before.
+2. In your `Makefile`, keep the project variables — `PROJECT_NAME`, `PROJECT_REPO`,
+   `PLATFORMS`, and on an upjet provider `TERRAFORM_PROVIDER_SOURCE`,
+   `TERRAFORM_PROVIDER_REPO`, `TERRAFORM_PROVIDER_VERSION`,
+   `TERRAFORM_PROVIDER_DOWNLOAD_NAME`, `TERRAFORM_NATIVE_PROVIDER_BINARY`,
+   `TERRAFORM_DOCS_PATH` — and any targets you added yourself. Replace everything
+   else, including `TERRAFORM_VERSION`, with one line after the variables:
+   `include hack/xp-provider-gen.mk`. A pipeline variable the fragment sets with `?=`
+   (`KIND_CLUSTER_NAME`, `CROSSPLANE_VERSION`, `XPKG_REG_ORGS`, …) can still be
+   overridden above that line.
+3. Compare the result with the `Makefile` of a freshly scaffolded provider of the same
+   flavor, run `make reviewable` (upjet: `make generate` first), and commit both files.
 
 Providers generated before the modular layout (`external.go` / `wiring.go` /
 `internal/provider`) must be regenerated instead — there is no in-place migration
@@ -273,8 +296,9 @@ objects in your clusters must be replaced with a `ProviderConfig` in each
 consuming namespace.
 
 On such providers `update` also seeds the new `test/` tree — but two pieces it
-cannot deliver live in user-owned files: the Makefile's uptest section (copy the
-"Setup Uptest" block from a fresh scaffold to get `make e2e` / `test-behavior`)
+cannot deliver live in user-owned files: the Makefile's uptest section (move the
+Makefile onto `hack/xp-provider-gen.mk` as described above to get `make e2e` /
+`test-behavior`)
 and the sample drift-mirroring in `external.go` that the seeded pause test's
 `status.atProvider` assertions rely on (irrelevant once you implement real
 logic — adjust or delete the seed test to match your controller's behavior).

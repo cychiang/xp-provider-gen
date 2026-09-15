@@ -33,11 +33,12 @@ repository is guessed from the provider name and can be overridden with
 
 The Terraform *CLI* version is not one of these: it is the generator's call, not
 yours. It lives in the tool's own `pkg/versions/dependencies.yaml` and is
-rendered into your Makefile's `TERRAFORM_VERSION` at `init`. The whole upjet
+rendered into `TERRAFORM_VERSION` in `hack/xp-provider-gen.mk` — the tool-owned
+build pipeline your Makefile includes, refreshed by `xp-provider-gen update`. The whole upjet
 ecosystem stays below Terraform 1.6 because 1.6+ is BSL-licensed, which is a
 licensing question about what the ecosystem ships rather than something a
-single provider decides — so there is no flag to override it. If you edit
-`TERRAFORM_VERSION` in the generated Makefile by hand, its own
+single provider decides — so there is no flag to override it. If you set
+`TERRAFORM_VERSION` in your Makefile by hand, the fragment's
 `check-terraform-version` target still refuses anything `>= 1.6.0`.
 
 Unlike a native provider, a freshly scaffolded upjet project **does not compile
@@ -263,6 +264,7 @@ stale duplicate behind to contradict it.
 | `config/<kind>/config.go` — per-resource configuration | `config/provider.go`, `config/zz_resources.go` |
 | `internal/clients/clients.go` — credentials → Terraform setup | `internal/clients/resolve.go` |
 | `apis/*/v1beta1/types.go` — ProviderConfig spec | the `go:generate` chain, generator entrypoint, ProviderConfig controllers |
+| `Makefile` — project and `TERRAFORM_PROVIDER_*` variables, your own targets | `hack/xp-provider-gen.mk` — the build pipeline, Terraform CLI version, schema download |
 
 Tool-owned files carry the `DO NOT EDIT` header, and `xp-provider-gen update`
 refreshes them after you upgrade the generator — picking up a fix only a newer

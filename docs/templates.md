@@ -78,7 +78,10 @@ Upjet bodies also see `.TerraformProvider`, `.TerraformProviderName`,
 `.TerraformProviderVersion`, `.TerraformProviderRepo`, `.TerraformDocsPath`,
 `.TerraformVersion`, `.TerraformResource` and `.NamespacedDomain`
 (`core/upjet.go`), plus the `lower` template func, e.g.
-`{{ .Resource.Kind | lower }}` in `config/KIND/config.go.tmpl`.
+`{{ .Resource.Kind | lower }}` in `config/KIND/config.go.tmpl`. `.NamespacedDomain` and
+`.TerraformVersion` are always set: `BaseTemplateProduct.Configure` derives the
+first from the domain and takes the second from `pkg/versions` when the caller
+leaves them empty, which is what `update` does after reading PROJECT back.
 
 ## When a file is not enough: generators
 

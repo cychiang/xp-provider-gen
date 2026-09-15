@@ -121,6 +121,7 @@ assert_ownership() {
         "internal/controller/config/config.go" \
         "internal/provider/connector.go" \
         "internal/controller/${KIND1_LOWER}/wiring.go" \
+        "hack/xp-provider-gen.mk" \
         "docs/ownership.md"; do
         if grep -q "$marker" "$f" 2>/dev/null; then
             log_success "✓ tool-owned: $f"
@@ -137,6 +138,7 @@ assert_ownership() {
         "internal/provider/options.go" \
         "apis/$GROUP/$VERSION/${KIND1_LOWER}_types.go" \
         "apis/v1alpha1/types.go" \
+        "Makefile" \
         "AGENTS.md"; do
         if grep -q "$marker" "$f" 2>/dev/null; then
             log_error "✗ user-owned file unexpectedly has header: $f"
@@ -336,6 +338,7 @@ main() {
     for f in \
         "internal/controller/${KIND1_LOWER}/wiring.go" \
         "internal/provider/connector.go" \
+        "hack/xp-provider-gen.mk" \
         "docs/ownership.md"; do
         if grep -q "DO NOT EDIT" "$f"; then
             log_success "✓ tool-owned refreshed (header intact): $f"
