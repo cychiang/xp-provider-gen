@@ -20,6 +20,9 @@ import (
 	"slices"
 	"testing"
 
+	"sigs.k8s.io/kubebuilder/v4/pkg/config"
+	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
+
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
@@ -33,6 +36,7 @@ func TestGeneratorBodiesCarryOwnershipHeader(t *testing.T) {
 		"apis_register.go.tmpl",
 		"controller_register.go.tmpl",
 		"ownership_doc.md.tmpl",
+		"upjet_resources.go.tmpl",
 	} {
 		if !core.IsToolOwned([]byte(templates.GeneratorBody(name))) {
 			t.Errorf("generator body %q lost the %q header — update would stop refreshing its output",
@@ -67,10 +71,30 @@ func TestOwnershipDocClassifiesGeneratorOutputs(t *testing.T) {
 
 // TestOwnershipDocClassifiesUpjetOutputs pins A5: the doc for an upjet project
 // must describe upjet's own tree, not the native one it used to walk
-// unconditionally regardless of which flavor asked for it.
+// unconditionally regardless of which flavor asked for it. It builds the doc
+// through UpjetCoreGenerators so it covers the production wiring, which must
+// list the go.mod init seeds as user-owned just as the native doc does.
 func TestOwnershipDocClassifiesUpjetOutputs(t *testing.T) {
-	res := NewUpjetResourcesGenerator(testRepo, nil)
-	g := NewOwnershipDocGenerator(core.FlavorUpjet, res)
+	cfg, err := config.New(cfgv3.Version)
+	if err != nil {
+		t.Fatalf("config.New: %v", err)
+	}
+	if err := cfg.SetRepository(testRepo); err != nil {
+		t.Fatalf("SetRepository: %v", err)
+	}
+	var g *OwnershipDocGenerator
+	for _, b := range UpjetCoreGenerators(cfg, nil) {
+		if doc, ok := b.(*OwnershipDocGenerator); ok {
+			g = doc
+		}
+	}
+	if g == nil {
+		t.Fatal("UpjetCoreGenerators returned no *OwnershipDocGenerator")
+	}
+
+	if !slices.Contains(g.UserOwned, goModPath) {
+		t.Errorf("user-owned bucket is missing %q; got %v", goModPath, g.UserOwned)
+	}
 
 	if !slices.Contains(g.ToolOwned, "config/provider.go") {
 		t.Errorf("tool-owned bucket is missing %q; got %v", "config/provider.go", g.ToolOwned)
