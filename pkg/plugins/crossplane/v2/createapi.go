@@ -51,7 +51,7 @@ This command scaffolds a complete managed resource with:
   # Create a network resource
   %s create api --group=network --version=v1alpha1 --kind=VPC
 
-  # Create resource and force overwrite existing files
+  # Re-create a resource, refreshing its tool-owned files
   %s create api --group=database --version=v1alpha1 --kind=PostgreSQL --force`,
 		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
 }
@@ -60,7 +60,8 @@ func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
 	p.ensureConfig()
 
 	defaults := p.pluginConfig.Defaults
-	fs.BoolVar(&p.Force, "force", defaults.Force, "overwrite existing files if they exist")
+	fs.BoolVar(&p.Force, "force", defaults.Force,
+		"overwrite existing tool-owned files (files without the generated header are never overwritten)")
 	fs.StringVar(&p.terraformResource, "terraform-resource", "",
 		"Terraform resource this kind is generated from, e.g. kubernetes_secret (required on an upjet provider)")
 }

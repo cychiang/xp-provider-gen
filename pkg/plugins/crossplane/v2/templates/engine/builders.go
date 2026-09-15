@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
+	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
@@ -98,6 +99,11 @@ func configureProduct(product *GenericTemplateProduct, cfg config.Config, option
 	}
 	if err := product.SetTemplateDefaults(); err != nil {
 		return fmt.Errorf("failed to set template defaults: %w", err)
+	}
+	// --force refreshes what the tool owns; a file without the generated
+	// header is the user's and is never overwritten, forced or not.
+	if options.Force && !core.IsToolOwned([]byte(product.TemplateBody)) {
+		product.IfExistsAction = machinery.SkipFile
 	}
 	return nil
 }
