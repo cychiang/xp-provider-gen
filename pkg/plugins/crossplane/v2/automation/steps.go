@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"strings"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
@@ -127,8 +126,8 @@ type MakeStep struct {
 // ExecutableBitStep marks scaffolded shell scripts executable: kubebuilder's
 // machinery writes every file 0644, but scripts are exec'd directly (uptest
 // runs test/setup.sh), so the bit must be set — and committed — at scaffold
-// time. It applies the same ".sh means executable" rule `update` uses when it
-// writes files, rather than a per-flavor list of paths that would need editing
+// time. It applies the same core.FileMode rule `update` uses when it writes
+// files, rather than a per-flavor list of paths that would need editing
 // whenever a scaffold gains a script.
 type ExecutableBitStep struct {
 	root string
@@ -165,10 +164,10 @@ func (s *ExecutableBitStep) Execute() error {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".sh") {
+		if core.FileMode(path) != core.ScriptMode {
 			return nil
 		}
-		if err := root.Chmod(path, 0o755); err != nil { // #nosec G302 -- executable script
+		if err := root.Chmod(path, core.ScriptMode); err != nil {
 			return fmt.Errorf("chmod +x %s: %w", path, err)
 		}
 		return nil

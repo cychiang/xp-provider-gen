@@ -453,11 +453,7 @@ func applyFile(src, dst afero.Fs, srcPath, rel string) (core.WriteDecision, erro
 	}
 	// Scripts are exec'd directly (uptest runs test/setup.sh), so the write
 	// layer owns the executable bit — seeded .sh files must not land 0644.
-	mode := fs.FileMode(0o644)
-	if strings.HasSuffix(rel, ".sh") {
-		mode = fs.FileMode(0o755) // #nosec G302 -- executable script by design
-	}
-	return decision, afero.WriteFile(dst, rel, newContent, mode)
+	return decision, afero.WriteFile(dst, rel, newContent, core.FileMode(rel))
 }
 
 type reconcileResult struct {
