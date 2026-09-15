@@ -91,7 +91,6 @@ to adding one — placeholders, the ownership header, the golden-test step.)
   `GROUP`/`VERSION`/`KIND` mean per-kind (`APICategory`), `IMAGENAME` or none mean
   `InitCategory`. Every path lands in one of the two, so discovery cannot silently drop a
   template; a walk error panics (the FS is embedded, so it is a build defect).
-  `product_generic.go` reads each body straight from `templates.TemplateFS`.
 - **Factory** — `factory.go` (`CrossplaneTemplateFactory`) walks a flavor's root of the embedded
   FS once (`NewFactoryForFlavor(cfg, flavor)`) and keeps the discovered templates in two
   slices — init and per-kind — which `GetInitTemplates` / `GetAPITemplates` render on demand.
@@ -101,7 +100,8 @@ to adding one — placeholders, the ownership header, the golden-test step.)
   (`BuildTemplate`): it resolves the output path's placeholders, applies the config,
   resource and `--force`, and loads the body.
 - **Products** — `product_base.go` (`BaseTemplateProduct`) embeds Kubebuilder machinery mixins;
-  `product_generic.go` (`GenericTemplateProduct`) loads any discovered template's body.
+  `product_generic.go` (`GenericTemplateProduct`) loads any discovered template's body
+  straight from `templates.TemplateFS`.
   Without `--force` the machinery action is the zero value `SkipFile`, which a second
   `create api` in an existing group/version depends on: `groupversion_info.go` has no
   `KIND` in its path, so it is already on disk and must be left alone. `--force` switches
