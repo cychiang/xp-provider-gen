@@ -42,7 +42,8 @@ cli.New(
 
 Kubebuilder routes `init` and `create api` to the plugin's subcommands, each driven through
 the standard lifecycle: `BindFlags` → `InjectConfig` → `PreScaffold` → `Scaffold` →
-`PostScaffold`. `update` is driven by its own `cobra` command.
+`PostScaffold`. `update` is driven by its own `cobra` command; like `create api`, it reads
+the project's flavor from PROJECT and renders, validates and finalizes with that flavor's sets.
 
 ## 2. Plugin layer (`pkg/plugins/crossplane/v2/`)
 
@@ -176,12 +177,19 @@ overwrite.
 `update` refreshes an existing provider's tool-owned core to the current generator:
 
 1. **Precondition** — the working tree must be clean (drift protection); the result is left
-   uncommitted for review via `git diff`.
-2. **Render** the full template set into an in-memory FS (`afero.NewMemMapFs`).
+   uncommitted for review via `git diff`. PROJECT's plugin block is loaded once and gates the
+   rest: its flavor picks the validator (upjet allows reserved kinds, as in `create api`).
+2. **Render** the flavor's full template set into an in-memory FS (`afero.NewMemMapFs`); upjet
+   renders with the settings PROJECT keeps (`WithUpjet`).
 3. **Reconcile** onto disk through `core.DecideWrite` (tool files overwritten, user files
-   skipped, new files seeded).
-4. **Bump dependencies** from the manifest via `go get` (go.mod's own requires preserved).
-5. `go mod tidy` / `make generate` / `make reviewable`; stamp the generator version into PROJECT.
+   skipped, new files seeded). On an upjet project a missing user-owned file is not seeded —
+   some such templates need init-time Terraform settings PROJECT does not keep, so none are
+   recreated — and is listed instead.
+4. **Bump dependencies** from the flavor's manifest set via `go get` (go.mod's own requires
+   preserved).
+5. **Finalize** — native: `go mod tidy` / `make generate` / `make reviewable`; upjet: `make
+   generate` first, since tidy cannot resolve the packages generation produces. Then stamp the
+   generator version into PROJECT.
 
 **`update --adopt`** retrofits a provider generated before the contract existed: it writes the
 header onto recognized tool-owned files (so plain `update` can manage them) and stamps
@@ -271,8 +279,10 @@ once the user commits their own work, later `create api` runs add separate commi
 and test name (flag or prompt) → render the chainsaw skeleton to
 `test/behavior/<name>/chainsaw-test.yaml` (never overwrites).
 
-**`update`** → require clean tree → render to memfs → reconcile via the ownership gate → bump
-deps via `go get` → tidy/generate/reviewable → stamp provenance (no commit; review the diff).
+**`update`** → require clean tree → load & validate PROJECT (flavor) → render the flavor's templates
+to memfs → reconcile via the ownership gate (upjet: missing user-owned files are not seeded) → bump
+the flavor's deps via `go get` → finalize (native: tidy/generate/reviewable; upjet:
+generate/tidy/reviewable) → stamp provenance (no commit; review the diff).
 
 **`update --adopt`** → require clean tree → render to memfs → add the header to recognized
 tool-owned on-disk files → stamp provenance (no commit).

@@ -122,6 +122,36 @@ func NewUpdateFinalizePipeline() *Pipeline {
 	}
 }
 
+// NewUpjetUpdateFinalizePipeline is NewUpdateFinalizePipeline for an upjet
+// provider, and differs only in order: `make generate` runs before `go mod
+// tidy`. cmd/provider imports the API and controller packages that generation
+// produces from the Terraform schema, so tidy fails on a project where they do
+// not exist yet, while the generator itself only needs modules go.mod already
+// requires. Generating first finalizes a never-generated project too, and
+// re-generating is not optional on an already-generated one: the generated
+// code must track the upjet version `update` just applied. Generation needs
+// network access (Terraform, the provider schema) and takes minutes on a cold
+// cache. Verified on an e2e-generated provider: never-generated, generated,
+// and after a framework dependency bump.
+func NewUpjetUpdateFinalizePipeline() *Pipeline {
+	return &Pipeline{
+		steps: []Step{
+			NewStreamingCommandStep("make", "generate"),
+			NewStreamingCommandStep("go", "mod", "tidy"),
+			NewStreamingCommandStep("make", "reviewable"),
+		},
+	}
+}
+
+// UpdateFinalizePipelineFor returns update's finalize pipeline for a project of
+// the given flavor. It is the one place update chooses between the two.
+func UpdateFinalizePipelineFor(flavor core.Flavor) *Pipeline {
+	if flavor == core.FlavorUpjet {
+		return NewUpjetUpdateFinalizePipeline()
+	}
+	return NewUpdateFinalizePipeline()
+}
+
 func (p *Pipeline) Run() error {
 	for i, step := range p.steps {
 		fmt.Printf("  %d. %s...\n", i+1, step.Name())

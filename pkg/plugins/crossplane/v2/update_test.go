@@ -24,63 +24,203 @@ import (
 	"github.com/spf13/afero"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
+	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
+	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
-// TestRefuseUnsupportedFlavor pins A1: update used to render the native
-// template set unconditionally, overwriting an upjet project's plumbing with
-// native files and leaving it unable to build. It must now refuse an upjet
-// PROJECT outright and leave a native one unaffected.
-func TestRefuseUnsupportedFlavor(t *testing.T) {
-	newCfg := func(t *testing.T) config.Config {
-		t.Helper()
-		cfg, err := config.New(cfgv3.Version)
-		if err != nil {
-			t.Fatalf("config.New: %v", err)
+// The group and version every update test resource lives in.
+const (
+	updateTestGroup   = "core"
+	updateTestVersion = "v1alpha1"
+)
+
+// newUpdateTestConfig builds a PROJECT config carrying the given plugin block
+// and resources, filled in the way createAPISubcommand.InjectResource does.
+func newUpdateTestConfig(t *testing.T, meta projectMeta, kinds ...string) config.Config {
+	t.Helper()
+	cfg, err := config.New(cfgv3.Version)
+	if err != nil {
+		t.Fatalf("config.New: %v", err)
+	}
+	if err := cfg.SetDomain("example.com"); err != nil {
+		t.Fatalf("SetDomain: %v", err)
+	}
+	if err := cfg.SetRepository("github.com/example/provider-test"); err != nil {
+		t.Fatalf("SetRepository: %v", err)
+	}
+	if err := cfg.EncodePluginConfig(pluginName, meta); err != nil {
+		t.Fatalf("EncodePluginConfig: %v", err)
+	}
+	for _, kind := range kinds {
+		res := resource.Resource{
+			GVK:        resource.GVK{Group: updateTestGroup, Version: updateTestVersion, Kind: kind, Domain: cfg.GetDomain()},
+			Path:       cfg.GetRepository() + "/apis/" + updateTestGroup + "/" + updateTestVersion,
+			API:        &resource.API{CRDVersion: "v1", Namespaced: true},
+			Controller: true,
 		}
-		return cfg
+		if err := cfg.AddResource(res); err != nil {
+			t.Fatalf("AddResource: %v", err)
+		}
+	}
+	return cfg
+}
+
+// upjetTestMeta is the plugin block `init --upjet` persists: only the
+// resource prefix, never the render-time Terraform settings.
+func upjetTestMeta() projectMeta {
+	return projectMeta{Flavor: core.FlavorUpjet, Upjet: &core.UpjetSettings{TerraformResourcePrefix: "kubernetes"}}
+}
+
+// TestValidateProject pins that update gates PROJECT the way the other
+// commands do: an unusable plugin block (such as an unknown flavor) is
+// refused, and an upjet project may use kinds that shadow core Kubernetes
+// names, as `create api` allows, while a native one may not.
+func TestValidateProject(t *testing.T) {
+	tests := []struct {
+		name       string
+		meta       projectMeta
+		wantFlavor core.Flavor
+		wantErr    string
+	}{
+		{name: string(core.FlavorNative), meta: projectMeta{Flavor: core.FlavorNative}, wantErr: "reserved"},
+		{name: "unstamped reads as native", meta: projectMeta{}, wantErr: "reserved"},
+		{name: "upjet allows reserved kinds", meta: upjetTestMeta(), wantFlavor: core.FlavorUpjet},
+		{
+			name:    "unknown flavor is refused",
+			meta:    projectMeta{Flavor: unknownTestFlavor},
+			wantErr: `PROJECT is not usable: PROJECT declares unknown flavor "` + string(unknownTestFlavor) + `"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			meta, err := validateProject(newUpdateTestConfig(t, tt.meta, "Secret"))
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("validateProject() error = %v, want it to contain %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateProject() error = %v", err)
+			}
+			if meta.Flavor != tt.wantFlavor {
+				t.Errorf("validateProject() flavor = %q, want %q", meta.Flavor, tt.wantFlavor)
+			}
+		})
+	}
+}
+
+// TestRenderToMemFS pins that update renders each project with its own
+// flavor's template set: an upjet project gets its plumbing (with the
+// namespaced domain derived, since PROJECT does not persist it) and none of
+// the native-only files, and a native project keeps rendering its own.
+func TestRenderToMemFS(t *testing.T) {
+	tests := []struct {
+		name        string
+		meta        projectMeta
+		wantPaths   []string
+		absentPaths []string
+	}{
+		{
+			name:      string(core.FlavorNative),
+			meta:      projectMeta{Flavor: core.FlavorNative},
+			wantPaths: []string{nativeConnectorPath},
+		},
+		{
+			name:        string(core.FlavorUpjet),
+			meta:        upjetTestMeta(),
+			wantPaths:   []string{upjetProviderConfigPath, "config/zz_resources.go"},
+			absentPaths: []string{nativeConnectorPath},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mem := afero.NewMemMapFs()
+			cfg := newUpdateTestConfig(t, tt.meta, "Widget")
+			if err := renderToMemFS(cfg, tt.meta, machinery.Filesystem{FS: mem}); err != nil {
+				t.Fatalf("renderToMemFS: %v", err)
+			}
+			for _, p := range tt.wantPaths {
+				if ok, _ := afero.Exists(mem, p); !ok {
+					t.Errorf("rendered project is missing %s", p)
+				}
+			}
+			for _, p := range tt.absentPaths {
+				if ok, _ := afero.Exists(mem, p); ok {
+					t.Errorf("rendered project contains %s, which belongs to another flavor", p)
+				}
+			}
+		})
 	}
 
-	t.Run("native project is unaffected", func(t *testing.T) {
-		cfg := newCfg(t)
-		if err := cfg.EncodePluginConfig(pluginName, projectMeta{Flavor: core.FlavorNative}); err != nil {
-			t.Fatalf("EncodePluginConfig: %v", err)
+	t.Run("upjet renders with PROJECT's settings and derives the namespaced domain", func(t *testing.T) {
+		mem := afero.NewMemMapFs()
+		meta := upjetTestMeta()
+		if err := renderToMemFS(newUpdateTestConfig(t, meta, "Widget"), meta, machinery.Filesystem{FS: mem}); err != nil {
+			t.Fatalf("renderToMemFS: %v", err)
 		}
-		if flavor, err := refuseUnsupportedFlavor(cfg); err != nil || flavor != core.FlavorNative {
-			t.Errorf("refuseUnsupportedFlavor() on a native project = %q, %v, want %q, nil", flavor, err, core.FlavorNative)
+		got, err := afero.ReadFile(mem, upjetProviderConfigPath)
+		if err != nil {
+			t.Fatalf("reading %s: %v", upjetProviderConfigPath, err)
+		}
+		for _, want := range []string{`resourcePrefix = "kubernetes"`, `"example.m.com"`} {
+			if !strings.Contains(string(got), want) {
+				t.Errorf("%s does not contain %s:\n%s", upjetProviderConfigPath, want, got)
+			}
 		}
 	})
+}
 
-	t.Run("no plugin block at all defaults to native and is unaffected", func(t *testing.T) {
-		cfg := newCfg(t)
-		if flavor, err := refuseUnsupportedFlavor(cfg); err != nil || flavor != core.FlavorNative {
-			t.Errorf("refuseUnsupportedFlavor() on an unstamped project = %q, %v, want %q, nil", flavor, err, core.FlavorNative)
-		}
-	})
+// Paths the render tests key off, one per flavor.
+const (
+	nativeConnectorPath     = "internal/provider/connector.go"
+	upjetProviderConfigPath = "config/provider.go"
+)
 
-	t.Run("upjet project is refused", func(t *testing.T) {
-		cfg := newCfg(t)
-		meta := projectMeta{Flavor: core.FlavorUpjet, Upjet: &core.UpjetSettings{TerraformResourcePrefix: "kubernetes"}}
-		if err := cfg.EncodePluginConfig(pluginName, meta); err != nil {
-			t.Fatalf("EncodePluginConfig: %v", err)
-		}
-		_, err := refuseUnsupportedFlavor(cfg)
-		if err == nil || !strings.Contains(err.Error(), "upjet") {
-			t.Fatalf("refuseUnsupportedFlavor() on an upjet project = %v, want an error naming upjet", err)
-		}
-	})
+// TestReconcile_UpjetDoesNotSeedUserOwned pins policy C7: a user-owned file
+// missing on disk is seeded for a native project, but not for an upjet one:
+// some upjet user-owned templates need init-time Terraform settings PROJECT
+// does not keep, so seeding would write empty values, and none are recreated.
+// Tool-owned files are seeded either way.
+func TestReconcile_UpjetDoesNotSeedUserOwned(t *testing.T) {
+	const (
+		headeredPath   = "config/provider.go"
+		headerlessPath = "examples/providerconfig/providerconfig.yaml"
+	)
+	tests := []struct {
+		name         string
+		seed         bool
+		wantSeeded   []string
+		wantUnseeded []string
+	}{
+		{name: string(core.FlavorUpjet), seed: false, wantSeeded: []string{headeredPath}, wantUnseeded: []string{headerlessPath}},
+		{name: string(core.FlavorNative), seed: true, wantSeeded: []string{headeredPath, headerlessPath}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src, dst := afero.NewMemMapFs(), afero.NewMemMapFs()
+			_ = afero.WriteFile(src, headeredPath, []byte(core.GeneratedHeader+"\npackage config\n"), 0o644)
+			_ = afero.WriteFile(src, headerlessPath, []byte("kind: ProviderConfig\n"), 0o644)
 
-	t.Run("unknown flavor is refused", func(t *testing.T) {
-		cfg := newCfg(t)
-		if err := cfg.EncodePluginConfig(pluginName, projectMeta{Flavor: unknownTestFlavor}); err != nil {
-			t.Fatalf("EncodePluginConfig: %v", err)
-		}
-		_, err := refuseUnsupportedFlavor(cfg)
-		if err == nil || !strings.Contains(err.Error(), string(unknownTestFlavor)) {
-			t.Fatalf("refuseUnsupportedFlavor() on a project with an unknown flavor = %v, want an error naming %q", err, unknownTestFlavor)
-		}
-	})
+			result, err := reconcile(src, dst, tt.seed)
+			if err != nil {
+				t.Fatalf("reconcile: %v", err)
+			}
+			if !slices.Equal(result.seeded, tt.wantSeeded) {
+				t.Errorf("seeded = %v, want %v", result.seeded, tt.wantSeeded)
+			}
+			if !slices.Equal(result.unseeded, tt.wantUnseeded) {
+				t.Errorf("unseeded = %v, want %v", result.unseeded, tt.wantUnseeded)
+			}
+			for _, p := range tt.wantUnseeded {
+				if ok, _ := afero.Exists(dst, p); ok {
+					t.Errorf("%s was written despite not being seeded", p)
+				}
+			}
+		})
+	}
 }
 
 func TestReconcile(t *testing.T) {
@@ -102,7 +242,7 @@ func TestReconcile(t *testing.T) {
 	// New tool-owned file absent on disk -> seeded.
 	_ = afero.WriteFile(src, "apis/register.go", []byte(headered), 0o644)
 
-	result, err := reconcile(src, dst)
+	result, err := reconcile(src, dst, true)
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
@@ -238,7 +378,7 @@ func TestReconcile_NestedSeed(t *testing.T) {
 	content := core.GeneratedHeader + "\npackage v1\n"
 	_ = afero.WriteFile(src, "apis/newgroup/v1/groupversion_info.go", []byte(content), 0o644)
 
-	if _, err := reconcile(src, dst); err != nil {
+	if _, err := reconcile(src, dst, true); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
 	got, err := afero.ReadFile(dst, "apis/newgroup/v1/groupversion_info.go")
