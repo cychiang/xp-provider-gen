@@ -61,7 +61,7 @@ func TestRefuseUnsupportedFlavor(t *testing.T) {
 
 	t.Run("upjet project is refused", func(t *testing.T) {
 		cfg := newCfg(t)
-		meta := projectMeta{Flavor: core.FlavorUpjet, Upjet: &core.UpjetSettings{TerraformProvider: "hashicorp/kubernetes"}}
+		meta := projectMeta{Flavor: core.FlavorUpjet, Upjet: &core.UpjetSettings{TerraformResourcePrefix: "kubernetes"}}
 		if err := cfg.EncodePluginConfig(pluginName, meta); err != nil {
 			t.Fatalf("EncodePluginConfig: %v", err)
 		}

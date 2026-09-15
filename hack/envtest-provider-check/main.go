@@ -49,10 +49,19 @@ func run(ctx context.Context) error {
 	provider := flag.String("provider", "", "path to the provider binary to exercise")
 	crdDir := flag.String("crd-dir", "", "directory of CRDs to load into the test API server")
 	settle := flag.Duration("settle", 10*time.Second, "how long the provider must stay up before it is considered started")
+	// Not defaulted on purpose. The Terraform CLI version is the generator's
+	// call, recorded once in pkg/versions/dependencies.yaml and rendered into
+	// the provider's own Makefile; a default here would be a second copy of it
+	// that nothing keeps in step. The caller reads it back out of the
+	// generated Makefile and passes it in.
+	tfVersion := flag.String("terraform-version", "", "Terraform CLI version to run the provider with, as recorded in its generated Makefile")
 	flag.Parse()
 
 	if *provider == "" || *crdDir == "" {
 		return fmt.Errorf("-provider and -crd-dir are required")
+	}
+	if *tfVersion == "" {
+		return fmt.Errorf("-terraform-version is required")
 	}
 
 	env := &envtest.Environment{
@@ -78,7 +87,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	return runProvider(ctx, *provider, kubeconfig.Name(), *settle)
+	return runProvider(ctx, *provider, kubeconfig.Name(), *settle, *tfVersion)
 }
 
 func writeKubeconfig(cfg *rest.Config, path string) error {
@@ -103,12 +112,12 @@ func writeKubeconfig(cfg *rest.Config, path string) error {
 // it crashed or never really started, which is a failure. Either way, a
 // panic signature in its output, or never reporting a started controller, is
 // also a failure.
-func runProvider(ctx context.Context, provider, kubeconfig string, settle time.Duration) error {
+func runProvider(ctx context.Context, provider, kubeconfig string, settle time.Duration, tfVersion string) error {
 	settleCtx, cancel := context.WithTimeout(ctx, settle)
 	defer cancel()
 
 	cmd := exec.CommandContext(settleCtx, provider,
-		"--terraform-version=1.5.7",
+		"--terraform-version="+tfVersion,
 		"--terraform-provider-source=hashicorp/kubernetes",
 		"--terraform-provider-version=2.38.0",
 		"--no-leader-election",

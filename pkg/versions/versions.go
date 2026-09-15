@@ -37,10 +37,11 @@ type Dependency struct {
 }
 
 // manifest is the shape of dependencies.yaml: the single source of truth for
-// both the framework/Kubernetes dependency versions and the Go version a
-// generated provider targets.
+// the framework/Kubernetes dependency versions, the Go version, and the
+// Terraform CLI version a generated provider targets.
 type manifest struct {
 	GoVersion         string       `json:"go_version"`
+	TerraformVersion  string       `json:"terraform_version"`
 	Dependencies      []Dependency `json:"dependencies"`
 	UpjetDependencies []Dependency `json:"upjet_dependencies"`
 }
@@ -79,6 +80,30 @@ func mustGoVersion() string {
 		panic("pkg/versions/dependencies.yaml: go_version is required")
 	}
 	return m.GoVersion
+}
+
+// TerraformVersion is the Terraform CLI version an upjet-flavored provider
+// uses to read its wrapped provider's schema, parsed from the embedded
+// manifest's terraform_version key. This is a tool decision, not the
+// author's: the whole upjet ecosystem is pinned below Terraform 1.6 because
+// that version is BSL-licensed, a licensing constraint rather than a
+// compatibility one, but not the author's call either way — there is
+// deliberately no CLI flag for it.
+var TerraformVersion = mustTerraformVersion()
+
+// mustTerraformVersion parses TerraformVersion out of the embedded manifest.
+// Panics for the same reason mustGoVersion does: the manifest is embedded at
+// compile time and repo-controlled, so a parse failure or a missing key is a
+// build defect, not a runtime data problem.
+func mustTerraformVersion() string {
+	m, err := parseManifest(dependenciesYAML)
+	if err != nil {
+		panic(fmt.Errorf("parsing embedded dependencies manifest: %w", err))
+	}
+	if m.TerraformVersion == "" {
+		panic("pkg/versions/dependencies.yaml: terraform_version is required")
+	}
+	return m.TerraformVersion
 }
 
 // GoModDependencies returns the direct dependencies a generated provider's

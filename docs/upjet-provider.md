@@ -29,8 +29,16 @@ xp-provider-gen init \
 
 `--terraform-provider` and `--terraform-provider-version` are required. The docs
 repository is guessed from the provider name and can be overridden with
-`--terraform-provider-repo` / `--terraform-provider-docs-path`;
-`--terraform-version` pins the Terraform CLI used to read the schema.
+`--terraform-provider-repo` / `--terraform-provider-docs-path`.
+
+The Terraform *CLI* version is not one of these: it is the generator's call, not
+yours. It lives in the tool's own `pkg/versions/dependencies.yaml` and is
+rendered into your Makefile's `TERRAFORM_VERSION` at `init`. The whole upjet
+ecosystem stays below Terraform 1.6 because 1.6+ is BSL-licensed, which is a
+licensing question about what the ecosystem ships rather than something a
+single provider decides — so there is no flag to override it. If you edit
+`TERRAFORM_VERSION` in the generated Makefile by hand, its own
+`check-terraform-version` target still refuses anything `>= 1.6.0`.
 
 Unlike a native provider, a freshly scaffolded upjet project **does not compile
 yet** — `cmd/provider` imports the API and controller packages that generation
@@ -242,10 +250,11 @@ Three things to expect once generation succeeds:
   `.TerraformResource` include-list entry from `config/zz_resources.go`, then
   regenerate.
 
-`PROJECT`'s `terraform_provider_version` is stamped once at `init` and nothing
-reads it back afterward, so a Makefile-only bump leaves it stale — cosmetic
-today, not a functional bug, but don't trust it to answer "what version is
-this provider actually built against."
+Your Makefile is the single record of which Terraform provider version this
+project is built against. `PROJECT` deliberately does not keep a second copy:
+it stores only `terraform_resource_prefix` (the one thing `create api` reads
+back, to validate `--terraform-resource`), so a Makefile bump cannot leave a
+stale duplicate behind to contradict it.
 
 ## What you own, and what the tool does
 

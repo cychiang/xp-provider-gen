@@ -100,6 +100,15 @@ cp "$PROVIDER_BIN" "$DIR/bin/provider"
 }
 green "  ✓ provider binary builds via 'make go.build' and --help exits cleanly"
 
+# The Terraform CLI version is the generator's call, not this script's: it is
+# recorded once in pkg/versions/dependencies.yaml and rendered into the
+# scaffold's own Makefile. Read it back out of that Makefile rather than
+# repeating the literal here, so this e2e always runs the provider with the
+# version the tool actually generated.
+TERRAFORM_VERSION="$(sed -n 's/^export TERRAFORM_VERSION[[:space:]]*?*=[[:space:]]*//p' "$DIR/Makefile" | head -1)"
+[ -n "$TERRAFORM_VERSION" ] || fail "could not read TERRAFORM_VERSION out of the generated Makefile"
+green "  ✓ generated Makefile pins Terraform CLI $TERRAFORM_VERSION (from pkg/versions/dependencies.yaml)"
+
 blue "  --- 6b. Scheme registration runs against an unreachable API server (no cluster needed) ---"
 FAKE_KUBECONFIG="$(mktemp)"
 cat >"$FAKE_KUBECONFIG" <<'EOF'
@@ -123,7 +132,7 @@ users:
 EOF
 SCHEME_LOG="$(mktemp)"
 KUBECONFIG="$FAKE_KUBECONFIG" "$DIR/bin/provider" \
-  --terraform-version=1.5.7 --terraform-provider-source=hashicorp/kubernetes \
+  --terraform-version="$TERRAFORM_VERSION" --terraform-provider-source=hashicorp/kubernetes \
   --terraform-provider-version=2.38.0 --debug >"$SCHEME_LOG" 2>&1 &
 SCHEME_PID=$!
 ( sleep 15 && kill -KILL "$SCHEME_PID" 2>/dev/null ) &
@@ -168,6 +177,7 @@ if ENVTEST_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@l
 
   KUBEBUILDER_ASSETS="$ENVTEST_ASSETS" "$HELPER_BIN" \
     -provider "$DIR/bin/provider" -crd-dir "$DIR/package/crds" \
+    -terraform-version "$TERRAFORM_VERSION" \
     >/tmp/e2e-upjet-provider-run.log 2>&1 &
   HELPER_PID=$!
   ( sleep 90 && kill -KILL "$HELPER_PID" 2>/dev/null ) &

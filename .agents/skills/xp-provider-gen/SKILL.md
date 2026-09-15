@@ -60,9 +60,10 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   `cmd/provider` imports API/controller packages that only `make generate` produces from the
   Terraform schema. Optional coordinates: `--terraform-provider-repo` (defaults to the
   provider's hashicorp GitHub repo), `--terraform-provider-docs-path` (default
-  `docs/resources`), `--terraform-version` (default `1.5.7`). Check: **TERRAFORM_VERSION must
-  stay below `1.6.0`** — Terraform 1.6+ is BSL licensed and the generated Makefile's
-  `check-terraform-version` target refuses it. Bumping the *wrapped* provider's own version later
+  `docs/resources`). The Terraform *CLI* version is not a flag — it is the tool's, pinned in
+  `pkg/versions/dependencies.yaml` and rendered into the Makefile's `TERRAFORM_VERSION`.
+  Check: **TERRAFORM_VERSION must stay below `1.6.0`** — Terraform 1.6+ is BSL licensed and
+  the generated Makefile's `check-terraform-version` target refuses it. Bumping the *wrapped* provider's own version later
   (`TERRAFORM_PROVIDER_VERSION` in the Makefile) is a separate operation with its own gotchas —
   see [docs/upjet-provider.md §7](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#7-bumping-the-terraform-provider).
 
