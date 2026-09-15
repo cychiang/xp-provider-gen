@@ -54,9 +54,9 @@ and are overwritten; files without it (external.go, client.go, options.go, *_typ
 crossplane.yaml) are left alone. go.mod itself is never overwritten — only its framework
 dependency versions are bumped via 'go get', so your own requires are preserved.
 
-Not supported yet on an upjet provider: this command's render path is hard-wired to
-the native template set, so it has no correct way to re-render an upjet project's
-plumbing yet — it refuses rather than overwrite it with native files.
+On an upjet provider it never seeds a missing user-owned file — those need init-time
+Terraform settings PROJECT does not keep — and lists the ones it skipped instead. It does
+not change the wrapped Terraform provider's version; that lives in your Makefile.
 
 The working tree must be clean; the result is left uncommitted so you can review it with
 'git diff' before committing. If a step fails midway, the error names exactly how to revert.
@@ -79,50 +79,27 @@ provenance and writes the header onto recognized tool-owned files so plain 'upda
 	return cmd
 }
 
-// prepare enforces the clean-tree precondition, loads the project, and renders the
-// current template set into an in-memory FS. Both update and adopt start here; it
-// also returns the project's flavor so later steps choose the same sets.
-func prepare(ctx context.Context) (store.Store, afero.Fs, core.Flavor, error) {
+// prepare enforces the clean-tree precondition, loads and validates the project, and
+// renders the current template set of its flavor into an in-memory FS. Both update
+// and adopt start here; it also returns the project's plugin block so later steps
+// choose the same flavor's sets.
+func prepare(ctx context.Context) (store.Store, afero.Fs, projectMeta, error) {
 	if err := requireCleanTree(ctx); err != nil {
-		return nil, nil, "", err
+		return nil, nil, projectMeta{}, err
 	}
 	st, err := loadProjectStore()
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, projectMeta{}, err
 	}
-	flavor, err := refuseUnsupportedFlavor(st.Config())
+	meta, err := validateProject(st.Config())
 	if err != nil {
-		return nil, nil, "", err
-	}
-	if err := validateProject(st.Config()); err != nil {
-		return nil, nil, "", err
+		return nil, nil, projectMeta{}, err
 	}
 	mem := afero.NewMemMapFs()
-	if err := renderToMemFS(st.Config(), flavor, machinery.Filesystem{FS: mem}); err != nil {
-		return nil, nil, "", fmt.Errorf("rendering tool-owned files: %w", err)
+	if err := renderToMemFS(st.Config(), meta, machinery.Filesystem{FS: mem}); err != nil {
+		return nil, nil, projectMeta{}, fmt.Errorf("rendering tool-owned files: %w", err)
 	}
-	return st, mem, flavor, nil
-}
-
-// refuseUnsupportedFlavor loads the project's flavor and rejects one this
-// command cannot safely handle. renderToMemFS never passes WithUpjet, so
-// on an upjet project it would render the upjet plumbing without its Terraform
-// settings and leave the project unable to build. Every tool-owned upjet
-// template only needs project-level values already in PROJECT — the gap is the
-// missing upjet render wiring, not any missing data — so until that lands,
-// refusing here turns what used to be silent corruption into an explicit,
-// actionable error.
-func refuseUnsupportedFlavor(cfg config.Config) (core.Flavor, error) {
-	meta, err := loadProjectMeta(cfg)
-	if err != nil {
-		return "", fmt.Errorf("PROJECT is not usable: %w", err)
-	}
-	if meta.Flavor == core.FlavorUpjet {
-		return "", fmt.Errorf("update does not support upjet providers yet: " +
-			"its render path is hard-wired to the native template set, so there is no " +
-			"correct way to re-render an upjet project's plumbing; see docs/upjet-provider.md")
-	}
-	return meta.Flavor, nil
+	return st, mem, meta, nil
 }
 
 func runAdopt(ctx context.Context) error {
@@ -241,23 +218,27 @@ func stampProvenance(store store.Store) error {
 }
 
 func runUpdate(ctx context.Context) error {
-	store, mem, flavor, err := prepare(ctx)
+	store, mem, meta, err := prepare(ctx)
 	if err != nil {
 		return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
 	}
 
-	result, err := reconcile(mem, afero.NewOsFs())
+	result, err := reconcile(mem, afero.NewOsFs(), meta.Flavor != core.FlavorUpjet)
 	if err != nil {
 		return fmt.Errorf("reconciling generated files: %w\n%s", err, revertAdvice(result.seeded))
 	}
 	result.print()
 
-	if err := applyDependencies(ctx, flavor); err != nil {
+	if err := applyDependencies(ctx, meta.Flavor); err != nil {
 		return fmt.Errorf("%w\n%s", err, revertAdvice(result.seeded))
 	}
 
 	fmt.Println("Finalizing...")
-	if err := automation.NewUpdateFinalizePipeline().Run(); err != nil {
+	finalize := automation.NewUpdateFinalizePipeline()
+	if meta.Flavor == core.FlavorUpjet {
+		finalize = automation.NewUpjetUpdateFinalizePipeline()
+	}
+	if err := finalize.Run(); err != nil {
 		return fmt.Errorf("%w\n%s", err, revertAdvice(result.seeded))
 	}
 
@@ -288,30 +269,39 @@ func revertAdvice(seeded []string) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// validateProject re-checks the values PROJECT feeds into template paths and
-// generated import paths. `init` and `create api` validate them on the way in,
-// but `update` reads a file that may have been edited (or arrived in a pull
-// request) since, so it applies the same gate before rendering anything.
-func validateProject(cfg config.Config) error {
+// validateProject loads this plugin's block and re-checks the values PROJECT feeds
+// into template paths and generated import paths. `init` and `create api` validate
+// them on the way in, but `update` reads a file that may have been edited (or
+// arrived in a pull request) since, so it applies the same gate — including
+// create api's per-flavor kind rule — before rendering anything.
+func validateProject(cfg config.Config) (projectMeta, error) {
+	meta, err := loadProjectMeta(cfg)
+	if err != nil {
+		return projectMeta{}, fmt.Errorf("PROJECT is not usable: %w", err)
+	}
 	v := validation.NewValidator()
+	if meta.Flavor == core.FlavorUpjet {
+		// Kinds mirror Terraform resource names on an upjet provider.
+		v = validation.NewValidatorAllowingReservedKinds()
+	}
 	if err := v.ValidateRepository(cfg.GetRepository()); err != nil {
-		return fmt.Errorf("PROJECT is not usable: %w", err)
+		return projectMeta{}, fmt.Errorf("PROJECT is not usable: %w", err)
 	}
 	if domain := cfg.GetDomain(); domain != "" {
 		if err := v.ValidateDomain(domain); err != nil {
-			return fmt.Errorf("PROJECT is not usable: %w", err)
+			return projectMeta{}, fmt.Errorf("PROJECT is not usable: %w", err)
 		}
 	}
 	resources, err := cfg.GetResources()
 	if err != nil {
-		return fmt.Errorf("reading project resources: %w", err)
+		return projectMeta{}, fmt.Errorf("reading project resources: %w", err)
 	}
 	for i := range resources {
 		if err := v.ValidateResource(&resources[i]); err != nil {
-			return fmt.Errorf("PROJECT is not usable: %w", err)
+			return projectMeta{}, fmt.Errorf("PROJECT is not usable: %w", err)
 		}
 	}
-	return nil
+	return meta, nil
 }
 
 // loadProjectStore loads the PROJECT config store from the working directory.
@@ -337,19 +327,19 @@ func requireCleanTree(ctx context.Context) error {
 	return nil
 }
 
-// renderToMemFS renders the full template set (init + static + register generators,
-// plus each resource's API templates) of the given flavor into the in-memory
-// filesystem. Only the native flavor reaches here today: refuseUnsupportedFlavor
-// rejects upjet projects before prepare calls this.
-func renderToMemFS(cfg config.Config, flavor core.Flavor, memFS machinery.Filesystem) error {
-	factory := engine.NewFactoryForFlavor(cfg, flavor)
+// renderToMemFS renders the full template set (init + static + core generators,
+// plus each resource's API templates) of the project's flavor into the in-memory
+// filesystem. An upjet project renders with the settings PROJECT keeps; its
+// user-owned templates need more, which is why reconcile never seeds them.
+func renderToMemFS(cfg config.Config, meta projectMeta, memFS machinery.Filesystem) error {
+	factory := engine.NewFactoryForFlavor(cfg, meta.Flavor)
 
 	resources, err := cfg.GetResources()
 	if err != nil {
 		return fmt.Errorf("reading project resources: %w", err)
 	}
 
-	initTemplates, err := factory.GetInitTemplates()
+	initTemplates, err := factory.GetInitTemplates(engine.WithUpjet(meta.Upjet))
 	if err != nil {
 		return fmt.Errorf("init templates: %w", err)
 	}
@@ -359,13 +349,14 @@ func renderToMemFS(cfg config.Config, flavor core.Flavor, memFS machinery.Filesy
 		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
 	)
 	builders := engine.AsBuilders(initTemplates)
-	builders = append(builders, engine.CoreGeneratorsFor(flavor, cfg, resources)...)
+	builders = append(builders, engine.CoreGeneratorsFor(meta.Flavor, cfg, resources)...)
 	if err := base.Execute(builders...); err != nil {
 		return fmt.Errorf("rendering base templates: %w", err)
 	}
 
 	for _, res := range resources {
-		apiTemplates, err := factory.GetAPITemplates(engine.WithForce(true), engine.WithResource(&res))
+		apiTemplates, err := factory.GetAPITemplates(
+			engine.WithForce(true), engine.WithResource(&res), engine.WithUpjet(meta.Upjet))
 		if err != nil {
 			return fmt.Errorf("api templates for %s: %w", res.Kind, err)
 		}
@@ -383,17 +374,22 @@ func renderToMemFS(cfg config.Config, flavor core.Flavor, memFS machinery.Filesy
 
 // reconcile copies every rendered file from src onto dst through the ownership
 // gate: tool-owned (headered) files are overwritten, new files seeded, and
-// user-owned (headerless) files left untouched.
-func reconcile(src, dst afero.Fs) (reconcileResult, error) {
+// user-owned (headerless) files left untouched. seedUserOwned says whether a
+// user-owned file missing on disk is seeded or only recorded as unseeded.
+func reconcile(src, dst afero.Fs, seedUserOwned bool) (reconcileResult, error) {
 	var result reconcileResult
 	err := afero.Walk(src, ".", func(path string, info fs.FileInfo, walkErr error) error {
 		if walkErr != nil || info.IsDir() {
 			return walkErr
 		}
 		rel := strings.TrimPrefix(filepath.ToSlash(path), "/")
-		decision, err := applyFile(src, dst, path, rel)
+		decision, unseeded, err := applyFile(src, dst, path, rel, seedUserOwned)
 		if err != nil {
 			return err
+		}
+		if unseeded {
+			result.unseeded = append(result.unseeded, rel)
+			return nil
 		}
 		result.record(decision, rel)
 		return nil
@@ -417,43 +413,51 @@ func checkContained(rel string) error {
 	return nil
 }
 
-// applyFile reconciles one rendered file onto dst per the ownership gate.
-func applyFile(src, dst afero.Fs, srcPath, rel string) (core.WriteDecision, error) {
+// applyFile reconciles one rendered file onto dst per the ownership gate. It
+// reports unseeded when the file is missing on disk, user-owned, and
+// seedUserOwned is false: the decision is then Skip and nothing is written.
+func applyFile(src, dst afero.Fs, srcPath, rel string, seedUserOwned bool) (core.WriteDecision, bool, error) {
 	if err := checkContained(rel); err != nil {
-		return core.Skip, err
+		return core.Skip, false, err
 	}
 	exists, err := afero.Exists(dst, rel)
 	if err != nil {
-		return core.Skip, err
+		return core.Skip, false, err
 	}
 	var existing []byte
 	if exists {
 		if existing, err = afero.ReadFile(dst, rel); err != nil {
-			return core.Skip, err
+			return core.Skip, false, err
 		}
 	}
 
 	decision := core.DecideWrite(exists, existing)
 	if decision == core.Skip {
-		return decision, nil
+		return decision, false, nil
 	}
 
 	newContent, err := afero.ReadFile(src, srcPath)
 	if err != nil {
-		return decision, err
+		return decision, false, err
+	}
+	if !exists && !seedUserOwned && !core.IsToolOwned(newContent) {
+		return core.Skip, true, nil
 	}
 	if err := dst.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
-		return decision, err
+		return decision, false, err
 	}
 	// Scripts are exec'd directly (uptest runs test/setup.sh), so the write
 	// layer owns the executable bit — seeded .sh files must not land 0644.
-	return decision, afero.WriteFile(dst, rel, newContent, core.FileMode(rel))
+	return decision, false, afero.WriteFile(dst, rel, newContent, core.FileMode(rel))
 }
 
 type reconcileResult struct {
 	overwritten []string
 	seeded      []string
 	skipped     []string
+	// unseeded are user-owned files missing on disk that were deliberately not
+	// seeded (upjet: they need init-time Terraform settings PROJECT lacks).
+	unseeded []string
 }
 
 func (r *reconcileResult) record(decision core.WriteDecision, rel string) {
@@ -470,6 +474,9 @@ func (r *reconcileResult) record(decision core.WriteDecision, rel string) {
 func (r reconcileResult) print() {
 	fmt.Printf("Refreshed %d tool-owned file(s), added %d, left %d user-owned file(s) untouched.\n",
 		len(r.overwritten), len(r.seeded), len(r.skipped))
+	if len(r.unseeded) > 0 {
+		fmt.Printf("Not seeded (needs init-time Terraform settings): %s\n", strings.Join(r.unseeded, ", "))
+	}
 }
 
 // applyDependencies bumps the flavor's framework dependency versions from the

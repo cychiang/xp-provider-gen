@@ -120,16 +120,17 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
 - **What**: regenerates the tool-owned core of an existing provider — registration, controller
   wiring, `main.go`, config, framework dependency versions — without touching your business
   logic.
-- **When**: pulling in generator fixes/improvements after upgrading `xp-provider-gen`, on a
-  native provider.
+- **When**: pulling in generator fixes/improvements after upgrading `xp-provider-gen`, on
+  either flavor.
 - **Command**:
   ```bash
   xp-provider-gen update
   ```
 - **Produces**: requires a clean working tree; leaves the result uncommitted for `git diff`
   review, then your own commit. On a mid-run failure the error names the exact revert step.
-  Check: **refuses upjet projects outright** — its render path is hard-wired to the native
-  template set, not because of any missing data (`update --help`).
+  Check: on an **upjet** provider it never seeds a missing user-owned file (those need
+  init-time Terraform settings PROJECT does not keep) and lists the ones it skipped; it does
+  not bump the wrapped Terraform provider — that is the Makefile's `TERRAFORM_PROVIDER_VERSION`.
 
 ### `update --adopt`
 

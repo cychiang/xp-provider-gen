@@ -79,9 +79,38 @@ go build ./... >/tmp/e2e-upjet-build.log 2>&1 || {
 }
 green "  ✓ builds"
 
-blue "=== 6. The generated provider starts, not just builds ==="
+blue "=== 6. update refreshes tool-owned files and seeds no user-owned ones ==="
+# update needs a clean tree, so commit what generation produced first. Then make
+# one tool-owned file stale and delete one user-owned file: update must refresh
+# the first and must not re-seed the second, whose template needs init-time
+# Terraform settings PROJECT does not keep.
+UPDATE_MARKER="// e2e-upjet: stale tool-owned content"
+git add -A && git commit -qm "Generate provider" || fail "could not commit the generated provider"
+echo "$UPDATE_MARKER" >>config/provider.go
+rm examples/providerconfig/providerconfig.yaml
+git commit -qam "Make config/provider.go stale and delete the ProviderConfig example" ||
+  fail "could not commit the simulated drift"
+"$BIN" update >/tmp/e2e-upjet-update.log 2>&1 || {
+  tail -30 /tmp/e2e-upjet-update.log
+  fail "update failed on the generated upjet provider"
+}
+if grep -qF "$UPDATE_MARKER" config/provider.go; then
+  fail "update did not refresh tool-owned config/provider.go"
+fi
+[ ! -e examples/providerconfig/providerconfig.yaml ] ||
+  fail "update re-seeded user-owned examples/providerconfig/providerconfig.yaml"
+grep -q 'Not seeded.*examples/providerconfig/providerconfig.yaml' /tmp/e2e-upjet-update.log ||
+  fail "update did not list the ProviderConfig example as not seeded"
+# Stage 8's test/setup.sh applies the ProviderConfig example, so bring it back
+# from the commit before the simulated deletion.
+git checkout HEAD~1 -- examples/providerconfig/providerconfig.yaml ||
+  fail "could not restore the ProviderConfig example"
+git add -A && git commit -qm "Update provider" || fail "could not commit the update"
+green "  ✓ update refreshed config/provider.go, did not re-seed the ProviderConfig example, and finalized"
 
-blue "  --- 6a. Provider binary builds via the scaffold's own build system, and --help works ---"
+blue "=== 7. The generated provider starts, not just builds ==="
+
+blue "  --- 7a. Provider binary builds via the scaffold's own build system, and --help works ---"
 # Use the scaffold's own "make go.build" (the Docker-free half of "make build")
 # rather than a bare "go build -o", which bypasses the Makefile's GO_PROJECT/
 # PROJECT_REPO-based import path resolution entirely — that is exactly how a
@@ -109,7 +138,7 @@ TERRAFORM_VERSION="$(sed -n 's/^export TERRAFORM_VERSION[[:space:]]*?*=[[:space:
 [ -n "$TERRAFORM_VERSION" ] || fail "could not read TERRAFORM_VERSION out of the generated Makefile"
 green "  ✓ generated Makefile pins Terraform CLI $TERRAFORM_VERSION (from pkg/versions/dependencies.yaml)"
 
-blue "  --- 6b. Scheme registration runs against an unreachable API server (no cluster needed) ---"
+blue "  --- 7b. Scheme registration runs against an unreachable API server (no cluster needed) ---"
 FAKE_KUBECONFIG="$(mktemp)"
 cat >"$FAKE_KUBECONFIG" <<'EOF'
 apiVersion: v1
@@ -155,7 +184,7 @@ fi
 rm -f "$SCHEME_LOG"
 green "  ✓ scheme registration runs cleanly against an unreachable API server (no panic)"
 
-blue "  --- 6c. Controller setup runs against a real (ephemeral) API server ---"
+blue "  --- 7c. Controller setup runs against a real (ephemeral) API server ---"
 ENVTEST_SETUP_LOG="$(mktemp)"
 if ENVTEST_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path 2>"$ENVTEST_SETUP_LOG")"; then
   HELPER_DIR="$REPO/hack/envtest-provider-check"
@@ -195,14 +224,14 @@ if ENVTEST_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@l
   fi
   green "  ✓ provider registers its scheme and starts controllers against a real API server, no panics"
 else
-  yellow "  ⚠ envtest assets unavailable (no network, or nothing cached) — skipping stage 6c"
+  yellow "  ⚠ envtest assets unavailable (no network, or nothing cached) — skipping stage 7c"
   tail -10 "$ENVTEST_SETUP_LOG"
 fi
 rm -f "$ENVTEST_SETUP_LOG"
 
-blue "=== 7. Full ConfigMap lifecycle against a live cluster (create/update/delete) ==="
+blue "=== 8. Full ConfigMap lifecycle against a live cluster (create/update/delete) ==="
 if ! docker_skip_requested && docker info >/dev/null 2>&1; then
-  blue "  --- 7a. Configure and generate a ConfigMap resource ---"
+  blue "  --- 8a. Configure and generate a ConfigMap resource ---"
   "$BIN" create api --group=core --version=v1alpha1 --kind=ConfigMap \
     --terraform-resource=kubernetes_config_map >/dev/null
   make generate >/tmp/e2e-upjet-configmap-generate.log 2>&1 || {
@@ -220,7 +249,7 @@ if ! docker_skip_requested && docker info >/dev/null 2>&1; then
   }
   trap cleanup_live_cluster EXIT
 
-  blue "  --- 7b. Build, stand up a kind cluster with Crossplane, deploy the provider ---"
+  blue "  --- 8b. Build, stand up a kind cluster with Crossplane, deploy the provider ---"
   make local-deploy >/tmp/e2e-upjet-local-deploy.log 2>&1 || {
     tail -40 /tmp/e2e-upjet-local-deploy.log
     fail "make local-deploy failed (build / kind / Crossplane / provider deploy)"
@@ -230,14 +259,14 @@ if ! docker_skip_requested && docker info >/dev/null 2>&1; then
   LIVE_KUBECTL="$(find .cache/tools -type f -name 'kubectl-*' | head -1)"
   [ -n "$LIVE_KUBECTL" ] || fail "could not locate the kubectl binary the build system downloaded"
 
-  blue "  --- 7c. Apply ProviderConfig and credentials ---"
+  blue "  --- 8c. Apply ProviderConfig and credentials ---"
   KUBECTL="$LIVE_KUBECTL" ./test/setup.sh >/tmp/e2e-upjet-cluster-setup.log 2>&1 || {
     tail -20 /tmp/e2e-upjet-cluster-setup.log
     fail "test/setup.sh failed"
   }
   green "  ✓ ProviderConfig and credentials applied"
 
-  blue "  --- 7d. CREATE: apply a ConfigMap MR and verify the real object ---"
+  blue "  --- 8d. CREATE: apply a ConfigMap MR and verify the real object ---"
   LIVE_MR="$(mktemp)"
   cat >"$LIVE_MR" <<'EOF'
 apiVersion: core.example.m.com/v1alpha1
@@ -270,7 +299,7 @@ EOF
   [ "$REAL_DATA" = "world" ] || fail "real ConfigMap data mismatch after create: got '$REAL_DATA', want 'world'"
   green "  ✓ CREATE: MR Ready/Synced, external-name=$EXTERNAL_NAME, real ConfigMap data.hello=$REAL_DATA"
 
-  blue "  --- 7e. UPDATE: change spec.forProvider.data and verify the real object changes ---"
+  blue "  --- 8e. UPDATE: change spec.forProvider.data and verify the real object changes ---"
   LIVE_MR_UPDATED="$(mktemp)"
   cat >"$LIVE_MR_UPDATED" <<'EOF'
 apiVersion: core.example.m.com/v1alpha1
@@ -300,7 +329,7 @@ EOF
   green "  ✓ UPDATE: real ConfigMap data.hello changed to '$UPDATED_DATA'"
   rm -f "$LIVE_MR" "$LIVE_MR_UPDATED"
 
-  blue "  --- 7f. DELETE: remove the MR and verify the real object is gone ---"
+  blue "  --- 8f. DELETE: remove the MR and verify the real object is gone ---"
   "$LIVE_KUBECTL" delete configmap.core.example.m.com e2e-configmap -n crossplane-system --timeout=60s ||
     fail "failed to delete the ConfigMap MR"
   if "$LIVE_KUBECTL" -n default get configmap e2e-configmap >/dev/null 2>&1; then
@@ -308,7 +337,7 @@ EOF
   fi
   green "  ✓ DELETE: real ConfigMap no longer exists"
 
-  blue "  --- 7g. Provider pod health and reconcile evidence ---"
+  blue "  --- 8g. Provider pod health and reconcile evidence ---"
   LIVE_POD="$("$LIVE_KUBECTL" -n crossplane-system get pods -o name | grep '^pod/provider-k8s-' | head -1)"
   [ -n "$LIVE_POD" ] || fail "could not find the provider pod"
   LIVE_PHASE="$("$LIVE_KUBECTL" -n crossplane-system get "$LIVE_POD" -o jsonpath='{.status.phase}')"

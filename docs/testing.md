@@ -126,7 +126,9 @@ pipeline — unit tests alone do not catch broken generated output.
 wrapping `hashicorp/kubernetes`, configure `kubernetes_secret` with `create api`,
 then run the **real** upjet pipeline — `make generate` downloads Terraform, reads
 the provider schema, scrapes the provider's docs and generates API types,
-controllers, scheme registration and CRDs — and finally build the result.
+controllers, scheme registration and CRDs — and finally build the result. It
+then runs `update` once on the generated provider, asserting a stale tool-owned
+file is refreshed and a deleted user-owned file is not re-seeded.
 
 That is the only test that proves the config files this tool scaffolds satisfy
 upjet's contract; a unit test cannot, because the contract is upjet's generator.

@@ -46,10 +46,12 @@ types and controllers for the new resource. Nothing compiles until you do.
 
 ## Keeping up to date
 
-`xp-provider-gen update` **refuses upjet projects**: its render path is
-hard-wired to the native template set, not because anything is missing from
-`PROJECT`. Pull in generator improvements by re-scaffolding or hand-porting
-for now.
+After upgrading `xp-provider-gen`, run `xp-provider-gen update` on a clean
+tree: it refreshes the tool-owned files, bumps the framework dependencies, runs
+`make generate` and `make reviewable`, and leaves the result for `git diff`.
+It never recreates a file of yours that you deleted — those need init-time
+Terraform settings `PROJECT` does not keep — and lists any it skipped. It does
+not change the Terraform provider version; that lives in your `Makefile`.
 
 ---
 

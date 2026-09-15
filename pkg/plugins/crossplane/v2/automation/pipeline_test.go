@@ -76,12 +76,22 @@ func TestNewInitPipeline_CommitsLast(t *testing.T) {
 	})
 }
 
-func TestNewUpdateFinalizePipeline(t *testing.T) {
-	assertStepOrder(t, NewUpdateFinalizePipeline(), []string{
-		"Run go mod tidy",
-		stepNameMakeGenerate,
-		stepNameMakeReviewable,
-	})
+func TestUpdateFinalizePipelines(t *testing.T) {
+	const stepNameGoModTidy = "Run go mod tidy"
+	tests := []struct {
+		name     string
+		pipeline *Pipeline
+		want     []string
+	}{
+		{"native", NewUpdateFinalizePipeline(), []string{stepNameGoModTidy, stepNameMakeGenerate, stepNameMakeReviewable}},
+		// Upjet generates first: tidy fails until the generated packages exist.
+		{"upjet", NewUpjetUpdateFinalizePipeline(), []string{stepNameMakeGenerate, stepNameGoModTidy, stepNameMakeReviewable}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assertStepOrder(t, tt.pipeline, tt.want)
+		})
+	}
 }
 
 // TestInitPipelines_ShareLeadingStepsAndFinalStep pins the invariant
