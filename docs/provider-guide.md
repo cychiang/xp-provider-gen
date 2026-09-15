@@ -269,14 +269,20 @@ do not reach it until you migrate once:
    `TERRAFORM_PROVIDER_DOWNLOAD_NAME`, `TERRAFORM_NATIVE_PROVIDER_BINARY`,
    `TERRAFORM_DOCS_PATH` — and any targets you added yourself. Replace everything
    else, including `TERRAFORM_VERSION`, with one line after the variables:
-   `include hack/xp-provider-gen.mk`. A pipeline variable the fragment sets with `?=`
-   (`KIND_CLUSTER_NAME`, `CROSSPLANE_VERSION`, `XPKG_REG_ORGS`, …) can still be
-   overridden above that line. A variable the fragment assigns with a plain `=`
-   — `GOLANGCILINT_VERSION`, `IMAGES`, `XPKGS`, `GO_STATIC_PACKAGES`, `GO_SUBDIRS`,
-   `UPTEST_LOCAL_DEPLOY_TARGET`, `UPTEST_INPUT_MANIFESTS`, `DEV_CLUSTER_NAME`,
-   `INTEGRATION_CLUSTER_NAME` — must be overridden *after* the include instead:
-   set above it, your value is silently replaced by the fragment's.
-3. Compare the result with the `Makefile` of a freshly scaffolded provider of the same
+   `include hack/xp-provider-gen.mk`.
+3. If you had customised a pipeline variable, where it goes depends on how the fragment
+   assigns it — check yours, the two flavors differ:
+
+   ```bash
+   grep -nE '^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*(\+=|\?=|:=|=)' hack/xp-provider-gen.mk
+   ```
+
+   | The fragment assigns it | Put your value | Example |
+   |---|---|---|
+   | `?=` | above the include (the fragment then keeps yours) | `KIND_CLUSTER_NAME`, `CROSSPLANE_VERSION`, `XPKG_REG_ORGS`; `GOLANGCILINT_VERSION` on upjet |
+   | `=` or `:=` | after the include (set above it, the fragment's later assignment silently replaces yours) | `IMAGES`, `XPKGS`, `UPTEST_INPUT_MANIFESTS`; `GOLANGCILINT_VERSION` on native |
+   | `+=` | either side, but append with `+=` too — a plain `=` drops what the fragment adds | `GO_SUBDIRS += mypkg`, `GO_LDFLAGS += -X ...` |
+4. Compare the result with the `Makefile` of a freshly scaffolded provider of the same
    flavor, run `make reviewable` (upjet: `make generate` first), and commit both files.
 
 Providers generated before the modular layout (`external.go` / `wiring.go` /
