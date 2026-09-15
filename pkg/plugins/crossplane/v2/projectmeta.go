@@ -19,6 +19,7 @@ package v2
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 
@@ -53,9 +54,9 @@ func loadProjectMeta(cfg config.Config) (projectMeta, error) {
 		meta.Flavor = core.FlavorNative
 	case !meta.Flavor.Valid():
 		return projectMeta{}, fmt.Errorf(
-			"PROJECT declares unknown flavor %q (known: %s, %s); "+
+			"PROJECT declares unknown flavor %q (known: %s); "+
 				"the file is corrupt, hand-edited, or written by a newer xp-provider-gen",
-			meta.Flavor, core.FlavorNative, core.FlavorUpjet)
+			meta.Flavor, knownFlavors())
 	}
 	if meta.Flavor == core.FlavorUpjet && meta.Upjet == nil {
 		return projectMeta{}, fmt.Errorf(
@@ -74,4 +75,14 @@ func saveProjectMeta(cfg config.Config, mutate func(*projectMeta)) error {
 	}
 	mutate(&meta)
 	return cfg.EncodePluginConfig(pluginName, meta)
+}
+
+// knownFlavors lists core.Flavors for an error message, so the message cannot
+// fall behind when a flavor is added.
+func knownFlavors() string {
+	names := make([]string, 0, len(core.Flavors))
+	for _, f := range core.Flavors {
+		names = append(names, string(f))
+	}
+	return strings.Join(names, ", ")
 }

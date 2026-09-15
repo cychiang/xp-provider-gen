@@ -47,15 +47,15 @@ func TestRefuseUnsupportedFlavor(t *testing.T) {
 		if err := cfg.EncodePluginConfig(pluginName, projectMeta{Flavor: core.FlavorNative}); err != nil {
 			t.Fatalf("EncodePluginConfig: %v", err)
 		}
-		if err := refuseUnsupportedFlavor(cfg); err != nil {
-			t.Errorf("refuseUnsupportedFlavor() on a native project = %v, want nil", err)
+		if flavor, err := refuseUnsupportedFlavor(cfg); err != nil || flavor != core.FlavorNative {
+			t.Errorf("refuseUnsupportedFlavor() on a native project = %q, %v, want %q, nil", flavor, err, core.FlavorNative)
 		}
 	})
 
 	t.Run("no plugin block at all defaults to native and is unaffected", func(t *testing.T) {
 		cfg := newCfg(t)
-		if err := refuseUnsupportedFlavor(cfg); err != nil {
-			t.Errorf("refuseUnsupportedFlavor() on an unstamped project = %v, want nil", err)
+		if flavor, err := refuseUnsupportedFlavor(cfg); err != nil || flavor != core.FlavorNative {
+			t.Errorf("refuseUnsupportedFlavor() on an unstamped project = %q, %v, want %q, nil", flavor, err, core.FlavorNative)
 		}
 	})
 
@@ -65,7 +65,7 @@ func TestRefuseUnsupportedFlavor(t *testing.T) {
 		if err := cfg.EncodePluginConfig(pluginName, meta); err != nil {
 			t.Fatalf("EncodePluginConfig: %v", err)
 		}
-		err := refuseUnsupportedFlavor(cfg)
+		_, err := refuseUnsupportedFlavor(cfg)
 		if err == nil || !strings.Contains(err.Error(), "upjet") {
 			t.Fatalf("refuseUnsupportedFlavor() on an upjet project = %v, want an error naming upjet", err)
 		}
@@ -76,7 +76,7 @@ func TestRefuseUnsupportedFlavor(t *testing.T) {
 		if err := cfg.EncodePluginConfig(pluginName, projectMeta{Flavor: unknownTestFlavor}); err != nil {
 			t.Fatalf("EncodePluginConfig: %v", err)
 		}
-		err := refuseUnsupportedFlavor(cfg)
+		_, err := refuseUnsupportedFlavor(cfg)
 		if err == nil || !strings.Contains(err.Error(), string(unknownTestFlavor)) {
 			t.Fatalf("refuseUnsupportedFlavor() on a project with an unknown flavor = %v, want an error naming %q", err, unknownTestFlavor)
 		}

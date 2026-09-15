@@ -17,13 +17,42 @@ limitations under the License.
 package engine
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
+
+// TestDependenciesFor pins that the one flavor switch hands each flavor its
+// own manifest dependency set.
+func TestDependenciesFor(t *testing.T) {
+	tests := []struct {
+		flavor core.Flavor
+		want   func() ([]versions.Dependency, error)
+	}{
+		{flavor: core.FlavorNative, want: versions.GoModDependencies},
+		{flavor: core.FlavorUpjet, want: versions.UpjetGoModDependencies},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.flavor), func(t *testing.T) {
+			want, err := tt.want()
+			if err != nil {
+				t.Fatalf("loading expected dependencies: %v", err)
+			}
+			got, err := DependenciesFor(tt.flavor)
+			if err != nil {
+				t.Fatalf("DependenciesFor(%q): %v", tt.flavor, err)
+			}
+			if !slices.Equal(got, want) {
+				t.Errorf("DependenciesFor(%q) = %v, want %v", tt.flavor, got, want)
+			}
+		})
+	}
+}
 
 func TestGoModGenerator_RendersManifest(t *testing.T) {
 	deps := []versions.Dependency{

@@ -19,6 +19,7 @@ package engine
 import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/templates"
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
@@ -48,6 +49,15 @@ func NewGoModGenerator(repo string, deps []versions.Dependency) *GoModGenerator 
 		GoVersion:    versions.GoVersion,
 		Dependencies: deps,
 	}
+}
+
+// DependenciesFor returns the go.mod dependency set for a project of the given
+// flavor. It is the one place a command chooses between the two sets.
+func DependenciesFor(flavor core.Flavor) ([]versions.Dependency, error) {
+	if flavor == core.FlavorUpjet {
+		return versions.UpjetGoModDependencies()
+	}
+	return versions.GoModDependencies()
 }
 
 func (f *GoModGenerator) SetTemplateDefaults() error {
