@@ -73,14 +73,16 @@ func replacementsFor(cfg config.Config, options *TemplateOptions) map[string]str
 	return replacements
 }
 
-// configureProduct applies the project config, resource and force flag, then
-// loads the template body.
+// configureProduct applies the upjet settings, project config, resource and
+// force flag, then loads the template body.
 func configureProduct(product *GenericTemplateProduct, cfg config.Config, options *TemplateOptions) error {
-	if err := product.Configure(cfg); err != nil {
-		return fmt.Errorf("failed to configure template: %w", err)
-	}
+	// Upjet settings first: Configure derives the values PROJECT does not
+	// persist (NamespacedDomain) and must see them, not be overwritten by them.
 	if options.Upjet != nil {
 		product.UpjetSettings = *options.Upjet
+	}
+	if err := product.Configure(cfg); err != nil {
+		return fmt.Errorf("failed to configure template: %w", err)
 	}
 	if options.Resource != nil {
 		if err := product.SetResource(options.Resource); err != nil {
