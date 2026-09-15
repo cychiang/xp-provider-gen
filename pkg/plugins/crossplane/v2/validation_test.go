@@ -21,6 +21,7 @@ import (
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
 )
 
@@ -222,6 +223,31 @@ func TestValidator_ValidateResource(t *testing.T) {
 			err := validator.ValidateResource(tt.resource)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidateResource() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestValidatorFor pins the per-flavor kind rule both `create api` and
+// `update` go through: an upjet project may name a kind after a core
+// Kubernetes resource (its kinds mirror Terraform resource names), a native
+// one may not.
+func TestValidatorFor(t *testing.T) {
+	reserved := &resource.Resource{
+		GVK: resource.GVK{Group: testGroup, Version: testVersion, Kind: "Secret"},
+	}
+	tests := []struct {
+		flavor  core.Flavor
+		wantErr bool
+	}{
+		{core.FlavorUpjet, false},
+		{core.FlavorNative, true},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.flavor), func(t *testing.T) {
+			err := validation.ValidatorFor(tt.flavor).ValidateResource(reserved)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ValidatorFor(%q).ValidateResource(reserved kind) error = %v, wantErr %v", tt.flavor, err, tt.wantErr)
 			}
 		})
 	}

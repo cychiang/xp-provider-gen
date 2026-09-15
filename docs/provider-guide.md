@@ -271,7 +271,11 @@ do not reach it until you migrate once:
    else, including `TERRAFORM_VERSION`, with one line after the variables:
    `include hack/xp-provider-gen.mk`. A pipeline variable the fragment sets with `?=`
    (`KIND_CLUSTER_NAME`, `CROSSPLANE_VERSION`, `XPKG_REG_ORGS`, …) can still be
-   overridden above that line.
+   overridden above that line. A variable the fragment assigns with a plain `=`
+   — `GOLANGCILINT_VERSION`, `IMAGES`, `XPKGS`, `GO_STATIC_PACKAGES`, `GO_SUBDIRS`,
+   `UPTEST_LOCAL_DEPLOY_TARGET`, `UPTEST_INPUT_MANIFESTS`, `DEV_CLUSTER_NAME`,
+   `INTEGRATION_CLUSTER_NAME` — must be overridden *after* the include instead:
+   set above it, your value is silently replaced by the fragment's.
 3. Compare the result with the `Makefile` of a freshly scaffolded provider of the same
    flavor, run `make reviewable` (upjet: `make generate` first), and commit both files.
 

@@ -34,7 +34,6 @@ type BaseTemplateProduct struct {
 	machinery.ResourceMixin
 
 	ProviderName string
-	Force        bool
 
 	// Upjet carries the Terraform coordinates an upjet-flavored provider is
 	// generated from. Empty for native providers, whose templates never
@@ -92,7 +91,6 @@ func (t *BaseTemplateProduct) SetResource(res *resource.Resource) error {
 // SetForce makes the template overwrite an existing file. It is only called
 // for --force; the zero-value action (machinery.SkipFile) is the default.
 func (t *BaseTemplateProduct) SetForce(force bool) {
-	t.Force = force
 	if force {
 		t.IfExistsAction = machinery.OverwriteFile
 	}

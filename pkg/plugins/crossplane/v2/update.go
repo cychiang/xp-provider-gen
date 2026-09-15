@@ -269,18 +269,14 @@ func revertAdvice(seeded []string) string {
 // validateProject loads this plugin's block and re-checks the values PROJECT feeds
 // into template paths and generated import paths. `init` and `create api` validate
 // them on the way in, but `update` reads a file that may have been edited (or
-// arrived in a pull request) since, so it applies the same gate — including
-// create api's per-flavor kind rule — before rendering anything.
+// arrived in a pull request) since, so it applies the same gate — the flavor's
+// own validator, as `create api` uses — before rendering anything.
 func validateProject(cfg config.Config) (projectMeta, error) {
 	meta, err := loadProjectMeta(cfg)
 	if err != nil {
 		return projectMeta{}, fmt.Errorf("PROJECT is not usable: %w", err)
 	}
-	v := validation.NewValidator()
-	if meta.Flavor == core.FlavorUpjet {
-		// Kinds mirror Terraform resource names on an upjet provider.
-		v = validation.NewValidatorAllowingReservedKinds()
-	}
+	v := validation.ValidatorFor(meta.Flavor)
 	if err := v.ValidateRepository(cfg.GetRepository()); err != nil {
 		return projectMeta{}, fmt.Errorf("PROJECT is not usable: %w", err)
 	}
