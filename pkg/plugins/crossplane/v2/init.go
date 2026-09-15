@@ -106,7 +106,6 @@ func (p *initSubcommand) upjetSettings() (*core.UpjetSettings, error) {
 		TerraformDocsPath:        p.tfDocsPath,
 		TerraformVersion:         versions.TerraformVersion,
 		TerraformResourcePrefix:  name,
-		NamespacedDomain:         core.NamespacedDomain(p.domain),
 	}, nil
 }
 
