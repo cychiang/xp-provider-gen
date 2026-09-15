@@ -76,7 +76,7 @@ var (
 		{"domain", []string{"Ensure the project is initialized with 'init' command first"}},
 		{"template", []string{
 			"Check if there are conflicting files in the target location",
-			"Use --force flag to overwrite existing files",
+			"Use --force flag to overwrite existing tool-owned files",
 		}},
 	}
 )

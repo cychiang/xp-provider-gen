@@ -78,7 +78,8 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   ```
 - **Produces**: runs `make generate`, folds into the scaffold commit until your first own
   commit. Check: a second kind in an already-scaffolded group/version does **not** need
-  `--force`; `--force` is only for re-scaffolding files that already exist.
+  `--force`; `--force` only refreshes existing tool-owned files and never overwrites
+  files without the generated header (`external.go`, `*_types.go`).
 
 ### `create api` — upjet
 

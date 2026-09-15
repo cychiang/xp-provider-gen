@@ -104,7 +104,8 @@ to adding one — placeholders, the ownership header, the golden-test step.)
   `product_generic.go` (`GenericTemplateProduct`) loads any discovered template's body.
   Without `--force` the machinery action is the zero value `SkipFile`, which a second
   `create api` in an existing group/version depends on: `groupversion_info.go` has no
-  `KIND` in its path, so it is already on disk and must be left alone.
+  `KIND` in its path, so it is already on disk and must be left alone. `--force` switches
+  only tool-owned (headered) templates to overwrite; user-owned ones stay `SkipFile`.
 - **Deterministic generators** — instead of parsing and merging existing files, the register
   and go.mod files are rendered **in full** from the project state:
   - `register_generators.go` — `APIRegisterGenerator` (renders `apis/register.go` from the
