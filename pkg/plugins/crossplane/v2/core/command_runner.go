@@ -114,8 +114,9 @@ func (c *CommandRunner) RunWithStdin(ctx context.Context, stdin, name string, ar
 
 // RunStreaming executes a command with its stdout and stderr connected to the
 // given writers, for steps that run for minutes (go get, make reviewable) where
-// the user must watch progress live. The output has already been shown, so the
-// error only names the command.
+// the user must watch progress live. The output has already been shown and the
+// caller already names the command (Pipeline.Run prefixes the step name), so
+// the error is the bare exit status rather than a second copy of the command.
 func (c *CommandRunner) RunStreaming(ctx context.Context, stdout, stderr io.Writer, name string, args ...string) error {
 	if err := checkCommand(name); err != nil {
 		return err
@@ -127,8 +128,5 @@ func (c *CommandRunner) RunStreaming(ctx context.Context, stdout, stderr io.Writ
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
-	}
-	return nil
+	return cmd.Run()
 }
