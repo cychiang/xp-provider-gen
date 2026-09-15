@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 // BaseTemplateProduct provides common functionality for all template products.
@@ -63,6 +64,13 @@ func (t *BaseTemplateProduct) Configure(cfg config.Config) error {
 	// matching upstream (template.crossplane.io -> template.m.crossplane.io).
 	if t.NamespacedDomain == "" && t.Domain != "" {
 		t.NamespacedDomain = core.NamespacedDomain(t.Domain)
+	}
+
+	// The Terraform CLI version is the tool's decision, not a project setting:
+	// PROJECT never keeps it, so every render — init's and update's alike —
+	// takes it from pkg/versions here rather than from the caller.
+	if t.TerraformVersion == "" {
+		t.TerraformVersion = versions.TerraformVersion
 	}
 
 	// Set default boilerplate

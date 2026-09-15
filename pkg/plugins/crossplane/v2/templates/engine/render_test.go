@@ -46,14 +46,19 @@ func fixtureResources(repo, domain string) []resource.Resource {
 	return []resource.Resource{mk("storage", "v1alpha1", "Bucket"), mk("compute", "v1beta1", "Instance")}
 }
 
+// makeFragmentPath is the tool-owned make fragment every provider's Makefile
+// includes.
+const makeFragmentPath = "hack/xp-provider-gen.mk"
+
 // The Terraform provider the upjet fixtures wrap.
 const (
 	testTerraformProviderName = "kubernetes"
 	testTerraformProvider     = "hashicorp/" + testTerraformProviderName
 )
 
-// fixtureUpjetSettings are the settings init would persist for a Terraform
-// provider. NamespacedDomain is deliberately absent: rendering must derive it.
+// fixtureUpjetSettings are the settings init passes for a Terraform provider.
+// NamespacedDomain and TerraformVersion are deliberately absent: rendering must
+// derive them.
 func fixtureUpjetSettings() *core.UpjetSettings {
 	return &core.UpjetSettings{
 		TerraformProvider:        testTerraformProvider,
@@ -61,7 +66,6 @@ func fixtureUpjetSettings() *core.UpjetSettings {
 		TerraformProviderVersion: "2.38.0",
 		TerraformProviderRepo:    core.DefaultProviderRepo(testTerraformProvider),
 		TerraformDocsPath:        core.DefaultTerraformDocsPath,
-		TerraformVersion:         versions.TerraformVersion,
 		TerraformResourcePrefix:  testTerraformProviderName,
 	}
 }
@@ -249,6 +253,23 @@ func TestRenderUpjetDerivesNamespacedDomain(t *testing.T) {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("%s does not contain %s", path, want)
 		}
+	}
+}
+
+// TestRenderUpjetPinsTerraformVersion checks, on real rendered output, that the
+// tool-owned make fragment pins the Terraform CLI version the tool decides
+// (pkg/versions), even though the settings passed in carry none — which is
+// exactly what `update` passes after reading PROJECT back.
+func TestRenderUpjetPinsTerraformVersion(t *testing.T) {
+	want := "export TERRAFORM_VERSION ?= " + versions.TerraformVersion + "\n"
+	mem := renderProject(t, core.FlavorUpjet)
+
+	body, err := afero.ReadFile(mem, makeFragmentPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v", makeFragmentPath, err)
+	}
+	if !strings.Contains(string(body), want) {
+		t.Errorf("%s does not contain %q:\n%s", makeFragmentPath, want, body)
 	}
 }
 

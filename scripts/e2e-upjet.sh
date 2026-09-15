@@ -42,7 +42,8 @@ rm -rf "$DIR" && mkdir -p "$DIR" && cd "$DIR"
 green "  ✓ scaffolded"
 
 for f in config/provider.go config/zz_resources.go internal/clients/clients.go \
-         internal/clients/resolve.go cmd/generator/main.go apis/generate.go Makefile; do
+         internal/clients/resolve.go cmd/generator/main.go apis/generate.go Makefile \
+         hack/xp-provider-gen.mk; do
   [ -f "$f" ] || fail "missing scaffolded file: $f"
 done
 grep -q 'hashicorp/kubernetes' Makefile || fail "Terraform provider not wired into the Makefile"
@@ -81,14 +82,16 @@ green "  ✓ builds"
 
 blue "=== 6. update refreshes tool-owned files and seeds no user-owned ones ==="
 # update needs a clean tree, so commit what generation produced first. Then make
-# one tool-owned file stale and delete one user-owned file: update must refresh
-# the first and must not re-seed the second, whose template needs init-time
-# Terraform settings PROJECT does not keep.
+# two tool-owned files stale (Go source and the make fragment) and delete one
+# user-owned file: update must refresh the first two and must not re-seed the
+# last, whose template needs init-time Terraform settings PROJECT does not keep.
 UPDATE_MARKER="// e2e-upjet: stale tool-owned content"
+MK_MARKER="# e2e-upjet: stale tool-owned content"
 git add -A && git commit -qm "Generate provider" || fail "could not commit the generated provider"
 echo "$UPDATE_MARKER" >>config/provider.go
+echo "$MK_MARKER" >>hack/xp-provider-gen.mk
 rm examples/providerconfig/providerconfig.yaml
-git commit -qam "Make config/provider.go stale and delete the ProviderConfig example" ||
+git commit -qam "Make tool-owned files stale and delete the ProviderConfig example" ||
   fail "could not commit the simulated drift"
 "$BIN" update >/tmp/e2e-upjet-update.log 2>&1 || {
   tail -30 /tmp/e2e-upjet-update.log
@@ -96,6 +99,9 @@ git commit -qam "Make config/provider.go stale and delete the ProviderConfig exa
 }
 if grep -qF "$UPDATE_MARKER" config/provider.go; then
   fail "update did not refresh tool-owned config/provider.go"
+fi
+if grep -qF "$MK_MARKER" hack/xp-provider-gen.mk; then
+  fail "update did not refresh tool-owned hack/xp-provider-gen.mk"
 fi
 [ ! -e examples/providerconfig/providerconfig.yaml ] ||
   fail "update re-seeded user-owned examples/providerconfig/providerconfig.yaml"
@@ -106,7 +112,7 @@ grep -q 'Not seeded.*examples/providerconfig/providerconfig.yaml' /tmp/e2e-upjet
 git checkout HEAD~1 -- examples/providerconfig/providerconfig.yaml ||
   fail "could not restore the ProviderConfig example"
 git add -A && git commit -qm "Update provider" || fail "could not commit the update"
-green "  ✓ update refreshed config/provider.go, did not re-seed the ProviderConfig example, and finalized"
+green "  ✓ update refreshed config/provider.go and hack/xp-provider-gen.mk, did not re-seed the ProviderConfig example, and finalized"
 
 blue "=== 7. The generated provider starts, not just builds ==="
 
@@ -131,12 +137,12 @@ green "  ✓ provider binary builds via 'make go.build' and --help exits cleanly
 
 # The Terraform CLI version is the generator's call, not this script's: it is
 # recorded once in pkg/versions/dependencies.yaml and rendered into the
-# scaffold's own Makefile. Read it back out of that Makefile rather than
-# repeating the literal here, so this e2e always runs the provider with the
-# version the tool actually generated.
-TERRAFORM_VERSION="$(sed -n 's/^export TERRAFORM_VERSION[[:space:]]*?*=[[:space:]]*//p' "$DIR/Makefile" | head -1)"
-[ -n "$TERRAFORM_VERSION" ] || fail "could not read TERRAFORM_VERSION out of the generated Makefile"
-green "  ✓ generated Makefile pins Terraform CLI $TERRAFORM_VERSION (from pkg/versions/dependencies.yaml)"
+# scaffold's tool-owned make fragment. Read it back out of that fragment rather
+# than repeating the literal here, so this e2e always runs the provider with the
+# version the tool actually generated — after stage 6's update refreshed it.
+TERRAFORM_VERSION="$(sed -n 's/^export TERRAFORM_VERSION[[:space:]]*?*=[[:space:]]*//p' "$DIR/hack/xp-provider-gen.mk" | head -1)"
+[ -n "$TERRAFORM_VERSION" ] || fail "could not read TERRAFORM_VERSION out of hack/xp-provider-gen.mk"
+green "  ✓ generated make fragment pins Terraform CLI $TERRAFORM_VERSION (from pkg/versions/dependencies.yaml)"
 
 blue "  --- 7b. Scheme registration runs against an unreachable API server (no cluster needed) ---"
 FAKE_KUBECONFIG="$(mktemp)"

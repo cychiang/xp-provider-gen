@@ -24,6 +24,7 @@ require() {
 
 # Base layout, present after init.
 require "Makefile"
+require "hack/xp-provider-gen.mk"
 require "go.mod"
 require ".gitignore"
 require "apis"

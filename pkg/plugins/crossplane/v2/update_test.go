@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 // The group and version every update test resource lives in.
@@ -126,12 +127,12 @@ func TestRenderToMemFS(t *testing.T) {
 		{
 			name:      string(core.FlavorNative),
 			meta:      projectMeta{Flavor: core.FlavorNative},
-			wantPaths: []string{nativeConnectorPath},
+			wantPaths: []string{nativeConnectorPath, makeFragmentPath},
 		},
 		{
 			name:        string(core.FlavorUpjet),
 			meta:        upjetTestMeta(),
-			wantPaths:   []string{upjetProviderConfigPath, "config/zz_resources.go"},
+			wantPaths:   []string{upjetProviderConfigPath, "config/zz_resources.go", makeFragmentPath},
 			absentPaths: []string{nativeConnectorPath},
 		},
 	}
@@ -170,13 +171,24 @@ func TestRenderToMemFS(t *testing.T) {
 				t.Errorf("%s does not contain %s:\n%s", upjetProviderConfigPath, want, got)
 			}
 		}
+
+		// PROJECT keeps no Terraform CLI version: the tool-owned make fragment
+		// must still pin the tool's, never an empty value.
+		fragment, err := afero.ReadFile(mem, makeFragmentPath)
+		if err != nil {
+			t.Fatalf("reading %s: %v", makeFragmentPath, err)
+		}
+		if want := "export TERRAFORM_VERSION ?= " + versions.TerraformVersion + "\n"; !strings.Contains(string(fragment), want) {
+			t.Errorf("%s does not contain %q:\n%s", makeFragmentPath, want, fragment)
+		}
 	})
 }
 
-// Paths the render tests key off, one per flavor.
+// Paths the render tests key off.
 const (
 	nativeConnectorPath     = "internal/provider/connector.go"
 	upjetProviderConfigPath = "config/provider.go"
+	makeFragmentPath        = "hack/xp-provider-gen.mk"
 )
 
 // TestReconcile_UpjetDoesNotSeedUserOwned pins policy C7: a user-owned file

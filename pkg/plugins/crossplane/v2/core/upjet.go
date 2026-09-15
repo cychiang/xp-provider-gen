@@ -65,8 +65,10 @@ type UpjetSettings struct {
 	TerraformDocsPath string `json:"-"`
 	// TerraformVersion is the Terraform CLI version used to read the schema,
 	// sourced from pkg/versions.TerraformVersion (the tool's call, not the
-	// author's — see that package for why). Render-time only: baked into
-	// TERRAFORM_VERSION at init.
+	// author's — see that package for why). Callers leave it empty: every
+	// render fills it in (engine.BaseTemplateProduct.Configure) and writes it
+	// to TERRAFORM_VERSION in the tool-owned hack/xp-provider-gen.mk, so
+	// `update` keeps it current.
 	TerraformVersion string `json:"-"`
 	// TerraformResourcePrefix is the resource name prefix, e.g. "kubernetes"
 	// for kubernetes_secret. The one field `create api` reads back out of
