@@ -490,7 +490,7 @@ func applyDependencies(ctx context.Context, flavor core.Flavor) error {
 	runner := core.NewCommandRunner("")
 	for _, d := range deps {
 		if err := runner.RunStreaming(ctx, os.Stdout, os.Stderr, "go", "get", d.Module+"@"+d.Version); err != nil {
-			return fmt.Errorf("applying framework dependency versions: %w", err)
+			return fmt.Errorf("go get %s@%s: %w", d.Module, d.Version, err)
 		}
 	}
 	return nil

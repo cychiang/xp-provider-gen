@@ -82,3 +82,27 @@ func TestCommandRunner_RunStreaming_StreamsOutput(t *testing.T) {
 		t.Errorf("stdout = %q, want it to contain %q", stdout.String(), "go version")
 	}
 }
+
+// TestCommandRunner_RunStreaming_ErrorFormat pins that RunStreaming's error
+// names nothing itself: callers already name the command (Pipeline.Run
+// prefixes the step name, update names the module), so repeating it here
+// produced "Run make reviewable failed: make reviewable: exit status 2".
+func TestCommandRunner_RunStreaming_ErrorFormat(t *testing.T) {
+	tests := []struct {
+		desc string
+		args []string
+		want string
+	}{
+		{desc: "with arguments", args: []string{"bogus-subcommand"}, want: "exit status 2"},
+		{desc: "without arguments", want: "exit status 2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			var out bytes.Buffer
+			err := NewCommandRunner("").RunStreaming(context.Background(), &out, &out, "go", tt.args...)
+			if err == nil || err.Error() != tt.want {
+				t.Fatalf("RunStreaming(go %v) error = %q, want %q", tt.args, err, tt.want)
+			}
+		})
+	}
+}

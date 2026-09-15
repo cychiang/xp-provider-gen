@@ -184,3 +184,24 @@ func TestPipeline_Run_AbortsOnFirstFailure(t *testing.T) {
 		t.Error("second step must not run after a failure")
 	}
 }
+
+// TestPipeline_Run_StreamingStepFailureMessage pins the full message a user
+// sees when a streaming step fails: the step name once, then the exit status,
+// with no repeated command and no trailing space when there are no arguments.
+func TestPipeline_Run_StreamingStepFailureMessage(t *testing.T) {
+	tests := []struct {
+		step *StreamingCommandStep
+		want string
+	}{
+		{step: NewStreamingCommandStep("go", "bogus-subcommand"), want: "Run go bogus-subcommand failed: exit status 2"},
+		{step: NewStreamingCommandStep("go"), want: "Run go failed: exit status 2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.step.Name(), func(t *testing.T) {
+			err := (&Pipeline{steps: []Step{tt.step}}).Run()
+			if err == nil || err.Error() != tt.want {
+				t.Fatalf("Run() error = %q, want %q", err, tt.want)
+			}
+		})
+	}
+}
