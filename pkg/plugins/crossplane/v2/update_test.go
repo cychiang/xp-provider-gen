@@ -70,6 +70,16 @@ func TestRefuseUnsupportedFlavor(t *testing.T) {
 			t.Fatalf("refuseUnsupportedFlavor() on an upjet project = %v, want an error naming upjet", err)
 		}
 	})
+
+	t.Run("unknown flavor is refused", func(t *testing.T) {
+		cfg := newCfg(t)
+		if err := cfg.EncodePluginConfig(pluginName, projectMeta{Flavor: unknownTestFlavor}); err != nil {
+			t.Fatalf("EncodePluginConfig: %v", err)
+		}
+		if err := refuseUnsupportedFlavor(cfg); err == nil {
+			t.Fatal("refuseUnsupportedFlavor() on a project with an unknown flavor = nil, want an error")
+		}
+	})
 }
 
 func TestReconcile(t *testing.T) {
