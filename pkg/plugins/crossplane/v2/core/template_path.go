@@ -28,14 +28,12 @@ func IsTemplateFile(path string) bool {
 	return strings.HasSuffix(path, ".tmpl")
 }
 
-// templateRoots are the top-level directories of the embedded template FS, one
-// per provider flavor. Output paths are relative to whichever root a template
-// came from.
-var templateRoots = []string{"files/", "upjet/"}
-
-// CleanTemplatePath removes the flavor root prefix from a template path.
+// CleanTemplatePath removes the flavor root prefix from a template path. The
+// embedded template FS has one top-level root per flavor, and output paths are
+// relative to whichever root a template came from.
 func CleanTemplatePath(path string) string {
-	for _, root := range templateRoots {
+	for _, f := range Flavors {
+		root := f.TemplateRoot() + "/"
 		if strings.HasPrefix(path, root) {
 			return strings.TrimPrefix(path, root)
 		}

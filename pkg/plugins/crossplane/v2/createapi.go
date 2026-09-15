@@ -28,6 +28,10 @@ type createAPISubcommand struct {
 	config       config.Config
 	resource     *resource.Resource
 	pluginConfig *PluginConfig
+
+	// meta is this project's plugin block, loaded once in PreScaffold and read
+	// by Scaffold and PostScaffold.
+	meta projectMeta
 }
 
 func (p *createAPISubcommand) UpdateMetadata(cliMeta plugin.CLIMetadata, subcmdMeta *plugin.SubcommandMetadata) {
@@ -91,6 +95,7 @@ func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 	if err != nil {
 		return validation.CreateAPIError("configuration check", err)
 	}
+	p.meta = meta
 
 	// Validate resource parameters before scaffolding
 	validator := validation.NewValidator()
@@ -134,21 +139,16 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		machinery.WithResource(p.resource),
 	)
 
-	meta, err := loadProjectMeta(p.config)
-	if err != nil {
-		return validation.CreateAPIError("configuration check", err)
-	}
-
 	// Per-resource templates need the Terraform coordinates as well as the kind.
 	// --terraform-resource presence and shape were already validated in PreScaffold.
-	upjet := meta.Upjet
+	upjet := p.meta.Upjet
 	if upjet != nil {
 		settings := *upjet
 		settings.TerraformResource = p.terraformResource
 		upjet = &settings
 	}
 
-	factory := engine.NewFactoryForFlavor(p.config, meta.Flavor)
+	factory := engine.NewFactoryForFlavor(p.config, p.meta.Flavor)
 	apiTemplates, err := factory.GetAPITemplates(
 		engine.WithForce(p.Force),
 		engine.WithResource(p.resource),
@@ -169,11 +169,7 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 	// Combine the new resource's API templates with the regenerated registration files.
 	allTemplates := engine.AsBuilders(apiTemplates)
-	if meta.Flavor == core.FlavorUpjet {
-		allTemplates = append(allTemplates, engine.UpjetCoreGenerators(p.config, resources)...)
-	} else {
-		allTemplates = append(allTemplates, engine.CoreGenerators(p.config, resources)...)
-	}
+	allTemplates = append(allTemplates, engine.CoreGeneratorsFor(p.meta.Flavor, p.config, resources)...)
 
 	// Execute scaffolding with discovered templates
 	if err := scaffold.Execute(allTemplates...); err != nil {
@@ -181,7 +177,7 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	}
 
 	fmt.Printf("Successfully scaffolded Crossplane managed resource %s\n", p.resource.Kind)
-	if meta.Flavor == core.FlavorUpjet {
+	if p.meta.Flavor == core.FlavorUpjet {
 		fmt.Printf("Configured %s in config/%s/config.go. Run 'make generate' to generate its API types and controller.\n",
 			p.terraformResource, strings.ToLower(p.resource.Kind))
 	}
@@ -196,14 +192,9 @@ func (p *createAPISubcommand) PostScaffold() error {
 		return validation.CreateAPIError("PROJECT file persistence", err)
 	}
 
-	meta, err := loadProjectMeta(p.config)
-	if err != nil {
-		return validation.CreateAPIError("configuration check", err)
-	}
-
 	// Run API commit automation pipeline
 	pipeline := automation.NewAPICommitPipeline(p.pluginConfig, p.resource.Kind)
-	if meta.Flavor == core.FlavorUpjet {
+	if p.meta.Flavor == core.FlavorUpjet {
 		pipeline = automation.NewUpjetAPICommitPipeline(p.pluginConfig, p.resource.Kind)
 	}
 	fmt.Println("Running post-scaffolding automation...")
@@ -213,7 +204,7 @@ func (p *createAPISubcommand) PostScaffold() error {
 
 	fmt.Printf("Crossplane managed resource %s created successfully!\n", p.resource.Kind)
 	fmt.Printf("Next steps:\n")
-	if meta.Flavor == core.FlavorUpjet {
+	if p.meta.Flavor == core.FlavorUpjet {
 		fmt.Printf("  1. Run 'make generate' to generate its API types and controller\n")
 		fmt.Printf("  2. Map any new credentials in internal/clients/clients.go\n")
 		fmt.Printf("  3. Write examples/%s/%s.yaml: copy %s "+

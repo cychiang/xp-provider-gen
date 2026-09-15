@@ -16,6 +16,8 @@ limitations under the License.
 
 package core
 
+import "slices"
+
 // Flavor selects which kind of provider a project is, which in turn selects the
 // template tree it is scaffolded from. A project's flavor is chosen once at
 // `init` and recorded in PROJECT, so later commands never ask again.
@@ -31,6 +33,10 @@ const (
 	FlavorUpjet Flavor = "upjet"
 )
 
+// Flavors lists every flavor this tool knows how to scaffold. Valid and the
+// template roots derive from it, so adding a flavor starts here.
+var Flavors = []Flavor{FlavorNative, FlavorUpjet}
+
 // TemplateRoot is the directory in the embedded template FS that holds this
 // flavor's scaffold. Each root is self-contained: everything a provider of that
 // flavor gets is visible in one directory.
@@ -43,5 +49,5 @@ func (f Flavor) TemplateRoot() string {
 
 // Valid reports whether f is a flavor this tool knows how to scaffold.
 func (f Flavor) Valid() bool {
-	return f == FlavorNative || f == FlavorUpjet
+	return slices.Contains(Flavors, f)
 }

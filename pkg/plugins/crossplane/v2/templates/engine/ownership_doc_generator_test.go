@@ -20,9 +20,6 @@ import (
 	"slices"
 	"testing"
 
-	"sigs.k8s.io/kubebuilder/v4/pkg/config"
-	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
-
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
@@ -75,17 +72,11 @@ func TestOwnershipDocClassifiesGeneratorOutputs(t *testing.T) {
 // through UpjetCoreGenerators so it covers the production wiring, which must
 // list the go.mod init seeds as user-owned just as the native doc does.
 func TestOwnershipDocClassifiesUpjetOutputs(t *testing.T) {
-	cfg, err := config.New(cfgv3.Version)
-	if err != nil {
-		t.Fatalf("config.New: %v", err)
-	}
-	if err := cfg.SetRepository(testRepo); err != nil {
-		t.Fatalf("SetRepository: %v", err)
-	}
 	var g *OwnershipDocGenerator
-	for _, b := range UpjetCoreGenerators(cfg, nil) {
+	for _, b := range UpjetCoreGenerators(newTestConfig(t), nil) {
 		if doc, ok := b.(*OwnershipDocGenerator); ok {
 			g = doc
+			break
 		}
 	}
 	if g == nil {

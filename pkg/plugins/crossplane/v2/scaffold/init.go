@@ -24,7 +24,6 @@ import (
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
-	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 type InitScaffolder struct {
@@ -59,15 +58,11 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	// Seed the registration files through the same deterministic generators used
 	// by `create api` (with no managed resources yet), so init and create produce
 	// byte-identical register.go for the base case — one source of truth.
-	deps, err := s.dependencies()
+	deps, err := engine.DependenciesFor(s.flavor)
 	if err != nil {
 		return fmt.Errorf("failed to load dependency manifest: %w", err)
 	}
-	if s.flavor == core.FlavorUpjet {
-		allTemplates = append(allTemplates, engine.UpjetCoreGenerators(s.config, nil)...)
-	} else {
-		allTemplates = append(allTemplates, engine.CoreGenerators(s.config, nil)...)
-	}
+	allTemplates = append(allTemplates, engine.CoreGeneratorsFor(s.flavor, s.config, nil)...)
 	allTemplates = append(allTemplates, engine.NewGoModGenerator(s.config.GetRepository(), deps))
 
 	if err := scaffold.Execute(allTemplates...); err != nil {
@@ -77,12 +72,4 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Crossplane provider project scaffolded successfully!\n")
 
 	return nil
-}
-
-// dependencies returns the go.mod dependency set for this project's flavor.
-func (s *InitScaffolder) dependencies() ([]versions.Dependency, error) {
-	if s.flavor == core.FlavorUpjet {
-		return versions.UpjetGoModDependencies()
-	}
-	return versions.GoModDependencies()
 }

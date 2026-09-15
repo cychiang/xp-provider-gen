@@ -60,3 +60,13 @@ func CoreGenerators(cfg config.Config, resources []resource.Resource) []machiner
 	doc := NewOwnershipDocGenerator(core.FlavorNative, api, controller, NewGoModGenerator(repo, nil))
 	return []machinery.Builder{api, controller, doc}
 }
+
+// CoreGeneratorsFor returns the deterministically generated files for a
+// project of the given flavor. It is the one place a command chooses between
+// the native and upjet generator sets.
+func CoreGeneratorsFor(flavor core.Flavor, cfg config.Config, resources []resource.Resource) []machinery.Builder {
+	if flavor == core.FlavorUpjet {
+		return UpjetCoreGenerators(cfg, resources)
+	}
+	return CoreGenerators(cfg, resources)
+}

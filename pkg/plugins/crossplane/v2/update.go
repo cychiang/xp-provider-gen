@@ -36,7 +36,6 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
 	"github.com/cychiang/xp-provider-gen/pkg/version"
-	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 // NewUpdateCommand returns the `update` command, registered on the CLI via
@@ -81,52 +80,53 @@ provenance and writes the header onto recognized tool-owned files so plain 'upda
 }
 
 // prepare enforces the clean-tree precondition, loads the project, and renders the
-// current template set into an in-memory FS. Both update and adopt start here.
-func prepare(ctx context.Context) (store.Store, afero.Fs, error) {
+// current template set into an in-memory FS. Both update and adopt start here; it
+// also returns the project's flavor so later steps choose the same sets.
+func prepare(ctx context.Context) (store.Store, afero.Fs, core.Flavor, error) {
 	if err := requireCleanTree(ctx); err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	st, err := loadProjectStore()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
-	if err := refuseUnsupportedFlavor(st.Config()); err != nil {
-		return nil, nil, err
+	flavor, err := refuseUnsupportedFlavor(st.Config())
+	if err != nil {
+		return nil, nil, "", err
 	}
 	if err := validateProject(st.Config()); err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	mem := afero.NewMemMapFs()
-	if err := renderToMemFS(st.Config(), machinery.Filesystem{FS: mem}); err != nil {
-		return nil, nil, fmt.Errorf("rendering tool-owned files: %w", err)
+	if err := renderToMemFS(st.Config(), flavor, machinery.Filesystem{FS: mem}); err != nil {
+		return nil, nil, "", fmt.Errorf("rendering tool-owned files: %w", err)
 	}
-	return st, mem, nil
+	return st, mem, flavor, nil
 }
 
-// refuseUnsupportedFlavor rejects a PROJECT this command cannot safely handle.
-// update and adopt both render the native template set unconditionally
-// (renderToMemFS calls NewFactoryForFlavor(cfg, core.FlavorNative) and the
-// native CoreGenerators, with no WithUpjet path); on an upjet project that
-// overwrites its plumbing with native files and leaves it unable to build.
-// Every tool-owned upjet template only needs project-level values already in
-// PROJECT — the gap is that renderToMemFS has no upjet render path at all, not
-// any missing data — so until that lands, refusing here turns what used to be
-// silent corruption into an explicit, actionable error.
-func refuseUnsupportedFlavor(cfg config.Config) error {
+// refuseUnsupportedFlavor loads the project's flavor and rejects one this
+// command cannot safely handle. renderToMemFS never passes WithUpjet, so
+// on an upjet project it would render the upjet plumbing without its Terraform
+// settings and leave the project unable to build. Every tool-owned upjet
+// template only needs project-level values already in PROJECT — the gap is the
+// missing upjet render wiring, not any missing data — so until that lands,
+// refusing here turns what used to be silent corruption into an explicit,
+// actionable error.
+func refuseUnsupportedFlavor(cfg config.Config) (core.Flavor, error) {
 	meta, err := loadProjectMeta(cfg)
 	if err != nil {
-		return fmt.Errorf("PROJECT is not usable: %w", err)
+		return "", fmt.Errorf("PROJECT is not usable: %w", err)
 	}
 	if meta.Flavor == core.FlavorUpjet {
-		return fmt.Errorf("update does not support upjet providers yet: " +
+		return "", fmt.Errorf("update does not support upjet providers yet: " +
 			"its render path is hard-wired to the native template set, so there is no " +
 			"correct way to re-render an upjet project's plumbing; see docs/upjet-provider.md")
 	}
-	return nil
+	return meta.Flavor, nil
 }
 
 func runAdopt(ctx context.Context) error {
-	store, mem, err := prepare(ctx)
+	store, mem, _, err := prepare(ctx)
 	if err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func stampProvenance(store store.Store) error {
 }
 
 func runUpdate(ctx context.Context) error {
-	store, mem, err := prepare(ctx)
+	store, mem, flavor, err := prepare(ctx)
 	if err != nil {
 		return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
 	}
@@ -252,7 +252,7 @@ func runUpdate(ctx context.Context) error {
 	}
 	result.print()
 
-	if err := applyDependencies(ctx); err != nil {
+	if err := applyDependencies(ctx, flavor); err != nil {
 		return fmt.Errorf("%w\n%s", err, revertAdvice(result.seeded))
 	}
 
@@ -344,11 +344,11 @@ func requireCleanTree(ctx context.Context) error {
 }
 
 // renderToMemFS renders the full template set (init + static + register generators,
-// plus each resource's API templates) into the given in-memory filesystem.
-// Only the native flavor reaches here: refuseUnsupportedFlavor rejects upjet
-// projects before prepare calls this.
-func renderToMemFS(cfg config.Config, memFS machinery.Filesystem) error {
-	factory := engine.NewFactoryForFlavor(cfg, core.FlavorNative)
+// plus each resource's API templates) of the given flavor into the in-memory
+// filesystem. Only the native flavor reaches here today: refuseUnsupportedFlavor
+// rejects upjet projects before prepare calls this.
+func renderToMemFS(cfg config.Config, flavor core.Flavor, memFS machinery.Filesystem) error {
+	factory := engine.NewFactoryForFlavor(cfg, flavor)
 
 	resources, err := cfg.GetResources()
 	if err != nil {
@@ -365,7 +365,7 @@ func renderToMemFS(cfg config.Config, memFS machinery.Filesystem) error {
 		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
 	)
 	builders := engine.AsBuilders(initTemplates)
-	builders = append(builders, engine.CoreGenerators(cfg, resources)...)
+	builders = append(builders, engine.CoreGeneratorsFor(flavor, cfg, resources)...)
 	if err := base.Execute(builders...); err != nil {
 		return fmt.Errorf("rendering base templates: %w", err)
 	}
@@ -478,10 +478,10 @@ func (r reconcileResult) print() {
 		len(r.overwritten), len(r.seeded), len(r.skipped))
 }
 
-// applyDependencies bumps the framework dependency versions from the manifest via
-// `go get`, leaving the rest of go.mod (the user's own requires) alone.
-func applyDependencies(ctx context.Context) error {
-	deps, err := versions.GoModDependencies()
+// applyDependencies bumps the flavor's framework dependency versions from the
+// manifest via `go get`, leaving the rest of go.mod (the user's own requires) alone.
+func applyDependencies(ctx context.Context, flavor core.Flavor) error {
+	deps, err := engine.DependenciesFor(flavor)
 	if err != nil {
 		return fmt.Errorf("loading dependency manifest: %w", err)
 	}
