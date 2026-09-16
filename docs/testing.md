@@ -1,6 +1,10 @@
 # Testing
 
-Four layers: fast Go unit tests, a full end-to-end scaffold test, an upgrade simulation, and an upjet-flavor e2e.
+This page covers the **automated** suites: fast Go unit tests, a full end-to-end scaffold
+test, an upgrade simulation, and an upjet-flavor e2e — four layers, all run by `make`
+targets and wired into CI. For a **manual** walkthrough of the same surfaces — reproducing
+a bug report, sanity-checking a change by hand, or seeing what a provider author actually
+experiences — see [docs/manual-testing.md](manual-testing.md).
 
 ## Unit tests
 

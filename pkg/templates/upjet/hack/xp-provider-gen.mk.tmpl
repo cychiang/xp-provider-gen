@@ -207,7 +207,7 @@ KIND_CLUSTER_NAME ?= $(PROJECT_NAME)-e2e
 UPTEST_LOCAL_DEPLOY_TARGET = local.xpkg.deploy.provider.$(PROJECT_NAME)
 # Every kind's example is the uptest input too: create api's next-steps text
 # tells you to write examples/<group>/<kind>.yaml once make generate has run,
-# so this Makefile never needs editing for new kinds. The ProviderConfig
+# so this fragment never needs editing for new kinds. The ProviderConfig
 # example is excluded: it is not a managed resource lifecycle. uptest takes
 # the manifests as ONE comma-separated argument, hence the join.
 UPTEST_INPUT_MANIFESTS = $(shell echo $(filter-out examples/providerconfig/%,$(wildcard examples/*/*.yaml)) | tr ' ' ',')
