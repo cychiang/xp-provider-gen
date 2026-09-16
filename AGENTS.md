@@ -90,3 +90,5 @@ reconsider.
 - [.github/WORKFLOWS.md](.github/WORKFLOWS.md) — CI/CD pipelines
 - [.agents/skills/xp-provider-gen/](.agents/skills/xp-provider-gen/) — using this tool to
   build a provider (author-facing; how to scaffold, configure and deploy either flavor)
+- [docs/plans/2026-09-15-architecture-review.md](docs/plans/2026-09-15-architecture-review.md) —
+  how the architecture review's 14-item backlog was implemented, and what was deferred
