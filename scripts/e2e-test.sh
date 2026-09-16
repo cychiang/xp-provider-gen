@@ -365,6 +365,37 @@ main() {
     log_success "✓ update refused a dirty working tree"
     git checkout -- "$ctrl" 2>/dev/null || git restore "$ctrl"
 
+    # Step F: `create api --force` refreshes a tool-owned file, preserves user edits
+    step_header "F" "Test create api --force"
+    local force_wiring="internal/controller/${KIND1_LOWER}/wiring.go"
+    local force_tool_marker="// FORCE-MARKER: stale tool-owned content"
+    local force_user_marker="// FORCE-MARKER: user customization"
+    log_info "Marking tool-owned $force_wiring and user-owned $ctrl, then committing..."
+    printf '\n%s\n' "$force_tool_marker" >> "$force_wiring"
+    printf '\n%s\n' "$force_user_marker" >> "$ctrl"
+    git add -A && git commit -q -m "simulate: stale tool-owned file and a user customization before --force"
+
+    log_info "Running: $BINARY_PATH create api --group=$GROUP --version=$VERSION --kind=$KIND1 --force"
+    if "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1" --force; then
+        log_success "create api --force exited 0"
+    else
+        log_error "create api --force failed"
+        exit 1
+    fi
+
+    if grep -q "$force_tool_marker" "$force_wiring"; then
+        log_error "✗ --force did not refresh tool-owned $force_wiring (marker survived)"
+        exit 1
+    fi
+    log_success "✓ --force refreshed tool-owned $force_wiring (marker gone)"
+
+    if grep -q "$force_user_marker" "$ctrl"; then
+        log_success "✓ --force preserved user-owned $ctrl"
+    else
+        log_error "✗ --force clobbered user-owned $ctrl (marker gone)"
+        exit 1
+    fi
+
     # Step A: `update --adopt` retrofits a provider generated before the ownership contract
     step_header "A" "Test update --adopt"
     local wiring="internal/controller/${KIND1_LOWER}/wiring.go"
@@ -506,6 +537,7 @@ main() {
     log_success "✅ create-test scaffolds a chainsaw test: PASSED"
     log_success "✅ scaffolded test runs against the live provider: ${CREATE_TEST_LIVE_RESULT}"
     log_success "✅ update preserves all 3 user-owned seam files: PASSED"
+    log_success "✅ create api --force refreshes tool-owned files, preserves user edits: PASSED"
     log_success "✅ update / update --adopt (on a copy): PASSED"
     echo
     log_success "🎉 All E2E tests completed successfully!"

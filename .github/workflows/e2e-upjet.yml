@@ -31,7 +31,7 @@ jobs:
   e2e-upjet:
     name: E2E Test (upjet)
     runs-on: ubuntu-latest
-    # Stage 9 of e2e-upjet.sh stands up a real kind cluster, installs
+    # Stage 10 of e2e-upjet.sh stands up a real kind cluster, installs
     # Crossplane, deploys the built provider, and runs the generated
     # provider's own e2e (its uptest lifecycle, then its chainsaw suite).
     # This workflow's runner has a Docker daemon, so that stage would run
@@ -61,13 +61,13 @@ jobs:
 
     # Runs the full scaffold -> configure -> generate -> build -> run pipeline
     # against the real hashicorp/kubernetes Terraform provider, including
-    # stage 9's live run of the generated provider's own e2e (see
-    # E2E_SKIP_DOCKER above). Stage 7c (the envtest-backed
+    # stage 10's live run of the generated provider's own e2e (see
+    # E2E_SKIP_DOCKER above). Stage 8c (the envtest-backed
     # real-controller-setup check) resolves its own kube-apiserver/etcd
     # assets and degrades to a skip-with-warning, not a failure, if they
     # can't be fetched — no extra CI wiring needed for that. kind itself is
     # downloaded by the scaffolded project's own Makefile (KIND_VERSION is
     # pinned there), so this runner does not need kind preinstalled — only
     # the Docker daemon GitHub's ubuntu-latest runners already provide.
-    - name: Run upjet E2E test (including the live stage 9 lifecycle)
+    - name: Run upjet E2E test (including the live stage 10 lifecycle)
       run: ./scripts/e2e-upjet.sh
