@@ -120,8 +120,9 @@ to adding one — placeholders, the ownership header, the golden-test step.)
     names are not unique) and maps each template through `core.GenerateOutputPath`, so the
     doc lists the paths a provider actually has.
   - `chainsaw_generator.go` — `ChainsawTestGenerator` renders the `create-test` skeleton.
-  - `assembly.go` — `AsBuilders`, `CoreGenerators` (native) and `UpjetCoreGenerators` (upjet:
-    `config/zz_resources.go` + the ownership doc) helpers shared by init, create, and update.
+  - `assembly.go` — `AsBuilders`, `coreGenerators` (native) and `upjetCoreGenerators` (upjet:
+    `config/zz_resources.go` + the ownership doc) helpers, reached only through
+    `CoreGeneratorsFor`, the one entry point init, create, and update all share.
   - Generator template **bodies** are files too: `pkg/templates/generators/*.tmpl`, loaded via
     `templates.GeneratorBody` — deliberately outside `files/` so auto-discovery never renders
     them directly (see [templates.md](templates.md)).

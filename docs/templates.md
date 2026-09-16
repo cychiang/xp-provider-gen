@@ -105,7 +105,7 @@ above: `.Alias`/`.Path` (register files), `.Module`/`.Version`/`.GoVersion`
 
 Editing a body is a template change; adding new *data* to one is a Go change.
 For a brand-new generated file that needs computed data, model a generator on
-the existing ones and add it to `CoreGenerators` or `UpjetCoreGenerators`
+the existing ones and add it to `coreGenerators` or `upjetCoreGenerators`
 (`assembly.go`) for the flavor it belongs to, so `init`, `create api`, and
 `update` all emit it — the ownership doc derives its entry from the generator
 automatically. Keep the `DO NOT EDIT` header in tool-owned bodies: a test fails
