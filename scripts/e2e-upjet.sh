@@ -354,27 +354,60 @@ if ! docker_skip_requested && docker info >/dev/null 2>&1; then
   # make e2e: build -> controlplane.down -> controlplane.up -> deploy the
   # provider -> uptest (create -> Ready/Synced -> import -> delete, reading
   # UPTEST_INPUT_MANIFESTS=examples/*/*.yaml) -> e2e.run's test-behavior hook,
-  # which runs the chainsaw suite scaffolded above.
-  #
-  # CHAINSAW_ARGS raises chainsaw's --cleanup-timeout past its 30s default:
-  # crossplane-runtime only confirms an external resource's deletion on its
-  # next reconcile after calling Delete, and with this provider's
-  # Terraform-CLI-backed Delete that confirmation measured ~36s in manual
-  # testing — comfortably inside chainsaw's own delete/assert timeouts below,
-  # but past its cleanup-timeout default, which the generated test does not
-  # override.
-  CHAINSAW_ARGS="--cleanup-timeout=2m" make e2e >/tmp/e2e-upjet-project-e2e.log 2>&1 || {
+  # which runs the chainsaw suite scaffolded above. The generated chainsaw
+  # skeleton sets its own cleanup timeout (pkg/templates/generators/
+  # chainsaw_test.yaml.tmpl), so no CHAINSAW_ARGS override is needed here —
+  # this proves the provider passes with the defaults an author actually gets.
+  make e2e >/tmp/e2e-upjet-project-e2e.log 2>&1 || {
     tail -40 /tmp/e2e-upjet-project-e2e.log
     fail "generated provider's make e2e failed"
   }
   grep -q 'configmap-basic' junit.xml || fail "junit.xml does not show configmap-basic having run"
   green "  ✓ generated provider's own e2e passed (uptest lifecycle + chainsaw configmap-basic)"
 
+  # uptest's own lifecycle never exercises UPDATE: the worked example carries
+  # no uptest.upbound.io/update-parameter annotation, so uptest only runs
+  # create -> Ready -> import -> delete (confirmed in the manual reproduction
+  # in the task report). make e2e does not tear the cluster down, so drive an
+  # update by hand here — the one upjet reconcile path otherwise left
+  # completely uncovered by this e2e.
+  blue "  --- Exercising UPDATE on the live cluster (uptest never triggers it) ---"
+  LIVE_KUBECTL="$(find .cache/tools -type f -name 'kubectl-*' | head -1)"
+  [ -n "$LIVE_KUBECTL" ] || fail "could not locate the kubectl binary the build system downloaded"
+
+  "$LIVE_KUBECTL" apply -f examples/core/configmap.yaml || fail "failed to apply the ConfigMap example"
+  "$LIVE_KUBECTL" wait configmap.core.example.m.com/example -n crossplane-system \
+    --for=condition=Ready --timeout=5m >/tmp/e2e-upjet-update-wait.log 2>&1 || {
+    cat /tmp/e2e-upjet-update-wait.log
+    fail "ConfigMap example never became Ready"
+  }
+  REAL_DATA="$("$LIVE_KUBECTL" -n default get configmap example -o jsonpath='{.data.hello}')"
+  [ "$REAL_DATA" = "world" ] || fail "real ConfigMap data mismatch after create: got '$REAL_DATA', want 'world'"
+
+  "$LIVE_KUBECTL" patch configmap.core.example.m.com/example -n crossplane-system \
+    --type=merge -p '{"spec":{"forProvider":{"data":{"hello":"updated-value"}}}}' ||
+    fail "failed to patch the ConfigMap example"
+  UPDATED_DATA=""
+  for _ in $(seq 1 30); do
+    UPDATED_DATA="$("$LIVE_KUBECTL" -n default get configmap example -o jsonpath='{.data.hello}' 2>/dev/null || true)"
+    [ "$UPDATED_DATA" = "updated-value" ] && break
+    sleep 2
+  done
+  [ "$UPDATED_DATA" = "updated-value" ] || fail "real ConfigMap data did not update: got '$UPDATED_DATA', want 'updated-value'"
+  green "  ✓ UPDATE: real ConfigMap data.hello changed to '$UPDATED_DATA'"
+
+  "$LIVE_KUBECTL" delete configmap.core.example.m.com/example -n crossplane-system --timeout=2m ||
+    fail "failed to delete the ConfigMap example"
+  if "$LIVE_KUBECTL" -n default get configmap example >/dev/null 2>&1; then
+    fail "real ConfigMap still exists after the MR was deleted"
+  fi
+  green "  ✓ DELETE: real ConfigMap no longer exists"
+
   rm -rf test/behavior/configmap-basic junit.xml
   cleanup_live_cluster
   trap - EXIT
   green "  ✓ kind cluster torn down"
-  LIFECYCLE="→ generated provider's own e2e (uptest + chainsaw)"
+  LIFECYCLE="→ generated provider's own e2e (uptest + chainsaw + UPDATE)"
 else
   yellow "  ⚠ docker unavailable (or E2E_SKIP_DOCKER set) — skipping the generated provider's own e2e"
   LIFECYCLE="(generated provider's own e2e SKIPPED)"

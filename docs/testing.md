@@ -158,11 +158,14 @@ e2e's own `create-test` coverage, which upjet previously lacked. With a Docker
 daemon available, it then runs the **generated provider's own `make e2e`**:
 the same uptest lifecycle (create → Ready/Synced → import → delete) plus the
 `test-behavior` chainsaw hook, which runs the suite `create-test` just
-scaffolded — asserting `junit.xml` shows it ran. `CHAINSAW_ARGS` raises
-chainsaw's cleanup timeout past its 30s default, since this provider's
-Terraform-CLI-backed deletes confirm on the next reconcile rather than
-immediately. Without Docker (or with `E2E_SKIP_DOCKER` set), that stage is
-skipped with a warning, same as the native e2e's Step E.
+scaffolded — asserting `junit.xml` shows it ran. On that same still-live
+cluster it then exercises the one lifecycle path uptest's own run never
+covers — UPDATE — since the worked example carries no
+`uptest.upbound.io/update-parameter` annotation: apply the example directly,
+assert the real ConfigMap's `data.hello`, patch `spec.forProvider.data` and
+assert the real object follows, then delete it and confirm it's gone. Without
+Docker (or with `E2E_SKIP_DOCKER` set), that stage is skipped with a warning,
+same as the native e2e's Step E.
 
 That is the only test that proves the config files this tool scaffolds satisfy
 upjet's contract; a unit test cannot, because the contract is upjet's generator.
