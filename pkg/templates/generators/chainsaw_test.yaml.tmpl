@@ -9,6 +9,13 @@ spec:
     apply: 1m
     assert: 2m
     delete: 2m
+    # cleanup (this Test's own removal of what it created) is a separate
+    # chainsaw timeout from delete above, and defaults to just 30s. A
+    # Terraform-CLI-backed (upjet) provider only confirms a deletion on its
+    # next reconcile after calling Delete — measured ~36s in practice — so
+    # the 30s default cuts it close; native providers reconcile fast enough
+    # that this is headroom, not a requirement.
+    cleanup: 2m
   steps:
     - name: {{ .Resource.Kind }} becomes Ready
       try:
