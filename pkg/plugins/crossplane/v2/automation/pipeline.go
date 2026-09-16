@@ -109,10 +109,10 @@ Scaffolded CRD, controller, and client code for %s resource`, resourceKind, reso
 	}
 }
 
-// NewUpdateFinalizePipeline brings a native provider back to a reviewable state
-// after `update` has refreshed its files and dependency versions. Every step
-// streams, since together they take minutes.
-func NewUpdateFinalizePipeline() *Pipeline {
+// newUpdateFinalizePipeline brings a native provider back to a reviewable
+// state after `update` has refreshed its files and dependency versions. Every
+// step streams, since together they take minutes.
+func newUpdateFinalizePipeline() *Pipeline {
 	return &Pipeline{
 		steps: []Step{
 			NewStreamingCommandStep("go", "mod", "tidy"),
@@ -122,7 +122,7 @@ func NewUpdateFinalizePipeline() *Pipeline {
 	}
 }
 
-// NewUpjetUpdateFinalizePipeline is NewUpdateFinalizePipeline for an upjet
+// newUpjetUpdateFinalizePipeline is newUpdateFinalizePipeline for an upjet
 // provider, and differs only in order: `make generate` runs before `go mod
 // tidy`. cmd/provider imports the API and controller packages that generation
 // produces from the Terraform schema, so tidy fails on a project where they do
@@ -133,7 +133,7 @@ func NewUpdateFinalizePipeline() *Pipeline {
 // network access (Terraform, the provider schema) and takes minutes on a cold
 // cache. Verified on an e2e-generated provider: never-generated, generated,
 // and after a framework dependency bump.
-func NewUpjetUpdateFinalizePipeline() *Pipeline {
+func newUpjetUpdateFinalizePipeline() *Pipeline {
 	return &Pipeline{
 		steps: []Step{
 			NewStreamingCommandStep("make", "generate"),
@@ -147,9 +147,9 @@ func NewUpjetUpdateFinalizePipeline() *Pipeline {
 // the given flavor. It is the one place update chooses between the two.
 func UpdateFinalizePipelineFor(flavor core.Flavor) *Pipeline {
 	if flavor == core.FlavorUpjet {
-		return NewUpjetUpdateFinalizePipeline()
+		return newUpjetUpdateFinalizePipeline()
 	}
-	return NewUpdateFinalizePipeline()
+	return newUpdateFinalizePipeline()
 }
 
 func (p *Pipeline) Run() error {

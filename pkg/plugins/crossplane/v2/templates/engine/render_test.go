@@ -283,7 +283,7 @@ func TestRenderUpjetGeneratorsWithoutResources(t *testing.T) {
 		machinery.WithConfig(cfg),
 		machinery.WithBoilerplate(DefaultBoilerplate()),
 	)
-	if err := scaffold.Execute(UpjetCoreGenerators(cfg, nil)...); err != nil {
+	if err := scaffold.Execute(upjetCoreGenerators(cfg, nil)...); err != nil {
 		t.Fatalf("rendering upjet generators without resources: %v", err)
 	}
 	if ok, err := afero.Exists(mem, upjetResourcesPath); err != nil || !ok {

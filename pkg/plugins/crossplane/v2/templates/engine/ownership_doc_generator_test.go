@@ -69,18 +69,18 @@ func TestOwnershipDocClassifiesGeneratorOutputs(t *testing.T) {
 // TestOwnershipDocClassifiesUpjetOutputs pins A5: the doc for an upjet project
 // must describe upjet's own tree, not the native one it used to walk
 // unconditionally regardless of which flavor asked for it. It builds the doc
-// through UpjetCoreGenerators so it covers the production wiring, which must
+// through upjetCoreGenerators so it covers the production wiring, which must
 // list the go.mod init seeds as user-owned just as the native doc does.
 func TestOwnershipDocClassifiesUpjetOutputs(t *testing.T) {
 	var g *OwnershipDocGenerator
-	for _, b := range UpjetCoreGenerators(newTestConfig(t), nil) {
+	for _, b := range upjetCoreGenerators(newTestConfig(t), nil) {
 		if doc, ok := b.(*OwnershipDocGenerator); ok {
 			g = doc
 			break
 		}
 	}
 	if g == nil {
-		t.Fatal("UpjetCoreGenerators returned no *OwnershipDocGenerator")
+		t.Fatal("upjetCoreGenerators returned no *OwnershipDocGenerator")
 	}
 
 	if !slices.Contains(g.UserOwned, goModPath) {

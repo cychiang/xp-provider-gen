@@ -83,9 +83,9 @@ func TestUpdateFinalizePipelines(t *testing.T) {
 		pipeline *Pipeline
 		want     []string
 	}{
-		{"native", NewUpdateFinalizePipeline(), []string{stepNameGoModTidy, stepNameMakeGenerate, stepNameMakeReviewable}},
+		{"native", newUpdateFinalizePipeline(), []string{stepNameGoModTidy, stepNameMakeGenerate, stepNameMakeReviewable}},
 		// Upjet generates first: tidy fails until the generated packages exist.
-		{"upjet", NewUpjetUpdateFinalizePipeline(), []string{stepNameMakeGenerate, stepNameGoModTidy, stepNameMakeReviewable}},
+		{"upjet", newUpjetUpdateFinalizePipeline(), []string{stepNameMakeGenerate, stepNameGoModTidy, stepNameMakeReviewable}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -102,8 +102,8 @@ func TestUpdateFinalizePipelineFor(t *testing.T) {
 		flavor core.Flavor
 		want   *Pipeline
 	}{
-		{core.FlavorNative, NewUpdateFinalizePipeline()},
-		{core.FlavorUpjet, NewUpjetUpdateFinalizePipeline()},
+		{core.FlavorNative, newUpdateFinalizePipeline()},
+		{core.FlavorUpjet, newUpjetUpdateFinalizePipeline()},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.flavor), func(t *testing.T) {
