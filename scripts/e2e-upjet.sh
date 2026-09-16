@@ -235,55 +235,33 @@ else
 fi
 rm -f "$ENVTEST_SETUP_LOG"
 
-blue "=== 8. Full ConfigMap lifecycle against a live cluster (create/update/delete) ==="
-if ! docker_skip_requested && docker info >/dev/null 2>&1; then
-  blue "  --- 8a. Configure and generate a ConfigMap resource ---"
-  "$BIN" create api --group=core --version=v1alpha1 --kind=ConfigMap \
-    --terraform-resource=kubernetes_config_map >/dev/null
-  make generate >/tmp/e2e-upjet-configmap-generate.log 2>&1 || {
-    tail -20 /tmp/e2e-upjet-configmap-generate.log
-    fail "make generate failed for the ConfigMap resource"
-  }
-  green "  ✓ kubernetes_config_map configured and generated"
+blue "=== 8. Configure the ConfigMap resource and scaffold its own e2e (no Docker needed) ==="
+"$BIN" create api --group=core --version=v1alpha1 --kind=ConfigMap \
+  --terraform-resource=kubernetes_config_map >/dev/null
+make generate >/tmp/e2e-upjet-configmap-generate.log 2>&1 || {
+  tail -20 /tmp/e2e-upjet-configmap-generate.log
+  fail "make generate failed for the ConfigMap resource"
+}
+green "  ✓ kubernetes_config_map configured and generated"
 
-  LIVE_TEARDOWN_DONE=0
-  cleanup_live_cluster() {
-    if [ "$LIVE_TEARDOWN_DONE" -eq 0 ]; then
-      make controlplane.down >/tmp/e2e-upjet-controlplane-down.log 2>&1 || true
-      LIVE_TEARDOWN_DONE=1
-    fi
-  }
-  trap cleanup_live_cluster EXIT
-
-  blue "  --- 8b. Build, stand up a kind cluster with Crossplane, deploy the provider ---"
-  make local-deploy >/tmp/e2e-upjet-local-deploy.log 2>&1 || {
-    tail -40 /tmp/e2e-upjet-local-deploy.log
-    fail "make local-deploy failed (build / kind / Crossplane / provider deploy)"
-  }
-  green "  ✓ kind cluster up, Crossplane installed, provider deployed and Healthy"
-
-  LIVE_KUBECTL="$(find .cache/tools -type f -name 'kubectl-*' | head -1)"
-  [ -n "$LIVE_KUBECTL" ] || fail "could not locate the kubectl binary the build system downloaded"
-
-  blue "  --- 8c. Apply ProviderConfig and credentials ---"
-  KUBECTL="$LIVE_KUBECTL" ./test/setup.sh >/tmp/e2e-upjet-cluster-setup.log 2>&1 || {
-    tail -20 /tmp/e2e-upjet-cluster-setup.log
-    fail "test/setup.sh failed"
-  }
-  green "  ✓ ProviderConfig and credentials applied"
-
-  blue "  --- 8d. CREATE: apply a ConfigMap MR and verify the real object ---"
-  LIVE_MR="$(mktemp)"
-  cat >"$LIVE_MR" <<'EOF'
+# docs/upjet-provider.md's worked example (§6), unchanged: this is the one
+# file both uptest (UPTEST_INPUT_MANIFESTS) and create-test read, so it
+# doubles as the live lifecycle input and the chainsaw skeleton's seed data.
+mkdir -p examples/core
+cat >examples/core/configmap.yaml <<'EOF'
+# uptest.upbound.io/* annotations make this the make e2e lifecycle input too.
 apiVersion: core.example.m.com/v1alpha1
 kind: ConfigMap
 metadata:
-  name: e2e-configmap
+  name: example
   namespace: crossplane-system
+  annotations:
+    uptest.upbound.io/timeout: "120"
+    uptest.upbound.io/conditions: "Ready,Synced"
 spec:
   forProvider:
     metadata:
-      - name: e2e-configmap
+      - name: example
         namespace: default
     data:
       hello: world
@@ -291,75 +269,51 @@ spec:
     name: default
     kind: ProviderConfig
 EOF
-  "$LIVE_KUBECTL" apply -f "$LIVE_MR" || fail "failed to apply the ConfigMap MR"
-  "$LIVE_KUBECTL" wait configmap.core.example.m.com/e2e-configmap -n crossplane-system \
-    --for=condition=Ready --timeout=5m >/tmp/e2e-upjet-configmap-wait.log 2>&1 || {
-    cat /tmp/e2e-upjet-configmap-wait.log
-    "$LIVE_KUBECTL" -n crossplane-system get configmap.core.example.m.com e2e-configmap -o yaml
-    fail "ConfigMap MR never became Ready"
+green "  ✓ wrote examples/core/configmap.yaml (uptest lifecycle input)"
+
+"$BIN" create-test --name configmap-basic --kind ConfigMap >/dev/null
+[ -f test/behavior/configmap-basic/chainsaw-test.yaml ] ||
+  fail "create-test did not scaffold test/behavior/configmap-basic/chainsaw-test.yaml"
+green "  ✓ create-test scaffolded test/behavior/configmap-basic/chainsaw-test.yaml"
+
+blue "=== 9. The generated provider's own e2e (uptest + chainsaw) against a live cluster ==="
+if ! docker_skip_requested && docker info >/dev/null 2>&1; then
+  LIVE_TEARDOWN_DONE=0
+  cleanup_live_cluster() {
+    if [ "$LIVE_TEARDOWN_DONE" -eq 0 ]; then
+      make e2e-clean >/tmp/e2e-upjet-e2e-clean.log 2>&1 || true
+      LIVE_TEARDOWN_DONE=1
+    fi
   }
-  EXTERNAL_NAME="$("$LIVE_KUBECTL" get configmap.core.example.m.com e2e-configmap -n crossplane-system \
-    -o jsonpath='{.metadata.annotations.crossplane\.io/external-name}')"
-  [ "$EXTERNAL_NAME" = "default/e2e-configmap" ] || fail "unexpected external-name: '$EXTERNAL_NAME' (expected 'default/e2e-configmap')"
-  REAL_DATA="$("$LIVE_KUBECTL" -n default get configmap e2e-configmap -o jsonpath='{.data.hello}')"
-  [ "$REAL_DATA" = "world" ] || fail "real ConfigMap data mismatch after create: got '$REAL_DATA', want 'world'"
-  green "  ✓ CREATE: MR Ready/Synced, external-name=$EXTERNAL_NAME, real ConfigMap data.hello=$REAL_DATA"
+  trap cleanup_live_cluster EXIT
 
-  blue "  --- 8e. UPDATE: change spec.forProvider.data and verify the real object changes ---"
-  LIVE_MR_UPDATED="$(mktemp)"
-  cat >"$LIVE_MR_UPDATED" <<'EOF'
-apiVersion: core.example.m.com/v1alpha1
-kind: ConfigMap
-metadata:
-  name: e2e-configmap
-  namespace: crossplane-system
-spec:
-  forProvider:
-    metadata:
-      - name: e2e-configmap
-        namespace: default
-    data:
-      hello: updated-value
-  providerConfigRef:
-    name: default
-    kind: ProviderConfig
-EOF
-  "$LIVE_KUBECTL" apply -f "$LIVE_MR_UPDATED" || fail "failed to apply the updated ConfigMap MR"
-  UPDATED_DATA=""
-  for _ in $(seq 1 30); do
-    UPDATED_DATA="$("$LIVE_KUBECTL" -n default get configmap e2e-configmap -o jsonpath='{.data.hello}' 2>/dev/null || true)"
-    [ "$UPDATED_DATA" = "updated-value" ] && break
-    sleep 2
-  done
-  [ "$UPDATED_DATA" = "updated-value" ] || fail "real ConfigMap data did not update: got '$UPDATED_DATA', want 'updated-value'"
-  green "  ✓ UPDATE: real ConfigMap data.hello changed to '$UPDATED_DATA'"
-  rm -f "$LIVE_MR" "$LIVE_MR_UPDATED"
+  # make e2e: build -> controlplane.down -> controlplane.up -> deploy the
+  # provider -> uptest (create -> Ready/Synced -> import -> delete, reading
+  # UPTEST_INPUT_MANIFESTS=examples/*/*.yaml) -> e2e.run's test-behavior hook,
+  # which runs the chainsaw suite scaffolded above.
+  #
+  # CHAINSAW_ARGS raises chainsaw's --cleanup-timeout past its 30s default:
+  # crossplane-runtime only confirms an external resource's deletion on its
+  # next reconcile after calling Delete, and with this provider's
+  # Terraform-CLI-backed Delete that confirmation measured ~36s in manual
+  # testing — comfortably inside chainsaw's own delete/assert timeouts below,
+  # but past its cleanup-timeout default, which the generated test does not
+  # override.
+  CHAINSAW_ARGS="--cleanup-timeout=2m" make e2e >/tmp/e2e-upjet-project-e2e.log 2>&1 || {
+    tail -40 /tmp/e2e-upjet-project-e2e.log
+    fail "generated provider's make e2e failed"
+  }
+  grep -q 'configmap-basic' junit.xml || fail "junit.xml does not show configmap-basic having run"
+  green "  ✓ generated provider's own e2e passed (uptest lifecycle + chainsaw configmap-basic)"
 
-  blue "  --- 8f. DELETE: remove the MR and verify the real object is gone ---"
-  "$LIVE_KUBECTL" delete configmap.core.example.m.com e2e-configmap -n crossplane-system --timeout=60s ||
-    fail "failed to delete the ConfigMap MR"
-  if "$LIVE_KUBECTL" -n default get configmap e2e-configmap >/dev/null 2>&1; then
-    fail "real ConfigMap still exists after the MR was deleted"
-  fi
-  green "  ✓ DELETE: real ConfigMap no longer exists"
-
-  blue "  --- 8g. Provider pod health and reconcile evidence ---"
-  LIVE_POD="$("$LIVE_KUBECTL" -n crossplane-system get pods -o name | grep '^pod/provider-k8s-' | head -1)"
-  [ -n "$LIVE_POD" ] || fail "could not find the provider pod"
-  LIVE_PHASE="$("$LIVE_KUBECTL" -n crossplane-system get "$LIVE_POD" -o jsonpath='{.status.phase}')"
-  [ "$LIVE_PHASE" = "Running" ] || fail "provider pod is not Running (phase=$LIVE_PHASE)"
-  RECONCILE_LINE="$("$LIVE_KUBECTL" -n crossplane-system logs "$LIVE_POD" | grep -m1 'Reconciling.*kind=configmap' || true)"
-  [ -n "$RECONCILE_LINE" ] || fail "no reconcile log line found for the configmap controller"
-  echo "$RECONCILE_LINE" >/tmp/e2e-upjet-configmap-reconcile-line.log
-  green "  ✓ provider pod ($LIVE_POD) Running, reconciled the ConfigMap controller"
-
+  rm -rf test/behavior/configmap-basic junit.xml
   cleanup_live_cluster
   trap - EXIT
   green "  ✓ kind cluster torn down"
-  LIFECYCLE="→ manage (live ConfigMap create/update/delete)"
+  LIFECYCLE="→ generated provider's own e2e (uptest + chainsaw)"
 else
-  yellow "  ⚠ docker unavailable (or E2E_SKIP_DOCKER set) — skipping the live ConfigMap lifecycle stage"
-  LIFECYCLE="(live ConfigMap lifecycle SKIPPED)"
+  yellow "  ⚠ docker unavailable (or E2E_SKIP_DOCKER set) — skipping the generated provider's own e2e"
+  LIFECYCLE="(generated provider's own e2e SKIPPED)"
 fi
 
 blue "=== Summary ==="

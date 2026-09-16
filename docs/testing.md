@@ -130,6 +130,19 @@ controllers, scheme registration and CRDs — and finally build the result. It
 then runs `update` once on the generated provider, asserting a stale tool-owned
 file is refreshed and a deleted user-owned file is not re-seeded.
 
+It also configures a `kubernetes_config_map` resource, writes its
+`docs/upjet-provider.md` worked example (with `uptest.upbound.io/*`
+annotations), and runs `xp-provider-gen create-test` — mirroring the native
+e2e's own `create-test` coverage, which upjet previously lacked. With a Docker
+daemon available, it then runs the **generated provider's own `make e2e`**:
+the same uptest lifecycle (create → Ready/Synced → import → delete) plus the
+`test-behavior` chainsaw hook, which runs the suite `create-test` just
+scaffolded — asserting `junit.xml` shows it ran. `CHAINSAW_ARGS` raises
+chainsaw's cleanup timeout past its 30s default, since this provider's
+Terraform-CLI-backed deletes confirm on the next reconcile rather than
+immediately. Without Docker (or with `E2E_SKIP_DOCKER` set), that stage is
+skipped with a warning, same as the native e2e's Step E.
+
 That is the only test that proves the config files this tool scaffolds satisfy
 upjet's contract; a unit test cannot, because the contract is upjet's generator.
 It needs network access and takes several minutes, so it is a separate target
