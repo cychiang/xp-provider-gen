@@ -18,6 +18,7 @@ package automation
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -29,6 +30,11 @@ import (
 // that commit instead of adding a new one, so a freshly scaffolded provider has a
 // single "Initial commit".
 const ScaffoldCommitTrailer = "xp-provider-gen-scaffold: true"
+
+// noChangesMessage is printed when a commit step finds nothing staged, e.g.
+// `create api --force` rerun against an already up-to-date scaffold. Skipping
+// avoids git's "nothing to commit" failure and an empty commit in history.
+const noChangesMessage = "No changes to commit; scaffold is already up to date."
 
 type GitOperations struct {
 	config *core.PluginConfig
@@ -72,7 +78,8 @@ func (g *GitOperations) configureProjectGit(ctx context.Context) error {
 }
 
 func (g *GitOperations) CreateCommit(ctx context.Context, message, author string) error {
-	if err := g.runner.Add(ctx, "."); err != nil {
+	changed, err := g.stageAndCheck(ctx)
+	if err != nil || !changed {
 		return err
 	}
 
@@ -96,7 +103,8 @@ func (g *GitOperations) CreateCommit(ctx context.Context, message, author string
 // unrelated unstaged edits you don't want folded into the Initial commit. Once
 // you commit your own work, create-api stops folding and adds separate commits.
 func (g *GitOperations) CommitOrAmendScaffold(ctx context.Context, message, author string) error {
-	if err := g.runner.Add(ctx, "."); err != nil {
+	changed, err := g.stageAndCheck(ctx)
+	if err != nil || !changed {
 		return err
 	}
 	if g.headIsScaffold(ctx) {
@@ -117,6 +125,26 @@ func (g *GitOperations) headIsScaffold(ctx context.Context) bool {
 		return false // no commits yet — make a normal commit
 	}
 	return strings.Contains(out, ScaffoldCommitTrailer)
+}
+
+// stageAndCheck stages the working tree (`git add .`) and reports whether
+// anything changed relative to HEAD. When nothing changed it prints
+// noChangesMessage so callers can skip the commit instead of failing on git's
+// "nothing to commit" — the case that broke `create api --force` reruns
+// against an already up-to-date scaffold.
+func (g *GitOperations) stageAndCheck(ctx context.Context) (bool, error) {
+	if err := g.runner.Add(ctx, "."); err != nil {
+		return false, err
+	}
+	out, err := g.runner.RunCommandWithOutput(ctx, "status", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	if out == "" {
+		fmt.Println(noChangesMessage)
+		return false, nil
+	}
+	return true, nil
 }
 
 func (g *GitOperations) AddSubmodule(ctx context.Context, url, path string) error {

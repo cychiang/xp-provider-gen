@@ -1,8 +1,7 @@
 #!/bin/bash
 # Asserts the generated provider's file layout. This is the single source of
-# truth for which files a scaffold must contain — called by both the CI smoke
-# test (.github/workflows/test.yml) and scripts/e2e-test.sh, so the two can
-# never drift from each other again.
+# truth for which files a scaffold must contain — called from scripts/e2e-test.sh
+# at each scaffolding stage.
 #
 # Usage:
 #   assert-layout.sh <project-dir>                          base layout (after init)

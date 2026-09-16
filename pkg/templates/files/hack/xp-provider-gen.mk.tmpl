@@ -73,7 +73,7 @@ INTEGRATION_CLUSTER_NAME := $(PROJECT_NAME)-integration
 
 UPTEST_LOCAL_DEPLOY_TARGET = local.xpkg.deploy.provider.$(PROJECT_NAME)
 # Every kind's example doubles as the uptest lifecycle input; create api seeds
-# one per kind, so this Makefile never needs editing for new kinds. The
+# one per kind, so this fragment never needs editing for new kinds. The
 # ProviderConfig example is excluded: it is not a managed resource lifecycle.
 # uptest takes the manifests as ONE comma-separated argument, hence the join.
 UPTEST_INPUT_MANIFESTS = $(shell echo $(filter-out examples/provider/%,$(wildcard examples/*/*.yaml)) | tr ' ' ',')
