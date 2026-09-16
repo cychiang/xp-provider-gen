@@ -144,12 +144,16 @@ which need Docker: mark a tool-owned file (`config/zz_resources.go`) and a
 user-owned one (`config/secret/config.go`), commit, then re-run
 `create api --force` (with `--terraform-resource`, required on every upjet
 `create api` call) and assert the tool-owned marker is regenerated while the
-user-owned one survives; strip `config/provider.go`'s header to simulate a
-pre-contract provider, run `update --adopt`, and assert it reports adopting
-exactly one file and that `git diff --name-only` is exactly `config/provider.go`
-and `PROJECT` (adopt also stamps the generator version into PROJECT); then
-leave an uncommitted change and assert `update` refuses it, citing the working
-tree.
+user-owned one survives; run `--force` a second time with nothing left to
+change and assert it still exits 0, reports the no-change skip, and adds no
+commit (the path Task 5b fixed); strip `config/provider.go`'s header to
+simulate a pre-contract provider, run `update --adopt`, and assert it reports
+adopting exactly one file and that `git diff --name-only` contains
+`config/provider.go` and nothing besides that and (optionally) `PROJECT`,
+which carries a generator version (adopt stamps one, but stage 6's own
+`update` may already have stamped the same value, so `PROJECT` does not
+always show a diff here); then leave an uncommitted change and assert
+`update` refuses it, citing the working tree.
 
 It also configures a `kubernetes_config_map` resource, writes its
 `docs/upjet-provider.md` worked example (with `uptest.upbound.io/*`

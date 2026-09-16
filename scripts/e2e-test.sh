@@ -396,6 +396,32 @@ main() {
         exit 1
     fi
 
+    # A second --force in a row, with nothing left to change, must still exit
+    # 0 and must not add or amend a commit (the exact regression Task 5b
+    # fixed: git.go's stageAndCheck skips the commit when nothing is staged).
+    local head_before_force2
+    head_before_force2="$(git rev-parse HEAD)"
+    log_info "Running a second: $BINARY_PATH create api --group=$GROUP --version=$VERSION --kind=$KIND1 --force"
+    if "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1" --force >/tmp/e2e-test-force2.log 2>&1; then
+        log_success "second create api --force exited 0"
+    else
+        cat /tmp/e2e-test-force2.log
+        log_error "second --force (no changes) did not exit 0"
+        exit 1
+    fi
+    if grep -q "No changes to commit" /tmp/e2e-test-force2.log; then
+        log_success "✓ second --force reported the no-change skip"
+    else
+        log_error "✗ second --force did not report the no-change skip"
+        exit 1
+    fi
+    if [ "$(git rev-parse HEAD)" = "$head_before_force2" ]; then
+        log_success "✓ second --force added no commit"
+    else
+        log_error "✗ second --force added or amended a commit although nothing changed"
+        exit 1
+    fi
+
     # Step A: `update --adopt` retrofits a provider generated before the ownership contract
     step_header "A" "Test update --adopt"
     local wiring="internal/controller/${KIND1_LOWER}/wiring.go"
