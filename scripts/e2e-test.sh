@@ -397,8 +397,8 @@ main() {
     fi
 
     # A second --force in a row, with nothing left to change, must still exit
-    # 0 and must not add or amend a commit (the exact regression Task 5b
-    # fixed: git.go's stageAndCheck skips the commit when nothing is staged).
+    # 0 and must not add or amend a commit: git.go's stageAndCheck skips the
+    # commit when nothing is staged.
     local head_before_force2
     head_before_force2="$(git rev-parse HEAD)"
     log_info "Running a second: $BINARY_PATH create api --group=$GROUP --version=$VERSION --kind=$KIND1 --force"

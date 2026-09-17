@@ -119,9 +119,10 @@ blue "=== 7. create api --force, update --adopt, and update's dirty-tree refusal
 blue "  --- 7a. create api --force refreshes tool-owned files, preserves user edits ---"
 # Mark a tool-owned file (the resource aggregator) and a user-owned one (the
 # Secret's own config), then commit: --force must regenerate the first and
-# leave the second alone. create api commits its own result (post-5b, exiting
-# 0 even when --force reproduces something byte-identical), so no trailing
-# commit is needed here.
+# leave the second alone. create api commits its own result — git.go's
+# stageAndCheck skips the commit when nothing changed, so it exits 0 even
+# when --force reproduces something byte-identical — so no trailing commit
+# is needed here.
 FORCE_TOOL_MARKER="// e2e-upjet-force: stale tool-owned content"
 FORCE_USER_MARKER="// e2e-upjet-force: user customization"
 echo "$FORCE_TOOL_MARKER" >>config/zz_resources.go
@@ -145,8 +146,8 @@ fi
 green "  ✓ --force exited 0, refreshed config/zz_resources.go, preserved config/secret/config.go"
 
 # A second --force in a row, with nothing left to change, must still exit 0
-# and must not add or amend a commit (the exact regression Task 5b fixed:
-# git.go's stageAndCheck skips the commit when there is nothing staged).
+# and must not add or amend a commit: git.go's stageAndCheck skips the
+# commit when there is nothing staged.
 HEAD_BEFORE_FORCE2="$(git rev-parse HEAD)"
 "$BIN" create api --group=core --version=v1alpha1 --kind=Secret \
   --terraform-resource=kubernetes_secret --force >/tmp/e2e-upjet-force2.log 2>&1 || {

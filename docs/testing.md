@@ -146,7 +146,8 @@ user-owned one (`config/secret/config.go`), commit, then re-run
 `create api` call) and assert the tool-owned marker is regenerated while the
 user-owned one survives; run `--force` a second time with nothing left to
 change and assert it still exits 0, reports the no-change skip, and adds no
-commit (the path Task 5b fixed); strip `config/provider.go`'s header to
+commit (git.go's `stageAndCheck` skips the commit when nothing is staged);
+strip `config/provider.go`'s header to
 simulate a pre-contract provider, run `update --adopt`, and assert it reports
 adopting exactly one file and that `git diff --name-only` contains
 `config/provider.go` and nothing besides that and (optionally) `PROJECT`,

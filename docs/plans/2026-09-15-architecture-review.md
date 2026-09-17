@@ -9,8 +9,8 @@ transcripts.
 - **Branch:** `refactor/architecture-review`
 - **Baseline:** `386b534` (branch state immediately before backlog item #1's
   commit)
-- **Result:** `440efd2` (branch HEAD after all 14 items and their review
-  follow-ups)
+- **Result:** `dcd4ca3` (branch HEAD after the 14-item backlog, its review
+  follow-ups, and a second completion round — see "Second batch" below)
 
 ## The 14 backlog items
 
@@ -55,11 +55,30 @@ What each verification command proves about this branch:
   scaffolded provider that already carries user-added logic. Proves `update`
   preserves user-owned code and correctly refreshes tool-owned files across a
   version bump — the scenario item #13's Makefile split exists to support.
-- **scaffold-diff** — a development-time check: build the old and new
-  `xp-provider-gen` binaries, scaffold the same provider with each, and diff
-  the two output trees. It proves a change is behavior-preserving (or shows
-  exactly what changed) for refactor-type items. This script lives in the
-  session's scratch directory, not in this repository.
+- **scaffold-diff** — a development-time check, not a repository script:
+  build the old and new `xp-provider-gen` binaries, scaffold the same
+  provider with each, and diff the two output trees (ignoring blank lines and
+  comments). It proves a change is behavior-preserving (or shows exactly what
+  changed) for refactor-type items.
+
+## 第二批：e2e 覆蓋與缺陷修正
+
+A second completion round landed after this document was first written,
+carrying its own task numbers:
+
+| Task | Summary | Commit(s) |
+|---|---|---|
+| 2 | Added `docs/manual-testing.md`, a step-by-step manual test guide for both flavors. | `a36a3de` |
+| 3 | `scripts/e2e-upjet.sh` now runs the generated upjet provider's own `make e2e` (uptest + chainsaw) instead of a hand-written ConfigMap create/update/delete lifecycle, and separately covers the UPDATE reconcile that uptest's own example doesn't exercise. | `8f53b57`, `e3c8aa9` |
+| 4 | Both flavors' e2e scripts gained `create api --force` coverage, and upjet gained `update --adopt` and dirty-tree-refusal coverage (native already had `--adopt`); see also M9 below. | `a9b5f48`, `e8a0c71` |
+| 5b | Fixed the "known defect" below: `create api --force` no longer fails with a git error when the scaffold is unchanged. | `c20ad37` |
+| 7 | Deduplicated the upjet resource aggregator so re-running `create api --force` against an existing kind no longer emits the same import alias and `Configure` call twice, which had made the generated project fail to compile. | `1e4ec05` |
+
+Also fixed in this round, without its own task number: the `create-test`
+chainsaw skeleton (`chainsaw_test.yaml.tmpl`) was missing a `cleanup`
+timeout and defaulted to chainsaw's own 30s — too short for an upjet
+provider's Terraform-CLI-backed delete confirmation (measured at ~36s). Set
+to 2m, matching the skeleton's own delete timeout (`0d85f45`).
 
 ## 當時做的判斷
 
@@ -99,8 +118,9 @@ work that produced this document addressed six more:
   selector the only public entry point.
 - **M4** — whether `core.Flavor.TemplateRoot()`'s two-way switch should be
   derived from a single table alongside `Valid()`, or left as a documented
-  two-place edit. Decided by the completion work's own KISS-first tiebreak:
-  see that change's commit message for which one and why.
+  two-place edit. Left as the switch: a lookup table is not simpler than an
+  `if` over two flavors, and `Flavors`' doc comment already tells the next
+  editor to update both `Valid()` and `TemplateRoot()`.
 - **M5** — both generated Makefile fragments called themselves "this
   Makefile", which misleads a reader given they are `include`d, not edited
   directly; corrected to describe them as a fragment.
@@ -115,22 +135,20 @@ work that produced this document addressed six more:
   `--force` coverage, and upjet gained `--adopt` and dirty-tree-refusal
   coverage.
 
-**M8, M10, M11, M12 remain open**, per the final review's own triage
-(`sdd/final-review.md` §5, "Can stay"): they are cosmetic (missing `t.Run`
+**M8, M10, M11, M12 remain open**: they are cosmetic (missing `t.Run`
 subtests, a missing comment explaining two deliberate exec styles), or
 coverage-only and true-by-construction (a test asserting an already-guaranteed
 invariant, a test depending on `go`'s exit code for an unknown subcommand).
 None represent a correctness gap.
 
-## 已知缺陷（backlog）
+## 已知缺陷（backlog，已修）
 
-**`create api --force` on an unchanged kind fails with a git error.** The
-commit step after scaffolding does not pass `--allow-empty`
-(`automation/git.go`, `core/git_runner.go`), so when `--force` regenerates a
-kind whose output is byte-identical to what is already on disk, `git commit`
-exits non-zero with "nothing to commit" — even though the scaffolding itself
-succeeded completely. This was found while planning the completion work that
-produced this document. **Fixed in this delivery by the completion plan's
-Task 5b** (`fix: let create api --force succeed when the scaffold is
-unchanged`); confirm that commit is present on this branch before treating
-the defect as closed.
+**`create api --force` on an unchanged kind used to fail with a git error.**
+The commit step after scaffolding did not pass `--allow-empty`
+(`automation/git.go`, `core/git_runner.go`), so when `--force` regenerated a
+kind whose output was byte-identical to what was already on disk, `git
+commit` exited non-zero with "nothing to commit" — even though the
+scaffolding itself succeeded completely. This was found while planning the
+completion work that produced this document. Fixed by `c20ad37`
+(`fix: let create api --force succeed when the scaffold is unchanged`): both
+commit paths now stage first and skip the commit when nothing changed.

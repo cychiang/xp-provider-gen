@@ -40,13 +40,13 @@ or this workflow file
   otherwise, never failing the build) controller registration against a real
   ephemeral API server. Not run on every PR because it needs network and
   takes several minutes
-- Also runs Stage 7: deploys the built provider to a real kind cluster with
-  Crossplane and proves the full create/update/delete lifecycle of a live
-  ConfigMap managed resource. This needs a Docker daemon, which the runner
-  has, so the job sets `E2E_SKIP_DOCKER: "0"` explicitly — an intentional,
-  visible choice to run it here, not a side effect of leaving the variable
-  unset. kind is downloaded by the generated project's own Makefile
-  (`KIND_VERSION` pinned there); this workflow does not preinstall it
+- Also runs Stage 10: deploys the built provider to a real kind cluster with
+  Crossplane and runs the generated provider's own e2e (its uptest lifecycle,
+  then its chainsaw suite). This needs a Docker daemon, which the runner has,
+  so the job sets `E2E_SKIP_DOCKER: "0"` explicitly — an intentional, visible
+  choice to run it here, not a side effect of leaving the variable unset.
+  kind is downloaded by the generated project's own Makefile (`KIND_VERSION`
+  pinned there); this workflow does not preinstall it
 
 ### 🧭 `e2e-native-full.yml` - Native Flavor E2E (full) & Upgrade Simulation
 **Triggers:** Daily schedule; on demand (`workflow_dispatch`); PRs touching
