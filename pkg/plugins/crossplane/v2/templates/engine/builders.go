@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
+	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
@@ -73,14 +74,16 @@ func replacementsFor(cfg config.Config, options *TemplateOptions) map[string]str
 	return replacements
 }
 
-// configureProduct applies the project config, resource and force flag, then
-// loads the template body.
+// configureProduct applies the upjet settings, project config, resource and
+// force flag, then loads the template body.
 func configureProduct(product *GenericTemplateProduct, cfg config.Config, options *TemplateOptions) error {
-	if err := product.Configure(cfg); err != nil {
-		return fmt.Errorf("failed to configure template: %w", err)
-	}
+	// Upjet settings first: Configure derives the values PROJECT does not
+	// persist (NamespacedDomain) and must see them, not be overwritten by them.
 	if options.Upjet != nil {
 		product.UpjetSettings = *options.Upjet
+	}
+	if err := product.Configure(cfg); err != nil {
+		return fmt.Errorf("failed to configure template: %w", err)
 	}
 	if options.Resource != nil {
 		if err := product.SetResource(options.Resource); err != nil {
@@ -96,6 +99,11 @@ func configureProduct(product *GenericTemplateProduct, cfg config.Config, option
 	}
 	if err := product.SetTemplateDefaults(); err != nil {
 		return fmt.Errorf("failed to set template defaults: %w", err)
+	}
+	// --force refreshes what the tool owns; a file without the generated
+	// header is the user's and is never overwritten, forced or not.
+	if options.Force && !core.IsToolOwned([]byte(product.TemplateBody)) {
+		product.IfExistsAction = machinery.SkipFile
 	}
 	return nil
 }

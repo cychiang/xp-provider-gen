@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 // BaseTemplateProduct provides common functionality for all template products.
@@ -33,7 +34,6 @@ type BaseTemplateProduct struct {
 	machinery.ResourceMixin
 
 	ProviderName string
-	Force        bool
 
 	// Upjet carries the Terraform coordinates an upjet-flavored provider is
 	// generated from. Empty for native providers, whose templates never
@@ -65,6 +65,13 @@ func (t *BaseTemplateProduct) Configure(cfg config.Config) error {
 		t.NamespacedDomain = core.NamespacedDomain(t.Domain)
 	}
 
+	// The Terraform CLI version is the tool's decision, not a project setting:
+	// PROJECT never keeps it, so every render — init's and update's alike —
+	// takes it from pkg/versions here rather than from the caller.
+	if t.TerraformVersion == "" {
+		t.TerraformVersion = versions.TerraformVersion
+	}
+
 	// Set default boilerplate
 	t.Boilerplate = DefaultBoilerplate()
 	t.BoilerplateMixin = machinery.BoilerplateMixin{Boilerplate: t.Boilerplate}
@@ -84,7 +91,6 @@ func (t *BaseTemplateProduct) SetResource(res *resource.Resource) error {
 // SetForce makes the template overwrite an existing file. It is only called
 // for --force; the zero-value action (machinery.SkipFile) is the default.
 func (t *BaseTemplateProduct) SetForce(force bool) {
-	t.Force = force
 	if force {
 		t.IfExistsAction = machinery.OverwriteFile
 	}

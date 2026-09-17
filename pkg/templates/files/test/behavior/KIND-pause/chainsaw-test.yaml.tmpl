@@ -10,6 +10,10 @@ spec:
     apply: 1m
     assert: 2m
     delete: 2m
+    # See chainsaw_test.yaml.tmpl (pkg/templates/generators) for why cleanup
+    # gets its own, longer timeout — kept the same here for consistency, even
+    # though a native provider's own fast reconcile never needs the headroom.
+    cleanup: 2m
   steps:
     - name: create the resource
       try:

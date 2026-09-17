@@ -26,6 +26,10 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
+// unknownTestFlavor is a core.Flavor value this generator never defines,
+// used across this package's tests to exercise the "unknown flavor" error.
+const unknownTestFlavor core.Flavor = "bogus"
+
 // TestLoadProjectMeta pins A8: a PROJECT that declares flavor: upjet but
 // carries no upjet: block used to reach a nil-pointer dereference in
 // createapi.go (meta.Upjet.TerraformResourcePrefix). loadProjectMeta must
@@ -65,6 +69,28 @@ func TestLoadProjectMeta(t *testing.T) {
 				}
 			},
 			wantErr: "upjet",
+		},
+		{
+			name: "empty flavor string defaults to native",
+			setup: func(t *testing.T, cfg config.Config) {
+				t.Helper()
+				if err := cfg.EncodePluginConfig(pluginName, projectMeta{Flavor: ""}); err != nil {
+					t.Fatalf("EncodePluginConfig: %v", err)
+				}
+			},
+			wantFlavor: core.FlavorNative,
+		},
+		{
+			name: "unknown flavor is an error",
+			setup: func(t *testing.T, cfg config.Config) {
+				t.Helper()
+				if err := cfg.EncodePluginConfig(pluginName, projectMeta{Flavor: unknownTestFlavor}); err != nil {
+					t.Fatalf("EncodePluginConfig: %v", err)
+				}
+			},
+			// Pins the whole phrase, so the known list derived from core.Flavors
+			// is exercised along with the flavor name.
+			wantErr: `"` + string(unknownTestFlavor) + `" (known: native, upjet)`,
 		},
 	}
 

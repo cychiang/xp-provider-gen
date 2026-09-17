@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 )
@@ -109,4 +110,23 @@ func (c *CommandRunner) RunWithStdin(ctx context.Context, stdin, name string, ar
 		return fmt.Errorf("%s command failed: %w\n%s", name, err, output)
 	}
 	return nil
+}
+
+// RunStreaming executes a command with its stdout and stderr connected to the
+// given writers, for steps that run for minutes (go get, make reviewable) where
+// the user must watch progress live. The output has already been shown and the
+// caller already names the command (Pipeline.Run prefixes the step name), so
+// the error is the bare exit status rather than a second copy of the command.
+func (c *CommandRunner) RunStreaming(ctx context.Context, stdout, stderr io.Writer, name string, args ...string) error {
+	if err := checkCommand(name); err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- allowlisted command, no shell
+	if c.workDir != "" {
+		cmd.Dir = c.workDir
+	}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+
+	return cmd.Run()
 }

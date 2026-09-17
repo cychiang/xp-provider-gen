@@ -18,6 +18,8 @@ package engine
 
 import (
 	"fmt"
+
+	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
 // GenericTemplateProduct renders any auto-discovered template: the discovery
@@ -25,7 +27,6 @@ import (
 // is that pair of paths.
 type GenericTemplateProduct struct {
 	*BaseTemplateProduct
-	loader       *TemplateLoader
 	outputPath   string
 	templatePath string
 }
@@ -34,7 +35,6 @@ type GenericTemplateProduct struct {
 func NewGenericTemplateProduct(outputPath, templatePath string) *GenericTemplateProduct {
 	return &GenericTemplateProduct{
 		BaseTemplateProduct: NewBaseTemplateProduct(),
-		loader:              NewTemplateLoader(),
 		outputPath:          outputPath,
 		templatePath:        templatePath,
 	}
@@ -45,12 +45,10 @@ func (t *GenericTemplateProduct) SetTemplateDefaults() error {
 	if t.Path == "" {
 		t.Path = t.outputPath
 	}
-
-	templateContent, err := t.loader.LoadTemplate(t.templatePath)
+	body, err := templates.TemplateFS.ReadFile(t.templatePath)
 	if err != nil {
 		return fmt.Errorf("failed to load template %s: %w", t.templatePath, err)
 	}
-
-	t.TemplateBody = templateContent
+	t.TemplateBody = string(body)
 	return nil
 }

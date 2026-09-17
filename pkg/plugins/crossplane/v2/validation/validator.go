@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
 // Field names used in validation errors.
@@ -85,6 +87,17 @@ func NewValidator() *Validator {
 // named after core Kubernetes resources.
 func NewValidatorAllowingReservedKinds() *Validator {
 	return &Validator{allowReservedKinds: true}
+}
+
+// ValidatorFor returns the validator a project of the given flavor is checked
+// with. It is the one place that choice is made: `create api` and `update`
+// must apply the same kind rule, or a kind one accepts the other refuses.
+func ValidatorFor(flavor core.Flavor) *Validator {
+	if flavor == core.FlavorUpjet {
+		// Kinds mirror Terraform resource names on an upjet provider.
+		return NewValidatorAllowingReservedKinds()
+	}
+	return NewValidator()
 }
 
 // checkRequired rejects an empty value.

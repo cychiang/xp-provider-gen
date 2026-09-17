@@ -36,7 +36,9 @@ Prerequisites (Go version, gosec, Docker for e2e) are in
 
 Both e2e scripts skip their Docker-dependent stage — not fail — when Docker is
 unavailable or `E2E_SKIP_DOCKER=1` is set. See [docs/testing.md](docs/testing.md)
-for what each script covers.
+for what each script covers, and
+[docs/manual-testing.md](docs/manual-testing.md) for a step-by-step guide to
+reproducing the same surfaces by hand.
 
 ## Code style
 
@@ -90,3 +92,5 @@ reconsider.
 - [.github/WORKFLOWS.md](.github/WORKFLOWS.md) — CI/CD pipelines
 - [.agents/skills/xp-provider-gen/](.agents/skills/xp-provider-gen/) — using this tool to
   build a provider (author-facing; how to scaffold, configure and deploy either flavor)
+- [docs/plans/2026-09-15-architecture-review.md](docs/plans/2026-09-15-architecture-review.md) —
+  how the architecture review's 14-item backlog was implemented, and what was deferred

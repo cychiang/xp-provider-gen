@@ -1,6 +1,10 @@
 # Testing
 
-Four layers: fast Go unit tests, a full end-to-end scaffold test, an upgrade simulation, and an upjet-flavor e2e.
+This page covers the **automated** suites: fast Go unit tests, a full end-to-end scaffold
+test, an upgrade simulation, and an upjet-flavor e2e — four layers, all run by `make`
+targets and wired into CI. For a **manual** walkthrough of the same surfaces — reproducing
+a bug report, sanity-checking a change by hand, or seeing what a provider author actually
+experiences — see [docs/manual-testing.md](manual-testing.md).
 
 ## Unit tests
 
@@ -67,16 +71,20 @@ gains or loses a file:
 5. **`update` (the upgrade guarantee):** append a marker to **all three** user-owned seam
    files and commit, run `update`, then assert (a) every marker survives, (b) `wiring.go`,
    `connector.go` and `docs/ownership.md` are refreshed with headers intact, (c) seed-once
-   `AGENTS.md` is untouched, (d) `update` refuses a dirty tree. Steps 5–6 run against a copy
+   `AGENTS.md` is untouched, (d) `update` refuses a dirty tree. Steps 5–8 run against a copy
    of the scaffold at `/tmp/provider-template-lifecycle` (`LIFECYCLE_DIR`), so the pristine
    `/tmp/provider-template` keeps its single `Initial commit`.
-6. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
+6. **`create api --force`:** mark a tool-owned file (`wiring.go`) and a user-owned one
+   (`external.go`), commit, then re-run `create api` for the same kind with `--force` and
+   assert (a) it exits 0, (b) the tool-owned marker is gone (regenerated), (c) the
+   user-owned marker survives.
+7. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
    run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
-7. **create-test:** scaffold a chainsaw behavior test non-interactively and assert the file
+8. **create-test:** scaffold a chainsaw behavior test non-interactively and assert the file
    lands — and that an existing test is never overwritten.
-8. Verify the provider builds — only when Docker is unavailable; otherwise `make e2e`
+9. Verify the provider builds — only when Docker is unavailable; otherwise `make e2e`
    (next step) builds it as part of the flow.
-9. **The generated provider's own e2e:** run `make e2e` inside the scaffold — the full
+10. **The generated provider's own e2e:** run `make e2e` inside the scaffold — the full
    uptest + chainsaw flow: build the xpkg, stand up a dedicated kind control plane with
    Crossplane installed, deploy the provider from the local package, run every kind's
    uptest lifecycle (create → Ready/Synced → delete), then the chainsaw behavior suite
@@ -126,7 +134,43 @@ pipeline — unit tests alone do not catch broken generated output.
 wrapping `hashicorp/kubernetes`, configure `kubernetes_secret` with `create api`,
 then run the **real** upjet pipeline — `make generate` downloads Terraform, reads
 the provider schema, scrapes the provider's docs and generates API types,
-controllers, scheme registration and CRDs — and finally build the result.
+controllers, scheme registration and CRDs — and finally build the result. It
+then runs `update` once on the generated provider, asserting a stale tool-owned
+file is refreshed and a deleted user-owned file is not re-seeded.
+
+It then covers three git-automation paths native's e2e already had (`--force`)
+or that upjet previously lacked (`--adopt`, the dirty-tree refusal), none of
+which need Docker: mark a tool-owned file (`config/zz_resources.go`) and a
+user-owned one (`config/secret/config.go`), commit, then re-run
+`create api --force` (with `--terraform-resource`, required on every upjet
+`create api` call) and assert the tool-owned marker is regenerated while the
+user-owned one survives; run `--force` a second time with nothing left to
+change and assert it still exits 0, reports the no-change skip, and adds no
+commit (git.go's `stageAndCheck` skips the commit when nothing is staged);
+strip `config/provider.go`'s header to
+simulate a pre-contract provider, run `update --adopt`, and assert it reports
+adopting exactly one file and that `git diff --name-only` contains
+`config/provider.go` and nothing besides that and (optionally) `PROJECT`,
+which carries a generator version (adopt stamps one, but stage 6's own
+`update` may already have stamped the same value, so `PROJECT` does not
+always show a diff here); then leave an uncommitted change and assert
+`update` refuses it, citing the working tree.
+
+It also configures a `kubernetes_config_map` resource, writes its
+`docs/upjet-provider.md` worked example (with `uptest.upbound.io/*`
+annotations), and runs `xp-provider-gen create-test` — mirroring the native
+e2e's own `create-test` coverage, which upjet previously lacked. With a Docker
+daemon available, it then runs the **generated provider's own `make e2e`**:
+the same uptest lifecycle (create → Ready/Synced → import → delete) plus the
+`test-behavior` chainsaw hook, which runs the suite `create-test` just
+scaffolded — asserting `junit.xml` shows it ran. On that same still-live
+cluster it then exercises the one lifecycle path uptest's own run never
+covers — UPDATE — since the worked example carries no
+`uptest.upbound.io/update-parameter` annotation: apply the example directly,
+assert the real ConfigMap's `data.hello`, patch `spec.forProvider.data` and
+assert the real object follows, then delete it and confirm it's gone. Without
+Docker (or with `E2E_SKIP_DOCKER` set), that stage is skipped with a warning,
+same as the native e2e's Step E.
 
 That is the only test that proves the config files this tool scaffolds satisfy
 upjet's contract; a unit test cannot, because the contract is upjet's generator.

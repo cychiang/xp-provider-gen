@@ -19,6 +19,7 @@ package v2
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 
@@ -35,18 +36,27 @@ type projectMeta struct {
 }
 
 // loadProjectMeta reads this plugin's block. A project scaffolded before the
-// block existed reads as the native flavor, which is what it is. A block that
-// declares flavor: upjet but carries no upjet: settings is not a missing
-// block, it is a corrupt one — callers dereference meta.Upjet, so this is
-// reported rather than silently defaulted.
+// block existed has an empty flavor, which reads as native, which is what it
+// is. Any other unrecognized flavor is reported rather than silently
+// defaulted, since it means the file is corrupt, hand-edited, or was written
+// by a newer xp-provider-gen this build does not know how to handle. A block
+// that declares flavor: upjet but carries no upjet: settings is not a
+// missing block, it is a corrupt one — callers dereference meta.Upjet, so
+// this is reported too.
 func loadProjectMeta(cfg config.Config) (projectMeta, error) {
 	var meta projectMeta
 	if err := cfg.DecodePluginConfig(pluginName, &meta); err != nil &&
 		!errors.Is(err, config.PluginKeyNotFoundError{Key: pluginName}) {
 		return projectMeta{}, fmt.Errorf("decoding %s project block: %w", pluginName, err)
 	}
-	if !meta.Flavor.Valid() {
+	switch {
+	case meta.Flavor == "":
 		meta.Flavor = core.FlavorNative
+	case !meta.Flavor.Valid():
+		return projectMeta{}, fmt.Errorf(
+			"PROJECT declares unknown flavor %q (known: %s); "+
+				"the file is corrupt, hand-edited, or written by a newer xp-provider-gen",
+			meta.Flavor, knownFlavors())
 	}
 	if meta.Flavor == core.FlavorUpjet && meta.Upjet == nil {
 		return projectMeta{}, fmt.Errorf(
@@ -65,4 +75,14 @@ func saveProjectMeta(cfg config.Config, mutate func(*projectMeta)) error {
 	}
 	mutate(&meta)
 	return cfg.EncodePluginConfig(pluginName, meta)
+}
+
+// knownFlavors lists core.Flavors for an error message, so the message cannot
+// fall behind when a flavor is added.
+func knownFlavors() string {
+	names := make([]string, 0, len(core.Flavors))
+	for _, f := range core.Flavors {
+		names = append(names, string(f))
+	}
+	return strings.Join(names, ", ")
 }

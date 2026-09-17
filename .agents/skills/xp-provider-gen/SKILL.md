@@ -61,9 +61,10 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   Terraform schema. Optional coordinates: `--terraform-provider-repo` (defaults to the
   provider's hashicorp GitHub repo), `--terraform-provider-docs-path` (default
   `docs/resources`). The Terraform *CLI* version is not a flag — it is the tool's, pinned in
-  `pkg/versions/dependencies.yaml` and rendered into the Makefile's `TERRAFORM_VERSION`.
-  Check: **TERRAFORM_VERSION must stay below `1.6.0`** — Terraform 1.6+ is BSL licensed and
-  the generated Makefile's `check-terraform-version` target refuses it. Bumping the *wrapped* provider's own version later
+  `pkg/versions/dependencies.yaml` and rendered into `TERRAFORM_VERSION` in the tool-owned
+  `hack/xp-provider-gen.mk` (the build pipeline the user-owned Makefile includes; `update`
+  refreshes it). Check: **TERRAFORM_VERSION must stay below `1.6.0`** — Terraform 1.6+ is BSL
+  licensed and the fragment's `check-terraform-version` target refuses it. Bumping the *wrapped* provider's own version later
   (`TERRAFORM_PROVIDER_VERSION` in the Makefile) is a separate operation with its own gotchas —
   see [docs/upjet-provider.md §7](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#7-bumping-the-terraform-provider).
 
@@ -78,7 +79,8 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   ```
 - **Produces**: runs `make generate`, folds into the scaffold commit until your first own
   commit. Check: a second kind in an already-scaffolded group/version does **not** need
-  `--force`; `--force` is only for re-scaffolding files that already exist.
+  `--force`; `--force` only refreshes existing tool-owned files and never overwrites
+  files without the generated header (`external.go`, `*_types.go`).
 
 ### `create api` — upjet
 
@@ -119,16 +121,18 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
 - **What**: regenerates the tool-owned core of an existing provider — registration, controller
   wiring, `main.go`, config, framework dependency versions — without touching your business
   logic.
-- **When**: pulling in generator fixes/improvements after upgrading `xp-provider-gen`, on a
-  native provider.
+- **When**: pulling in generator fixes/improvements after upgrading `xp-provider-gen`, on
+  either flavor.
 - **Command**:
   ```bash
   xp-provider-gen update
   ```
 - **Produces**: requires a clean working tree; leaves the result uncommitted for `git diff`
   review, then your own commit. On a mid-run failure the error names the exact revert step.
-  Check: **refuses upjet projects outright** — its render path is hard-wired to the native
-  template set, not because of any missing data (`update --help`).
+  Check: on an **upjet** provider it never recreates a missing user-owned file (some need
+  init-time Terraform settings PROJECT does not keep, so it recreates none) and lists the
+  ones it skipped; it does
+  not bump the wrapped Terraform provider — that is the Makefile's `TERRAFORM_PROVIDER_VERSION`.
 
 ### `update --adopt`
 
@@ -203,8 +207,9 @@ tool's supported surface.
   Crossplane, deploys the provider package. when: first real run of an upjet provider. command:
   `make local-deploy`. produces: cluster `<provider>-e2e`; switches your `kubectl` context to it.
 - **`make run`** — what: runs the provider binary out-of-cluster, against your current
-  `kubectl` context, with `--debug`. when: quick local runs without kind at all — the project
-  Makefile's own `export TERRAFORM_VERSION ?=`/etc. (no image needed) already satisfy
+  `kubectl` context, with `--debug`. when: quick local runs without kind at all — the project's
+  make variables (`TERRAFORM_VERSION` in `hack/xp-provider-gen.mk`, `TERRAFORM_PROVIDER_*` in
+  the Makefile; no image needed) already satisfy
   `cmd/provider`'s required flags. command: `make run`. produces: the controller manager
   running in your terminal.
 - **`test/setup.sh`** — what: seeded, user-owned — waits for the provider package to become

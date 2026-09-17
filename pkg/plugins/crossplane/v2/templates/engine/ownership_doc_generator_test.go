@@ -33,6 +33,7 @@ func TestGeneratorBodiesCarryOwnershipHeader(t *testing.T) {
 		"apis_register.go.tmpl",
 		"controller_register.go.tmpl",
 		"ownership_doc.md.tmpl",
+		"upjet_resources.go.tmpl",
 	} {
 		if !core.IsToolOwned([]byte(templates.GeneratorBody(name))) {
 			t.Errorf("generator body %q lost the %q header — update would stop refreshing its output",
@@ -67,10 +68,24 @@ func TestOwnershipDocClassifiesGeneratorOutputs(t *testing.T) {
 
 // TestOwnershipDocClassifiesUpjetOutputs pins A5: the doc for an upjet project
 // must describe upjet's own tree, not the native one it used to walk
-// unconditionally regardless of which flavor asked for it.
+// unconditionally regardless of which flavor asked for it. It builds the doc
+// through upjetCoreGenerators so it covers the production wiring, which must
+// list the go.mod init seeds as user-owned just as the native doc does.
 func TestOwnershipDocClassifiesUpjetOutputs(t *testing.T) {
-	res := NewUpjetResourcesGenerator(testRepo, nil)
-	g := NewOwnershipDocGenerator(core.FlavorUpjet, res)
+	var g *OwnershipDocGenerator
+	for _, b := range upjetCoreGenerators(newTestConfig(t), nil) {
+		if doc, ok := b.(*OwnershipDocGenerator); ok {
+			g = doc
+			break
+		}
+	}
+	if g == nil {
+		t.Fatal("upjetCoreGenerators returned no *OwnershipDocGenerator")
+	}
+
+	if !slices.Contains(g.UserOwned, goModPath) {
+		t.Errorf("user-owned bucket is missing %q; got %v", goModPath, g.UserOwned)
+	}
 
 	if !slices.Contains(g.ToolOwned, "config/provider.go") {
 		t.Errorf("tool-owned bucket is missing %q; got %v", "config/provider.go", g.ToolOwned)

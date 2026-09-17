@@ -54,7 +54,7 @@ func TestApplyFileRefusesEscapes(t *testing.T) {
 				t.Fatalf("seeding src: %v", err)
 			}
 
-			decision, err := applyFile(src, dst, "rendered", rel)
+			decision, _, err := applyFile(src, dst, "rendered", rel, true)
 			if err == nil {
 				t.Fatalf("applyFile(%q) was allowed; want refusal", rel)
 			}
@@ -83,7 +83,7 @@ func TestApplyFileAllowsProjectPaths(t *testing.T) {
 		t.Fatalf("seeding src: %v", err)
 	}
 	for _, rel := range []string{"go.mod", "apis/register.go", "internal/controller/thing/wiring.go"} {
-		if _, err := applyFile(src, dst, "rendered", rel); err != nil {
+		if _, _, err := applyFile(src, dst, "rendered", rel, true); err != nil {
 			t.Fatalf("applyFile(%q) refused a legitimate path: %v", rel, err)
 		}
 		if exists, _ := afero.Exists(dst, rel); !exists {

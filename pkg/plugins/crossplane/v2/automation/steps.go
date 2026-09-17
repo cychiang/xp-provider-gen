@@ -127,8 +127,8 @@ type MakeStep struct {
 // ExecutableBitStep marks scaffolded shell scripts executable: kubebuilder's
 // machinery writes every file 0644, but scripts are exec'd directly (uptest
 // runs test/setup.sh), so the bit must be set — and committed — at scaffold
-// time. It applies the same ".sh means executable" rule `update` uses when it
-// writes files, rather than a per-flavor list of paths that would need editing
+// time. It applies the same core.FileMode rule `update` uses when it writes
+// files, rather than a per-flavor list of paths that would need editing
 // whenever a scaffold gains a script.
 type ExecutableBitStep struct {
 	root string
@@ -165,10 +165,10 @@ func (s *ExecutableBitStep) Execute() error {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".sh") {
+		if core.FileMode(path) != core.ScriptMode {
 			return nil
 		}
-		if err := root.Chmod(path, 0o755); err != nil { // #nosec G302 -- executable script
+		if err := root.Chmod(path, core.ScriptMode); err != nil {
 			return fmt.Errorf("chmod +x %s: %w", path, err)
 		}
 		return nil
@@ -218,4 +218,26 @@ func (s *GoModTidyStep) Name() string {
 
 func (s *GoModTidyStep) Execute() error {
 	return core.NewCommandRunner("").Run(context.Background(), "go", "mod", "tidy")
+}
+
+// StreamingCommandStep runs a command whose output the user watches live:
+// update's finalize steps take minutes, and Run's buffered output would leave
+// the terminal silent until they finish.
+type StreamingCommandStep struct {
+	name string
+	args []string
+}
+
+// NewStreamingCommandStep builds a step that runs name with args, streaming its
+// output to the terminal.
+func NewStreamingCommandStep(name string, args ...string) *StreamingCommandStep {
+	return &StreamingCommandStep{name: name, args: args}
+}
+
+func (s *StreamingCommandStep) Name() string {
+	return "Run " + strings.Join(append([]string{s.name}, s.args...), " ")
+}
+
+func (s *StreamingCommandStep) Execute() error {
+	return core.NewCommandRunner("").RunStreaming(context.Background(), os.Stdout, os.Stderr, s.name, s.args...)
 }

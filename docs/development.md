@@ -6,8 +6,8 @@
 - **Git**
 - **golangci-lint** — installed automatically by `make lint` if missing, at the version
   pinned in `GOLANGCILINT_VERSION`. The same version must be set by hand in four places:
-  `Makefile`, `.github/workflows/lint.yml`, `pkg/templates/files/project/Makefile.tmpl` and
-  `pkg/templates/upjet/project/Makefile.tmpl`. Renovate currently bumps only `lint.yml`; align
+  `Makefile`, `.github/workflows/lint.yml`, `pkg/templates/files/hack/xp-provider-gen.mk.tmpl`
+  and `pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl`. Renovate currently bumps only `lint.yml`; align
   the other three in the same PR.
 - **gosec** — security scanner
 - **Docker** — for `make e2e-test`, which stands up a kind cluster; `make e2e-upjet` needs
@@ -71,7 +71,7 @@ providers by `update`. To change a generated provider's dependency versions, edi
 let Renovate do it) — never hardcode versions in a template.
 
 Generated providers target **Go 1.26** (`pkg/versions.GoVersion`, rendered into `go.mod`) and
-lint with the pinned golangci-lint (`Makefile.tmpl`). Keep the generated `go` directive at the
+lint with the pinned golangci-lint (`hack/xp-provider-gen.mk.tmpl`). Keep the generated `go` directive at the
 language version (`1.26.0`) with no `toolchain` pin — golangci-lint reads the system GOROOT, so
 pinning a toolchain patch above golangci-lint's build version breaks `make reviewable` in
 generated projects.

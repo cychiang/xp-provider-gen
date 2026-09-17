@@ -33,11 +33,12 @@ repository is guessed from the provider name and can be overridden with
 
 The Terraform *CLI* version is not one of these: it is the generator's call, not
 yours. It lives in the tool's own `pkg/versions/dependencies.yaml` and is
-rendered into your Makefile's `TERRAFORM_VERSION` at `init`. The whole upjet
+rendered into `TERRAFORM_VERSION` in `hack/xp-provider-gen.mk` — the tool-owned
+build pipeline your Makefile includes, refreshed by `xp-provider-gen update`. The whole upjet
 ecosystem stays below Terraform 1.6 because 1.6+ is BSL-licensed, which is a
 licensing question about what the ecosystem ships rather than something a
-single provider decides — so there is no flag to override it. If you edit
-`TERRAFORM_VERSION` in the generated Makefile by hand, its own
+single provider decides — so there is no flag to override it. If you set
+`TERRAFORM_VERSION` in your Makefile by hand, the fragment's
 `check-terraform-version` target still refuses anything `>= 1.6.0`.
 
 Unlike a native provider, a freshly scaffolded upjet project **does not compile
@@ -263,18 +264,20 @@ stale duplicate behind to contradict it.
 | `config/<kind>/config.go` — per-resource configuration | `config/provider.go`, `config/zz_resources.go` |
 | `internal/clients/clients.go` — credentials → Terraform setup | `internal/clients/resolve.go` |
 | `apis/*/v1beta1/types.go` — ProviderConfig spec | the `go:generate` chain, generator entrypoint, ProviderConfig controllers |
+| `Makefile` — project and `TERRAFORM_PROVIDER_*` variables, your own targets | `hack/xp-provider-gen.mk` — the build pipeline, Terraform CLI version, schema download |
 
-Tool-owned files carry the `DO NOT EDIT` header, but `xp-provider-gen update`
-does not support the upjet flavor yet — it refuses to run on one because its
-render path is hard-wired to the native template set, not because anything is
-missing from PROJECT. That gap is real but infrequent: tool-owned upjet files
-do occasionally need a fix that only a newer generator carries (for example, a
-wrong hard-coded API group in `apis/*/register.go`), and until `update` learns
-this flavor the only way to pick one up is to regenerate a fresh scaffold and
-port your own files over by hand. This is a different, rarer need than
-[bumping the Terraform provider](#7-bumping-the-terraform-provider) — that one
-`update` was never going to help with anyway, since it only ever touches
-tool-owned files and the provider version lives in the user-owned Makefile.
+Tool-owned files carry the `DO NOT EDIT` header, and `xp-provider-gen update`
+refreshes them after you upgrade the generator — picking up a fix only a newer
+generator carries (for example, a wrong hard-coded API group in
+`apis/*/register.go`). On a clean tree it re-renders the upjet plumbing, bumps
+the framework dependency set, then runs `make generate`, `go mod tidy` and
+`make reviewable`, leaving the result for `git diff`. Unlike on a native
+provider, it never recreates a missing user-owned file — some need init-time
+Terraform settings PROJECT does not keep, so it recreates none — and lists the
+ones it skipped instead. This is a different need than
+[bumping the Terraform provider](#7-bumping-the-terraform-provider): `update`
+does not help with that, since the provider version lives in the user-owned
+Makefile.
 Everything without the header is yours forever, and everything upjet itself
 generates (`zz_*`) is reproduced by `make generate` and should not be edited
 either.

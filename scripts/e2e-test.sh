@@ -121,6 +121,7 @@ assert_ownership() {
         "internal/controller/config/config.go" \
         "internal/provider/connector.go" \
         "internal/controller/${KIND1_LOWER}/wiring.go" \
+        "hack/xp-provider-gen.mk" \
         "docs/ownership.md"; do
         if grep -q "$marker" "$f" 2>/dev/null; then
             log_success "✓ tool-owned: $f"
@@ -137,6 +138,7 @@ assert_ownership() {
         "internal/provider/options.go" \
         "apis/$GROUP/$VERSION/${KIND1_LOWER}_types.go" \
         "apis/v1alpha1/types.go" \
+        "Makefile" \
         "AGENTS.md"; do
         if grep -q "$marker" "$f" 2>/dev/null; then
             log_error "✗ user-owned file unexpectedly has header: $f"
@@ -336,6 +338,7 @@ main() {
     for f in \
         "internal/controller/${KIND1_LOWER}/wiring.go" \
         "internal/provider/connector.go" \
+        "hack/xp-provider-gen.mk" \
         "docs/ownership.md"; do
         if grep -q "DO NOT EDIT" "$f"; then
             log_success "✓ tool-owned refreshed (header intact): $f"
@@ -361,6 +364,63 @@ main() {
     fi
     log_success "✓ update refused a dirty working tree"
     git checkout -- "$ctrl" 2>/dev/null || git restore "$ctrl"
+
+    # Step F: `create api --force` refreshes a tool-owned file, preserves user edits
+    step_header "F" "Test create api --force"
+    local force_wiring="internal/controller/${KIND1_LOWER}/wiring.go"
+    local force_tool_marker="// FORCE-MARKER: stale tool-owned content"
+    local force_user_marker="// FORCE-MARKER: user customization"
+    log_info "Marking tool-owned $force_wiring and user-owned $ctrl, then committing..."
+    printf '\n%s\n' "$force_tool_marker" >> "$force_wiring"
+    printf '\n%s\n' "$force_user_marker" >> "$ctrl"
+    git add -A && git commit -q -m "simulate: stale tool-owned file and a user customization before --force"
+
+    log_info "Running: $BINARY_PATH create api --group=$GROUP --version=$VERSION --kind=$KIND1 --force"
+    if "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1" --force; then
+        log_success "create api --force exited 0"
+    else
+        log_error "create api --force failed"
+        exit 1
+    fi
+
+    if grep -q "$force_tool_marker" "$force_wiring"; then
+        log_error "✗ --force did not refresh tool-owned $force_wiring (marker survived)"
+        exit 1
+    fi
+    log_success "✓ --force refreshed tool-owned $force_wiring (marker gone)"
+
+    if grep -q "$force_user_marker" "$ctrl"; then
+        log_success "✓ --force preserved user-owned $ctrl"
+    else
+        log_error "✗ --force clobbered user-owned $ctrl (marker gone)"
+        exit 1
+    fi
+
+    # A second --force in a row, with nothing left to change, must still exit
+    # 0 and must not add or amend a commit: git.go's stageAndCheck skips the
+    # commit when nothing is staged.
+    local head_before_force2
+    head_before_force2="$(git rev-parse HEAD)"
+    log_info "Running a second: $BINARY_PATH create api --group=$GROUP --version=$VERSION --kind=$KIND1 --force"
+    if "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1" --force >/tmp/e2e-test-force2.log 2>&1; then
+        log_success "second create api --force exited 0"
+    else
+        cat /tmp/e2e-test-force2.log
+        log_error "second --force (no changes) did not exit 0"
+        exit 1
+    fi
+    if grep -q "No changes to commit" /tmp/e2e-test-force2.log; then
+        log_success "✓ second --force reported the no-change skip"
+    else
+        log_error "✗ second --force did not report the no-change skip"
+        exit 1
+    fi
+    if [ "$(git rev-parse HEAD)" = "$head_before_force2" ]; then
+        log_success "✓ second --force added no commit"
+    else
+        log_error "✗ second --force added or amended a commit although nothing changed"
+        exit 1
+    fi
 
     # Step A: `update --adopt` retrofits a provider generated before the ownership contract
     step_header "A" "Test update --adopt"
@@ -503,6 +563,7 @@ main() {
     log_success "✅ create-test scaffolds a chainsaw test: PASSED"
     log_success "✅ scaffolded test runs against the live provider: ${CREATE_TEST_LIVE_RESULT}"
     log_success "✅ update preserves all 3 user-owned seam files: PASSED"
+    log_success "✅ create api --force refreshes tool-owned files, preserves user edits: PASSED"
     log_success "✅ update / update --adopt (on a copy): PASSED"
     echo
     log_success "🎉 All E2E tests completed successfully!"

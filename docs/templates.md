@@ -78,7 +78,10 @@ Upjet bodies also see `.TerraformProvider`, `.TerraformProviderName`,
 `.TerraformProviderVersion`, `.TerraformProviderRepo`, `.TerraformDocsPath`,
 `.TerraformVersion`, `.TerraformResource` and `.NamespacedDomain`
 (`core/upjet.go`), plus the `lower` template func, e.g.
-`{{ .Resource.Kind | lower }}` in `config/KIND/config.go.tmpl`.
+`{{ .Resource.Kind | lower }}` in `config/KIND/config.go.tmpl`. `.NamespacedDomain` and
+`.TerraformVersion` are always set: `BaseTemplateProduct.Configure` derives the
+first from the domain and takes the second from `pkg/versions` when the caller
+leaves them empty, which is what `update` does after reading PROJECT back.
 
 ## When a file is not enough: generators
 
@@ -102,7 +105,7 @@ above: `.Alias`/`.Path` (register files), `.Module`/`.Version`/`.GoVersion`
 
 Editing a body is a template change; adding new *data* to one is a Go change.
 For a brand-new generated file that needs computed data, model a generator on
-the existing ones and add it to `CoreGenerators` or `UpjetCoreGenerators`
+the existing ones and add it to `coreGenerators` or `upjetCoreGenerators`
 (`assembly.go`) for the flavor it belongs to, so `init`, `create api`, and
 `update` all emit it — the ownership doc derives its entry from the generator
 automatically. Keep the `DO NOT EDIT` header in tool-owned bodies: a test fails
