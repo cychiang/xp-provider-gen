@@ -84,7 +84,8 @@ scopes: `apis/namespaced/v1beta1` (a namespaced `ProviderConfig` plus a
 cluster-scoped `ClusterProviderConfig`) and `apis/cluster/v1beta1` (a
 cluster-scoped `ProviderConfig`). Upjet's own generator pipeline expects a
 cluster and a namespaced provider config and generates both trees — see
-[architecture.md](architecture.md). Both use the full `CommonCredentialSelectors`:
+[upjet's own resource configuration guide](https://github.com/crossplane/upjet/blob/main/docs/configuring-a-resource.md).
+Both use the full `CommonCredentialSelectors`:
 a cross-namespace `secretRef`, plus `Filesystem` and `Environment` sources.
 `examples/providerconfig/providerconfig.yaml` ships one of each; whichever scope
 a request resolves through, `internal/clients/resolve.go` (tool-owned) turns it

@@ -14,7 +14,7 @@ run alongside CI or another `make e2e-test`/`make e2e-upjet` run on the same mac
 
 | Requirement | Check |
 |---|---|
-| Go 1.26.8+ (the version this repo targets, from `pkg/versions/dependencies.yaml`'s `go_version`) | `go version` |
+| Go (the version this repo targets, from `pkg/versions/dependencies.yaml`'s `go_version`) | `go version` |
 | Docker (scenarios B and the live half of A; not needed for C's ownership checks, D, or E) | `docker info` |
 | Network access (upjet scenarios download Terraform and a provider schema; native `init`/`create api` fetch Go modules) | `curl -sI https://proxy.golang.org >/dev/null && echo ok` |
 
@@ -297,25 +297,21 @@ pipeline in a user-owned `Makefile`, which `update` never touches. This walks th
 migrating one by hand, following
 [docs/provider-guide.md](provider-guide.md#moving-an-older-makefile-onto-the-refreshable-pipeline).
 
-You need a binary built from before the split to produce that old layout. The only reliable
-way to get one without disturbing your current checkout is a second worktree — do **not** use
-`git stash` for this: it does not switch branches, and this repo's stash stack is shared with
-every other worktree on the machine.
+You need a binary built from before the split to produce that old layout. `main` no longer
+works for this — the split landed in [#161](https://github.com/cychiang/xp-provider-gen/pull/161)
+and has been on `main` since, so a binary built from `main` produces the new layout, not the
+old one. Pin to the commit right before that merge instead:
+`386b534` (`43e1217^`, the parent of the merge commit). The only reliable way to get a binary
+from an arbitrary commit without disturbing your current checkout is a second worktree — do
+**not** use `git stash` for this: it does not switch branches, and this repo's stash stack is
+shared with every other worktree on the machine. A worktree at a specific commit (detached
+HEAD) can coexist with any branch checkout, including one already on `main`, so this never
+collides with another worktree on the machine:
 
 ```bash
-git worktree add /tmp/xpg-main main
-make -C /tmp/xpg-main build
-OLD_BIN=/tmp/xpg-main/bin/xp-provider-gen
-```
-
-If that fails with `'main' is already used by worktree at ...` — this repo is often checked
-out as several worktrees at once, and `main` may already be one of them — build in that
-existing checkout instead of creating a new one:
-
-```bash
-MAIN_CHECKOUT="$(git worktree list | awk '/\[main\]/ {print $1}')"
-make -C "$MAIN_CHECKOUT" build
-OLD_BIN="$MAIN_CHECKOUT/bin/xp-provider-gen"
+git worktree add /tmp/xpg-old 386b534
+make -C /tmp/xpg-old build
+OLD_BIN=/tmp/xpg-old/bin/xp-provider-gen
 
 mkdir -p /tmp/xpg-manual-e && cd /tmp/xpg-manual-e
 "$OLD_BIN" init --domain=example.com --repo=github.com/example/provider-manual-e
@@ -370,7 +366,5 @@ make build
 **Cleanup:**
 ```bash
 cd / && rm -rf /tmp/xpg-manual-e
-# Only if you created /tmp/xpg-main with `git worktree add` above — skip this if you
-# used an existing checkout via the fallback instead:
-git -C /path/to/xp-provider-gen worktree remove /tmp/xpg-main
+git -C /path/to/xp-provider-gen worktree remove /tmp/xpg-old
 ```

@@ -219,6 +219,9 @@ make reviewable
 git commit -m "chore: update provider core"
 ```
 
+`update` refuses outright if PROJECT declares an unknown `flavor:` value, or `flavor: upjet`
+with no `upjet:` settings block — only an empty flavor is read as native.
+
 `update` does five things:
 
 1. Regenerates every tool-owned file from the current templates.
@@ -239,8 +242,10 @@ It stops there deliberately — no commit — so `git diff` is your review surfa
 `*_types.go`, `AGENTS.md`, or your `Makefile`. If one appears, that is a bug in the generator, not
 something to work around — please report it with the diff.
 
-If a step fails midway, `git reset --hard` returns you to where you started. That is
-why the clean-tree precondition exists.
+If a step fails midway, the error message spells out the exact revert steps: `git reset
+--hard` to restore modified tool-owned files, plus `rm -rf` for any file this run seeded (those
+are untracked, so `git reset --hard` alone leaves them behind). That is why the clean-tree
+precondition exists.
 
 ### Adopting an older provider
 

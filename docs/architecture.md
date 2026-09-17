@@ -33,10 +33,12 @@ and adds the standalone `update` and `create-test` commands (Kubebuilder's plugi
 
 ```go
 cli.New(
-    cli.WithCommandName("crossplane-provider-gen"),
+    cli.WithCommandName(commandName),
+    cli.WithVersion(versionInfo.Short()),
     cli.WithPlugins(&crossplanev2.Plugin{}),
     cli.WithDefaultPlugins(cfgv3.Version, &crossplanev2.Plugin{}),
     cli.WithExtraCommands(crossplanev2.NewUpdateCommand(), crossplanev2.NewCreateTestCommand()),
+    cli.WithCompletion(),
 )
 ```
 
@@ -186,6 +188,9 @@ overwrite.
 1. **Precondition** — the working tree must be clean (drift protection); the result is left
    uncommitted for review via `git diff`. PROJECT's plugin block is loaded once and gates the
    rest: its flavor picks the validator (upjet allows reserved kinds, as in `create api`).
+   An unrecognized `flavor:` value — or `flavor: upjet` with no `upjet:` settings block —
+   is treated as a corrupt PROJECT and refused outright, not silently defaulted to native
+   (`projectmeta.go`); only an empty flavor reads as native.
 2. **Render** the flavor's full template set into an in-memory FS (`afero.NewMemMapFs`); upjet
    renders with the settings PROJECT keeps (`WithUpjet`).
 3. **Reconcile** onto disk through `core.DecideWrite` (tool files overwritten, user files

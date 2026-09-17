@@ -121,3 +121,8 @@ if it goes missing.
 - **The ownership header is a substring match.** A user-owned template whose
   body *quotes* the header line becomes tool-owned by accident; phrase docs
   around it (see `AGENTS.md.tmpl` for an example that links instead of quoting).
+- **Five templates must stay byte-identical across both roots.** `LICENSE`,
+  `hack/boilerplate.go.txt`, `package/crossplane.yaml`, `project/.gitignore` and
+  `project/OWNERS.md` are each duplicated once per flavor root rather than shared,
+  so a change to one must be applied to both — `shared_templates_test.go` enforces
+  this and fails if they drift apart.

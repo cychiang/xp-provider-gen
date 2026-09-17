@@ -56,8 +56,8 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 
 `scripts/e2e-test.sh` (run via `make e2e-test`) exercises the real generator workflow against
 a throwaway project in `/tmp/provider-template`. The expected file layout lives in
-`scripts/assert-layout.sh`, shared with the CI smoke test — edit that when the scaffold
-gains or loses a file:
+`scripts/assert-layout.sh`, called by `e2e-test.sh` at each scaffolding stage — edit that when
+the scaffold gains or loses a file:
 
 1. Build the binary and prepare a clean temp directory.
 2. `init` a provider project; verify the base structure; **assert the working tree is clean**
@@ -92,6 +92,17 @@ gains or loses a file:
    assert it also passes against the live provider. Skipped with a warning when no Docker
    daemon is available.
 
+`/tmp/provider-template`, the scaffold this leaves behind, is kept only when the run succeeds
+(a failure removes it so the next run starts clean) — the next run recreates it either way:
+
+```bash
+make e2e-test            # build + run
+./scripts/e2e-test.sh -h # usage
+```
+
+Run the e2e test whenever you change templates, the template engine, or the automation
+pipeline — unit tests alone do not catch broken generated output.
+
 ## Upgrade-path simulation (`make upgrade-sim`)
 
 `scripts/upgrade-sim.sh` covers a gap the e2e cannot: e2e Step U runs `update` with
@@ -117,16 +128,8 @@ and runs `update`. It asserts:
 
 It restores the templates it mutated. **Run it before shipping a framework bump.**
 
-The temp project is left in place after each run, whether it succeeded or failed, for
-inspection; the next run removes and recreates it before scaffolding.
-
-```bash
-make e2e-test            # build + run
-./scripts/e2e-test.sh -h # usage
-```
-
-Run the e2e test whenever you change templates, the template engine, or the automation
-pipeline — unit tests alone do not catch broken generated output.
+`/tmp/upgrade-sim`, its temp project, is left in place after each run, whether it succeeded or
+failed, for inspection; the next run removes and recreates it before scaffolding.
 
 ## Upjet-flavor e2e (`make e2e-upjet`)
 
@@ -179,6 +182,12 @@ rather than part of `make e2e-test`.
 
 ## In CI
 
-Unit tests and the native e2e run on every push/PR (see [.github/WORKFLOWS.md](../.github/WORKFLOWS.md)):
-`test.yml` runs unit tests with coverage and the e2e layout smoke test; `lint.yml` and `ci.yml`
-add linting, gosec, and Trivy scanning.
+See [.github/WORKFLOWS.md](../.github/WORKFLOWS.md) for the full list; the layers above map to:
+
+- `test.yml` — unit tests with coverage, plus the native e2e with its Docker-dependent Step E
+  skipped (`E2E_SKIP_DOCKER=1`), on every push/PR.
+- `e2e-native-full.yml` — the same native e2e with Step E included, plus `make upgrade-sim`;
+  daily and on PRs touching the surfaces they exercise.
+- `e2e-upjet.yml` — the upjet e2e; daily and on PRs touching the upjet flavor.
+- `go-version.yml` — `make check-go-version`, on every push/PR.
+- `lint.yml` / `ci.yml` — linting, gosec, and Trivy scanning, on every push/PR.

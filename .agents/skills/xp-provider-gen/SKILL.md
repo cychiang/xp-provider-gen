@@ -133,6 +133,8 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   init-time Terraform settings PROJECT does not keep, so it recreates none) and lists the
   ones it skipped; it does
   not bump the wrapped Terraform provider — that is the Makefile's `TERRAFORM_PROVIDER_VERSION`.
+  It also refuses outright if PROJECT declares an unknown `flavor:` value, or `flavor: upjet`
+  with no `upjet:` settings block.
 
 ### `update --adopt`
 
