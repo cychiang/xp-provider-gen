@@ -9,8 +9,8 @@
   The review accepted unified assembly but deferred the apply-policy layer until
   someone wrote this design.
 
-All `file:line` references point at the `refactor/architecture-review` branch at `eeb7dcb`
-(after Tasks 8, 10, 11, 12 and 13). Kubebuilder references are to module `sigs.k8s.io/kubebuilder/v4@v4.15.0`
+All `file:line` references point at the state PR #161 merges into main (after
+Tasks 8, 10, 11, 12 and 13). Kubebuilder references are to module `sigs.k8s.io/kubebuilder/v4@v4.15.0`
 (the version in `go.mod`). Line numbers there change whenever that dependency is bumped.
 
 ## 1. Summary
@@ -300,7 +300,7 @@ wasted if C is accepted, and B stands on its own if it is not. This matches the 
 
 ## 6. Migration plan
 
-**Prerequisites:** Tasks 10, 12 and 13, all merged at `eeb7dcb`. Task 10 reworked `renderToMemFS`
+**Prerequisites:** Tasks 10, 12 and 13, all merged by PR #161. Task 10 reworked `renderToMemFS`
 and added the C7 seeding flag, Task 12 reworked finalize, and Task 13 added the tool-owned
 `hack/xp-provider-gen.mk` that Apply must refresh. Apply absorbs their result; it does not fork it.
 
