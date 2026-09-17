@@ -117,14 +117,12 @@ make e2e
 `make e2e` here is the whole story: it builds, brings up its own kind control plane
 (`controlplane.down` then `controlplane.up`), deploys the provider, and uptest itself runs
 `test/setup.sh` to apply the ProviderConfig and credentials before driving the ConfigMap example
-through create → Ready/Synced → delete. There is no separate manual `make local-deploy` or
-`KUBECTL=kubectl ./test/setup.sh` step in this flow — those exist for a slower, more inspectable
-alternative (deploy once, then apply examples by hand), not for this end-to-end path.
-
-It is fine to stop the moment the kind cluster comes up — a full `make e2e` run is not required
-to have exercised the scaffold→generate→example→create-test path, which is the part specific to
-this tool. If you do stop it early (`Ctrl-C` or `kill` the `make` process), tear the cluster down
-with the **Cleanup** commands below before moving on.
+through create → Ready/Synced → delete — there is no separate manual `make local-deploy` /
+`KUBECTL=kubectl ./test/setup.sh` step in this flow, those exist for a slower, more inspectable
+alternative instead. It is fine to stop the moment the kind cluster comes up, since a full
+`make e2e` run is not required to have exercised the scaffold→generate→example→create-test path
+that is specific to this tool; if you do (`Ctrl-C` or `kill` the `make` process), tear the
+cluster down with the **Cleanup** commands below before moving on.
 
 **Expected result:**
 - [ ] `init` scaffolds the upjet layout; `Makefile` references `hashicorp/kubernetes`

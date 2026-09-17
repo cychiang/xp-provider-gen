@@ -143,37 +143,37 @@ file is refreshed and a deleted user-owned file is not re-seeded.
 
 It then covers three git-automation paths native's e2e already had (`--force`)
 or that upjet previously lacked (`--adopt`, the dirty-tree refusal), none of
-which need Docker: mark a tool-owned file (`config/zz_resources.go`) and a
-user-owned one (`config/secret/config.go`), commit, then re-run
-`create api --force` (with `--terraform-resource`, required on every upjet
-`create api` call) and assert the tool-owned marker is regenerated while the
-user-owned one survives; run `--force` a second time with nothing left to
-change and assert it still exits 0, reports the no-change skip, and adds no
-commit (git.go's `stageAndCheck` skips the commit when nothing is staged);
-strip `config/provider.go`'s header to
-simulate a pre-contract provider, run `update --adopt`, and assert it reports
-adopting exactly one file and that `git diff --name-only` contains
-`config/provider.go` and nothing besides that and (optionally) `PROJECT`,
-which carries a generator version (adopt stamps one, but stage 6's own
-`update` may already have stamped the same value, so `PROJECT` does not
-always show a diff here); then leave an uncommitted change and assert
-`update` refuses it, citing the working tree.
+which need Docker:
+
+- **`--force`:** mark a tool-owned file (`config/zz_resources.go`) and a user-owned one
+  (`config/secret/config.go`), commit, then re-run `create api --force` (with
+  `--terraform-resource`, required on every upjet `create api` call) and assert the
+  tool-owned marker is regenerated while the user-owned one survives.
+- **`--force` with nothing to change:** run it again and assert it still exits 0, reports
+  the no-change skip, and adds no commit (git.go's `stageAndCheck` skips the commit when
+  nothing is staged).
+- **`--adopt`:** strip `config/provider.go`'s header to simulate a pre-contract provider,
+  run `update --adopt`, and assert it reports adopting exactly one file and that
+  `git diff --name-only` contains `config/provider.go` and, optionally, `PROJECT` (adopt
+  stamps a generator version there, but stage 6's own `update` may already have stamped
+  the same value).
+- **Dirty-tree refusal:** leave an uncommitted change and assert `update` refuses it,
+  citing the working tree.
 
 It also configures a `kubernetes_config_map` resource, writes its
-`docs/upjet-provider.md` worked example (with `uptest.upbound.io/*`
-annotations), and runs `xp-provider-gen create-test` — mirroring the native
-e2e's own `create-test` coverage, which upjet previously lacked. With a Docker
-daemon available, it then runs the **generated provider's own `make e2e`**:
-the same uptest lifecycle (create → Ready/Synced → import → delete) plus the
-`test-behavior` chainsaw hook, which runs the suite `create-test` just
-scaffolded — asserting `junit.xml` shows it ran. On that same still-live
-cluster it then exercises the one lifecycle path uptest's own run never
-covers — UPDATE — since the worked example carries no
-`uptest.upbound.io/update-parameter` annotation: apply the example directly,
-assert the real ConfigMap's `data.hello`, patch `spec.forProvider.data` and
-assert the real object follows, then delete it and confirm it's gone. Without
-Docker (or with `E2E_SKIP_DOCKER` set), that stage is skipped with a warning,
-same as the native e2e's Step E.
+`docs/upjet-provider.md` worked example (with `uptest.upbound.io/*` annotations), and runs
+`xp-provider-gen create-test` — mirroring the native e2e's own `create-test` coverage, which
+upjet previously lacked. With a Docker daemon available (skipped with a warning otherwise, or
+with `E2E_SKIP_DOCKER` set, same as the native e2e's Step E), it then:
+
+- runs the **generated provider's own `make e2e`**: the uptest lifecycle (create →
+  Ready/Synced → import → delete) plus the `test-behavior` chainsaw hook running the suite
+  `create-test` just scaffolded, asserting `junit.xml` shows it ran;
+- on that same still-live cluster, exercises the one lifecycle path uptest's own run never
+  covers — UPDATE, since the worked example carries no `uptest.upbound.io/update-parameter`
+  annotation: apply the example directly and assert the real ConfigMap's `data.hello`;
+- patch `spec.forProvider.data` and assert the real object follows;
+- delete it and confirm it's gone.
 
 That is the only test that proves the config files this tool scaffolds satisfy
 upjet's contract; a unit test cannot, because the contract is upjet's generator.
