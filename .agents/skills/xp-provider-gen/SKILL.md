@@ -133,6 +133,8 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   init-time Terraform settings PROJECT does not keep, so it recreates none) and lists the
   ones it skipped; it does
   not bump the wrapped Terraform provider — that is the Makefile's `TERRAFORM_PROVIDER_VERSION`.
+  It also refuses outright if PROJECT declares an unknown `flavor:` value, or `flavor: upjet`
+  with no `upjet:` settings block.
 
 ### `update --adopt`
 
@@ -227,10 +229,9 @@ tool's supported surface.
   `make e2e`. produces: a dedicated `<provider>-e2e` kind cluster left running (`make e2e-clean`
   removes it). Check: **a fresh scaffold's `examples/` has nothing for `make e2e` to test** —
   `create api` cannot seed a real example for upjet (nothing about a valid `spec.forProvider` is
-  knowable before `make generate` runs) — write one first; the scraped
-  `examples-generated/**` manifests are not applyable as-is (unresolved Terraform
-  interpolations like `${file(...)}`/`${filebase64(...)}`)
-  ([details](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#5-build-and-deploy)).
+  knowable before `make generate` runs) — write one first, following `test/README.md` inside
+  the scaffold or
+  [docs/upjet-provider.md §5](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#5-build-and-deploy).
 
 ## B. Develop `xp-provider-gen` itself
 

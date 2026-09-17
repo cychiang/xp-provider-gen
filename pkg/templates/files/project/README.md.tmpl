@@ -49,9 +49,10 @@ make test
 
 ### Deploy
 
-Build and deploy the provider:
+For local development without building or pushing an image, use `make dev`
+(see above). For a full end-to-end run — package, deploy via Crossplane, and
+run the uptest/chainsaw suites — use:
 
 ```bash
-make build
-make deploy
+make e2e
 ```

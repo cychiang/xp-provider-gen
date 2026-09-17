@@ -22,7 +22,8 @@ knowable before the Terraform schema is generated. After `make generate`:
 1. Copy `examples-generated/namespaced/<group>/<version>/<kind>.yaml` to
    `examples/<group>/<kind>.yaml`.
 2. Resolve any `${...}` Terraform interpolations (e.g. `file()`,
-   `filebase64()`) — the scraped doc example does not resolve them for you.
+   `filebase64()`) — the scraped doc example does not resolve them for you, and applying it
+   as-is silently produces garbage field values, not an error.
 3. Keep `namespace: crossplane-system` and `providerConfigRef: {name: default,
    kind: ProviderConfig}` — that's where the scaffolded credentials Secret and
    ProviderConfig live. Worked example:

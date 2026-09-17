@@ -208,7 +208,7 @@ main() {
         exit 1
     fi
 
-    # Verify basic project structure (shared list with the CI smoke test)
+    # Verify basic project structure
     "$SCRIPT_DIR/assert-layout.sh" "$TEST_DIR"
 
     # Step 3: Test initial build targets
@@ -239,7 +239,7 @@ main() {
         exit 1
     fi
 
-    # Verify first API files (shared list with the CI smoke test)
+    # Verify first API files
     KIND1_LOWER=$(echo "$KIND1" | tr '[:upper:]' '[:lower:]')
     "$SCRIPT_DIR/assert-layout.sh" "$TEST_DIR" "$GROUP" "$VERSION" "$KIND1"
 
@@ -254,7 +254,7 @@ main() {
         exit 1
     fi
 
-    # Verify second API files (shared list with the CI smoke test)
+    # Verify second API files
     KIND2_LOWER=$(echo "$KIND2" | tr '[:upper:]' '[:lower:]')
     "$SCRIPT_DIR/assert-layout.sh" "$TEST_DIR" "$GROUP" "$VERSION" "$KIND2"
 

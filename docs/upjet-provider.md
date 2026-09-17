@@ -84,7 +84,8 @@ scopes: `apis/namespaced/v1beta1` (a namespaced `ProviderConfig` plus a
 cluster-scoped `ClusterProviderConfig`) and `apis/cluster/v1beta1` (a
 cluster-scoped `ProviderConfig`). Upjet's own generator pipeline expects a
 cluster and a namespaced provider config and generates both trees — see
-[architecture.md](architecture.md). Both use the full `CommonCredentialSelectors`:
+[upjet's own resource configuration guide](https://github.com/crossplane/upjet/blob/main/docs/configuring-a-resource.md).
+Both use the full `CommonCredentialSelectors`:
 a cross-namespace `secretRef`, plus `Filesystem` and `Environment` sources.
 `examples/providerconfig/providerconfig.yaml` ships one of each; whichever scope
 a request resolves through, `internal/clients/resolve.go` (tool-owned) turns it
@@ -119,23 +120,16 @@ applies `examples/providerconfig/providerconfig.yaml`):
 KUBECTL=kubectl ./test/setup.sh
 ```
 
-`make e2e` runs the same deploy, then upstream's uptest lifecycle flow against
-every file under `examples/*/*.yaml` (except the ProviderConfig example) — no
-`UPTEST_EXAMPLE_LIST` to set, the same wildcard convention the native flavor
-uses. The catch: `create api` cannot seed a real example for upjet — nothing
-about a valid `spec.forProvider` is knowable before `make generate` produces
-the schema-derived types — so a fresh scaffold's `examples/` has nothing for
-`make e2e` to test until you write one: copy
-`examples-generated/namespaced/<group>/<version>/<kind>.yaml` (upjet's own
-scraped-doc example) to `examples/<group>/<kind>.yaml` and resolve any `${...}`
-Terraform interpolations (e.g. `file()`, `filebase64()`) first — the scraped
-copy does not resolve them for you, and applying it as-is silently produces
-garbage field values, not an error (see the worked example below, or
-`test/README.md` inside your scaffold). `make test-behavior` and `make e2e-clean`
-now exist too; `make dev`, `make dev-clean` and `make test-integration` are
-still native-only — they run the controller from source, which an upjet
-controller cannot do without Terraform, the provider plugin and the
-`TERRAFORM_*` env the image bakes in.
+`make e2e` runs the same deploy, then upstream's uptest lifecycle flow against every file
+under `examples/*/*.yaml` (except the ProviderConfig example) — the same wildcard convention
+the native flavor uses. The catch: `create api` cannot seed a real example for upjet, since
+nothing about a valid `spec.forProvider` is knowable before `make generate` produces the
+schema-derived types, so a fresh scaffold's `examples/` has nothing to test until you write
+one — see the worked example below, or `test/README.md` inside your scaffold for the exact
+steps (copy from `examples-generated/`, resolve `${...}` interpolations). `make test-behavior`
+and `make e2e-clean` now exist too; `make dev`, `make dev-clean` and `make test-integration`
+are still native-only, since they run the controller from source, which an upjet controller
+cannot do without Terraform, the provider plugin and the `TERRAFORM_*` env the image bakes in.
 
 ## 6. Worked example: managing a ConfigMap with hashicorp/kubernetes
 
@@ -227,28 +221,19 @@ constraint 3.0.0; must use terraform init -upgrade to allow selection of new ver
 
 Three things to expect once generation succeeds:
 
-- **Most kinds won't change.** A bump only reshapes a kind if that resource's
-  own Terraform schema changed between the two versions. `hashicorp/kubernetes`
-  2.38.0 → 3.0.0 — a full major bump — changes 16 of its 82 resources;
-  `kubernetes_config_map` and `kubernetes_secret`, this doc's own examples, are
-  not among them and regenerate byte-identical. If you bump and `git diff`
-  shows nothing for your kind, the tool is working correctly — the schema
-  simply didn't change for that resource.
-- **`TERRAFORM_NATIVE_PROVIDER_BINARY` is a second version string**, set once
-  at `init` and never re-derived — it still names the old release's binary
-  filename after a Makefile-only bump. Update it too
-  (`terraform-provider-<name>_v<version>_x5`); nothing reads it incorrectly
-  today (Terraform's filesystem-mirror install matches by directory, not
-  filename), but a stale value there is one more thing to explain later.
-- **A resource the new version drops breaks the build, not just "stops
-  updating."** If a Terraform resource type you've configured
-  (`create api --terraform-resource=...`) disappears from the bumped schema,
-  `make generate` deletes upjet's own generated files for it cleanly but
-  leaves your `config/<kind>/config.go` and its entry in
-  `config/zz_resources.go` pointing at a Go type that no longer exists —
-  `angryjet: undefined: <Kind>`. There is no `remove api`; recover by hand:
-  delete `config/<kind>/`, drop its import, `.Configure` call and
-  `.TerraformResource` include-list entry from `config/zz_resources.go`, then
+- **Most kinds won't change.** A bump only reshapes a kind if its own Terraform schema
+  changed between the two versions — `git diff` showing nothing for your kind means the
+  schema didn't change, not that something went wrong.
+- **`TERRAFORM_NATIVE_PROVIDER_BINARY` is a second version string**, set once at `init` and
+  never re-derived. Update it too (`terraform-provider-<name>_v<version>_x5`) — Terraform's
+  filesystem-mirror install matches by directory, not filename, so nothing reads it
+  incorrectly today, but a stale value is one more thing to explain later.
+- **A resource the new version drops breaks the build, not just "stops updating."** If a
+  configured Terraform resource type disappears from the bumped schema, `make generate`
+  cleans up its own generated files but leaves `config/<kind>/config.go` and its
+  `config/zz_resources.go` entry pointing at a type that no longer exists
+  (`angryjet: undefined: <Kind>`). There is no `remove api`: delete `config/<kind>/` and its
+  import/`.Configure`/`.TerraformResource` entries from `config/zz_resources.go` by hand, then
   regenerate.
 
 Your Makefile is the single record of which Terraform provider version this

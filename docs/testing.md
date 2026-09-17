@@ -56,8 +56,8 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 
 `scripts/e2e-test.sh` (run via `make e2e-test`) exercises the real generator workflow against
 a throwaway project in `/tmp/provider-template`. The expected file layout lives in
-`scripts/assert-layout.sh`, shared with the CI smoke test — edit that when the scaffold
-gains or loses a file:
+`scripts/assert-layout.sh`, called by `e2e-test.sh` at each scaffolding stage — edit that when
+the scaffold gains or loses a file:
 
 1. Build the binary and prepare a clean temp directory.
 2. `init` a provider project; verify the base structure; **assert the working tree is clean**
@@ -92,6 +92,17 @@ gains or loses a file:
    assert it also passes against the live provider. Skipped with a warning when no Docker
    daemon is available.
 
+`/tmp/provider-template`, the scaffold this leaves behind, is kept only when the run succeeds
+(a failure removes it so the next run starts clean) — the next run recreates it either way:
+
+```bash
+make e2e-test            # build + run
+./scripts/e2e-test.sh -h # usage
+```
+
+Run the e2e test whenever you change templates, the template engine, or the automation
+pipeline — unit tests alone do not catch broken generated output.
+
 ## Upgrade-path simulation (`make upgrade-sim`)
 
 `scripts/upgrade-sim.sh` covers a gap the e2e cannot: e2e Step U runs `update` with
@@ -117,16 +128,8 @@ and runs `update`. It asserts:
 
 It restores the templates it mutated. **Run it before shipping a framework bump.**
 
-The temp project is left in place after each run, whether it succeeded or failed, for
-inspection; the next run removes and recreates it before scaffolding.
-
-```bash
-make e2e-test            # build + run
-./scripts/e2e-test.sh -h # usage
-```
-
-Run the e2e test whenever you change templates, the template engine, or the automation
-pipeline — unit tests alone do not catch broken generated output.
+`/tmp/upgrade-sim`, its temp project, is left in place after each run, whether it succeeded or
+failed, for inspection; the next run removes and recreates it before scaffolding.
 
 ## Upjet-flavor e2e (`make e2e-upjet`)
 
@@ -140,37 +143,37 @@ file is refreshed and a deleted user-owned file is not re-seeded.
 
 It then covers three git-automation paths native's e2e already had (`--force`)
 or that upjet previously lacked (`--adopt`, the dirty-tree refusal), none of
-which need Docker: mark a tool-owned file (`config/zz_resources.go`) and a
-user-owned one (`config/secret/config.go`), commit, then re-run
-`create api --force` (with `--terraform-resource`, required on every upjet
-`create api` call) and assert the tool-owned marker is regenerated while the
-user-owned one survives; run `--force` a second time with nothing left to
-change and assert it still exits 0, reports the no-change skip, and adds no
-commit (git.go's `stageAndCheck` skips the commit when nothing is staged);
-strip `config/provider.go`'s header to
-simulate a pre-contract provider, run `update --adopt`, and assert it reports
-adopting exactly one file and that `git diff --name-only` contains
-`config/provider.go` and nothing besides that and (optionally) `PROJECT`,
-which carries a generator version (adopt stamps one, but stage 6's own
-`update` may already have stamped the same value, so `PROJECT` does not
-always show a diff here); then leave an uncommitted change and assert
-`update` refuses it, citing the working tree.
+which need Docker:
+
+- **`--force`:** mark a tool-owned file (`config/zz_resources.go`) and a user-owned one
+  (`config/secret/config.go`), commit, then re-run `create api --force` (with
+  `--terraform-resource`, required on every upjet `create api` call) and assert the
+  tool-owned marker is regenerated while the user-owned one survives.
+- **`--force` with nothing to change:** run it again and assert it still exits 0, reports
+  the no-change skip, and adds no commit (git.go's `stageAndCheck` skips the commit when
+  nothing is staged).
+- **`--adopt`:** strip `config/provider.go`'s header to simulate a pre-contract provider,
+  run `update --adopt`, and assert it reports adopting exactly one file and that
+  `git diff --name-only` contains `config/provider.go` and, optionally, `PROJECT` (adopt
+  stamps a generator version there, but stage 6's own `update` may already have stamped
+  the same value).
+- **Dirty-tree refusal:** leave an uncommitted change and assert `update` refuses it,
+  citing the working tree.
 
 It also configures a `kubernetes_config_map` resource, writes its
-`docs/upjet-provider.md` worked example (with `uptest.upbound.io/*`
-annotations), and runs `xp-provider-gen create-test` — mirroring the native
-e2e's own `create-test` coverage, which upjet previously lacked. With a Docker
-daemon available, it then runs the **generated provider's own `make e2e`**:
-the same uptest lifecycle (create → Ready/Synced → import → delete) plus the
-`test-behavior` chainsaw hook, which runs the suite `create-test` just
-scaffolded — asserting `junit.xml` shows it ran. On that same still-live
-cluster it then exercises the one lifecycle path uptest's own run never
-covers — UPDATE — since the worked example carries no
-`uptest.upbound.io/update-parameter` annotation: apply the example directly,
-assert the real ConfigMap's `data.hello`, patch `spec.forProvider.data` and
-assert the real object follows, then delete it and confirm it's gone. Without
-Docker (or with `E2E_SKIP_DOCKER` set), that stage is skipped with a warning,
-same as the native e2e's Step E.
+`docs/upjet-provider.md` worked example (with `uptest.upbound.io/*` annotations), and runs
+`xp-provider-gen create-test` — mirroring the native e2e's own `create-test` coverage, which
+upjet previously lacked. With a Docker daemon available (skipped with a warning otherwise, or
+with `E2E_SKIP_DOCKER` set, same as the native e2e's Step E), it then:
+
+- runs the **generated provider's own `make e2e`**: the uptest lifecycle (create →
+  Ready/Synced → import → delete) plus the `test-behavior` chainsaw hook running the suite
+  `create-test` just scaffolded, asserting `junit.xml` shows it ran;
+- on that same still-live cluster, exercises the one lifecycle path uptest's own run never
+  covers — UPDATE, since the worked example carries no `uptest.upbound.io/update-parameter`
+  annotation: apply the example directly and assert the real ConfigMap's `data.hello`;
+- patch `spec.forProvider.data` and assert the real object follows;
+- delete it and confirm it's gone.
 
 That is the only test that proves the config files this tool scaffolds satisfy
 upjet's contract; a unit test cannot, because the contract is upjet's generator.
@@ -179,6 +182,12 @@ rather than part of `make e2e-test`.
 
 ## In CI
 
-Unit tests and the native e2e run on every push/PR (see [.github/WORKFLOWS.md](../.github/WORKFLOWS.md)):
-`test.yml` runs unit tests with coverage and the e2e layout smoke test; `lint.yml` and `ci.yml`
-add linting, gosec, and Trivy scanning.
+See [.github/WORKFLOWS.md](../.github/WORKFLOWS.md) for the full list; the layers above map to:
+
+- `test.yml` — unit tests with coverage, plus the native e2e with its Docker-dependent Step E
+  skipped (`E2E_SKIP_DOCKER=1`), on every push/PR.
+- `e2e-native-full.yml` — the same native e2e with Step E included, plus `make upgrade-sim`;
+  daily and on PRs touching the surfaces they exercise.
+- `e2e-upjet.yml` — the upjet e2e; daily and on PRs touching the upjet flavor.
+- `go-version.yml` — `make check-go-version`, on every push/PR.
+- `lint.yml` / `ci.yml` — linting, gosec, and Trivy scanning, on every push/PR.

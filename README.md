@@ -7,9 +7,9 @@ A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crosspla
 - **♻️ Upgradable core** — `update` refreshes a provider's tool-owned plumbing (wiring,
   registration, `main.go`, framework deps) without touching your business logic, and
   `update --adopt` retrofits providers made before the contract existed
-- **📦 Modular layout** — the framework plumbing is tool-owned; you write six named seams
-  (`NewClient`, `Client`, `Flags`, `Configure`, `NewExternal`, `ReconcilerOptions`), split
-  per kind into your `external.go` and generated `wiring.go`
+- **📦 Modular layout** — the framework plumbing is tool-owned; you write a handful of named
+  seams, split per kind into your `external.go` and generated `wiring.go` — see
+  [the seam contract](docs/architecture.md#9-seams-the-modular-layout)
 - **🔒 File-ownership contract** — a `// Code generated … DO NOT EDIT.` header decides what
   `update` may rewrite; enforced by a golden test and published as a generated
   `docs/ownership.md` inside every provider
@@ -59,51 +59,11 @@ make generate && make build && make reviewable
 
 ## Commands
 
-### `init` - Initialize provider project
-```bash
-xp-provider-gen init --domain=DOMAIN --repo=REPO [--git-name=NAME] [--git-email=EMAIL]
-```
-
-### `create api` - Add managed resource
-```bash
-xp-provider-gen create api --group=GROUP --version=VERSION --kind=KIND [--force]
-```
-
-### `init --upjet` - Scaffold a provider that wraps a Terraform provider
-Here the truth about a kind is the Terraform provider's schema, not your own
-Go types — see [docs/upjet-provider.md](docs/upjet-provider.md) for what that changes.
-```bash
-xp-provider-gen init --domain=example.com --repo=github.com/you/provider-k8s \
-  --upjet --terraform-provider=hashicorp/kubernetes --terraform-provider-version=2.38.0
-xp-provider-gen create api --group=core --version=v1alpha1 --kind=Secret \
-  --terraform-resource=kubernetes_secret
-make generate   # upjet generates the API types and controllers
-```
-See [docs/upjet-provider.md](docs/upjet-provider.md).
-
-### `create-test` - Scaffold a chainsaw behavior test
-```bash
-# Run inside a generated provider. Interactively (a terminal on stdin), missing
-# --name/--kind are prompted for. Non-interactively, --name is required, and
-# --kind is required unless the project has exactly one kind.
-xp-provider-gen create-test --name drift-check --kind MyType
-```
-
-### `update` - Refresh an existing provider's tool-owned core
-```bash
-# Run inside a generated provider with a clean working tree; review the diff, then commit.
-xp-provider-gen update            # refresh registration, controller wiring, main.go, framework deps
-xp-provider-gen update --adopt    # one-time: retrofit a provider made before the ownership contract
-```
-Tool-owned files (carrying the `DO NOT EDIT` header) are refreshed; your `external.go`,
-`internal/provider/client.go`, `internal/provider/options.go`, `*_types.go`, and `go.mod`
-requires are preserved. The result is left uncommitted for review.
-
-> Providers generated before the modular layout — those with `controller.go` / `setup.go`
-> per kind and no `internal/provider` package — must be **regenerated**. There is no
-> in-place migration for that change.
-
-See [docs/provider-guide.md](docs/provider-guide.md) for the full build-and-upgrade workflow.
+`init` (add `--upjet`/`--terraform-*` flags to wrap a Terraform provider instead), `create api`
+(`--terraform-resource` on an upjet project), `create-test`, and `update` (`--adopt` for a
+pre-contract provider). Full flags, examples, and what each one does are in
+[docs/provider-guide.md](docs/provider-guide.md) (native), [docs/upjet-provider.md](docs/upjet-provider.md)
+(upjet), and the [xp-provider-gen skill](.agents/skills/xp-provider-gen/SKILL.md).
 
 ## Working on This Project
 
@@ -116,13 +76,9 @@ make help        # List all targets
 Requirements, the full target list and the contributor workflow are in
 [docs/development.md](docs/development.md).
 
-For the full developer guide see:
-
-- [AGENTS.md](AGENTS.md) — contributor guidance: setup, testing, code style, PR conventions
-- [docs/provider-guide.md](docs/provider-guide.md) — **for provider authors**: what to write, where, and how to upgrade
-- [docs/architecture.md](docs/architecture.md) — how the generator works
-- [docs/development.md](docs/development.md) — environment, tooling, and workflow
-- [docs/testing.md](docs/testing.md) — unit and end-to-end testing
+**For provider authors**, start with [docs/provider-guide.md](docs/provider-guide.md) (native)
+or [docs/upjet-provider.md](docs/upjet-provider.md) (upjet). **For contributors to this
+generator**, [AGENTS.md](AGENTS.md) indexes the rest of `docs/`.
 
 ### Generated Project Structure
 

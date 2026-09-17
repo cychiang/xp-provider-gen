@@ -49,11 +49,12 @@ us as well.
 
 ## What we already run
 
-Every pull request is scanned by CodeQL, Trivy and gosec, and results go to the
-repository's Security tab. GitHub Actions are pinned to commit SHAs rather than
-floating tags, so a compromised upstream tag cannot silently change what CI
-executes; Renovate updates those digests.
+Every pull request is scanned by gosec and Trivy, and results go to the repository's
+Security tab. GitHub Actions are pinned to commit SHAs rather than floating tags, so a
+compromised upstream tag cannot silently change what CI executes; Renovate updates those
+digests.
 
 Generated providers deliberately carry no Go `toolchain` directive — see
-[AGENTS.md](AGENTS.md) — so they build with whatever Go you have. Keep it
-current; that is the half of the supply chain this tool cannot pin for you.
+[docs/development.md](docs/development.md#dependency-manifest) — so they build with
+whatever Go you have. Keep it current; that is the half of the supply chain this tool
+cannot pin for you.

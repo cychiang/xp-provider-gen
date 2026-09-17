@@ -14,7 +14,7 @@ run alongside CI or another `make e2e-test`/`make e2e-upjet` run on the same mac
 
 | Requirement | Check |
 |---|---|
-| Go 1.26.8+ (the version this repo targets, from `pkg/versions/dependencies.yaml`'s `go_version`) | `go version` |
+| Go (the version this repo targets, from `pkg/versions/dependencies.yaml`'s `go_version`) | `go version` |
 | Docker (scenarios B and the live half of A; not needed for C's ownership checks, D, or E) | `docker info` |
 | Network access (upjet scenarios download Terraform and a provider schema; native `init`/`create api` fetch Go modules) | `curl -sI https://proxy.golang.org >/dev/null && echo ok` |
 
@@ -117,14 +117,12 @@ make e2e
 `make e2e` here is the whole story: it builds, brings up its own kind control plane
 (`controlplane.down` then `controlplane.up`), deploys the provider, and uptest itself runs
 `test/setup.sh` to apply the ProviderConfig and credentials before driving the ConfigMap example
-through create → Ready/Synced → delete. There is no separate manual `make local-deploy` or
-`KUBECTL=kubectl ./test/setup.sh` step in this flow — those exist for a slower, more inspectable
-alternative (deploy once, then apply examples by hand), not for this end-to-end path.
-
-It is fine to stop the moment the kind cluster comes up — a full `make e2e` run is not required
-to have exercised the scaffold→generate→example→create-test path, which is the part specific to
-this tool. If you do stop it early (`Ctrl-C` or `kill` the `make` process), tear the cluster down
-with the **Cleanup** commands below before moving on.
+through create → Ready/Synced → delete — there is no separate manual `make local-deploy` /
+`KUBECTL=kubectl ./test/setup.sh` step in this flow, those exist for a slower, more inspectable
+alternative instead. It is fine to stop the moment the kind cluster comes up, since a full
+`make e2e` run is not required to have exercised the scaffold→generate→example→create-test path
+that is specific to this tool; if you do (`Ctrl-C` or `kill` the `make` process), tear the
+cluster down with the **Cleanup** commands below before moving on.
 
 **Expected result:**
 - [ ] `init` scaffolds the upjet layout; `Makefile` references `hashicorp/kubernetes`
@@ -297,29 +295,25 @@ pipeline in a user-owned `Makefile`, which `update` never touches. This walks th
 migrating one by hand, following
 [docs/provider-guide.md](provider-guide.md#moving-an-older-makefile-onto-the-refreshable-pipeline).
 
-You need a binary built from before the split to produce that old layout. The only reliable
-way to get one without disturbing your current checkout is a second worktree — do **not** use
-`git stash` for this: it does not switch branches, and this repo's stash stack is shared with
-every other worktree on the machine.
+You need a binary built from before the split to produce that old layout. `main` no longer
+works for this — the split landed in [#161](https://github.com/cychiang/xp-provider-gen/pull/161)
+(squashed into a single commit, not merged) and has been on `main` since, so a binary built
+from `main` produces the new layout, not the old one. Pin to the commit right before that
+squash landed instead: `386b534` (`43e1217^`). The only reliable way to get a binary
+from an arbitrary commit without disturbing your current checkout is a second worktree — do
+**not** use `git stash` for this: it does not switch branches, and this repo's stash stack is
+shared with every other worktree on the machine. A worktree at a specific commit (detached
+HEAD) can coexist with any branch checkout, including one already on `main`, so this never
+collides with another worktree on the machine:
 
 ```bash
-git worktree add /tmp/xpg-main main
-make -C /tmp/xpg-main build
-OLD_BIN=/tmp/xpg-main/bin/xp-provider-gen
-```
-
-If that fails with `'main' is already used by worktree at ...` — this repo is often checked
-out as several worktrees at once, and `main` may already be one of them — build in that
-existing checkout instead of creating a new one:
-
-```bash
-MAIN_CHECKOUT="$(git worktree list | awk '/\[main\]/ {print $1}')"
-make -C "$MAIN_CHECKOUT" build
-OLD_BIN="$MAIN_CHECKOUT/bin/xp-provider-gen"
+git worktree add /tmp/xpg-old 386b534
+make -C /tmp/xpg-old build
+OLD_BIN=/tmp/xpg-old/bin/xp-provider-gen
 
 mkdir -p /tmp/xpg-manual-e && cd /tmp/xpg-manual-e
 "$OLD_BIN" init --domain=example.com --repo=github.com/example/provider-manual-e
-ls hack/ 2>/dev/null || echo "(no hack/ dir — this is the old single-Makefile layout)"
+test -f hack/xp-provider-gen.mk && echo "unexpected: new layout" || echo "old single-Makefile layout, as expected"
 ```
 
 Now run `update` from **this** branch's binary — the one built at the top of this guide:
@@ -331,8 +325,7 @@ git diff --stat Makefile   # expect no output: update never touches the old Make
 ```
 
 **Expected result (before migrating):**
-- [ ] the freshly-scaffolded provider has no `hack/` directory (or none containing
-      `xp-provider-gen.mk`)
+- [ ] the freshly-scaffolded provider has no `hack/xp-provider-gen.mk`
 - [ ] `update` seeds `hack/xp-provider-gen.mk` and exits 0
 - [ ] `Makefile` is byte-for-byte unchanged (`git diff --stat Makefile` prints nothing)
 
@@ -370,7 +363,5 @@ make build
 **Cleanup:**
 ```bash
 cd / && rm -rf /tmp/xpg-manual-e
-# Only if you created /tmp/xpg-main with `git worktree add` above — skip this if you
-# used an existing checkout via the fallback instead:
-git -C /path/to/xp-provider-gen worktree remove /tmp/xpg-main
+git -C /path/to/xp-provider-gen worktree remove /tmp/xpg-old
 ```

@@ -2,7 +2,9 @@
 
 ## Requirements
 
-- **Go 1.26+**
+- **Go** — the version in [`pkg/versions/dependencies.yaml`](../pkg/versions/dependencies.yaml)'s
+  `go_version`; `make check-go-version` (`.github/workflows/go-version.yml`) fails CI if go.mod
+  or the Dockerfile fall out of step with it.
 - **Git**
 - **golangci-lint** — installed automatically by `make lint` if missing, at the version
   pinned in `GOLANGCILINT_VERSION`. The same version must be set by hand in four places:
@@ -10,8 +12,9 @@
   and `pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl`. Renovate currently bumps only `lint.yml`; align
   the other three in the same PR.
 - **gosec** — security scanner
-- **Docker** — for `make e2e-test`, which stands up a kind cluster; `make e2e-upjet` needs
-  network access instead
+- **Docker** — without it, both `make e2e-test` and `make e2e-upjet` skip their
+  Docker-dependent stage rather than failing; `make e2e-upjet` also needs network access
+  for its non-Docker stages (downloading Terraform and a provider schema)
 
 ```bash
 # gosec (macOS)
@@ -36,6 +39,7 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 | `make e2e-test` | Build, then run the end-to-end scaffold test |
 | `make upgrade-sim` | Simulate a generator version bump against real user logic |
 | `make e2e-upjet` | Scaffold an upjet provider and run the real upjet pipeline (network) |
+| `make check-go-version` | Verify go.mod/Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version` (network) |
 
 `make reviewable` mirrors what CI enforces. If it passes locally, CI should pass too.
 
@@ -70,11 +74,11 @@ manager (so each dependency gets its own bump PR against this repo), and applied
 providers by `update`. To change a generated provider's dependency versions, edit this file (or
 let Renovate do it) — never hardcode versions in a template.
 
-Generated providers target **Go 1.26** (`pkg/versions.GoVersion`, rendered into `go.mod`) and
-lint with the pinned golangci-lint (`hack/xp-provider-gen.mk.tmpl`). Keep the generated `go` directive at the
-language version (`1.26.0`) with no `toolchain` pin — golangci-lint reads the system GOROOT, so
-pinning a toolchain patch above golangci-lint's build version breaks `make reviewable` in
-generated projects.
+Generated providers target the Go version in `pkg/versions/dependencies.yaml`'s `go_version`
+(`pkg/versions.GoVersion`, rendered into `go.mod`) and lint with the pinned golangci-lint
+(`hack/xp-provider-gen.mk.tmpl`). Keep the generated `go` directive at that language version with
+no `toolchain` pin — golangci-lint reads the system GOROOT, so pinning a toolchain patch above
+golangci-lint's build version breaks `make reviewable` in generated projects.
 
 ## Coding conventions
 
