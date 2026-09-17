@@ -225,8 +225,9 @@ Three things to expect once generation succeeds:
   changed between the two versions — `git diff` showing nothing for your kind means the
   schema didn't change, not that something went wrong.
 - **`TERRAFORM_NATIVE_PROVIDER_BINARY` is a second version string**, set once at `init` and
-  never re-derived. Update it too (`terraform-provider-<name>_v<version>_x5`) — nothing reads
-  it incorrectly today, but a stale value is one more thing to explain later.
+  never re-derived. Update it too (`terraform-provider-<name>_v<version>_x5`) — Terraform's
+  filesystem-mirror install matches by directory, not filename, so nothing reads it
+  incorrectly today, but a stale value is one more thing to explain later.
 - **A resource the new version drops breaks the build, not just "stops updating."** If a
   configured Terraform resource type disappears from the bumped schema, `make generate`
   cleans up its own generated files but leaves `config/<kind>/config.go` and its

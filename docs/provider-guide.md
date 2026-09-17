@@ -171,7 +171,7 @@ gate callback, where a panic surfaces with no context.
 ## 3. Names you must not rename
 
 Generated code calls these six by name (the full seam contract is in
-[architecture.md §9](architecture.md#9-seams)). Renaming any of them breaks the build:
+[architecture.md §9](architecture.md#9-seams-the-modular-layout)). Renaming any of them breaks the build:
 
 | Name | File |
 |---|---|

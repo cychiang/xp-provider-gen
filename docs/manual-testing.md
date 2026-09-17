@@ -297,9 +297,9 @@ migrating one by hand, following
 
 You need a binary built from before the split to produce that old layout. `main` no longer
 works for this — the split landed in [#161](https://github.com/cychiang/xp-provider-gen/pull/161)
-and has been on `main` since, so a binary built from `main` produces the new layout, not the
-old one. Pin to the commit right before that merge instead:
-`386b534` (`43e1217^`, the parent of the merge commit). The only reliable way to get a binary
+(squashed into a single commit, not merged) and has been on `main` since, so a binary built
+from `main` produces the new layout, not the old one. Pin to the commit right before that
+squash landed instead: `386b534` (`43e1217^`). The only reliable way to get a binary
 from an arbitrary commit without disturbing your current checkout is a second worktree — do
 **not** use `git stash` for this: it does not switch branches, and this repo's stash stack is
 shared with every other worktree on the machine. A worktree at a specific commit (detached
@@ -313,7 +313,7 @@ OLD_BIN=/tmp/xpg-old/bin/xp-provider-gen
 
 mkdir -p /tmp/xpg-manual-e && cd /tmp/xpg-manual-e
 "$OLD_BIN" init --domain=example.com --repo=github.com/example/provider-manual-e
-ls hack/ 2>/dev/null || echo "(no hack/ dir — this is the old single-Makefile layout)"
+test -f hack/xp-provider-gen.mk && echo "unexpected: new layout" || echo "old single-Makefile layout, as expected"
 ```
 
 Now run `update` from **this** branch's binary — the one built at the top of this guide:
@@ -325,8 +325,7 @@ git diff --stat Makefile   # expect no output: update never touches the old Make
 ```
 
 **Expected result (before migrating):**
-- [ ] the freshly-scaffolded provider has no `hack/` directory (or none containing
-      `xp-provider-gen.mk`)
+- [ ] the freshly-scaffolded provider has no `hack/xp-provider-gen.mk`
 - [ ] `update` seeds `hack/xp-provider-gen.mk` and exits 0
 - [ ] `Makefile` is byte-for-byte unchanged (`git diff --stat Makefile` prints nothing)
 

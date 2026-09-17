@@ -9,7 +9,7 @@ A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crosspla
   `update --adopt` retrofits providers made before the contract existed
 - **📦 Modular layout** — the framework plumbing is tool-owned; you write a handful of named
   seams, split per kind into your `external.go` and generated `wiring.go` — see
-  [the seam contract](docs/architecture.md#9-seams)
+  [the seam contract](docs/architecture.md#9-seams-the-modular-layout)
 - **🔒 File-ownership contract** — a `// Code generated … DO NOT EDIT.` header decides what
   `update` may rewrite; enforced by a golden test and published as a generated
   `docs/ownership.md` inside every provider
@@ -59,9 +59,9 @@ make generate && make build && make reviewable
 
 ## Commands
 
-`init`, `create api` (add `--upjet`/`--terraform-*` flags to wrap a Terraform provider
-instead), `create-test`, and `update` (`--adopt` for a pre-contract provider). Full flags,
-examples, and what each one does are in
+`init` (add `--upjet`/`--terraform-*` flags to wrap a Terraform provider instead), `create api`
+(`--terraform-resource` on an upjet project), `create-test`, and `update` (`--adopt` for a
+pre-contract provider). Full flags, examples, and what each one does are in
 [docs/provider-guide.md](docs/provider-guide.md) (native), [docs/upjet-provider.md](docs/upjet-provider.md)
 (upjet), and the [xp-provider-gen skill](.agents/skills/xp-provider-gen/SKILL.md).
 

@@ -60,11 +60,8 @@ git push origin v1.2.3
 # Re-run the native e2e (full, with Step E) + upgrade simulation on demand
 gh workflow run e2e-native-full.yml
 
-# Re-run the upjet e2e on demand
-gh workflow run e2e-upjet.yml
-
-# Run a workflow on a specific branch
-gh workflow run lint.yml --ref feature-branch
+# Re-run the upjet e2e on a specific branch
+gh workflow run e2e-upjet.yml --ref feature-branch
 ```
 
 ## Development Workflow
