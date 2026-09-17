@@ -105,7 +105,7 @@ jobs:
     # against a kind cluster — minutes of Docker/cluster time that doesn't
     # belong on every PR, so it's skipped explicitly here rather than relying
     # on the runner happening not to have a docker daemon (it does). Step E
-    # still runs locally / can be added to a scheduled job later if desired.
+    # runs locally, and daily (plus on relevant PRs) in e2e-native-full.yml.
     - name: Run native E2E test (Docker-dependent step skipped)
       env:
         E2E_SKIP_DOCKER: "1"
