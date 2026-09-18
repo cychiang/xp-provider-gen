@@ -129,7 +129,9 @@ mutates the tool-owned templates to stand in for a new generator version, rebuil
 and runs `update`. It asserts:
 
 - no user-owned file appears in the update diff,
-- both tool-owned files received the simulated change,
+- all three tool-owned files (`internal/provider/connector.go`,
+  `internal/controller/instance/wiring.go`, `hack/xp-provider-gen.mk`) received the
+  simulated change,
 - every piece of user logic is still present,
 - the upgraded provider still generates, lints and builds (`make generate`, `make lint`,
   `make build`),
