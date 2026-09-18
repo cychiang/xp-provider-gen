@@ -31,8 +31,8 @@ Prerequisites (Go version, gosec, Docker for e2e) are in
 | `make e2e-native` | Native flavor: scaffold → build → the generated provider's own e2e |
 | `make e2e-upjet` | Upjet flavor: scaffold, generate with upjet, build, run (network) |
 | `make e2e-upgrade` | Run a generator bump against real user logic (native flavor) |
-| `make check-workflow-paths` | Verify workflow `paths:` filters match the files each e2e workflow actually uses |
-| `make reviewable` | mod-tidy + fmt/vet/lint/gosec/test — the same checks CI enforces |
+| `make check-consistency` | Assert the repo's naming, skeleton and terminology conventions (includes the workflow `paths:` check) |
+| `make reviewable` | mod-tidy + fmt/vet/lint/gosec/test + check-consistency — the same checks CI enforces |
 | `make help` | List all targets |
 
 `e2e-native.sh` and `e2e-upjet.sh` skip their Docker-dependent step — not fail — when
@@ -83,8 +83,9 @@ reconsider.
   `pkg/versions/dependencies.yaml`, network)
 - `hack/envtest-provider-check/` — its own Go module; proves an upjet-generated provider's
   controllers actually start, used by `e2e-upjet.sh`
-- `hack/check-workflow-paths.py` — verifies each e2e workflow's `paths:` filter matches the
-  files it actually uses, run via `make check-workflow-paths`
+- `hack/check-consistency.sh` — the consistency gate behind `make check-consistency`; its last
+  check (a Python helper alongside it) verifies each e2e workflow's `paths:` filter matches the
+  files it actually uses
 
 ## Further reading
 

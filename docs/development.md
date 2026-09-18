@@ -35,14 +35,22 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 | `make gosec` | Security scan |
 | `make mod-tidy` / `make mod-verify` | Module hygiene |
 | `make check` | fmt + vet + lint + gosec + test |
-| `make reviewable` | `mod-tidy` + `check` — run this before pushing |
+| `make reviewable` | `mod-tidy` + `check` + `check-consistency` — run this before pushing |
 | `make e2e-native` | Build, then run the end-to-end scaffold test |
 | `make e2e-upgrade` | Run a generator version bump against real user logic (native flavor) |
 | `make e2e-upjet` | Scaffold an upjet provider and run the real upjet pipeline (network) |
 | `make check-go-version` | Verify go.mod/Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version` (network) |
-| `make check-workflow-paths` | Verify workflow `paths:` filters match the files each e2e workflow actually uses |
+| `make check-consistency` | Assert the repo's naming, skeleton and terminology conventions (part of `reviewable`) |
 
 `make reviewable` mirrors what CI enforces. If it passes locally, CI should pass too.
+
+## Consistency gate
+
+`make check-consistency` runs `hack/check-consistency.sh`, eight checks that stop drift from
+growing back: stale script names, a `Makefile` whose `.PHONY` or `make help` disagrees with its
+targets, e2e scripts that diverge from one skeleton or `/tmp` prefix, retired terminology,
+non-gerund error strings, and workflow `paths:` filters. To add a check, append a
+`report Cn "<title>" "<violations>"` block to the script; CI and `make reviewable` both run it.
 
 ## Typical workflow
 
