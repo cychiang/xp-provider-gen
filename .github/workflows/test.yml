@@ -101,10 +101,10 @@ jobs:
 
     # scripts/e2e-test.sh is the real native-flavor e2e: init, two APIs,
     # update/adopt/create-test lifecycle, ownership-header checks. It also has
-    # a Step E that runs the generated provider's own uptest+chainsaw suite
+    # a step 12 that runs the generated provider's own uptest+chainsaw suite
     # against a kind cluster — minutes of Docker/cluster time that doesn't
     # belong on every PR, so it's skipped explicitly here rather than relying
-    # on the runner happening not to have a docker daemon (it does). Step E
+    # on the runner happening not to have a docker daemon (it does). Step 12
     # runs locally, and daily (plus on relevant PRs) in e2e-native-full.yml.
     - name: Run native E2E test (Docker-dependent step skipped)
       env:
