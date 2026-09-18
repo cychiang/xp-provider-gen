@@ -203,4 +203,4 @@ See [.github/WORKFLOWS.md](../.github/WORKFLOWS.md) for the full list; the layer
   daily and on PRs touching the surfaces they exercise.
 - `e2e-upjet.yml` — the upjet e2e; daily and on PRs touching the upjet flavor.
 - `go-version.yml` — `make check-go-version`, on every push/PR.
-- `lint.yml` / `ci.yml` — linting, gosec, and Trivy scanning, on every push/PR.
+- `lint.yml` / `security.yml` — linting, gosec, and Trivy scanning, on every push/PR.

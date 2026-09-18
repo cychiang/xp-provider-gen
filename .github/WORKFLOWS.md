@@ -15,7 +15,7 @@ is the map, not a transcript of them.
 | ⚙️ `go-version.yml` — Go version alignment | push/PR to `main`, `develop` | `make check-go-version`: asserts go.mod and the Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version`, and that it's new enough for every pinned dependency |
 | 🔨 `build.yml` — Build | push/PR to `main`, `develop` | Cross-platform binaries + checksums, builds and smoke-tests the repository `Dockerfile`, uploads artifacts |
 | 🚀 `release.yml` — Release | git tags (`v*`) | Full test suite, release binaries, changelog, GitHub release, Docker image push — **not yet exercised: no tags have been cut** (see [SECURITY.md](../SECURITY.md)) |
-| 🔒 `ci.yml` — Security & Additional Checks | push/PR to `main`, `develop` | gosec and Trivy scans; results upload to the repository's Security tab |
+| 🔒 `security.yml` — Security | push/PR to `main`, `develop` | gosec and Trivy scans; results upload to the repository's Security tab |
 
 ## Docker Images
 

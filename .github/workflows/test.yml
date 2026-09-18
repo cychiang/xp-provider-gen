@@ -109,4 +109,4 @@ jobs:
     - name: Run native E2E test (Docker-dependent step skipped)
       env:
         E2E_SKIP_DOCKER: "1"
-      run: ./scripts/e2e-native.sh
+      run: make e2e-native
