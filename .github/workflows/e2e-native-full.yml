@@ -25,6 +25,7 @@ on:
       - 'scripts/e2e-test.sh'
       - 'scripts/upgrade-sim.sh'
       - 'scripts/assert-layout.sh'
+      - 'scripts/lib.sh'
       - 'Makefile'
       - '.github/workflows/e2e-native-full.yml'
 
@@ -50,7 +51,7 @@ jobs:
     - name: Build binary
       run: make build
 
-    # No E2E_SKIP_DOCKER here — the whole point of this job is Step E: the
+    # No E2E_SKIP_DOCKER here — the whole point of this job is step 12: the
     # generated provider's own uptest+chainsaw e2e against a real kind
     # cluster. kind itself is downloaded by the generated project's own
     # Makefile (KIND_VERSION is pinned there), so this runner does not need

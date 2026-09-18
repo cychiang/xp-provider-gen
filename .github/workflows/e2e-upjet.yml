@@ -24,6 +24,8 @@ on:
       - 'pkg/versions/**'
       - 'pkg/plugins/crossplane/v2/**'
       - 'scripts/e2e-upjet.sh'
+      - 'scripts/lib.sh'
+      - 'scripts/assert-layout.sh'
       - 'hack/envtest-provider-check/**'
       - '.github/workflows/e2e-upjet.yml'
 

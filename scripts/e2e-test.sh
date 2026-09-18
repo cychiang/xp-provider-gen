@@ -2,13 +2,6 @@
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
 # Configuration
 TEST_DIR="/tmp/provider-template"
 # The update/adopt lifecycle tests run on a throwaway COPY so TEST_DIR is left as
@@ -26,22 +19,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BINARY_PATH="$PROJECT_ROOT/bin/xp-provider-gen"
 
-# Helper functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+# shellcheck source=scripts/lib.sh
+source "$SCRIPT_DIR/lib.sh"
 
 step_header() {
     echo -e "\n${BLUE}========================================${NC}"
@@ -49,20 +28,9 @@ step_header() {
     echo -e "${BLUE}========================================${NC}"
 }
 
-# E2E_SKIP_DOCKER is a real boolean, not a "set means yes" flag: unset, empty,
-# 0/false/no means "do not skip"; anything else (1, true, yes, ...) means
-# "skip". Centralized here so the truthiness test isn't repeated (and doesn't
-# drift) across every call site below.
-docker_skip_requested() {
-    case "${E2E_SKIP_DOCKER:-0}" in
-        0 | false | False | FALSE | no | No | NO) return 1 ;;
-        *) return 0 ;;
-    esac
-}
-
-# Step E (the generated provider's own uptest + chainsaw e2e) needs a running
+# Step 12 (the generated provider's own uptest + chainsaw e2e) needs a running
 # Docker daemon. Most CI runners (including GitHub's ubuntu-latest) already
-# have one, so relying on "docker info" failing to skip Step E there would be
+# have one, so relying on "docker info" failing to skip it there would be
 # accidental, not intentional — set E2E_SKIP_DOCKER=1 to skip it explicitly
 # regardless of daemon availability.
 docker_e2e_available() {
@@ -73,12 +41,15 @@ run_make_target() {
     local target=$1
     log_info "Running 'make $target'..."
 
-    if make "$target" > /dev/null 2>&1; then
+    local log
+    log="$(mktemp)"
+    if make "$target" >"$log" 2>&1; then
         log_success "make $target completed successfully"
+        rm -f "$log"
     else
         log_error "make $target failed"
-        echo "Attempting to show error output:"
-        make "$target" || true
+        tail -30 "$log"
+        rm -f "$log"
         return 1
     fi
 }
@@ -165,37 +136,20 @@ assert_clean_tree() {
     log_success "Working tree is clean after $context"
 }
 
-# Main test function
-main() {
-    log_info "Starting local E2E test for xp-provider-gen"
-    log_info "Test directory: $TEST_DIR"
-    log_info "Domain: $DOMAIN"
-    log_info "Repository: $REPO"
-    echo
-
-    # Check if binary exists
-    if [[ ! -f "$BINARY_PATH" ]]; then
-        log_error "Binary not found at $BINARY_PATH"
-        log_info "Please run 'make build' first"
-        exit 1
-    fi
-    log_success "Binary found at $BINARY_PATH"
-
-    # Step 1: Check test folder and handle accordingly
+step_prepare_dir() {
     step_header "1" "Prepare test folder"
     if [[ -d "$TEST_DIR" ]]; then
         log_info "Test directory exists, removing and recreating..."
         rm -rf "$TEST_DIR"
         log_success "Existing test directory removed"
-        mkdir -p "$TEST_DIR"
-        log_success "Test directory recreated: $TEST_DIR"
     else
         log_info "Test directory does not exist, creating..."
-        mkdir -p "$TEST_DIR"
-        log_success "Test directory created: $TEST_DIR"
     fi
+    mkdir -p "$TEST_DIR"
+    log_success "Test directory ready: $TEST_DIR"
+}
 
-    # Step 2: Initialize provider project
+step_init() {
     step_header "2" "Initialize provider project"
     cd "$TEST_DIR"
     log_info "Changed to directory: $(pwd)"
@@ -208,29 +162,22 @@ main() {
         exit 1
     fi
 
-    # Verify basic project structure
     "$SCRIPT_DIR/assert-layout.sh" "$TEST_DIR"
+}
 
-    # Step 3: Test initial build targets
+step_build_initial() {
     step_header "3" "Test initial build targets"
-
-    # Test make submodules
     run_make_target "submodules"
-
-    # Test make generate
     run_make_target "generate"
-
-    # Test make reviewable
     run_make_target "reviewable"
-
     log_success "All initial build targets completed successfully"
 
     # The init pipeline must leave a clean, fully-committed tree.
     assert_clean_tree "init"
+}
 
-    # Step 4: Create first API (MyType)
+step_create_api_first() {
     step_header "4" "Create first API: $GROUP/$VERSION $KIND1"
-
     log_info "Running: $BINARY_PATH create api --group=$GROUP --version=$VERSION --kind=$KIND1"
     if "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1"; then
         log_success "First API ($KIND1) created successfully"
@@ -239,13 +186,12 @@ main() {
         exit 1
     fi
 
-    # Verify first API files
     KIND1_LOWER=$(echo "$KIND1" | tr '[:upper:]' '[:lower:]')
     "$SCRIPT_DIR/assert-layout.sh" "$TEST_DIR" "$GROUP" "$VERSION" "$KIND1"
+}
 
-    # Step 5: Create second API (MyValue)
+step_create_api_second() {
     step_header "5" "Create second API: $GROUP/$VERSION $KIND2"
-
     log_info "Running: $BINARY_PATH create api --group=$GROUP --version=$VERSION --kind=$KIND2"
     if "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND2"; then
         log_success "Second API ($KIND2) created successfully"
@@ -254,44 +200,34 @@ main() {
         exit 1
     fi
 
-    # Verify second API files
     KIND2_LOWER=$(echo "$KIND2" | tr '[:upper:]' '[:lower:]')
     "$SCRIPT_DIR/assert-layout.sh" "$TEST_DIR" "$GROUP" "$VERSION" "$KIND2"
+}
 
-    # Step 6: Test build targets after API creation
+step_build_after_apis() {
     step_header "6" "Test build targets after API creation"
-
-    # Test make submodules again
     run_make_target "submodules"
-
-    # Test make generate (should generate CRDs now)
     run_make_target "generate"
 
-    # Verify CRDs were generated
     verify_files_exist "generated CRDs" \
         "package/crds" \
         "package/crds/${GROUP}.${DOMAIN}_${KIND1_LOWER}s.yaml" \
         "package/crds/${GROUP}.${DOMAIN}_${KIND2_LOWER}s.yaml"
 
-    # Verify examples were generated
     verify_files_exist "generated examples" \
         "examples/$GROUP" \
         "examples/$GROUP/${KIND1_LOWER}.yaml" \
         "examples/$GROUP/${KIND2_LOWER}.yaml"
 
-    # Test make reviewable
     run_make_target "reviewable"
-
     log_success "All build targets after API creation completed successfully"
 
     # Tool-owned files carry the generated header; user logic does not.
     assert_ownership
-
-    # Adding APIs must also leave a clean, fully-committed tree.
     assert_clean_tree "create api"
 
-    # Initial scaffolding (init + create api x2) folds into a single commit.
     log_info "Asserting initial scaffolding is a single commit..."
+    local commit_count
     commit_count="$(git rev-list --count HEAD)"
     if [[ "$commit_count" == "1" && "$(git log -1 --format=%s)" == "Initial commit" ]]; then
         log_success "✓ init + create api folded into one 'Initial commit'"
@@ -300,23 +236,27 @@ main() {
         git log --oneline
         exit 1
     fi
+}
 
-    # Run the update/adopt lifecycle tests on a COPY, so they don't add commits or
-    # leave review changes in TEST_DIR (which stays the pristine single-commit scaffold).
+# step_update_lifecycle copies the pristine scaffold to LIFECYCLE_DIR so the
+# rest of the lifecycle steps (update, --force, --adopt, create-test) don't
+# add commits or leave review changes in TEST_DIR.
+step_update_lifecycle() {
+    step_header "7" "Test update command (on a copy)"
     log_info "Copying the scaffold to $LIFECYCLE_DIR for the update/adopt lifecycle tests..."
     rm -rf "$LIFECYCLE_DIR"
     cp -r "$TEST_DIR" "$LIFECYCLE_DIR"
     cd "$LIFECYCLE_DIR"
 
-    # Step U: the update command refreshes tool-owned files without touching user logic
-    step_header "U" "Test update command (on a copy)"
-    local ctrl="internal/controller/${KIND1_LOWER}/external.go"
-    local client="internal/provider/client.go"
-    local opts="internal/provider/options.go"
+    WIRING="internal/controller/${KIND1_LOWER}/wiring.go"
+    CTRL="internal/controller/${KIND1_LOWER}/external.go"
+    CLIENT_FILE="internal/provider/client.go"
+    OPTS_FILE="internal/provider/options.go"
+
     log_info "Hand-editing all three user-owned seam files (simulating user code)..."
-    printf '\n// USER-EDIT-MARKER: custom reconcile logic\n' >> "$ctrl"
-    printf '\n// USER-EDIT-MARKER: custom client construction\n' >> "$client"
-    printf '\n// USER-EDIT-MARKER: custom provider options\n' >> "$opts"
+    printf '\n// USER-EDIT-MARKER: custom reconcile logic\n' >>"$CTRL"
+    printf '\n// USER-EDIT-MARKER: custom client construction\n' >>"$CLIENT_FILE"
+    printf '\n// USER-EDIT-MARKER: custom provider options\n' >>"$OPTS_FILE"
     git add -A && git commit -q -m "user: customize ${KIND1} controller, client and options"
 
     log_info "Running: $BINARY_PATH update"
@@ -327,7 +267,7 @@ main() {
         exit 1
     fi
 
-    for f in "$ctrl" "$client" "$opts"; do
+    for f in "$CTRL" "$CLIENT_FILE" "$OPTS_FILE"; do
         if grep -q "USER-EDIT-MARKER" "$f"; then
             log_success "✓ user-owned edit preserved: $f"
         else
@@ -335,11 +275,7 @@ main() {
             exit 1
         fi
     done
-    for f in \
-        "internal/controller/${KIND1_LOWER}/wiring.go" \
-        "internal/provider/connector.go" \
-        "hack/xp-provider-gen.mk" \
-        "docs/ownership.md"; do
+    for f in "$WIRING" "internal/provider/connector.go" "hack/xp-provider-gen.mk" "docs/ownership.md"; do
         if grep -q "DO NOT EDIT" "$f"; then
             log_success "✓ tool-owned refreshed (header intact): $f"
         else
@@ -356,123 +292,54 @@ main() {
 
     # Commit whatever update produced, then confirm update refuses a dirty tree.
     git add -A && git commit -q -m "chore: update core components" || true
-    log_info "Verifying update refuses a dirty working tree..."
-    printf '\n// dirty\n' >> "$ctrl"
-    if "$BINARY_PATH" update >/dev/null 2>&1; then
-        log_error "✗ update should have refused a dirty working tree"
-        exit 1
-    fi
-    log_success "✓ update refused a dirty working tree"
-    git checkout -- "$ctrl" 2>/dev/null || git restore "$ctrl"
+    assert_update_refuses_dirty "$BINARY_PATH" "$CTRL"
+}
 
-    # Step F: `create api --force` refreshes a tool-owned file, preserves user edits
-    step_header "F" "Test create api --force"
-    local force_wiring="internal/controller/${KIND1_LOWER}/wiring.go"
-    local force_tool_marker="// FORCE-MARKER: stale tool-owned content"
-    local force_user_marker="// FORCE-MARKER: user customization"
-    log_info "Marking tool-owned $force_wiring and user-owned $ctrl, then committing..."
-    printf '\n%s\n' "$force_tool_marker" >> "$force_wiring"
-    printf '\n%s\n' "$force_user_marker" >> "$ctrl"
-    git add -A && git commit -q -m "simulate: stale tool-owned file and a user customization before --force"
+# step_force: `create api --force` refreshes a tool-owned file, preserves user edits.
+step_force() {
+    step_header "8" "Test create api --force"
+    log_info "Marking tool-owned $WIRING and user-owned $CTRL, then running --force..."
+    assert_force_refreshes "$WIRING" "$CTRL" -- \
+        "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1" --force
+}
 
-    log_info "Running: $BINARY_PATH create api --group=$GROUP --version=$VERSION --kind=$KIND1 --force"
-    if "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1" --force; then
-        log_success "create api --force exited 0"
-    else
-        log_error "create api --force failed"
-        exit 1
-    fi
+# step_adopt: `update --adopt` retrofits a provider generated before the ownership contract.
+step_adopt() {
+    step_header "9" "Test update --adopt"
+    log_info "Simulating a pre-contract provider: stripping the header from $WIRING..."
+    assert_adopt_restores "$WIRING" -- "$BINARY_PATH" update --adopt
+    rm -f "$ASSERT_LOG"
 
-    if grep -q "$force_tool_marker" "$force_wiring"; then
-        log_error "✗ --force did not refresh tool-owned $force_wiring (marker survived)"
-        exit 1
-    fi
-    log_success "✓ --force refreshed tool-owned $force_wiring (marker gone)"
-
-    if grep -q "$force_user_marker" "$ctrl"; then
-        log_success "✓ --force preserved user-owned $ctrl"
-    else
-        log_error "✗ --force clobbered user-owned $ctrl (marker gone)"
-        exit 1
-    fi
-
-    # A second --force in a row, with nothing left to change, must still exit
-    # 0 and must not add or amend a commit: git.go's stageAndCheck skips the
-    # commit when nothing is staged.
-    local head_before_force2
-    head_before_force2="$(git rev-parse HEAD)"
-    log_info "Running a second: $BINARY_PATH create api --group=$GROUP --version=$VERSION --kind=$KIND1 --force"
-    if "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1" --force >/tmp/e2e-test-force2.log 2>&1; then
-        log_success "second create api --force exited 0"
-    else
-        cat /tmp/e2e-test-force2.log
-        log_error "second --force (no changes) did not exit 0"
-        exit 1
-    fi
-    if grep -q "No changes to commit" /tmp/e2e-test-force2.log; then
-        log_success "✓ second --force reported the no-change skip"
-    else
-        log_error "✗ second --force did not report the no-change skip"
-        exit 1
-    fi
-    if [ "$(git rev-parse HEAD)" = "$head_before_force2" ]; then
-        log_success "✓ second --force added no commit"
-    else
-        log_error "✗ second --force added or amended a commit although nothing changed"
-        exit 1
-    fi
-
-    # Step A: `update --adopt` retrofits a provider generated before the ownership contract
-    step_header "A" "Test update --adopt"
-    local wiring="internal/controller/${KIND1_LOWER}/wiring.go"
-    log_info "Simulating a pre-contract provider: stripping the header from $wiring..."
-    grep -v "Code generated by xp-provider-gen" "$wiring" > "$wiring.tmp" && mv "$wiring.tmp" "$wiring"
-    if grep -q "DO NOT EDIT" "$wiring"; then
-        log_error "failed to strip header for the test"
-        exit 1
-    fi
-    git add -A && git commit -q -m "simulate: provider without ownership headers"
-
-    log_info "Running: $BINARY_PATH update --adopt"
-    if "$BINARY_PATH" update --adopt; then
-        log_success "adopt completed"
-    else
-        log_error "update --adopt failed"
-        exit 1
-    fi
-    if grep -q "DO NOT EDIT" "$wiring"; then
-        log_success "✓ adopt restored the header on wiring.go"
-    else
-        log_error "✗ adopt did not restore the tool-owned header"
-        exit 1
-    fi
     if grep -q "plugins:" PROJECT; then
         log_success "✓ generator provenance stamped in PROJECT"
     else
         log_error "✗ adopt did not stamp provenance in PROJECT"
         exit 1
     fi
+}
 
-    # Step T: create-test scaffolds a chainsaw behavior test (non-interactive path).
-    step_header "T" "create-test scaffolds a chainsaw test"
+step_create_test() {
+    step_header "10" "create-test scaffolds a chainsaw test"
     if "$BINARY_PATH" create-test --name smoke-test --kind "$KIND1"; then
         verify_files_exist "create-test output" "test/behavior/smoke-test/chainsaw-test.yaml"
         if "$BINARY_PATH" create-test --name smoke-test --kind "$KIND1" 2>/dev/null; then
-            log_error "✗ create-test overwrote an existing test"; exit 1
+            log_error "✗ create-test overwrote an existing test"
+            exit 1
         fi
         log_success "✓ create-test refuses to overwrite an existing test"
     else
-        log_error "create-test failed"; exit 1
+        log_error "create-test failed"
+        exit 1
     fi
 
     # Done with the lifecycle copy — return to the pristine scaffold and drop it.
     cd "$TEST_DIR"
     rm -rf "$LIFECYCLE_DIR"
+}
 
-    # Step 7: Final verification (on the pristine single-commit scaffold)
-    step_header "7" "Final verification"
+step_final_verification() {
+    step_header "11" "Final verification"
 
-    # Check that go.mod is valid
     log_info "Verifying go.mod..."
     if go mod verify; then
         log_success "go.mod verification passed"
@@ -480,37 +347,37 @@ main() {
         log_warning "go.mod verification failed (might be expected for test)"
     fi
 
-    # Check that we can build the provider. When Step E's uptest flow runs, it
-    # performs a full build anyway — only build here when Step E will be
-    # skipped, where this is the sole build check.
+    # When Step 12's uptest flow runs, it performs a full build anyway — only
+    # build here when Step 12 will be skipped, where this is the sole build check.
     if ! docker_e2e_available; then
         log_info "Testing provider build..."
-        if make build > /dev/null 2>&1; then
+        if make build >/dev/null 2>&1; then
             log_success "Provider builds successfully"
         else
             log_warning "Provider build failed (might be expected for test)"
         fi
     fi
 
-    # Show final project structure
     log_info "Final project structure:"
-    find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "Makefile" -o -name "go.mod" \) | \
-        sort | \
-        head -20 | \
+    find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "Makefile" -o -name "go.mod" \) |
+        sort |
+        head -20 |
         sed 's/^/  /'
 
     if [[ $(find . -type f \( -name "*.go" -o -name "*.yaml" \) | wc -l) -gt 20 ]]; then
         echo "  ... and more files"
     fi
+}
 
-    # Step E: the generated provider's own e2e must pass — the full uptest +
-    # chainsaw flow: build the xpkg, stand up a dedicated kind control plane
-    # with Crossplane, deploy the provider from the local package, run every
-    # kind's uptest lifecycle, then the chainsaw behavior suite. Needs a running
-    # Docker daemon and minutes of cluster time; skipped with a warning when
-    # unavailable, or when E2E_SKIP_DOCKER is set, so docker-less machines and
-    # fast CI runs can still run the rest of the harness.
-    step_header "E" "Generated provider's own e2e (uptest + chainsaw)"
+# step_provider_e2e: the generated provider's own e2e must pass — the full
+# uptest + chainsaw flow: build the xpkg, stand up a dedicated kind control
+# plane with Crossplane, deploy the provider from the local package, run
+# every kind's uptest lifecycle, then the chainsaw behavior suite. Needs a
+# running Docker daemon and minutes of cluster time; skipped with a warning
+# when unavailable, or when E2E_SKIP_DOCKER is set, so docker-less machines
+# and fast CI runs can still run the rest of the harness.
+step_provider_e2e() {
+    step_header "12" "Generated provider's own e2e (uptest + chainsaw)"
     if docker_skip_requested; then
         PROVIDER_E2E_RESULT="SKIPPED (E2E_SKIP_DOCKER set)"
         CREATE_TEST_LIVE_RESULT="SKIPPED (E2E_SKIP_DOCKER set)"
@@ -518,6 +385,7 @@ main() {
         PROVIDER_E2E_RESULT="SKIPPED (no docker daemon)"
         CREATE_TEST_LIVE_RESULT="SKIPPED (no docker daemon)"
     fi
+
     if docker_e2e_available; then
         if make e2e; then
             log_success "generated provider's make e2e passed"
@@ -527,7 +395,7 @@ main() {
             # create-test, then actually run it against the live provider.
             log_info "Running a freshly scaffolded chainsaw test against the cluster..."
             if "$BINARY_PATH" create-test --name smoke-live --kind "$KIND1" >/dev/null &&
-               make test-behavior; then
+                make test-behavior; then
                 log_success "create-test output runs green against the live provider"
                 CREATE_TEST_LIVE_RESULT="PASSED"
             else
@@ -547,28 +415,46 @@ main() {
     else
         log_warning "docker daemon unavailable — skipping the generated provider's make e2e"
     fi
+}
 
-    # Summary
+step_summary() {
     echo
     step_header "✅" "E2E Test Summary"
-    log_success "✅ Project initialization: PASSED"
-    log_success "✅ Initial build targets: PASSED"
-    log_success "✅ First API creation ($KIND1): PASSED"
-    log_success "✅ Second API creation ($KIND2): PASSED"
-    log_success "✅ Build targets after APIs: PASSED"
-    log_success "✅ CRD generation: PASSED"
-    log_success "✅ Example generation: PASSED"
-    log_success "✅ Single 'Initial commit' scaffold: PASSED"
     log_success "✅ Generated provider's own e2e (uptest + chainsaw): ${PROVIDER_E2E_RESULT}"
-    log_success "✅ create-test scaffolds a chainsaw test: PASSED"
     log_success "✅ scaffolded test runs against the live provider: ${CREATE_TEST_LIVE_RESULT}"
-    log_success "✅ update preserves all 3 user-owned seam files: PASSED"
-    log_success "✅ create api --force refreshes tool-owned files, preserves user edits: PASSED"
-    log_success "✅ update / update --adopt (on a copy): PASSED"
     echo
     log_success "🎉 All E2E tests completed successfully!"
     log_info "Pristine scaffold (single 'Initial commit', clean tree) at: $TEST_DIR"
     log_info "  inspect with:  git -C $TEST_DIR log --oneline && git -C $TEST_DIR status"
+}
+
+main() {
+    log_info "Starting local E2E test for xp-provider-gen"
+    log_info "Test directory: $TEST_DIR"
+    log_info "Domain: $DOMAIN"
+    log_info "Repository: $REPO"
+    echo
+
+    if [[ ! -f "$BINARY_PATH" ]]; then
+        log_error "Binary not found at $BINARY_PATH"
+        log_info "Please run 'make build' first"
+        exit 1
+    fi
+    log_success "Binary found at $BINARY_PATH"
+
+    step_prepare_dir
+    step_init
+    step_build_initial
+    step_create_api_first
+    step_create_api_second
+    step_build_after_apis
+    step_update_lifecycle
+    step_force
+    step_adopt
+    step_create_test
+    step_final_verification
+    step_provider_e2e
+    step_summary
 }
 
 
@@ -576,15 +462,22 @@ main() {
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "Usage: $0"
     echo
-    echo "This script runs a comprehensive E2E test for xp-provider-gen including:"
-    echo "1. Project initialization"
-    echo "2. Initial build verification"
-    echo "3. API creation (2 APIs with same group/version, different kinds)"
-    echo "4. Build verification after API creation"
-    echo "5. CRD and example generation verification"
+    echo "This script runs a comprehensive E2E test for xp-provider-gen:"
+    echo "   1. Prepare test folder"
+    echo "   2. Initialize provider project"
+    echo "   3. Test initial build targets"
+    echo "   4. Create first API ($GROUP/$VERSION $KIND1)"
+    echo "   5. Create second API ($GROUP/$VERSION $KIND2)"
+    echo "   6. Test build targets after API creation"
+    echo "   7. Test update command (on a copy)"
+    echo "   8. Test create api --force"
+    echo "   9. Test update --adopt"
+    echo "  10. create-test scaffolds a chainsaw test"
+    echo "  11. Final verification"
+    echo "  12. Generated provider's own e2e (uptest + chainsaw)"
     echo
     echo "Env vars:"
-    echo "  E2E_SKIP_DOCKER  Skip Step E (the Docker-dependent uptest + chainsaw e2e),"
+    echo "  E2E_SKIP_DOCKER  Skip step 12 (the Docker-dependent uptest + chainsaw e2e),"
     echo "                   even if a docker daemon is available. Treated as a real"
     echo "                   boolean: unset, empty, 0, false, or no means run it;"
     echo "                   anything else (e.g. 1, true) means skip it."

@@ -56,41 +56,52 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 
 `scripts/e2e-test.sh` (run via `make e2e-test`) exercises the real generator workflow against
 a throwaway project in `/tmp/provider-template`. The expected file layout lives in
-`scripts/assert-layout.sh`, called by `e2e-test.sh` at each scaffolding stage — edit that when
-the scaffold gains or loses a file:
+`scripts/assert-layout.sh`, called by `e2e-test.sh` at each scaffolding stage (and by
+`e2e-upjet.sh --upjet` after init) — edit that when the scaffold gains or loses a file:
+
+The script is one function per numbered step (`step_prepare_dir`, `step_init`, ...), called
+in order from `main`; `--help` lists the same steps:
 
 1. Build the binary and prepare a clean temp directory.
-2. `init` a provider project; verify the base structure; **assert the working tree is clean**
-   (generate-then-commit leaves nothing uncommitted).
-3. `create api` twice (same group/version, different kinds); verify the generated types,
-   controllers, CRDs, and examples; **assert the tree is clean again**.
-4. **Ownership contract:** assert tool-owned files (`register.go`, `wiring.go`,
+2. `init` a provider project; verify the base structure.
+3. Initial build targets; **assert the working tree is clean** (generate-then-commit leaves
+   nothing uncommitted).
+4. `create api` for the first kind; verify the generated types and controller.
+5. `create api` for the second kind (same group/version, different kind); verify its files too.
+6. Build targets after both APIs; verify the generated CRDs and examples; **Ownership
+   contract:** assert tool-owned files (`register.go`, `wiring.go`,
    `internal/provider/connector.go`, `main.go`, `config.go`, `docs/ownership.md`) carry the
    `DO NOT EDIT` header, and that user files (`external.go`, `internal/provider/client.go`,
-   `internal/provider/options.go`, `*_types.go`, `apis/v1alpha1/types.go`, `AGENTS.md`) do not.
-5. **`update` (the upgrade guarantee):** append a marker to **all three** user-owned seam
+   `internal/provider/options.go`, `*_types.go`, `apis/v1alpha1/types.go`, `AGENTS.md`) do not;
+   **assert the tree is clean again** and that init + create api folded into a single
+   `Initial commit`.
+7. **`update` (the upgrade guarantee):** append a marker to **all three** user-owned seam
    files and commit, run `update`, then assert (a) every marker survives, (b) `wiring.go`,
    `connector.go` and `docs/ownership.md` are refreshed with headers intact, (c) seed-once
-   `AGENTS.md` is untouched, (d) `update` refuses a dirty tree. Steps 5–8 run against a copy
+   `AGENTS.md` is untouched, (d) `update` refuses a dirty tree. Steps 7–10 run against a copy
    of the scaffold at `/tmp/provider-template-lifecycle` (`LIFECYCLE_DIR`), so the pristine
    `/tmp/provider-template` keeps its single `Initial commit`.
-6. **`create api --force`:** mark a tool-owned file (`wiring.go`) and a user-owned one
+8. **`create api --force`:** mark a tool-owned file (`wiring.go`) and a user-owned one
    (`external.go`), commit, then re-run `create api` for the same kind with `--force` and
    assert (a) it exits 0, (b) the tool-owned marker is gone (regenerated), (c) the
    user-owned marker survives.
-7. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
+9. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
    run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
-8. **create-test:** scaffold a chainsaw behavior test non-interactively and assert the file
-   lands — and that an existing test is never overwritten.
-9. Verify the provider builds — only when Docker is unavailable; otherwise `make e2e`
-   (next step) builds it as part of the flow.
-10. **The generated provider's own e2e:** run `make e2e` inside the scaffold — the full
-   uptest + chainsaw flow: build the xpkg, stand up a dedicated kind control plane with
-   Crossplane installed, deploy the provider from the local package, run every kind's
-   uptest lifecycle (create → Ready/Synced → delete), then the chainsaw behavior suite
-   (the seeded pause tests), then scaffold a fresh chainsaw test with `create-test` and
-   assert it also passes against the live provider. Skipped with a warning when no Docker
-   daemon is available.
+10. **create-test:** scaffold a chainsaw behavior test non-interactively and assert the file
+    lands — and that an existing test is never overwritten.
+11. Verify the provider builds — only when Docker is unavailable; otherwise `make e2e`
+    (next step) builds it as part of the flow.
+12. **The generated provider's own e2e:** run `make e2e` inside the scaffold — the full
+    uptest + chainsaw flow: build the xpkg, stand up a dedicated kind control plane with
+    Crossplane installed, deploy the provider from the local package, run every kind's
+    uptest lifecycle (create → Ready/Synced → delete), then the chainsaw behavior suite
+    (the seeded pause tests), then scaffold a fresh chainsaw test with `create-test` and
+    assert it also passes against the live provider. Skipped with a warning when no Docker
+    daemon is available.
+
+The `--force`/`--adopt`/dirty-tree assertions (steps 8, 9, and the dirty-tree check inside
+step 7) and `docker_skip_requested` live in `scripts/lib.sh`, shared with `e2e-upjet.sh` and
+`upgrade-sim.sh` — see that file for the shared helpers.
 
 `/tmp/provider-template`, the scaffold this leaves behind, is kept only when the run succeeds
 (a failure removes it so the next run starts clean) — the next run recreates it either way:
@@ -105,7 +116,7 @@ pipeline — unit tests alone do not catch broken generated output.
 
 ## Upgrade-path simulation (`make upgrade-sim`)
 
-`scripts/upgrade-sim.sh` covers a gap the e2e cannot: e2e Step U runs `update` with
+`scripts/upgrade-sim.sh` covers a gap the e2e cannot: e2e step 7 runs `update` with
 the **same** generator, so tool-owned files come out byte-identical and it can only
 prove that user files survive — never that tool-owned files actually receive a new
 generator's changes.
@@ -164,7 +175,7 @@ It also configures a `kubernetes_config_map` resource, writes its
 `docs/upjet-provider.md` worked example (with `uptest.upbound.io/*` annotations), and runs
 `xp-provider-gen create-test` — mirroring the native e2e's own `create-test` coverage, which
 upjet previously lacked. With a Docker daemon available (skipped with a warning otherwise, or
-with `E2E_SKIP_DOCKER` set, same as the native e2e's Step E), it then:
+with `E2E_SKIP_DOCKER` set, same as the native e2e's step 12), it then:
 
 - runs the **generated provider's own `make e2e`**: the uptest lifecycle (create →
   Ready/Synced → import → delete) plus the `test-behavior` chainsaw hook running the suite
@@ -184,9 +195,9 @@ rather than part of `make e2e-test`.
 
 See [.github/WORKFLOWS.md](../.github/WORKFLOWS.md) for the full list; the layers above map to:
 
-- `test.yml` — unit tests with coverage, plus the native e2e with its Docker-dependent Step E
+- `test.yml` — unit tests with coverage, plus the native e2e with its Docker-dependent step 12
   skipped (`E2E_SKIP_DOCKER=1`), on every push/PR.
-- `e2e-native-full.yml` — the same native e2e with Step E included, plus `make upgrade-sim`;
+- `e2e-native-full.yml` — the same native e2e with step 12 included, plus `make upgrade-sim`;
   daily and on PRs touching the surfaces they exercise.
 - `e2e-upjet.yml` — the upjet e2e; daily and on PRs touching the upjet flavor.
 - `go-version.yml` — `make check-go-version`, on every push/PR.

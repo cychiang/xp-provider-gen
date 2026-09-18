@@ -1,12 +1,18 @@
 #!/bin/bash
 # Asserts the generated provider's file layout. This is the single source of
 # truth for which files a scaffold must contain — called from scripts/e2e-test.sh
-# at each scaffolding stage.
+# at each scaffolding stage, and from scripts/e2e-upjet.sh after init.
 #
 # Usage:
-#   assert-layout.sh <project-dir>                          base layout (after init)
-#   assert-layout.sh <project-dir> <group> <version> <Kind> base + per-kind files
+#   assert-layout.sh [--upjet] <project-dir>                          base layout (after init)
+#   assert-layout.sh <project-dir> <group> <version> <Kind>           native: base + per-kind files
 set -e
+
+flavor=native
+if [ "$1" = "--upjet" ]; then
+    flavor=upjet
+    shift
+fi
 
 dir="$1"
 group="${2:-}"
@@ -20,6 +26,25 @@ require() {
         fail=1
     fi
 }
+
+if [ "$flavor" = upjet ]; then
+    # Base layout, present after `init --upjet`.
+    require "Makefile"
+    require "hack/xp-provider-gen.mk"
+    require "config/provider.go"
+    require "config/zz_resources.go"
+    require "internal/clients/clients.go"
+    require "internal/clients/resolve.go"
+    require "cmd/generator/main.go"
+    require "apis/generate.go"
+
+    if [ $fail -ne 0 ]; then
+        echo "layout assertion FAILED for $dir"
+        exit 1
+    fi
+    echo "layout OK: $dir (upjet)"
+    exit 0
+fi
 
 # Base layout, present after init.
 require "Makefile"
