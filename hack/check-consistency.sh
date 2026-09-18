@@ -24,10 +24,15 @@ report() {
 # hits PATTERN [PATHSPEC...] — matching lines in tracked and untracked (not
 # ignored) files. docs/plans/ is a historical record that is deliberately left
 # as written, and this script necessarily spells out the patterns it bans.
+# A search that cannot run (say, a malformed PATTERN) is reported as a hit, so
+# a broken check turns red instead of passing.
 hits() {
-    local pattern=$1
+    local pattern=$1 out rc=0
     shift
-    git grep --untracked -nEi "$pattern" -- "${@:-.}" ':!docs/plans' ':!hack/check-consistency.sh' || true
+    out=$(git grep --untracked -nEi "$pattern" -- "${@:-.}" ':!docs/plans' ':!hack/check-consistency.sh') || rc=$?
+    # git grep: 0 = hits, 1 = none, anything else = it could not search.
+    [ "$rc" -le 1 ] || out="git grep failed (rc=$rc) for pattern: $pattern"
+    printf '%s' "$out"
 }
 
 # Names are stable only if nothing still points at the old ones: a stale
@@ -55,8 +60,11 @@ report C3 "make help lists exactly the documented targets" "$(
     comm -13 <(echo "$documented") <(echo "$listed") | sed 's/^/in make help but not documented: /'
 )"
 
-# The three e2e scripts are read and edited as one family; a skeleton that
-# differs in one of them makes every cross-script edit a guessing game.
+# The e2e scripts are read and edited as one family; a skeleton that differs in
+# one of them makes every cross-script edit a guessing game. Strict mode is
+# checked against the expected line, not just for agreement, so the whole family
+# cannot quietly slide back to `set -e` together; assert-layout.sh is held to it
+# too. (lib.sh is sourced, so it deliberately has no `set`.)
 # facet FILE NAME prints one line describing how FILE handles NAME.
 facet() {
     case $2 in
@@ -66,8 +74,13 @@ facet() {
         "uses step_header") grep -q 'step_header' "$1" && echo yes || echo no ;;
     esac
 }
+strict="set -euo pipefail"
 skeleton=""
-for name in "set line" "sources lib.sh" "line-2 comment" "uses step_header"; do
+for f in scripts/e2e-*.sh scripts/assert-layout.sh; do
+    got=$(facet "$f" "set line")
+    [ "$got" = "$strict" ] || skeleton="$skeleton$f: set line is '$got', want '$strict'"$'\n'
+done
+for name in "sources lib.sh" "line-2 comment" "uses step_header"; do
     values=""
     for f in scripts/e2e-*.sh; do
         values="$values$(printf '%s: %s' "$f" "$(facet "$f" "$name")")"$'\n'
@@ -76,28 +89,34 @@ for name in "set line" "sources lib.sh" "line-2 comment" "uses step_header"; do
         skeleton="$skeleton$(printf '%s differs:\n%s' "$name" "$values" | sed '2,$s/^/  /')"$'\n'
     fi
 done
-report C4 "e2e scripts share one skeleton" "${skeleton%$'\n'}"
+report C4 "scripts share strict mode and one e2e skeleton" "${skeleton%$'\n'}"
 
 # Each e2e run deletes and recreates its working directories; one shared prefix
 # keeps that cleanup away from anything else in /tmp and makes leftovers easy
-# to recognise.
-report C5 "e2e scratch paths use the /tmp/xpg-e2e- prefix" "$(
-    grep -noE '/tmp/[^[:space:]"'"'"')]*' scripts/e2e-*.sh | grep -v ':/tmp/xpg-e2e-' || true
+# to recognise. Covers every script, including the lib.sh they all source.
+# grep exits 1 for "no matches" (fine) and 2 when it could not scan (a violation).
+tmp_paths=$(grep -noE '/tmp/[^[:space:]"'"'"')]*' scripts/*.sh) || [ $? -eq 1 ] ||
+    tmp_paths="grep failed while scanning scripts/*.sh"
+report C5 "script scratch paths use the /tmp/xpg-e2e- prefix" "$(
+    printf '%s\n' "$tmp_paths" | grep -v ':/tmp/xpg-e2e-' || true
 )"
 
 # One concept, one word. These are the retired spellings from the terminology
 # cleanup; if they reappear, two names for the same thing are back in circulation.
 report C6 "retired terminology is gone" "$(
-    hits 'stage [0-9]|ownership header|framework bump|tool[ -]file|user[ -]file'
+    hits 'stages? [0-9]|ownership[ -]header|framework (bump|change)|tool[ -]file|user[ -]file'
 )"
 
 # An error string that starts with a bare verb ("build ...") reads as an
 # instruction, and once wrapped it stutters ("build: failed to ..."); the
-# repo's shape is a gerund ("building ..."). A denylist of the known bare verbs
-# is the cheapest check that catches this. It scans the generator's own Go
+# repo's shape is a gerund ("building ..."). A denylist of bare verbs is the
+# cheapest check that catches this: it is the bare form of every gerund the repo
+# already opens an error string with, plus the "failed to"/"unable to" phrasings.
+# Extend it when a new verb shows up. It scans the generator's own Go
 # (fmt.Errorf/errors.New, not t.Errorf test messages) on a single line.
+BARE_VERBS='failed to|unable to|could not|error|adopt|build|check|configure|create|decode|derive|discover|encode|enumerate|fetch|get|init|load|open|parse|read|reconcile|record|refuse|render|run|scaffold|set|stamp|start|work|write'
 report C7 "error strings start with a gerund, not a bare verb" "$(
-    hits '(fmt\.Errorf|errors\.New)\("(failed to|error|build|configure|set|load|get|scaffold|parse|init)([^[:alnum:]_]|$)' '*.go'
+    hits '(fmt\.Errorf|errors\.New)\("('"$BARE_VERBS"')([^[:alnum:]_]|$)' '*.go'
 )"
 
 # A workflow whose paths: filter misses a file it depends on silently skips the
