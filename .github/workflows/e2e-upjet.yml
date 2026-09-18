@@ -3,7 +3,7 @@ name: E2E Upjet
 permissions:
   contents: read
 
-# scripts/e2e-upjet.sh needs network (Terraform download, Terraform Registry
+# `make e2e-upjet` (`scripts/e2e-upjet.sh`) needs network (Terraform download, Terraform Registry
 # schema read, provider docs scrape) and takes several minutes, so it does not
 # run on every PR. It runs on a daily schedule, on PRs that touch the upjet
 # flavor's templates or the script/helper that exercise it, and on demand.
@@ -59,9 +59,6 @@ jobs:
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-    - name: Build binary
-      run: make build
 
     # Runs the full scaffold -> configure -> generate -> build -> run pipeline
     # against the real hashicorp/kubernetes Terraform provider, including
