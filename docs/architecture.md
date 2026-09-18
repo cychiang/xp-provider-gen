@@ -55,16 +55,16 @@ the project's flavor from PROJECT and renders, validates and finalizes with that
   the five `--terraform-*` coordinates validated by `upjetSettings`; validates inputs; resolves
   git author (CLI flags > system git config > defaults); delegates scaffolding to
   `scaffold.NewInitScaffolder(cfg, flavor, upjet)`, which renders the flavor's init templates
-  plus its generators; saves PROJECT; runs the init pipeline. Propagates pipeline errors
-  (fails loudly).
+  plus its generators; runs the init pipeline. Propagates pipeline errors (fails loudly).
+  Kubebuilder's own CLI saves PROJECT right after `Scaffold` returns, before `PostScaffold` runs.
 - **`createapi.go`** — injects the Kubebuilder resource model with Crossplane defaults;
-  validates the resource; renders the resource's API templates and **regenerates the register
-  files deterministically** from `GetResources()` + the new resource; persists to PROJECT;
-  runs the API-commit pipeline.
+  validates the resource; adds it to the config; renders the resource's API templates and
+  **regenerates the register files deterministically** from `GetResources()`; runs the
+  API-commit pipeline.
 - **`update.go`** — the `update` / `update --adopt` command. See §7.
 - **`createtest.go`** — the `create-test` command: resolves kind and test name (flag,
   sole kind, or interactive prompt) and renders the chainsaw skeleton.
-- **`config.go`** — alias to `core.PluginConfig`; `NewPluginConfig()` seeds defaults.
+- **`config.go`** — `NewPluginConfig()` wraps `core.NewPluginConfig()` to seed defaults.
 
 ## 3. Core layer (`pkg/plugins/crossplane/v2/core/`)
 
@@ -73,8 +73,7 @@ Reusable, side-effecting building blocks with no template knowledge:
 - **`command_runner.go`** — `CommandRunner` wraps `exec.CommandContext` with a working dir.
 - **`git_runner.go`** — `GitCommandRunner`: `Init`, `Add`, `Commit`/`CommitWithAuthor`,
   `GetUserName/Email`, `AddSubmodule`.
-- **`config.go`** — `PluginConfig` (domain, repo prefix, git author, flags); `GenerateDefaultRepo()`.
-- **`project.go`** — `ProjectFile` wraps Kubebuilder config; `Save()` and `AddResource()`.
+- **`config.go`** — `PluginConfig` (repo prefix, git author); `GenerateDefaultRepo()`.
 - **`provider.go`** — `ExtractProviderName` / `ExtractProjectName` helpers.
 - **`template_path.go`** — maps a template path to an output path (strips the flavor root —
   `files/` or `upjet/` — and `.tmpl`, maps the `project/` prefix to the provider root, applies
@@ -283,8 +282,9 @@ function to build it, no registry keys, strategies or per-template types in betw
 PROJECT → init pipeline (git init/submodule, `make submodules`, tidy, generate, reviewable,
 commit).
 
-**`create api`** → inject & validate resource → render API templates + **regenerate register
-files** from all resources → `AddResource` to PROJECT → API-commit pipeline (generate, commit).
+**`create api`** → inject & validate resource → `AddResource` to the config → render API
+templates + **regenerate register files** from all resources → save PROJECT → API-commit
+pipeline (generate, commit).
 While the history is still just the tool's scaffold (the `Initial commit` carries the
 `xp-provider-gen-scaffold` trailer and the user hasn't committed yet), the commit **folds into
 that `Initial commit`** via `--amend`, so a freshly scaffolded provider has a single commit;

@@ -37,7 +37,7 @@ type initSubcommand struct {
 	tfProviderRepo    string
 	tfDocsPath        string
 
-	pluginConfig *PluginConfig
+	pluginConfig *core.PluginConfig
 }
 
 // flavor reports which flavor this project is being scaffolded as, the one
@@ -77,7 +77,7 @@ This command scaffolds a complete Crossplane provider project with:
 func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {
 	p.ensureConfig()
 
-	fs.StringVar(&p.domain, "domain", p.pluginConfig.Defaults.Domain, "domain for API groups (required)")
+	fs.StringVar(&p.domain, "domain", "", "domain for API groups (required)")
 	fs.StringVar(&p.repo, "repo", "", "name to use for go module (e.g., github.com/user/repo)")
 	fs.StringVar(&p.gitName, "git-name", "", "git user name for commits (uses system config if not provided)")
 	fs.StringVar(&p.gitEmail, "git-email", "", "git user email for commits (uses system config if not provided)")
@@ -179,12 +179,6 @@ func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 
 func (p *initSubcommand) PostScaffold() error {
 	p.ensureConfig()
-
-	// Save PROJECT file
-	projectFile := core.NewProjectFile(p.config)
-	if err := projectFile.Save(); err != nil {
-		return validation.InitError("PROJECT file creation", err)
-	}
 
 	// Run automation pipeline
 	providerName := core.ExtractProviderName(p.config.GetRepository())

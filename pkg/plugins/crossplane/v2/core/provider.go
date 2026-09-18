@@ -17,22 +17,19 @@ limitations under the License.
 package core
 
 import (
-	"strings"
+	"path"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 )
 
+const defaultProviderName = "provider-example"
+
 func ExtractProviderName(repo string) string {
 	if repo == "" {
-		return "provider-example"
+		return defaultProviderName
 	}
 
-	parts := strings.Split(repo, "/")
-	if len(parts) > 0 {
-		return parts[len(parts)-1]
-	}
-
-	return "provider-example"
+	return path.Base(repo)
 }
 
 func ExtractProjectName(cfg config.Config) string {
