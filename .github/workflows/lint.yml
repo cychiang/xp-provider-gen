@@ -52,5 +52,5 @@ jobs:
           exit 1
         fi
 
-    - name: Check workflow paths filters match actual usage
-      run: make check-workflow-paths
+    - name: Check repo consistency conventions
+      run: make check-consistency
