@@ -39,8 +39,6 @@ func NewInitScaffolder(config config.Config, flavor core.Flavor, upjet *core.Upj
 }
 
 func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
-	fmt.Printf("Scaffolding Crossplane provider project structure...\n")
-
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(s.config),
 		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
@@ -65,8 +63,6 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	if err := scaffold.Execute(allTemplates...); err != nil {
 		return fmt.Errorf("scaffold Crossplane provider project: %w", err)
 	}
-
-	fmt.Printf("Crossplane provider project scaffolded successfully!\n")
 
 	return nil
 }
