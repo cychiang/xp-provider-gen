@@ -52,7 +52,7 @@ name-keyed map silently drops a file.
 
 Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 
-## Native-flavor end-to-end test
+## Native-flavor e2e (`make e2e-native`)
 
 `scripts/e2e-native.sh` (run via `make e2e-native`) exercises the real generator workflow against
 a throwaway project in `/tmp/provider-template`. The expected file layout lives in
