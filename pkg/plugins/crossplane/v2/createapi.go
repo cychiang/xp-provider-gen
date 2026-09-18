@@ -19,7 +19,7 @@ import (
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
 
 type createAPISubcommand struct {
-	Force bool
+	force bool
 
 	// terraformResource is the Terraform resource an upjet kind is generated
 	// from, e.g. kubernetes_secret. Unused by native providers.
@@ -64,7 +64,7 @@ func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
 	p.ensureConfig()
 
 	defaults := p.pluginConfig.Defaults
-	fs.BoolVar(&p.Force, "force", defaults.Force,
+	fs.BoolVar(&p.force, "force", defaults.Force,
 		"overwrite existing tool-owned files (files without the generated header are never overwritten)")
 	fs.StringVar(&p.terraformResource, "terraform-resource", "",
 		"Terraform resource this kind is generated from, e.g. kubernetes_secret (required on an upjet provider)")
@@ -127,8 +127,6 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Creating Crossplane managed resource API %s/%s %s\n",
 		p.resource.Group, p.resource.Version, p.resource.Kind)
 
-	p.ensureConfig()
-
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(p.config),
 		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
@@ -146,7 +144,7 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 	factory := engine.NewFactoryForFlavor(p.config, p.meta.Flavor)
 	apiTemplates, err := factory.GetAPITemplates(
-		engine.WithForce(p.Force),
+		engine.WithForce(p.force),
 		engine.WithResource(p.resource),
 		engine.WithUpjet(upjet),
 	)
@@ -189,10 +187,7 @@ func (p *createAPISubcommand) PostScaffold() error {
 	}
 
 	// Run API commit automation pipeline
-	pipeline := automation.NewAPICommitPipeline(p.pluginConfig, p.resource.Kind)
-	if p.meta.Flavor == core.FlavorUpjet {
-		pipeline = automation.NewUpjetAPICommitPipeline(p.pluginConfig, p.resource.Kind)
-	}
+	pipeline := automation.APICommitPipelineFor(p.meta.Flavor, p.pluginConfig, p.resource.Kind)
 	fmt.Println("Running post-scaffolding automation...")
 	if err := pipeline.Run(); err != nil {
 		return validation.CreateAPIError("post-scaffolding automation", err)

@@ -27,7 +27,7 @@ type Pipeline struct {
 }
 
 // scaffoldCommitMessage builds the initial-scaffold commit message shared by
-// NewInitPipeline and NewUpjetInitPipeline, which differ only in how they
+// newInitPipeline and newUpjetInitPipeline, which differ only in how they
 // describe what was scaffolded (e.g. "Crossplane provider project" vs.
 // "upjet Crossplane provider project"). Worth factoring out because the
 // message text isn't what those two functions are about — unlike their step
@@ -41,12 +41,12 @@ Scaffolded %s for %s
 %s`, description, providerName, ScaffoldCommitTrailer)
 }
 
-// NewUpjetInitPipeline is the init pipeline for an upjet provider. It stops
+// newUpjetInitPipeline is the init pipeline for an upjet provider. It stops
 // short of building: a freshly scaffolded upjet project deliberately does not
 // compile yet, because cmd/provider imports the API and controller packages
 // that `make generate` produces from the Terraform schema. Running tidy or
 // reviewable here would fail on work the user has not been able to do.
-func NewUpjetInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
+func newUpjetInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
 	commitMessage := scaffoldCommitMessage("upjet Crossplane provider project", providerName)
 
 	return &Pipeline{
@@ -61,7 +61,7 @@ func NewUpjetInitPipeline(config *core.PluginConfig, providerName string) *Pipel
 	}
 }
 
-func NewInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
+func newInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
 	commitMessage := scaffoldCommitMessage("Crossplane provider project", providerName)
 
 	return &Pipeline{
@@ -78,12 +78,22 @@ func NewInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
 	}
 }
 
-// NewUpjetAPICommitPipeline commits a newly configured upjet resource without
+// InitPipelineFor returns init's post-scaffold pipeline for a project of the
+// given flavor. It is the one place init chooses between the two, mirroring
+// UpdateFinalizePipelineFor.
+func InitPipelineFor(flavor core.Flavor, config *core.PluginConfig, providerName string) *Pipeline {
+	if flavor == core.FlavorUpjet {
+		return newUpjetInitPipeline(config, providerName)
+	}
+	return newInitPipeline(config, providerName)
+}
+
+// newUpjetAPICommitPipeline commits a newly configured upjet resource without
 // running `make generate`. Generation there downloads Terraform, the provider
 // schema and the provider's docs, then runs the upjet pipeline — minutes of
 // network work the user should start deliberately, not as a side effect of
 // adding a resource.
-func NewUpjetAPICommitPipeline(config *core.PluginConfig, resourceKind string) *Pipeline {
+func newUpjetAPICommitPipeline(config *core.PluginConfig, resourceKind string) *Pipeline {
 	commitMessage := fmt.Sprintf(`Configure %s managed resource
 
 Added the upjet configuration for %s; run 'make generate' to generate its
@@ -96,7 +106,7 @@ API types and controller.`, resourceKind, resourceKind)
 	}
 }
 
-func NewAPICommitPipeline(config *core.PluginConfig, resourceKind string) *Pipeline {
+func newAPICommitPipeline(config *core.PluginConfig, resourceKind string) *Pipeline {
 	commitMessage := fmt.Sprintf(`Add %s managed resource
 
 Scaffolded CRD, controller, and client code for %s resource`, resourceKind, resourceKind)
@@ -107,6 +117,16 @@ Scaffolded CRD, controller, and client code for %s resource`, resourceKind, reso
 			NewGitFoldCommitStep(config, commitMessage),
 		},
 	}
+}
+
+// APICommitPipelineFor returns create api's post-scaffold commit pipeline for
+// a project of the given flavor. It is the one place create api chooses
+// between the two, mirroring UpdateFinalizePipelineFor.
+func APICommitPipelineFor(flavor core.Flavor, config *core.PluginConfig, resourceKind string) *Pipeline {
+	if flavor == core.FlavorUpjet {
+		return newUpjetAPICommitPipeline(config, resourceKind)
+	}
+	return newAPICommitPipeline(config, resourceKind)
 }
 
 // newUpdateFinalizePipeline brings a native provider back to a reviewable

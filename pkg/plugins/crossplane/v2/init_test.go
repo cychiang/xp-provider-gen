@@ -72,3 +72,76 @@ func TestInitSubcommand_InjectConfig_RequiresDomain(t *testing.T) {
 		})
 	}
 }
+
+// Fixture values for TestInitSubcommand_GitIdentity.
+const (
+	testFlagGitName    = "Flag Name"
+	testFlagGitEmail   = "flag@example.com"
+	testSystemGitName  = "System Name"
+	testSystemGitEmail = "system@example.com"
+)
+
+// TestInitSubcommand_GitIdentity pins gitIdentity's three-tier priority: CLI
+// flags, then system git config (via query), then the project defaults
+// already in pluginConfig.
+func TestInitSubcommand_GitIdentity(t *testing.T) {
+	tests := []struct {
+		name      string
+		gitName   string
+		gitEmail  string
+		sysName   string
+		sysEmail  string
+		wantName  string
+		wantEmail string
+	}{
+		{
+			name:      "both flags given wins over system config",
+			gitName:   testFlagGitName,
+			gitEmail:  testFlagGitEmail,
+			sysName:   testSystemGitName,
+			sysEmail:  testSystemGitEmail,
+			wantName:  testFlagGitName,
+			wantEmail: testFlagGitEmail,
+		},
+		{
+			name:      "only name flag given, email falls back to system config",
+			gitName:   testFlagGitName,
+			sysName:   testSystemGitName,
+			sysEmail:  testSystemGitEmail,
+			wantName:  testFlagGitName,
+			wantEmail: testSystemGitEmail,
+		},
+		{
+			name:      "no flags given, system config has values",
+			sysName:   testSystemGitName,
+			sysEmail:  testSystemGitEmail,
+			wantName:  testSystemGitName,
+			wantEmail: testSystemGitEmail,
+		},
+		{
+			name:      "no flags given, system config empty falls back to project defaults",
+			wantName:  "Crossplane Provider Generator",
+			wantEmail: "noreply@crossplane.io",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &initSubcommand{
+				gitName:      tt.gitName,
+				gitEmail:     tt.gitEmail,
+				pluginConfig: NewPluginConfig(),
+			}
+			query := func() (string, string) { return tt.sysName, tt.sysEmail }
+
+			gotName, gotEmail := p.gitIdentity(query)
+
+			if gotName != tt.wantName {
+				t.Errorf("gitIdentity() name = %q, want %q", gotName, tt.wantName)
+			}
+			if gotEmail != tt.wantEmail {
+				t.Errorf("gitIdentity() email = %q, want %q", gotEmail, tt.wantEmail)
+			}
+		})
+	}
+}
