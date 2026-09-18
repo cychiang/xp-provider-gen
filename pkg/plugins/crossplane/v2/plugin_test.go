@@ -17,15 +17,9 @@ limitations under the License.
 package v2
 
 import (
+	"strings"
 	"testing"
-
-	"sigs.k8s.io/kubebuilder/v4/pkg/plugin"
 )
-
-func TestPlugin_Interface(_ *testing.T) {
-	// Ensure Plugin implements kubebuilder plugin.Full interface
-	var _ plugin.Full = &Plugin{}
-}
 
 func TestPlugin_Name(t *testing.T) {
 	p := Plugin{}
@@ -111,26 +105,8 @@ func TestPlugin_DeprecationWarning(t *testing.T) {
 	}
 }
 
-func TestInitSubcommand_Interface(_ *testing.T) {
-	// Ensure initSubcommand implements kubebuilder plugin interface
-	var _ plugin.InitSubcommand = &initSubcommand{}
-}
-
-func TestCreateAPISubcommand_Interface(_ *testing.T) {
-	// Ensure createAPISubcommand implements kubebuilder plugin interface
-	var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
-}
-
 func TestPluginConfig_Defaults(t *testing.T) {
 	cfg := NewPluginConfig()
-
-	if cfg.Name == "" {
-		t.Error("Plugin config name should not be empty")
-	}
-
-	if cfg.Version == "" {
-		t.Error("Plugin config version should not be empty")
-	}
 
 	if cfg.Git.BuildSubmoduleURL == "" {
 		t.Error("Build submodule URL should not be empty")
@@ -152,28 +128,12 @@ func TestPluginConfig_GenerateDefaultRepo(t *testing.T) {
 	}
 
 	// Should contain provider prefix by default
-	if !contains(repo, "provider-") {
+	if !strings.Contains(repo, "provider-") {
 		t.Error("Generated repo should contain 'provider-' prefix")
 	}
 
 	// Should contain crossplane-contrib prefix by default
-	if !contains(repo, "github.com/crossplane-contrib") {
+	if !strings.Contains(repo, "github.com/crossplane-contrib") {
 		t.Error("Generated repo should use crossplane-contrib by default")
 	}
-}
-
-// Helper function.
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-			indexOfSubstring(s, substr) >= 0))
-}
-
-func indexOfSubstring(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
 }

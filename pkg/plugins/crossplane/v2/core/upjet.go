@@ -41,9 +41,6 @@ const (
 // copy of a value that already lives durably in the Makefile the moment
 // `init` finishes. json:"-" keeps each one an ordinary Go field (still set
 // and read during rendering) while keeping it out of the PROJECT file.
-// YAGNI: if a future command needs one of these back (e.g. an
-// `upgrade-provider`), add its tag back then, when there is an actual
-// reader — a field added when there's a reader is a field that's correct.
 type UpjetSettings struct {
 	// TerraformProvider is the Terraform registry source, e.g.
 	// "hashicorp/kubernetes". Render-time only: baked into the Makefile's

@@ -150,23 +150,22 @@ func (v *Validator) ValidateDomain(domain string) error {
 
 // ValidateRepository validates the repository follows go module conventions.
 // The pattern already requires exactly host/user/repository, so no further
-// structural checks are needed.
+// structural checks are needed. A non-provider-* name is legal but
+// unconventional for Crossplane; that is IsConventionalRepoName's concern,
+// not an error here, matching kubebuilder's flexibility.
 func (v *Validator) ValidateRepository(repo string) error {
 	if err := checkRequired(fieldRepository, repo); err != nil {
 		return err
 	}
-	if err := checkPattern(fieldRepository, repo, repoRe,
-		"must be a valid go module name (e.g., github.com/example/provider-name)"); err != nil {
-		return err
-	}
+	return checkPattern(fieldRepository, repo, repoRe,
+		"must be a valid go module name (e.g., github.com/example/provider-name)")
+}
 
-	// A non-provider-* name is legal but unconventional for Crossplane; warn
-	// rather than reject, matching kubebuilder's flexibility.
+// IsConventionalRepoName reports whether repo's last path segment follows
+// Crossplane's provider-* naming convention.
+func IsConventionalRepoName(repo string) bool {
 	parts := strings.Split(repo, "/")
-	if repoName := parts[len(parts)-1]; !strings.HasPrefix(repoName, "provider-") {
-		fmt.Printf("Warning: Repository name '%s' doesn't follow Crossplane convention 'provider-*'\n", repoName)
-	}
-	return nil
+	return strings.HasPrefix(parts[len(parts)-1], "provider-")
 }
 
 // ValidateResource validates resource parameters following kubebuilder conventions.

@@ -23,11 +23,11 @@ import (
 	"testing"
 )
 
-// TestCommandRunner_Run_ErrorSurfacesChildOutput pins A7: a failed init/create-api
-// step used to report a bare "exit status N" with the child's diagnostics
-// discarded, which cost a manual re-run to diagnose (e.g. a golangci-lint/Go
-// version mismatch buried in "make reviewable" output). The error text must
-// contain what the child actually printed.
+// TestCommandRunner_Run_ErrorSurfacesChildOutput pins that a failed
+// init/create-api step's error text contains what the child actually
+// printed (e.g. a golangci-lint/Go version mismatch buried in "make
+// reviewable" output), not a bare "exit status N" that costs a manual
+// re-run to diagnose.
 func TestCommandRunner_Run_ErrorSurfacesChildOutput(t *testing.T) {
 	err := NewCommandRunner("").Run(context.Background(), "git", "--this-flag-does-not-exist")
 	if err == nil {

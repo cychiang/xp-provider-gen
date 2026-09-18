@@ -92,11 +92,7 @@ func renderProject(t *testing.T, flavor core.Flavor) afero.Fs {
 		t.Fatalf("%s: building init templates: %v", flavor, err)
 	}
 	builders := append(AsBuilders(initTemplates), CoreGeneratorsFor(flavor, cfg, res)...)
-	deps, err := DependenciesFor(flavor)
-	if err != nil {
-		t.Fatalf("%s: loading go.mod dependencies: %v", flavor, err)
-	}
-	builders = append(builders, NewGoModGenerator(cfg.GetRepository(), deps))
+	builders = append(builders, NewGoModGenerator(cfg.GetRepository(), DependenciesFor(flavor)))
 
 	initScaffold := machinery.NewScaffold(machinery.Filesystem{FS: mem},
 		machinery.WithConfig(cfg),

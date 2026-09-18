@@ -20,12 +20,6 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
-type (
-	PluginConfig  = core.PluginConfig
-	DefaultValues = core.DefaultValues
-	GitConfig     = core.GitConfig
-)
-
-func NewPluginConfig() *PluginConfig {
-	return core.NewPluginConfig(pluginName)
+func NewPluginConfig() *core.PluginConfig {
+	return core.NewPluginConfig()
 }

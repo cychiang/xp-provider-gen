@@ -44,3 +44,5 @@ ehthumbs.db
 Thumbs.db
 # `go build ./...` inside the helper module drops its binary beside the source.
 hack/envtest-provider-check/envtest-provider-check
+# `go build ./scripts/...` drops this one at the repo root the same way.
+/check-go-version

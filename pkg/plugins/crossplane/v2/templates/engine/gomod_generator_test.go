@@ -32,21 +32,15 @@ import (
 func TestDependenciesFor(t *testing.T) {
 	tests := []struct {
 		flavor core.Flavor
-		want   func() ([]versions.Dependency, error)
+		want   func() []versions.Dependency
 	}{
 		{flavor: core.FlavorNative, want: versions.GoModDependencies},
 		{flavor: core.FlavorUpjet, want: versions.UpjetGoModDependencies},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.flavor), func(t *testing.T) {
-			want, err := tt.want()
-			if err != nil {
-				t.Fatalf("loading expected dependencies: %v", err)
-			}
-			got, err := DependenciesFor(tt.flavor)
-			if err != nil {
-				t.Fatalf("DependenciesFor(%q): %v", tt.flavor, err)
-			}
+			want := tt.want()
+			got := DependenciesFor(tt.flavor)
 			if !slices.Equal(got, want) {
 				t.Errorf("DependenciesFor(%q) = %v, want %v", tt.flavor, got, want)
 			}

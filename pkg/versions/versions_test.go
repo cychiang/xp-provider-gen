@@ -18,6 +18,7 @@ package versions
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -25,10 +26,7 @@ import (
 )
 
 func TestGoModDependencies(t *testing.T) {
-	deps, err := GoModDependencies()
-	if err != nil {
-		t.Fatalf("GoModDependencies() error: %v", err)
-	}
+	deps := GoModDependencies()
 	if len(deps) == 0 {
 		t.Fatal("expected at least one dependency")
 	}
@@ -51,6 +49,43 @@ func TestGoModDependencies(t *testing.T) {
 	}
 }
 
+// TestUpjetGoModDependencies_DoesNotAliasSharedDependencies pins that
+// UpjetGoModDependencies' merge-and-sort must never write back into
+// embedded.Dependencies's backing array. append() only allocates a new
+// array when the first slice's capacity is exhausted, so with today's real
+// dependencies.yaml (where Dependencies happens to be full, cap == len) a
+// regression here would stay invisible until the shared list next grows.
+// This test does not rely on that coincidence: it swaps in a synthetic
+// manifest whose Dependencies slice deliberately has spare capacity, so an
+// aliasing regression is caught today regardless of the real file's shape.
+func TestUpjetGoModDependencies_DoesNotAliasSharedDependencies(t *testing.T) {
+	saved := embedded
+	t.Cleanup(func() { embedded = saved })
+
+	const testVersion = "v1.0.0"
+	shared := make([]Dependency, 2, 4) // spare capacity: append would fit in place
+	shared[0] = Dependency{Module: "z.example.com/shared", Version: testVersion}
+	shared[1] = Dependency{Module: "a.example.com/shared", Version: testVersion}
+	embedded = manifest{
+		Dependencies: shared,
+		UpjetDependencies: []Dependency{
+			{Module: "m.example.com/upjet-only", Version: testVersion},
+		},
+	}
+	wantShared := slices.Clone(shared)
+
+	first := UpjetGoModDependencies()
+	second := UpjetGoModDependencies()
+	if !slices.Equal(first, second) {
+		t.Errorf("UpjetGoModDependencies() not stable across calls:\n  1st: %v\n  2nd: %v", first, second)
+	}
+
+	if got := GoModDependencies(); !slices.Equal(got, wantShared) {
+		t.Errorf("GoModDependencies() = %v after calling UpjetGoModDependencies(), want unchanged %v",
+			got, wantShared)
+	}
+}
+
 // TestParseManifest_GoVersion pins that GoVersion is genuinely parsed from
 // the manifest's go_version key (not hardcoded), using arbitrary input
 // decoupled from the real embedded dependencies.yaml.
@@ -65,8 +100,8 @@ func TestParseManifest_GoVersion(t *testing.T) {
 }
 
 // TestParseManifest_MissingGoVersion documents that an absent go_version
-// parses to the zero value rather than erroring — mustGoVersion (used to
-// populate the exported GoVersion var) is what turns that into a panic, so
+// parses to the zero value rather than erroring — requireField (which
+// populates the exported GoVersion var) is what turns that into a panic, so
 // this test isolates the parsing step from that policy decision.
 func TestParseManifest_MissingGoVersion(t *testing.T) {
 	m, err := parseManifest([]byte("dependencies: []\n"))

@@ -24,16 +24,8 @@ import (
 )
 
 type PluginConfig struct {
-	Name     string
-	Version  string
-	Defaults DefaultValues
-	Git      GitConfig
-}
-
-type DefaultValues struct {
-	Domain     string
 	RepoPrefix string
-	Force      bool
+	Git        GitConfig
 }
 
 type GitConfig struct {
@@ -42,16 +34,9 @@ type GitConfig struct {
 	Email             string
 }
 
-func NewPluginConfig(pluginName string) *PluginConfig {
+func NewPluginConfig() *PluginConfig {
 	return &PluginConfig{
-		Name:    pluginName,
-		Version: "v1.0.0",
-
-		Defaults: DefaultValues{
-			Domain:     "",
-			RepoPrefix: "github.com/crossplane-contrib",
-			Force:      false,
-		},
+		RepoPrefix: "github.com/crossplane-contrib",
 
 		Git: GitConfig{
 			BuildSubmoduleURL: "https://github.com/crossplane/build",
@@ -64,7 +49,7 @@ func NewPluginConfig(pluginName string) *PluginConfig {
 func (c *PluginConfig) GenerateDefaultRepo() string {
 	wd, err := os.Getwd()
 	if err != nil {
-		return fmt.Sprintf("%s/provider-example", c.Defaults.RepoPrefix)
+		return fmt.Sprintf("%s/%s", c.RepoPrefix, defaultProviderName)
 	}
 
 	dirName := filepath.Base(wd)
@@ -79,5 +64,5 @@ func (c *PluginConfig) GenerateDefaultRepo() string {
 		}
 	}
 
-	return fmt.Sprintf("%s/%s", c.Defaults.RepoPrefix, dirName)
+	return fmt.Sprintf("%s/%s", c.RepoPrefix, dirName)
 }

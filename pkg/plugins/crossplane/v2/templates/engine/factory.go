@@ -37,7 +37,7 @@ type CrossplaneTemplateFactory struct {
 }
 
 // NewFactoryForFlavor returns a factory over the given flavor's template tree.
-func NewFactoryForFlavor(cfg config.Config, flavor core.Flavor) TemplateFactory {
+func NewFactoryForFlavor(cfg config.Config, flavor core.Flavor) *CrossplaneTemplateFactory {
 	factory := &CrossplaneTemplateFactory{config: cfg, root: flavor.TemplateRoot()}
 	factory.discoverTemplates()
 	return factory
@@ -67,17 +67,17 @@ func (f *CrossplaneTemplateFactory) discoverTemplates() {
 	}
 }
 
-func (f *CrossplaneTemplateFactory) GetInitTemplates(opts ...Option) ([]TemplateProduct, error) {
+func (f *CrossplaneTemplateFactory) GetInitTemplates(opts ...Option) ([]*GenericTemplateProduct, error) {
 	return f.build(f.initTemplates, opts)
 }
 
-func (f *CrossplaneTemplateFactory) GetAPITemplates(opts ...Option) ([]TemplateProduct, error) {
+func (f *CrossplaneTemplateFactory) GetAPITemplates(opts ...Option) ([]*GenericTemplateProduct, error) {
 	return f.build(f.apiTemplates, opts)
 }
 
 // build renders each discovered template into a product.
-func (f *CrossplaneTemplateFactory) build(infos []TemplateInfo, opts []Option) ([]TemplateProduct, error) {
-	products := make([]TemplateProduct, 0, len(infos))
+func (f *CrossplaneTemplateFactory) build(infos []TemplateInfo, opts []Option) ([]*GenericTemplateProduct, error) {
+	products := make([]*GenericTemplateProduct, 0, len(infos))
 	for _, info := range infos {
 		product, err := BuildTemplate(f.config, info, opts...)
 		if err != nil {

@@ -41,18 +41,11 @@ type BaseTemplateProduct struct {
 	core.UpjetSettings
 }
 
-// NewBaseTemplateProduct creates a new base template product.
-func NewBaseTemplateProduct() *BaseTemplateProduct {
-	return &BaseTemplateProduct{}
-}
-
 // Configure sets up the template with configuration.
 func (t *BaseTemplateProduct) Configure(cfg config.Config) error {
 	if cfg != nil {
-		t.Domain = cfg.GetDomain()
-		t.DomainMixin = machinery.DomainMixin{Domain: t.Domain}
-		t.Repo = cfg.GetRepository()
-		t.RepositoryMixin = machinery.RepositoryMixin{Repo: t.Repo}
+		t.DomainMixin = machinery.DomainMixin{Domain: cfg.GetDomain()}
+		t.RepositoryMixin = machinery.RepositoryMixin{Repo: cfg.GetRepository()}
 	}
 
 	if t.ProviderName == "" && t.Repo != "" {
@@ -72,9 +65,7 @@ func (t *BaseTemplateProduct) Configure(cfg config.Config) error {
 		t.TerraformVersion = versions.TerraformVersion
 	}
 
-	// Set default boilerplate
-	t.Boilerplate = DefaultBoilerplate()
-	t.BoilerplateMixin = machinery.BoilerplateMixin{Boilerplate: t.Boilerplate}
+	t.BoilerplateMixin = machinery.BoilerplateMixin{Boilerplate: DefaultBoilerplate()}
 
 	return nil
 }
@@ -82,16 +73,7 @@ func (t *BaseTemplateProduct) Configure(cfg config.Config) error {
 // SetResource sets the resource for API templates.
 func (t *BaseTemplateProduct) SetResource(res *resource.Resource) error {
 	if res != nil {
-		t.Resource = res
-		t.ResourceMixin = machinery.ResourceMixin{Resource: t.Resource}
+		t.ResourceMixin = machinery.ResourceMixin{Resource: res}
 	}
 	return nil
-}
-
-// SetForce makes the template overwrite an existing file. It is only called
-// for --force; the zero-value action (machinery.SkipFile) is the default.
-func (t *BaseTemplateProduct) SetForce(force bool) {
-	if force {
-		t.IfExistsAction = machinery.OverwriteFile
-	}
 }

@@ -23,8 +23,8 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 )
 
-// TestChainsawTestGenerator_RendersFromExample pins B3's fix end to end at
-// the template layer: the rendered chainsaw-test.yaml must carry whatever
+// TestChainsawTestGenerator_RendersFromExample pins end to end at the
+// template layer that the rendered chainsaw-test.yaml carries whatever
 // apiVersion/namespace/spec create-test read out of the project's example
 // manifest, not a hard-coded native-shaped body. One rendering path serves
 // both flavors — the test data below is deliberately upjet-shaped

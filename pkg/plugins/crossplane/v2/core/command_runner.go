@@ -49,14 +49,12 @@ func NewCommandRunner(workDir string) *CommandRunner {
 	return &CommandRunner{workDir: workDir}
 }
 
-// Run executes a command with the provided arguments. On failure, the child's
-// combined stdout/stderr is attached to the returned error: without it, every
-// caller sees only "exit status N" and has to re-run the command by hand to
-// find out why (e.g. a golangci-lint/Go version mismatch buried in "make
-// reviewable" output).
-func (c *CommandRunner) Run(ctx context.Context, name string, args ...string) error {
+// command builds an *exec.Cmd for name in the runner's working directory,
+// after checking name against the allowlist. The four Run* methods below only
+// differ in how they wire stdin/stdout/stderr.
+func (c *CommandRunner) command(ctx context.Context, name string, args ...string) (*exec.Cmd, error) {
 	if err := checkCommand(name); err != nil {
-		return err
+		return nil, err
 	}
 	// No shell is involved and name is allowlisted above; args are literals or
 	// repo-controlled data (make targets, dependency coordinates).
@@ -64,7 +62,19 @@ func (c *CommandRunner) Run(ctx context.Context, name string, args ...string) er
 	if c.workDir != "" {
 		cmd.Dir = c.workDir
 	}
+	return cmd, nil
+}
 
+// Run executes a command with the provided arguments. On failure, the child's
+// combined stdout/stderr is attached to the returned error: without it, every
+// caller sees only "exit status N" and has to re-run the command by hand to
+// find out why (e.g. a golangci-lint/Go version mismatch buried in "make
+// reviewable" output).
+func (c *CommandRunner) Run(ctx context.Context, name string, args ...string) error {
+	cmd, err := c.command(ctx, name, args...)
+	if err != nil {
+		return err
+	}
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s command failed: %w\n%s", name, err, output)
@@ -75,12 +85,9 @@ func (c *CommandRunner) Run(ctx context.Context, name string, args ...string) er
 // RunWithOutput executes a command and returns its stdout. On failure the
 // child's stderr is attached to the returned error for the same reason as Run.
 func (c *CommandRunner) RunWithOutput(ctx context.Context, name string, args ...string) (string, error) {
-	if err := checkCommand(name); err != nil {
+	cmd, err := c.command(ctx, name, args...)
+	if err != nil {
 		return "", err
-	}
-	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- allowlisted command, no shell
-	if c.workDir != "" {
-		cmd.Dir = c.workDir
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -96,12 +103,9 @@ func (c *CommandRunner) RunWithOutput(ctx context.Context, name string, args ...
 // combined stdout/stderr is attached to the returned error for the same
 // reason as Run.
 func (c *CommandRunner) RunWithStdin(ctx context.Context, stdin, name string, args ...string) error {
-	if err := checkCommand(name); err != nil {
+	cmd, err := c.command(ctx, name, args...)
+	if err != nil {
 		return err
-	}
-	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- allowlisted command, no shell
-	if c.workDir != "" {
-		cmd.Dir = c.workDir
 	}
 	cmd.Stdin = strings.NewReader(stdin)
 
@@ -118,12 +122,9 @@ func (c *CommandRunner) RunWithStdin(ctx context.Context, stdin, name string, ar
 // caller already names the command (Pipeline.Run prefixes the step name), so
 // the error is the bare exit status rather than a second copy of the command.
 func (c *CommandRunner) RunStreaming(ctx context.Context, stdout, stderr io.Writer, name string, args ...string) error {
-	if err := checkCommand(name); err != nil {
+	cmd, err := c.command(ctx, name, args...)
+	if err != nil {
 		return err
-	}
-	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- allowlisted command, no shell
-	if c.workDir != "" {
-		cmd.Dir = c.workDir
 	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr

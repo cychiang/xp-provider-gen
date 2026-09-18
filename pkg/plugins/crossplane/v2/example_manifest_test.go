@@ -36,9 +36,9 @@ func testExampleResource() resource.Resource {
 	return resource.Resource{GVK: resource.GVK{Group: "core", Version: testVersionBeta, Kind: testKindSecret}}
 }
 
-// TestLoadExampleManifest pins B3's fix: create-test derives its skeleton
-// from examples/<group>/<kind>.yaml instead of hard-coding a native-shaped
-// body, so the same loader must work unmodified for a native-shaped example
+// TestLoadExampleManifest pins that create-test derives its skeleton from
+// examples/<group>/<kind>.yaml instead of hard-coding a native-shaped body,
+// so the same loader must work unmodified for a native-shaped example
 // (namespace "default", providerConfigRef "example") and an upjet-shaped one
 // (namespace "crossplane-system", providerConfigRef "default") alike — no
 // flavor branch anywhere in this code.
@@ -166,12 +166,12 @@ func TestExamplePath(t *testing.T) {
 	}
 }
 
-// TestGeneratedExamplePath pins review round 2 item 2: upjet's `make
-// generate` writes example file names lowercased (verified against a real
-// generated scaffold — examples-generated/namespaced/core/v1alpha1/secret.yaml,
-// never .../Secret.yaml), so a PascalCase resource.Resource.Kind (as
-// kubebuilder always gives it, e.g. "Secret") must not leak into the hinted
-// path — on a case-sensitive filesystem that path would not exist.
+// TestGeneratedExamplePath pins that upjet's `make generate` writes example
+// file names lowercased (verified against a real generated scaffold —
+// examples-generated/namespaced/core/v1alpha1/secret.yaml, never
+// .../Secret.yaml), so a PascalCase resource.Resource.Kind (as kubebuilder
+// always gives it, e.g. "Secret") must not leak into the hinted path — on a
+// case-sensitive filesystem that path would not exist.
 func TestGeneratedExamplePath(t *testing.T) {
 	res := resource.Resource{GVK: resource.GVK{Group: "Core", Version: testVersion, Kind: "ConfigMap"}}
 	want := "examples-generated/namespaced/core/v1alpha1/configmap.yaml"
@@ -184,22 +184,11 @@ func TestGeneratedExamplePath(t *testing.T) {
 // (this package) and generators/chainsaw_test.yaml.tmpl's `spec:` depth
 // (package engine) with a YAML round trip on the FULLY RENDERED output,
 // rather than comparing against the same specIndent constant that produced
-// the string (that comparison is circular: it can't detect the template and
-// the constant drifting apart, since both indentation depths are only ever
-// checked against themselves).
-//
-// The round-trip test in package v2 rather than exporting anything from
-// engine: indentYAML/specIndent already live here, ChainsawTestGenerator is
-// already imported here (createtest.go), and package v2 has no test-only
-// dependents of its own to keep this out of — so this is the one package
-// where both halves of the coupling are visible without changing either
-// package's public surface.
-//
-// If generators/chainsaw_test.yaml.tmpl's `spec:` line moves to (or past)
-// this package's specIndent, the spliced block stops being a child of
-// `spec:` in YAML terms (sibling or shallower indentation breaks the
-// parent/child relationship), so `resource.spec` decodes as empty/absent and
-// the deep-equal below fails — pinning exactly the coupling worth pinning.
+// the string — that comparison is circular, since both indentation depths
+// would only ever be checked against themselves. If the template's `spec:`
+// line moves to (or past) specIndent, the spliced block stops being a child
+// of `spec:` in YAML terms, so `resource.spec` decodes as empty/absent and
+// the deep-equal below fails.
 func TestChainsawSkeleton_SpecRoundTrips(t *testing.T) {
 	res := resource.Resource{GVK: resource.GVK{Group: "core", Version: testVersionBeta, Kind: testKindSecret}}
 

@@ -25,7 +25,7 @@ import (
 // fix it. The hints are the point: a scaffolding tool fails in a handful of
 // predictable ways, and naming the fix beats making the user guess.
 type PluginError struct {
-	Component string // the command: "init", "createAPI"
+	Component string // the command: "init", "create api"
 	Operation string // the step that failed: "domain validation", "scaffolding"
 	Cause     error
 	Hints     []string
@@ -88,7 +88,7 @@ func InitError(operation string, cause error) error {
 
 // CreateAPIError reports a failed `create api` step.
 func CreateAPIError(operation string, cause error) error {
-	return newPluginError("createAPI", operation, cause, createAPIHints)
+	return newPluginError("create api", operation, cause, createAPIHints)
 }
 
 // newPluginError builds the error, attaching the hints of the first rule whose

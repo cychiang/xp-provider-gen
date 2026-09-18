@@ -34,7 +34,7 @@ type GenericTemplateProduct struct {
 // NewGenericTemplateProduct creates a product for one discovered template.
 func NewGenericTemplateProduct(outputPath, templatePath string) *GenericTemplateProduct {
 	return &GenericTemplateProduct{
-		BaseTemplateProduct: NewBaseTemplateProduct(),
+		BaseTemplateProduct: &BaseTemplateProduct{},
 		outputPath:          outputPath,
 		templatePath:        templatePath,
 	}

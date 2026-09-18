@@ -57,7 +57,6 @@ func (g *GitOperations) Init(ctx context.Context) error {
 		return err
 	}
 
-	// Set project-local git config for consistency
 	return g.configureProjectGit(ctx)
 }
 
@@ -77,18 +76,16 @@ func (g *GitOperations) configureProjectGit(ctx context.Context) error {
 	return nil
 }
 
-func (g *GitOperations) CreateCommit(ctx context.Context, message, author string) error {
+func (g *GitOperations) CreateCommit(ctx context.Context, message string) error {
 	changed, err := g.stageAndCheck(ctx)
 	if err != nil || !changed {
 		return err
 	}
+	return g.commit(ctx, message)
+}
 
-	// If explicit author provided via CLI, use it
-	if author != "" {
-		return g.runner.CommitWithAuthor(ctx, message, author)
-	}
-
-	// Use project's local git config (set during Init)
+// commit creates a commit using the project's local git config (set during Init).
+func (g *GitOperations) commit(ctx context.Context, message string) error {
 	return g.runner.CommitWithSystemAuthor(ctx, message)
 }
 
@@ -102,7 +99,7 @@ func (g *GitOperations) CreateCommit(ctx context.Context, message, author string
 // before pushing or making your own commit, and don't run create-api with
 // unrelated unstaged edits you don't want folded into the Initial commit. Once
 // you commit your own work, create-api stops folding and adds separate commits.
-func (g *GitOperations) CommitOrAmendScaffold(ctx context.Context, message, author string) error {
+func (g *GitOperations) CommitOrAmendScaffold(ctx context.Context, message string) error {
 	changed, err := g.stageAndCheck(ctx)
 	if err != nil || !changed {
 		return err
@@ -111,10 +108,7 @@ func (g *GitOperations) CommitOrAmendScaffold(ctx context.Context, message, auth
 		// Keep the Initial commit's message and author; just add the new files.
 		return g.runner.RunCommand(ctx, "commit", "--amend", "--no-edit")
 	}
-	if author != "" {
-		return g.runner.CommitWithAuthor(ctx, message, author)
-	}
-	return g.runner.CommitWithSystemAuthor(ctx, message)
+	return g.commit(ctx, message)
 }
 
 // headIsScaffold reports whether the current HEAD commit is the tool's scaffold
@@ -149,19 +143,14 @@ func (g *GitOperations) stageAndCheck(ctx context.Context) (bool, error) {
 
 func (g *GitOperations) AddSubmodule(ctx context.Context, url, path string) error {
 	if _, err := os.Stat(path); err == nil {
-		// Directory exists, check if it's a submodule
 		if _, err := os.Stat(path + "/.git"); err == nil {
 			return nil // Already initialized
 		}
-		// Directory exists but not initialized as submodule
 		return g.runner.RunCommand(ctx, "submodule", "update", "--init", "--recursive")
 	}
 
-	// Add new submodule
 	if err := g.runner.AddSubmodule(ctx, url, path); err != nil {
 		return err
 	}
-
-	// Initialize the submodule
 	return g.runner.RunCommand(ctx, "submodule", "update", "--init", "--recursive")
 }

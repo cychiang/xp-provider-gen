@@ -25,9 +25,8 @@ import (
 )
 
 // TestGeneratorBodiesCarryOwnershipHeader pins the header literal in the
-// generator body files: it used to be spliced in from core.GeneratedHeader at
-// compile time, but the bodies now live as files under pkg/templates/generators,
-// so drift there would silently stop `update` from refreshing these files.
+// generator body files, which live under pkg/templates/generators: drift
+// there would silently stop `update` from refreshing these files.
 func TestGeneratorBodiesCarryOwnershipHeader(t *testing.T) {
 	for _, name := range []string{
 		"apis_register.go.tmpl",
@@ -66,9 +65,8 @@ func TestOwnershipDocClassifiesGeneratorOutputs(t *testing.T) {
 	}
 }
 
-// TestOwnershipDocClassifiesUpjetOutputs pins A5: the doc for an upjet project
-// must describe upjet's own tree, not the native one it used to walk
-// unconditionally regardless of which flavor asked for it. It builds the doc
+// TestOwnershipDocClassifiesUpjetOutputs pins that the doc for an upjet
+// project describes upjet's own tree, not the native one. It builds the doc
 // through upjetCoreGenerators so it covers the production wiring, which must
 // list the go.mod init seeds as user-owned just as the native doc does.
 func TestOwnershipDocClassifiesUpjetOutputs(t *testing.T) {

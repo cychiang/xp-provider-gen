@@ -22,6 +22,7 @@ package versions
 import (
 	_ "embed"
 	"fmt"
+	"slices"
 	"sort"
 
 	"sigs.k8s.io/yaml"
@@ -29,6 +30,22 @@ import (
 
 //go:embed dependencies.yaml
 var dependenciesYAML []byte
+
+// embedded is dependencies.yaml, parsed once at package init. It is embedded
+// at compile time and repo-controlled (not user input), so a parse failure
+// here is a build defect, not a runtime data problem — mustParse panics
+// rather than threading an error through every reader below, the same
+// reasoning the template engine uses for its own embedded-FS failures (see
+// e.g. templates/engine/factory.go).
+var embedded = mustParse(dependenciesYAML)
+
+func mustParse(raw []byte) manifest {
+	m, err := parseManifest(raw)
+	if err != nil {
+		panic(fmt.Errorf("parsing embedded dependencies manifest: %w", err))
+	}
+	return m
+}
 
 // Dependency is one direct module requirement in a generated provider's go.mod.
 type Dependency struct {
@@ -58,72 +75,46 @@ func parseManifest(raw []byte) (manifest, error) {
 }
 
 // GoVersion is the Go language version generated providers target (the
-// go.mod `go` directive), parsed from the embedded manifest's go_version key
-// — the single place this number is set. This repo's own go.mod `go`
-// directive and the Dockerfile's golang base image tag both have to match it
-// literally (neither can be computed), which scripts/check-go-version
-// enforces in CI instead of re-deriving them.
-var GoVersion = mustGoVersion()
-
-// mustGoVersion parses GoVersion out of the embedded manifest. The manifest
-// is embedded at compile time and repo-controlled (not user input), so a
-// parse failure or a missing key is a build defect, not a runtime data
-// problem — this panics rather than threading an error through every one of
-// GoVersion's callers, the same reasoning the template engine uses for its
-// own embedded-FS failures (see e.g. templates/engine/factory.go).
-func mustGoVersion() string {
-	m, err := parseManifest(dependenciesYAML)
-	if err != nil {
-		panic(fmt.Errorf("parsing embedded dependencies manifest: %w", err))
-	}
-	if m.GoVersion == "" {
-		panic("pkg/versions/dependencies.yaml: go_version is required")
-	}
-	return m.GoVersion
-}
+// go.mod `go` directive), read from the embedded manifest's go_version key —
+// the single place this number is set. This repo's own go.mod `go` directive
+// and the Dockerfile's golang base image tag both have to match it literally
+// (neither can be computed), which scripts/check-go-version enforces in CI
+// instead of re-deriving them.
+var GoVersion = requireField(embedded.GoVersion, "go_version")
 
 // TerraformVersion is the Terraform CLI version an upjet-flavored provider
-// uses to read its wrapped provider's schema, parsed from the embedded
+// uses to read its wrapped provider's schema, read from the embedded
 // manifest's terraform_version key. This is a tool decision, not the
 // author's: the whole upjet ecosystem is pinned below Terraform 1.6 because
 // that version is BSL-licensed, a licensing constraint rather than a
 // compatibility one, but not the author's call either way — there is
 // deliberately no CLI flag for it.
-var TerraformVersion = mustTerraformVersion()
+var TerraformVersion = requireField(embedded.TerraformVersion, "terraform_version")
 
-// mustTerraformVersion parses TerraformVersion out of the embedded manifest.
-// Panics for the same reason mustGoVersion does: the manifest is embedded at
-// compile time and repo-controlled, so a parse failure or a missing key is a
-// build defect, not a runtime data problem.
-func mustTerraformVersion() string {
-	m, err := parseManifest(dependenciesYAML)
-	if err != nil {
-		panic(fmt.Errorf("parsing embedded dependencies manifest: %w", err))
+// requireField panics if a required manifest key is missing — a build
+// defect, since the manifest is repo-controlled, not runtime input.
+func requireField(value, key string) string {
+	if value == "" {
+		panic("pkg/versions/dependencies.yaml: " + key + " is required")
 	}
-	if m.TerraformVersion == "" {
-		panic("pkg/versions/dependencies.yaml: terraform_version is required")
-	}
-	return m.TerraformVersion
+	return value
 }
 
 // GoModDependencies returns the direct dependencies a generated provider's
-// go.mod should declare, parsed from the embedded manifest.
-func GoModDependencies() ([]Dependency, error) {
-	m, err := parseManifest(dependenciesYAML)
-	if err != nil {
-		return nil, err
-	}
-	return m.Dependencies, nil
+// go.mod should declare. Cloned so a caller (or UpjetGoModDependencies,
+// below) can never mutate the package-level embedded.Dependencies backing
+// array out from under the other.
+func GoModDependencies() []Dependency {
+	return slices.Clone(embedded.Dependencies)
 }
 
 // UpjetGoModDependencies returns the dependencies an upjet-flavored provider
 // declares: the shared set plus upjet's own, sorted so go.mod renders stably.
-func UpjetGoModDependencies() ([]Dependency, error) {
-	m, err := parseManifest(dependenciesYAML)
-	if err != nil {
-		return nil, err
-	}
-	deps := append(m.Dependencies, m.UpjetDependencies...) //nolint:gocritic // deliberate copy
+// slices.Concat always allocates a new backing array — unlike append, which
+// only allocates when the first slice's capacity is exhausted, silently
+// aliasing (and corrupting, once sorted) embedded.Dependencies otherwise.
+func UpjetGoModDependencies() []Dependency {
+	deps := slices.Concat(embedded.Dependencies, embedded.UpjetDependencies)
 	sort.Slice(deps, func(i, j int) bool { return deps[i].Module < deps[j].Module })
-	return deps, nil
+	return deps
 }

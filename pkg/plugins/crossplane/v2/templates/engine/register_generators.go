@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/templates"
 )
 
@@ -77,10 +78,31 @@ func uniqueGroupVersions(repo string, resources []resource.Resource) []apiGroupV
 			// ImportAlias sanitizes the group+version into a valid Go identifier
 			// (e.g. strips '-'/'.'), matching kubebuilder's convention.
 			Alias: res.ImportAlias(),
-			Path:  fmt.Sprintf("%s/apis/%s/%s", repo, res.Group, res.Version),
+			Path:  core.APIImportPath(repo, res.Group, res.Version),
 		})
 	}
 	return groups
+}
+
+// uniqueKindPackages returns the lowercased Go package name (the kind,
+// lowercased) for each distinct managed kind, in first-seen order. Callers
+// concatenate PROJECT's stored resources with the current run's (e.g.
+// `create api --force` against an existing kind), so the same kind can
+// appear more than once; without dedup that doubles the import alias and the
+// generated project fails to compile. Shared by the native and upjet
+// per-kind generators, which each build a different struct from the result.
+func uniqueKindPackages(resources []resource.Resource) []string {
+	var pkgs []string
+	seen := map[string]bool{}
+	for _, res := range ManagedResources(resources) {
+		pkg := strings.ToLower(res.Kind)
+		if seen[pkg] {
+			continue
+		}
+		seen[pkg] = true
+		pkgs = append(pkgs, pkg)
+	}
+	return pkgs
 }
 
 // controllerPackages returns the base config controller followed by one entry
@@ -89,13 +111,7 @@ func controllerPackages(repo string, resources []resource.Resource) []controller
 	controllers := []controllerPackage{
 		{Path: repo + "/internal/controller/config", Setup: "config.Setup"},
 	}
-	seen := map[string]bool{}
-	for _, res := range ManagedResources(resources) {
-		pkg := strings.ToLower(res.Kind)
-		if seen[pkg] {
-			continue
-		}
-		seen[pkg] = true
+	for _, pkg := range uniqueKindPackages(resources) {
 		controllers = append(controllers, controllerPackage{
 			Path:  fmt.Sprintf("%s/internal/controller/%s", repo, pkg),
 			Setup: pkg + ".SetupGated",

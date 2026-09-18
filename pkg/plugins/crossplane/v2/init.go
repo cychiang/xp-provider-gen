@@ -3,7 +3,6 @@ package v2
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -37,7 +36,16 @@ type initSubcommand struct {
 	tfProviderRepo    string
 	tfDocsPath        string
 
-	pluginConfig *PluginConfig
+	pluginConfig *core.PluginConfig
+}
+
+// flavor reports which flavor this project is being scaffolded as, the one
+// place --upjet is turned into a core.Flavor.
+func (p *initSubcommand) flavor() core.Flavor {
+	if p.upjet {
+		return core.FlavorUpjet
+	}
+	return core.FlavorNative
 }
 
 func (p *initSubcommand) UpdateMetadata(cliMeta plugin.CLIMetadata, subcmdMeta *plugin.SubcommandMetadata) {
@@ -66,9 +74,7 @@ This command scaffolds a complete Crossplane provider project with:
 }
 
 func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {
-	p.ensureConfig()
-
-	fs.StringVar(&p.domain, "domain", p.pluginConfig.Defaults.Domain, "domain for API groups (required)")
+	fs.StringVar(&p.domain, "domain", "", "domain for API groups (required)")
 	fs.StringVar(&p.repo, "repo", "", "name to use for go module (e.g., github.com/user/repo)")
 	fs.StringVar(&p.gitName, "git-name", "", "git user name for commits (uses system config if not provided)")
 	fs.StringVar(&p.gitEmail, "git-email", "", "git user email for commits (uses system config if not provided)")
@@ -115,7 +121,7 @@ func (p *initSubcommand) InjectConfig(c config.Config) error {
 	// Resolve git configuration in priority order: CLI flags > System config > Project defaults
 	p.resolveGitConfig()
 
-	validator := validation.NewValidator()
+	validator := validation.ValidatorFor(p.flavor())
 
 	if err := validator.ValidateDomain(p.domain); err != nil {
 		return validation.InitError("domain validation", err)
@@ -134,6 +140,11 @@ func (p *initSubcommand) InjectConfig(c config.Config) error {
 	if err := validator.ValidateRepository(repo); err != nil {
 		return validation.InitError("repository validation", err)
 	}
+	if !validation.IsConventionalRepoName(repo) {
+		parts := strings.Split(repo, "/")
+		fmt.Printf("Warning: Repository name '%s' doesn't follow Crossplane convention 'provider-*'\n",
+			parts[len(parts)-1])
+	}
 
 	if err := p.config.SetRepository(repo); err != nil {
 		return validation.InitError("configuration", err)
@@ -147,14 +158,13 @@ func (p *initSubcommand) PreScaffold(machinery.Filesystem) error {
 }
 
 func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
-	flavor := core.FlavorNative
+	flavor := p.flavor()
 	var upjet *core.UpjetSettings
-	if p.upjet {
+	if flavor == core.FlavorUpjet {
 		var err error
 		if upjet, err = p.upjetSettings(); err != nil {
 			return err
 		}
-		flavor = core.FlavorUpjet
 	}
 
 	// Record what this project is, so create api and update never ask again.
@@ -172,18 +182,8 @@ func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 func (p *initSubcommand) PostScaffold() error {
 	p.ensureConfig()
 
-	// Save PROJECT file
-	projectFile := core.NewProjectFile(p.config)
-	if err := projectFile.Save(); err != nil {
-		return validation.InitError("PROJECT file creation", err)
-	}
-
-	// Run automation pipeline
 	providerName := core.ExtractProviderName(p.config.GetRepository())
-	pipeline := automation.NewInitPipeline(p.pluginConfig, providerName)
-	if p.upjet {
-		pipeline = automation.NewUpjetInitPipeline(p.pluginConfig, providerName)
-	}
+	pipeline := automation.InitPipelineFor(p.flavor(), p.pluginConfig, providerName)
 
 	fmt.Println("Running post-init automation...")
 	if err := pipeline.Run(); err != nil {
@@ -192,7 +192,7 @@ func (p *initSubcommand) PostScaffold() error {
 
 	fmt.Println("Crossplane provider project initialized successfully!")
 	fmt.Printf("Next steps:\n")
-	if p.upjet {
+	if p.flavor() == core.FlavorUpjet {
 		// The project does not compile until upjet has generated the API types
 		// and controllers from the Terraform schema, so that comes first.
 		fmt.Printf("  1. Use 'xp-provider-gen create api --terraform-resource=...' to add resources\n")
@@ -215,50 +215,51 @@ func (p *initSubcommand) ensureConfig() {
 	}
 }
 
+// resolveGitConfig fills p.pluginConfig.Git from gitIdentity, querying the
+// current directory's git configuration for values neither --git-name nor
+// --git-email supplied.
 func (p *initSubcommand) resolveGitConfig() {
-	// Priority: CLI flags > System config > Project defaults
-
-	// Start with project defaults
-	finalName := p.pluginConfig.Git.Author
-	finalEmail := p.pluginConfig.Git.Email
-
-	// Override with system config if CLI flags not provided
-	p.resolveSystemConfig(&finalName, &finalEmail)
-
-	// CLI flags override everything
-	if p.gitName != "" {
-		finalName = p.gitName
-	}
-	if p.gitEmail != "" {
-		finalEmail = p.gitEmail
-	}
-
-	// Update the plugin config with resolved values
-	p.pluginConfig.Git.Author = finalName
-	p.pluginConfig.Git.Email = finalEmail
+	p.pluginConfig.Git.Author, p.pluginConfig.Git.Email = p.gitIdentity(systemGitConfig)
 }
 
-func (p *initSubcommand) resolveSystemConfig(name, email *string) {
-	if p.gitName != "" && p.gitEmail != "" {
-		return // Both CLI flags provided, skip system config
-	}
+// gitIdentity resolves the git identity used for automation commits, in
+// priority order: CLI flags, then system git config (via query), then the
+// project defaults already in pluginConfig.
+func (p *initSubcommand) gitIdentity(query func() (name, email string)) (string, string) {
+	name := p.pluginConfig.Git.Author
+	email := p.pluginConfig.Git.Email
 
-	wd, _ := os.Getwd()
-	runner := core.NewGitCommandRunner(wd)
-
-	if p.gitName == "" {
-		if systemName, err := runner.GetUserName(context.Background()); err == nil {
-			if trimmed := strings.TrimSpace(systemName); trimmed != "" {
-				*name = trimmed
-			}
+	if p.gitName == "" || p.gitEmail == "" {
+		sysName, sysEmail := query()
+		if sysName != "" {
+			name = sysName
+		}
+		if sysEmail != "" {
+			email = sysEmail
 		}
 	}
 
-	if p.gitEmail == "" {
-		if systemEmail, err := runner.GetUserEmail(context.Background()); err == nil {
-			if trimmed := strings.TrimSpace(systemEmail); trimmed != "" {
-				*email = trimmed
-			}
-		}
+	if p.gitName != "" {
+		name = p.gitName
 	}
+	if p.gitEmail != "" {
+		email = p.gitEmail
+	}
+
+	return name, email
+}
+
+// systemGitConfig reads user.name and user.email from git's own config
+// resolution for the current directory, returning "" for a value that is
+// unset or unreadable.
+func systemGitConfig() (string, string) {
+	var name, email string
+	runner := core.NewGitCommandRunner("")
+	if v, err := runner.GetUserName(context.Background()); err == nil {
+		name = v
+	}
+	if v, err := runner.GetUserEmail(context.Background()); err == nil {
+		email = v
+	}
+	return name, email
 }

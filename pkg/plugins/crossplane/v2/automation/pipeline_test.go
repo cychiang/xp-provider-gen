@@ -61,15 +61,15 @@ func assertStepOrder(t *testing.T, p *Pipeline, want []string) {
 }
 
 func TestNewInitPipeline_CommitsLast(t *testing.T) {
-	cfg := core.NewPluginConfig("crossplane")
-	p := NewInitPipeline(cfg, "provider-test")
+	cfg := core.NewPluginConfig()
+	p := newInitPipeline(cfg, "provider-test")
 
 	assertStepOrder(t, p, []string{
 		"Initialize git repository",
 		"Mark scaffolded scripts executable",
 		"Add build submodule from " + cfg.Git.BuildSubmoduleURL,
 		"Run make submodules",
-		"Download dependencies (go mod tidy)",
+		"Tidy dependencies (go mod tidy)",
 		stepNameMakeGenerate,
 		stepNameMakeReviewable,
 		stepNameInitialCommit,
@@ -112,25 +112,57 @@ func TestUpdateFinalizePipelineFor(t *testing.T) {
 	}
 }
 
-// TestInitPipelines_ShareLeadingStepsAndFinalStep pins the invariant
-// pipeline.go's own comments describe but never enforce: NewInitPipeline and
-// NewUpjetInitPipeline share their first four steps (git init, executable
-// bit, git submodule, make submodules) and their last (the commit), diverging
-// only in the middle (native tidies/generates/reviews; upjet just downloads,
-// since a fresh upjet project doesn't compile until `make generate` runs).
-//
-// The two pipelines are compared directly against EACH OTHER, not against a
-// hardcoded list of expected literal step names — the point is to catch one
-// prefix drifting away from the other (someone adds a step to one and
-// forgets the other), not to re-assert today's exact wording. Step.Name()
-// already exists on the interface (Pipeline.Run itself prints it, and
-// TestNewInitPipeline_CommitsLast above already keys assertions off it), so
-// no new accessor was needed: it is already the stable, meaningful
-// identifier this codebase uses for "which step is this".
+// TestInitPipelineFor pins that init scaffolds each flavor with its own
+// pipeline: swapping them passes every step-order test above and fails only
+// in e2e.
+func TestInitPipelineFor(t *testing.T) {
+	cfg := core.NewPluginConfig()
+	tests := []struct {
+		flavor core.Flavor
+		want   *Pipeline
+	}{
+		{core.FlavorNative, newInitPipeline(cfg, "provider-test")},
+		{core.FlavorUpjet, newUpjetInitPipeline(cfg, "provider-test")},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.flavor), func(t *testing.T) {
+			assertStepOrder(t, InitPipelineFor(tt.flavor, cfg, "provider-test"), stepNames(tt.want))
+		})
+	}
+}
+
+// TestAPICommitPipelineFor pins that create api commits each flavor's
+// resource with its own pipeline: swapping them passes every step-order test
+// above and fails only in e2e.
+func TestAPICommitPipelineFor(t *testing.T) {
+	cfg := core.NewPluginConfig()
+	tests := []struct {
+		flavor core.Flavor
+		want   *Pipeline
+	}{
+		{core.FlavorNative, newAPICommitPipeline(cfg, "Bucket")},
+		{core.FlavorUpjet, newUpjetAPICommitPipeline(cfg, "Bucket")},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.flavor), func(t *testing.T) {
+			assertStepOrder(t, APICommitPipelineFor(tt.flavor, cfg, "Bucket"), stepNames(tt.want))
+		})
+	}
+}
+
+// TestInitPipelines_ShareLeadingStepsAndFinalStep pins that newInitPipeline
+// and newUpjetInitPipeline share their first four steps (git init,
+// executable bit, git submodule, make submodules) and their last (the
+// commit), diverging only in the middle (native tidies/generates/reviews;
+// upjet just downloads, since a fresh upjet project doesn't compile until
+// `make generate` runs). The two pipelines are compared directly against
+// EACH OTHER, not a hardcoded list of literal step names, to catch one
+// prefix drifting away from the other rather than re-asserting today's
+// exact wording.
 func TestInitPipelines_ShareLeadingStepsAndFinalStep(t *testing.T) {
-	cfg := core.NewPluginConfig("crossplane")
-	native := stepNames(NewInitPipeline(cfg, "provider-test"))
-	upjet := stepNames(NewUpjetInitPipeline(cfg, "provider-test"))
+	cfg := core.NewPluginConfig()
+	native := stepNames(newInitPipeline(cfg, "provider-test"))
+	upjet := stepNames(newUpjetInitPipeline(cfg, "provider-test"))
 
 	tests := []struct {
 		desc     string
@@ -174,8 +206,8 @@ func resolveIndex(i, length int) (int, bool) {
 }
 
 func TestNewAPICommitPipeline_CommitsLast(t *testing.T) {
-	cfg := core.NewPluginConfig("crossplane")
-	p := NewAPICommitPipeline(cfg, "Bucket")
+	cfg := core.NewPluginConfig()
+	p := newAPICommitPipeline(cfg, "Bucket")
 
 	assertStepOrder(t, p, []string{
 		stepNameMakeGenerate,

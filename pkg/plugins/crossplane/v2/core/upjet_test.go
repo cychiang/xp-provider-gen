@@ -61,38 +61,3 @@ func TestUpjetSettings_PersistsOnlyResourcePrefix(t *testing.T) {
 		t.Errorf("UpjetSettings marshaled to %q, want exactly %q (only terraform_resource_prefix persists)", got, want)
 	}
 }
-
-// TestUpjetSettings_RenderFieldsSurviveGoLevelUse guards the other half of
-// the contract: dropping the json tag must not have dropped the field. Every
-// value below still has to be an ordinary readable/settable Go field, since
-// scaffold rendering (WithUpjet) populates and reads all of them at
-// `init`/`create api` time — only PROJECT persistence was cut, not the
-// render-time data flow.
-func TestUpjetSettings_RenderFieldsSurviveGoLevelUse(t *testing.T) {
-	s := UpjetSettings{
-		TerraformProvider:        "hashicorp/kubernetes",
-		TerraformProviderName:    testProviderName,
-		TerraformProviderVersion: "2.38.0",
-		TerraformProviderRepo:    "https://example.com/repo",
-		TerraformDocsPath:        "docs/resources",
-		TerraformVersion:         "1.5.7",
-		TerraformResourcePrefix:  testProviderName,
-		NamespacedDomain:         "example.m.com",
-		TerraformResource:        "kubernetes_secret",
-	}
-	for name, got := range map[string]string{
-		"TerraformProvider":        s.TerraformProvider,
-		"TerraformProviderName":    s.TerraformProviderName,
-		"TerraformProviderVersion": s.TerraformProviderVersion,
-		"TerraformProviderRepo":    s.TerraformProviderRepo,
-		"TerraformDocsPath":        s.TerraformDocsPath,
-		"TerraformVersion":         s.TerraformVersion,
-		"TerraformResourcePrefix":  s.TerraformResourcePrefix,
-		"NamespacedDomain":         s.NamespacedDomain,
-		"TerraformResource":        s.TerraformResource,
-	} {
-		if got == "" {
-			t.Errorf("%s is empty; render-time fields must remain ordinary Go fields even when excluded from persistence", name)
-		}
-	}
-}

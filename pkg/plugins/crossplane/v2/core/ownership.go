@@ -51,6 +51,9 @@ const (
 	Seed
 	// Overwrite replaces an existing tool-owned file.
 	Overwrite
+	// Unseeded is a user-owned file missing on disk that the caller
+	// deliberately chose not to seed (see update.go's applyFile).
+	Unseeded
 )
 
 // DecideWrite applies the overwrite gate: seed if absent, overwrite if the
