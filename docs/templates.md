@@ -41,7 +41,7 @@ apply to either; substitute the root you are working in.
 
 That's all. The file now appears in new scaffolds, in the generated ownership
 doc, and (if tool-owned) flows to existing providers on their next `update`.
-Run `make e2e-test` before pushing — it scaffolds a real provider and runs its
+Run `make e2e-native` before pushing — it scaffolds a real provider and runs its
 build and e2e.
 
 ## When is a template rendered?
@@ -118,7 +118,7 @@ if it goes missing.
   are the only registries.
 - **Tool-owned means rewritten.** If users must be able to edit a file, it
   must not carry the header — there is no third state.
-- **The ownership header is a substring match.** A user-owned template whose
+- **The generated header is a substring match.** A user-owned template whose
   body *quotes* the header line becomes tool-owned by accident; phrase docs
   around it (see `AGENTS.md.tmpl` for an example that links instead of quoting).
 - **Five templates must stay byte-identical across both roots.** `LICENSE`,

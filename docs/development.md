@@ -12,7 +12,7 @@
   and `pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl`. Renovate currently bumps only `lint.yml`; align
   the other three in the same PR.
 - **gosec** — security scanner
-- **Docker** — without it, both `make e2e-test` and `make e2e-upjet` skip their
+- **Docker** — without it, both `make e2e-native` and `make e2e-upjet` skip their
   Docker-dependent stage rather than failing; `make e2e-upjet` also needs network access
   for its non-Docker stages (downloading Terraform and a provider schema)
 
@@ -35,19 +35,28 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 | `make gosec` | Security scan |
 | `make mod-tidy` / `make mod-verify` | Module hygiene |
 | `make check` | fmt + vet + lint + gosec + test |
-| `make reviewable` | `mod-tidy` + `check` — run this before pushing |
-| `make e2e-test` | Build, then run the end-to-end scaffold test |
-| `make upgrade-sim` | Simulate a generator version bump against real user logic |
+| `make reviewable` | `mod-tidy` + `check` + `check-consistency` — run this before pushing |
+| `make e2e-native` | Build, then run the end-to-end scaffold test |
+| `make e2e-upgrade` | Run a generator version bump against real user logic (native flavor) |
 | `make e2e-upjet` | Scaffold an upjet provider and run the real upjet pipeline (network) |
 | `make check-go-version` | Verify go.mod/Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version` (network) |
+| `make check-consistency` | Assert the repo's naming, skeleton and terminology conventions (part of `reviewable`) |
 
 `make reviewable` mirrors what CI enforces. If it passes locally, CI should pass too.
+
+## Consistency gate
+
+`make check-consistency` runs `hack/check-consistency.sh`, eight checks that stop drift from
+growing back: stale script names, a `Makefile` whose `.PHONY` or `make help` disagrees with its
+targets, e2e scripts that diverge from one skeleton or `/tmp` prefix, retired terminology,
+non-gerund error strings, and workflow `paths:` filters. To add a check, append a
+`report Cn "<title>" "<violations>"` block to the script; CI and `make reviewable` both run it.
 
 ## Typical workflow
 
 1. Make a focused change. Keep it [KISS and DRY](../AGENTS.md#code-style).
 2. `make reviewable` — fix anything it reports.
-3. `make e2e-test` if you touched templates, the engine, or the automation pipeline.
+3. `make e2e-native` if you touched templates, the engine, or the automation pipeline.
 4. Commit with a [conventional commit](https://www.conventionalcommits.org/) message
    (`feat:`, `fix:`, `refactor:`, `chore:`, `ci:`, `docs:`, `test:`), small and focused.
 5. Open a PR. CI runs lint, tests, e2e, build, and security scans.
@@ -56,7 +65,7 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 
 Provider scaffolding lives in `pkg/templates/files/**` (native) and `pkg/templates/upjet/**`
 (upjet), both `*.tmpl` and auto-discovered: drop a file in and it appears in every generated
-provider of that flavor. The full contributor flow — path placeholders, the ownership header,
+provider of that flavor. The full contributor flow — path placeholders, the generated header,
 the golden-test step — is in [templates.md](templates.md).
 
 ## Updating an existing provider

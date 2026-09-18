@@ -76,8 +76,8 @@ jobs:
         name: coverage-report
         path: coverage.html
 
-  e2e-test:
-    name: E2E Test (native)
+  e2e-native:
+    name: E2E (native)
     runs-on: ubuntu-latest
     needs: [changes, test]
     if: needs.changes.outputs.source == 'true'
@@ -96,11 +96,8 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-    - name: Build binary
-      run: make build
-
-    # scripts/e2e-test.sh is the real native-flavor e2e: init, two APIs,
-    # update/adopt/create-test lifecycle, ownership-header checks. It also has
+    # `make e2e-native` (`scripts/e2e-native.sh`) is the real native-flavor e2e: init, two APIs,
+    # update/adopt/create-test lifecycle, generated-header checks. It also has
     # a step 12 that runs the generated provider's own uptest+chainsaw suite
     # against a kind cluster — minutes of Docker/cluster time that doesn't
     # belong on every PR, so it's skipped explicitly here rather than relying
@@ -109,4 +106,4 @@ jobs:
     - name: Run native E2E test (Docker-dependent step skipped)
       env:
         E2E_SKIP_DOCKER: "1"
-      run: ./scripts/e2e-test.sh
+      run: make e2e-native

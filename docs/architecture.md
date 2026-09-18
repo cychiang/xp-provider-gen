@@ -23,7 +23,7 @@ pkg/plugins/crossplane/v2/
 pkg/templates/                  Embedded template filesystem (go:embed) + loader
 pkg/versions/                   Dependency manifest (single source of truth for generated go.mod)
 pkg/version/                    The CLI's own version (distinct from pkg/versions/)
-scripts/                        e2e-test.sh, e2e-upjet.sh, upgrade-sim.sh, assert-layout.sh, lib.sh
+scripts/                        e2e-native.sh, e2e-upjet.sh, e2e-upgrade.sh, assert-layout.sh, lib.sh, check-go-version
 ```
 
 ## 1. Entry point & command flow
@@ -52,7 +52,7 @@ the project's flavor from PROJECT and renders, validates and finalizes with that
 - **`plugin.go`** — `Plugin` implements Kubebuilder's `plugin.Full`, advertises config v3 /
   plugin v2, returns the init and create-api subcommands.
 - **`init.go`** — binds `--domain`, `--repo`, `--git-name`, `--git-email`, plus (for `--upjet`)
-  the five `--terraform-*` coordinates validated by `upjetSettings`; validates inputs; resolves
+  four `--terraform-*` flags validated by `upjetSettings`; validates inputs; resolves
   git author (CLI flags > system git config > defaults); delegates scaffolding to
   `scaffold.NewInitScaffolder(cfg, flavor, upjet)`, which renders the flavor's init templates
   plus its generators; runs the init pipeline. Propagates pipeline errors (fails loudly).
@@ -80,14 +80,14 @@ Reusable, side-effecting building blocks with no template knowledge:
   `GROUP`/`VERSION`/`KIND`/`IMAGENAME`). Pure functions — there is no state to carry.
 - **`ownership.go`** — the **ownership gate**: `GeneratedHeader`, `IsToolOwned(content)`, and
   `DecideWrite(exists, existing) → Seed | Overwrite | Skip`. This is the rule that lets `update`
-  refresh tool files while never clobbering user files (§6).
+  refresh tool-owned files while never clobbering user-owned files (§6).
 
 ## 4. Template engine (`pkg/plugins/crossplane/v2/templates/engine/`)
 
 The engine turns embedded `.tmpl` files into Kubebuilder template products. Its defining
 trait is **auto-discovery**: templates are found by walking the embedded filesystem at factory
 init, not registered by hand. ([templates.md](templates.md) is the contributor-facing guide
-to adding one — placeholders, the ownership header, the golden-test step.)
+to adding one — placeholders, the generated header, the golden-test step.)
 
 - **Discovery** — `autodiscovery.go` classifies each template by its path placeholders:
   `GROUP`/`VERSION`/`KIND` mean per-kind (`APICategory`), `IMAGENAME` or none mean
@@ -136,8 +136,11 @@ fully committed.
 
 - **`steps.go`** — `Step` interface (`Name`, `Execute`); steps: `GitInitStep`, `GitCommitStep`
   (or, via `NewGitFoldCommitStep`, folded into the scaffold commit), `GitSubmoduleStep`,
-  `MakeStep(target)`, `GoModTidyStep`, `ExecutableBitStep` (machinery
-  writes 0644; uptest execs `test/setup.sh`, so the bit is set and committed at scaffold time).
+  `MakeStep(target)`, `GoModDownloadStep` (populates go.sum before `make generate` has run —
+  an upjet init can't `go mod tidy` yet), `GoModTidyStep`, `ExecutableBitStep` (machinery
+  writes 0644; uptest execs `test/setup.sh`, so the bit is set and committed at scaffold time),
+  `StreamingCommandStep` (runs a command with output streamed live, for steps that take
+  minutes — e.g. `update`'s finalize).
 - **`pipeline.go`** — `InitPipelineFor(flavor, ...)` and `APICommitPipelineFor(flavor, ...)`
   are the one place `init` and `create api` choose a pipeline for a project's flavor,
   mirroring `UpdateFinalizePipelineFor` (see below). The native pipeline runs git init →
@@ -196,8 +199,8 @@ overwrite.
    (`projectmeta.go`); only an empty flavor reads as native.
 2. **Render** the flavor's full template set into an in-memory FS (`afero.NewMemMapFs`); upjet
    renders with the settings PROJECT keeps (`WithUpjet`).
-3. **Reconcile** onto disk through `core.DecideWrite` (tool files overwritten, user files
-   skipped, new files seeded). On an upjet project a missing user-owned file is not seeded —
+3. **Reconcile** onto disk through `core.DecideWrite` (tool-owned files overwritten, user-owned
+   files skipped, new files seeded). On an upjet project a missing user-owned file is not seeded —
    some such templates need init-time Terraform settings PROJECT does not keep, so none are
    recreated — and is listed instead.
 4. **Bump dependencies** from the flavor's manifest set via `go get` (go.mod's own requires
@@ -208,7 +211,7 @@ overwrite.
 
 **`update --adopt`** retrofits a provider generated before the contract existed: it writes the
 header onto recognized tool-owned files (so plain `update` can manage them) and stamps
-provenance. User files are never adopted.
+provenance. User-owned files are never adopted.
 
 ## 8. Validation, templates & the dependency manifest
 

@@ -51,3 +51,6 @@ jobs:
           git diff go.mod go.sum
           exit 1
         fi
+
+    - name: Check repo consistency conventions
+      run: make check-consistency

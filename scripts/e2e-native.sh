@@ -1,12 +1,13 @@
 #!/bin/bash
-
-set -e
+# End-to-end test for the native flavor: init, two APIs, the update/adopt/
+# create-test lifecycle, and the generated provider's own uptest+chainsaw e2e.
+set -euo pipefail
 
 # Configuration
-TEST_DIR="/tmp/provider-template"
+TEST_DIR="/tmp/xpg-e2e-native"
 # The update/adopt lifecycle tests run on a throwaway COPY so TEST_DIR is left as
 # the pristine, single-commit scaffold for inspection.
-LIFECYCLE_DIR="/tmp/provider-template-lifecycle"
+LIFECYCLE_DIR="/tmp/xpg-e2e-native-lifecycle"
 DOMAIN="template.crossplane.io"
 REPO="github.com/example/provider-template"
 GROUP="sample"
@@ -21,12 +22,6 @@ BINARY_PATH="$PROJECT_ROOT/bin/xp-provider-gen"
 
 # shellcheck source=scripts/lib.sh
 source "$SCRIPT_DIR/lib.sh"
-
-step_header() {
-    echo -e "\n${BLUE}========================================${NC}"
-    echo -e "${BLUE} Step $1: $2${NC}"
-    echo -e "${BLUE}========================================${NC}"
-}
 
 # Step 12 (the generated provider's own uptest + chainsaw e2e) needs a running
 # Docker daemon. Most CI runners (including GitHub's ubuntu-latest) already
@@ -120,7 +115,7 @@ assert_ownership() {
     done
 
     [[ $failed -eq 0 ]] || return 1
-    log_success "Ownership headers correct"
+    log_success "Generated headers correct"
 }
 
 assert_clean_tree() {
@@ -362,7 +357,7 @@ step_final_verification() {
     find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "Makefile" -o -name "go.mod" \) |
         sort |
         head -20 |
-        sed 's/^/  /'
+        sed 's/^/  /' || true
 
     if [[ $(find . -type f \( -name "*.go" -o -name "*.yaml" \) | wc -l) -gt 20 ]]; then
         echo "  ... and more files"
@@ -419,17 +414,17 @@ step_provider_e2e() {
 
 step_summary() {
     echo
-    step_header "✅" "E2E Test Summary"
+    step_header "✅" "Native E2E Test Summary"
     log_success "✅ Generated provider's own e2e (uptest + chainsaw): ${PROVIDER_E2E_RESULT}"
     log_success "✅ scaffolded test runs against the live provider: ${CREATE_TEST_LIVE_RESULT}"
     echo
-    log_success "🎉 All E2E tests completed successfully!"
+    log_success "🎉 All native E2E tests completed successfully!"
     log_info "Pristine scaffold (single 'Initial commit', clean tree) at: $TEST_DIR"
     log_info "  inspect with:  git -C $TEST_DIR log --oneline && git -C $TEST_DIR status"
 }
 
 main() {
-    log_info "Starting local E2E test for xp-provider-gen"
+    log_info "Starting local native E2E test for xp-provider-gen"
     log_info "Test directory: $TEST_DIR"
     log_info "Domain: $DOMAIN"
     log_info "Repository: $REPO"
@@ -459,10 +454,10 @@ main() {
 
 
 # Handle script arguments
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "Usage: $0"
     echo
-    echo "This script runs a comprehensive E2E test for xp-provider-gen:"
+    echo "This script runs a comprehensive native-flavor E2E test for xp-provider-gen:"
     echo "   1. Prepare test folder"
     echo "   2. Initialize provider project"
     echo "   3. Test initial build targets"
@@ -493,7 +488,7 @@ on_exit() {
     # The lifecycle copy is always throwaway.
     rm -rf "$LIFECYCLE_DIR"
     if [[ $exit_code -ne 0 ]]; then
-        log_error "E2E test failed"
+        log_error "Native E2E test failed"
         log_info "Cleaning up incomplete test directory..."
         rm -rf "$TEST_DIR"
     fi

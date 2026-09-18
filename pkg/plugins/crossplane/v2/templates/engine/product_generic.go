@@ -47,7 +47,7 @@ func (t *GenericTemplateProduct) SetTemplateDefaults() error {
 	}
 	body, err := templates.TemplateFS.ReadFile(t.templatePath)
 	if err != nil {
-		return fmt.Errorf("failed to load template %s: %w", t.templatePath, err)
+		return fmt.Errorf("loading template %s: %w", t.templatePath, err)
 	}
 	t.TemplateBody = string(body)
 	return nil

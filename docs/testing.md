@@ -1,7 +1,7 @@
 # Testing
 
 This page covers the **automated** suites: fast Go unit tests, a full end-to-end scaffold
-test, an upgrade simulation, and an upjet-flavor e2e — four layers, all run by `make`
+test, an upgrade e2e, and an upjet-flavor e2e — four layers, all run by `make`
 targets and wired into CI. For a **manual** walkthrough of the same surfaces — reproducing
 a bug report, sanity-checking a change by hand, or seeing what a provider author actually
 experiences — see [docs/manual-testing.md](manual-testing.md).
@@ -52,11 +52,11 @@ name-keyed map silently drops a file.
 
 Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 
-## End-to-end test
+## Native-flavor e2e (`make e2e-native`)
 
-`scripts/e2e-test.sh` (run via `make e2e-test`) exercises the real generator workflow against
-a throwaway project in `/tmp/provider-template`. The expected file layout lives in
-`scripts/assert-layout.sh`, called by `e2e-test.sh` at each scaffolding stage (and by
+`scripts/e2e-native.sh` (run via `make e2e-native`) exercises the real generator workflow against
+a throwaway project in `/tmp/xpg-e2e-native`. The expected file layout lives in
+`scripts/assert-layout.sh`, called by `e2e-native.sh` at each scaffolding stage (and by
 `e2e-upjet.sh --upjet` after init) — edit that when the scaffold gains or loses a file:
 
 The script is one function per numbered step (`step_prepare_dir`, `step_init`, ...), called
@@ -71,7 +71,7 @@ in order from `main`; `--help` lists the same steps:
 6. Build targets after both APIs; verify the generated CRDs and examples; **Ownership
    contract:** assert tool-owned files (`register.go`, `wiring.go`,
    `internal/provider/connector.go`, `main.go`, `config.go`, `docs/ownership.md`) carry the
-   `DO NOT EDIT` header, and that user files (`external.go`, `internal/provider/client.go`,
+   `DO NOT EDIT` header, and that user-owned files (`external.go`, `internal/provider/client.go`,
    `internal/provider/options.go`, `*_types.go`, `apis/v1alpha1/types.go`, `AGENTS.md`) do not;
    **assert the tree is clean again** and that init + create api folded into a single
    `Initial commit`.
@@ -79,8 +79,8 @@ in order from `main`; `--help` lists the same steps:
    files and commit, run `update`, then assert (a) every marker survives, (b) `wiring.go`,
    `connector.go` and `docs/ownership.md` are refreshed with headers intact, (c) seed-once
    `AGENTS.md` is untouched, (d) `update` refuses a dirty tree. Steps 7–10 run against a copy
-   of the scaffold at `/tmp/provider-template-lifecycle` (`LIFECYCLE_DIR`), so the pristine
-   `/tmp/provider-template` keeps its single `Initial commit`.
+   of the scaffold at `/tmp/xpg-e2e-native-lifecycle` (`LIFECYCLE_DIR`), so the pristine
+   `/tmp/xpg-e2e-native` keeps its single `Initial commit`.
 8. **`create api --force`:** mark a tool-owned file (`wiring.go`) and a user-owned one
    (`external.go`), commit, then re-run `create api` for the same kind with `--force` and
    assert (a) it exits 0, (b) the tool-owned marker is gone (regenerated), (c) the
@@ -101,27 +101,27 @@ in order from `main`; `--help` lists the same steps:
 
 The `--force`/`--adopt`/dirty-tree assertions (steps 8, 9, and the dirty-tree check inside
 step 7) and `docker_skip_requested` live in `scripts/lib.sh`, shared with `e2e-upjet.sh` and
-`upgrade-sim.sh` — see that file for the shared helpers.
+`e2e-upgrade.sh` — see that file for the shared helpers.
 
-`/tmp/provider-template`, the scaffold this leaves behind, is kept only when the run succeeds
+`/tmp/xpg-e2e-native`, the scaffold this leaves behind, is kept only when the run succeeds
 (a failure removes it so the next run starts clean) — the next run recreates it either way:
 
 ```bash
-make e2e-test            # build + run
-./scripts/e2e-test.sh -h # usage
+make e2e-native            # build + run
+./scripts/e2e-native.sh -h # usage
 ```
 
 Run the e2e test whenever you change templates, the template engine, or the automation
 pipeline — unit tests alone do not catch broken generated output.
 
-## Upgrade-path simulation (`make upgrade-sim`)
+## Upgrade e2e (`make e2e-upgrade`)
 
-`scripts/upgrade-sim.sh` covers a gap the e2e cannot: e2e step 7 runs `update` with
+`scripts/e2e-upgrade.sh` covers a gap the e2e cannot: e2e step 7 runs `update` with
 the **same** generator, so tool-owned files come out byte-identical and it can only
-prove that user files survive — never that tool-owned files actually receive a new
+prove that user-owned files survive — never that tool-owned files actually receive a new
 generator's changes.
 
-The simulation scaffolds a provider, writes **real** logic into every user-owned seam
+The upgrade e2e scaffolds a provider, writes **real** logic into every user-owned seam
 (an HTTP client reading a user-added `ProviderConfigSpec` field, a `--region` flag
 with validation, custom `ReconcilerOptions` and observe logic) plus unit tests that
 pin that behavior, commits it, then
@@ -129,7 +129,9 @@ mutates the tool-owned templates to stand in for a new generator version, rebuil
 and runs `update`. It asserts:
 
 - no user-owned file appears in the update diff,
-- both tool-owned files received the simulated change,
+- all three tool-owned files (`internal/provider/connector.go`,
+  `internal/controller/instance/wiring.go`, `hack/xp-provider-gen.mk`) received the
+  simulated change,
 - every piece of user logic is still present,
 - the upgraded provider still generates, lints and builds (`make generate`, `make lint`,
   `make build`),
@@ -137,9 +139,9 @@ and runs `update`. It asserts:
   results, so the upgrade changed plumbing, not semantics,
 - the user's `--region` flag still appears in the rebuilt binary's `--help`.
 
-It restores the templates it mutated. **Run it before shipping a framework bump.**
+It restores the templates it mutated. **Run it before shipping a generator bump.**
 
-`/tmp/upgrade-sim`, its temp project, is left in place after each run, whether it succeeded or
+`/tmp/xpg-e2e-upgrade`, its temp project, is left in place after each run, whether it succeeded or
 failed, for inspection; the next run removes and recreates it before scaffolding.
 
 ## Upjet-flavor e2e (`make e2e-upjet`)
@@ -166,7 +168,7 @@ which need Docker:
 - **`--adopt`:** strip `config/provider.go`'s header to simulate a pre-contract provider,
   run `update --adopt`, and assert it reports adopting exactly one file and that
   `git diff --name-only` contains `config/provider.go` and, optionally, `PROJECT` (adopt
-  stamps a generator version there, but stage 6's own `update` may already have stamped
+  stamps a generator version there, but step 6's own `update` may already have stamped
   the same value).
 - **Dirty-tree refusal:** leave an uncommitted change and assert `update` refuses it,
   citing the working tree.
@@ -189,7 +191,7 @@ with `E2E_SKIP_DOCKER` set, same as the native e2e's step 12), it then:
 That is the only test that proves the config files this tool scaffolds satisfy
 upjet's contract; a unit test cannot, because the contract is upjet's generator.
 It needs network access and takes several minutes, so it is a separate target
-rather than part of `make e2e-test`.
+rather than part of `make e2e-native`.
 
 ## In CI
 
@@ -197,8 +199,8 @@ See [.github/WORKFLOWS.md](../.github/WORKFLOWS.md) for the full list; the layer
 
 - `test.yml` — unit tests with coverage, plus the native e2e with its Docker-dependent step 12
   skipped (`E2E_SKIP_DOCKER=1`), on every push/PR.
-- `e2e-native-full.yml` — the same native e2e with step 12 included, plus `make upgrade-sim`;
+- `e2e-native-full.yml` — the same native e2e with step 12 included, plus `make e2e-upgrade`;
   daily and on PRs touching the surfaces they exercise.
 - `e2e-upjet.yml` — the upjet e2e; daily and on PRs touching the upjet flavor.
 - `go-version.yml` — `make check-go-version`, on every push/PR.
-- `lint.yml` / `ci.yml` — linting, gosec, and Trivy scanning, on every push/PR.
+- `lint.yml` / `security.yml` — linting, gosec, and Trivy scanning, on every push/PR.

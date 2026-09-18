@@ -1,20 +1,21 @@
 #!/bin/bash
 # Asserts the generated provider's file layout. This is the single source of
-# truth for which files a scaffold must contain — called from scripts/e2e-test.sh
+# truth for which files a scaffold must contain — called from scripts/e2e-native.sh
 # at each scaffolding stage, and from scripts/e2e-upjet.sh after init.
 #
 # Usage:
 #   assert-layout.sh [--upjet] <project-dir>                          base layout (after init)
 #   assert-layout.sh <project-dir> <group> <version> <Kind>           native: base + per-kind files
-set -e
+set -euo pipefail
 
 flavor=native
-if [ "$1" = "--upjet" ]; then
+if [ "${1:-}" = "--upjet" ]; then
     flavor=upjet
     shift
 fi
 
-dir="$1"
+dir="${1:-}"
+[ -n "$dir" ] || { echo "usage: assert-layout.sh [--upjet] <project-dir> [<group> <version> <Kind>]" >&2; exit 1; }
 group="${2:-}"
 version="${3:-}"
 kind="${4:-}"

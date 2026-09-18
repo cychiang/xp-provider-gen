@@ -33,7 +33,7 @@ BINARY=xp-provider-gen
 # provider's hack/xp-provider-gen.mk.tmpl (both flavors).
 GOLANGCILINT_VERSION = 2.13.2
 
-.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-test upgrade-sim check-go-version
+.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-native e2e-upjet e2e-upgrade check-go-version check-consistency
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -42,10 +42,10 @@ help: ## Show this help message
 	@grep -E '^(build|clean):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Testing:"
-	@grep -E '^(test|coverage|e2e-test|e2e-upjet|upgrade-sim):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@grep -E '^(test|coverage|e2e-native|e2e-upjet|e2e-upgrade):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Code Quality:"
-	@grep -E '^(fmt|vet|lint|lint-fix|gosec|check|reviewable):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@grep -E '^(fmt|vet|lint|lint-fix|gosec|check|check-consistency|reviewable):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Dependencies:"
 	@grep -E '^(mod-tidy|mod-verify|check-go-version):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -71,16 +71,16 @@ coverage: ## Generate test coverage report
 	$(GOCMD) tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
 	@echo "Coverage report generated: $(COVERAGE_DIR)/coverage.html"
 
-e2e-test: build ## Run local end-to-end test
-	@echo "Running local E2E test..."
-	@./scripts/e2e-test.sh
+e2e-native: build ## Run the native-flavor end-to-end test
+	@echo "Running native-flavor E2E test..."
+	@./scripts/e2e-native.sh
 
 e2e-upjet: build ## Run the upjet-flavor end-to-end test (network, several minutes)
 	@./scripts/e2e-upjet.sh
 
-upgrade-sim: build ## Simulate a generator version bump against a provider with real user logic
-	@echo "Running upgrade-path simulation..."
-	@./scripts/upgrade-sim.sh
+e2e-upgrade: build ## Run a generator version bump against a provider with real user logic (native flavor)
+	@echo "Running upgrade-path E2E test..."
+	@./scripts/e2e-upgrade.sh
 
 fmt: ## Format Go code
 	$(GOCMD) fmt ./...
@@ -113,10 +113,13 @@ mod-verify: ## Verify go mod dependencies
 check-go-version: ## Verify go.mod/Dockerfile agree with pkg/versions/dependencies.yaml's go_version (network)
 	$(GOCMD) run ./scripts/check-go-version
 
+check-consistency: ## Assert the repo's naming, skeleton and terminology conventions
+	@./hack/check-consistency.sh
+
 check: fmt vet lint gosec test ## Run all quality checks (format, vet, lint, security, test)
 	@echo "All quality checks passed!"
 
-reviewable: mod-tidy check ## Run all checks to make code reviewable
+reviewable: mod-tidy check check-consistency ## Run all checks to make code reviewable
 	@echo "Code is ready for review!"
 
 lint-fix: lint-install ## Run golangci-lint with auto-fixing

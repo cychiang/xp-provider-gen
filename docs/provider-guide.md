@@ -251,7 +251,7 @@ precondition exists.
 ### Adopting an older provider
 
 A provider generated before the ownership contract existed has no headers, so
-`update` cannot tell tool files from yours. Run this once:
+`update` cannot tell tool-owned files from yours. Run this once:
 
 ```bash
 xp-provider-gen update --adopt   # adds headers to recognised tool-owned files
