@@ -35,8 +35,8 @@ Prerequisites (Go version, gosec, Docker for e2e) are in
 | `make reviewable` | mod-tidy + fmt/vet/lint/gosec/test — the same checks CI enforces |
 | `make help` | List all targets |
 
-Both e2e scripts skip their Docker-dependent stage — not fail — when Docker is
-unavailable or `E2E_SKIP_DOCKER=1` is set. See [docs/testing.md](docs/testing.md)
+`e2e-native.sh` and `e2e-upjet.sh` skip their Docker-dependent step — not fail — when
+Docker is unavailable or `E2E_SKIP_DOCKER=1` is set. See [docs/testing.md](docs/testing.md)
 for what each script covers, and
 [docs/manual-testing.md](docs/manual-testing.md) for a step-by-step guide to
 reproducing the same surfaces by hand.

@@ -357,7 +357,7 @@ step_final_verification() {
     find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "Makefile" -o -name "go.mod" \) |
         sort |
         head -20 |
-        sed 's/^/  /'
+        sed 's/^/  /' || true
 
     if [[ $(find . -type f \( -name "*.go" -o -name "*.yaml" \) | wc -l) -gt 20 ]]; then
         echo "  ... and more files"

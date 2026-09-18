@@ -38,7 +38,7 @@ jobs:
     # Step 10 of e2e-upjet.sh stands up a real kind cluster, installs
     # Crossplane, deploys the built provider, and runs the generated
     # provider's own e2e (its uptest lifecycle, then its chainsaw suite).
-    # This workflow's runner has a Docker daemon, so that stage would run
+    # This workflow's runner has a Docker daemon, so that step would run
     # whether or not this variable is set — E2E_SKIP_DOCKER=0 makes running
     # it here an explicit choice, not a side effect of leaving the variable
     # unset (which is exactly the kind of accidental trigger this repo has

@@ -328,7 +328,7 @@ cp pkg/templates/files/hack/xp-provider-gen.mk.tmpl "$AUX/xp-provider-gen.mk.bak
 # fires on every exit path, and a mid-run cleanup would delete the very
 # backups this restore needs.
 restore_templates() {
-    log_info "=== Restore generator templates ==="
+    section_header "Restore generator templates"
     cp "$AUX/connector.bak" "$REPO/pkg/templates/files/internal/provider/connector.go.tmpl"
     cp "$AUX/wiring.bak" "$REPO/pkg/templates/files/internal/controller/KIND/wiring.go.tmpl"
     cp "$AUX/xp-provider-gen.mk.bak" "$REPO/pkg/templates/files/hack/xp-provider-gen.mk.tmpl"
@@ -337,7 +337,7 @@ restore_templates() {
 }
 trap restore_templates EXIT
 
-# A framework change lands in tool-owned code only.
+# A generator change lands in tool-owned code only.
 python3 - <<'PY'
 import pathlib
 p = pathlib.Path("pkg/templates/files/internal/provider/connector.go.tmpl")
@@ -424,7 +424,9 @@ step_header 9 "Behavior unchanged after upgrade?"
 if go test ./... >/dev/null 2>&1; then
     log_success "  ✓ behavioral tests pass after upgrade"
 else
-    log_error "  ✗ behavioral tests FAIL after upgrade"; go test ./... | tail -20; FAIL=1
+    log_error "  ✗ behavioral tests FAIL after upgrade"
+    go test ./... | tail -20 || true
+    FAIL=1
 fi
 if go build -o "$AUX/provider" ./cmd/provider &&
    grep -q -- '--region' <<<"$("$AUX/provider" --help 2>&1)"; then

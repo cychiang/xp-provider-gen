@@ -28,7 +28,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "real upjet pipeline (make generate) and the generated provider's own e2e."
     echo
     echo "Env vars:"
-    echo "  E2E_SKIP_DOCKER  Skip the Docker-dependent live-cluster stage (step 10),"
+    echo "  E2E_SKIP_DOCKER  Skip step 10 (the Docker-dependent live-cluster e2e),"
     echo "                   even if a docker daemon is available."
     exit 0
 fi
@@ -381,6 +381,6 @@ else
   LIFECYCLE="(generated provider's own e2e SKIPPED)"
 fi
 
-log_info "=== Summary ==="
+section_header "Summary"
 log_success "✅ upjet e2e passed: scaffold → configure → generate → build → run ${LIFECYCLE}"
 echo "   provider left at $DIR for inspection"
