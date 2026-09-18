@@ -39,8 +39,6 @@ func NewInitScaffolder(config config.Config, flavor core.Flavor, upjet *core.Upj
 }
 
 func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
-	fmt.Printf("Scaffolding Crossplane provider project structure...\n")
-
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(s.config),
 		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
@@ -50,7 +48,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 
 	initTemplates, err := factory.GetInitTemplates(engine.WithUpjet(s.upjet))
 	if err != nil {
-		return fmt.Errorf("failed to get init templates: %w", err)
+		return fmt.Errorf("getting init templates: %w", err)
 	}
 
 	allTemplates := engine.AsBuilders(initTemplates)
@@ -63,10 +61,8 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	allTemplates = append(allTemplates, engine.NewGoModGenerator(s.config.GetRepository(), deps))
 
 	if err := scaffold.Execute(allTemplates...); err != nil {
-		return fmt.Errorf("error scaffolding Crossplane provider project: %w", err)
+		return fmt.Errorf("scaffolding Crossplane provider project: %w", err)
 	}
-
-	fmt.Printf("Crossplane provider project scaffolded successfully!\n")
 
 	return nil
 }

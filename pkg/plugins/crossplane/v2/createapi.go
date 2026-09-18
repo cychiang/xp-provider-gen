@@ -163,11 +163,6 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		return validation.CreateAPIError("scaffolding", err)
 	}
 
-	fmt.Printf("Successfully scaffolded Crossplane managed resource %s\n", p.resource.Kind)
-	if p.meta.Flavor == core.FlavorUpjet {
-		fmt.Printf("Configured %s in config/%s/config.go. Run 'make generate' to generate its API types and controller.\n",
-			p.terraformResource, strings.ToLower(p.resource.Kind))
-	}
 	return nil
 }
 
@@ -181,6 +176,9 @@ func (p *createAPISubcommand) PostScaffold() error {
 	}
 
 	fmt.Printf("Crossplane managed resource %s created successfully!\n", p.resource.Kind)
+	if p.meta.Flavor == core.FlavorUpjet {
+		fmt.Printf("Configured %s in config/%s/config.go.\n", p.terraformResource, strings.ToLower(p.resource.Kind))
+	}
 	fmt.Printf("Next steps:\n")
 	if p.meta.Flavor == core.FlavorUpjet {
 		fmt.Printf("  1. Run 'make generate' to generate its API types and controller\n")
