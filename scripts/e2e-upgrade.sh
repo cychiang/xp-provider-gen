@@ -9,11 +9,11 @@
 #
 # This covers a gap in scripts/e2e-native.sh: that script runs `update` with the
 # SAME generator, so tool-owned files come out byte-identical and it can only
-# prove user files survive. This proves the other direction too — that tool-owned
+# prove user-owned files survive. This proves the other direction too — that tool-owned
 # files actually receive a new generator's changes.
 #
-# Run before shipping a framework bump. Restores the templates it mutates.
-set -e
+# Run before shipping a generator bump. Restores the templates it mutates.
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(dirname "$SCRIPT_DIR")"
@@ -23,6 +23,16 @@ B="$REPO/bin/xp-provider-gen"
 
 # shellcheck source=scripts/lib.sh
 source "$SCRIPT_DIR/lib.sh"
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    echo "Usage: $0"
+    echo
+    echo "Upgrade E2E test: scaffolds a provider, writes real logic into every"
+    echo "user-owned seam, simulates a new generator version by mutating tool-owned"
+    echo "templates, then runs 'xp-provider-gen update' and asserts user logic"
+    echo "survives while tool-owned files receive the simulated change."
+    exit 0
+fi
 
 # apache_header prints the Apache 2.0 file header written into every
 # user-owned seam file below — inlined four times here as literal Go source,
@@ -48,7 +58,7 @@ limitations under the License.
 EOF
 }
 
-log_info "=== 1. Scaffold with the current generator ==="
+step_header 1 "Scaffold with the current generator"
 rm -rf "$DIR" && mkdir -p "$DIR"
 rm -rf "$AUX" && mkdir -p "$AUX"
 cd "$DIR"
@@ -56,7 +66,7 @@ $B init --domain=acme.io --repo=github.com/example/provider-acme >/dev/null 2>&1
 $B create api --group=compute --version=v1alpha1 --kind=Instance >/dev/null 2>&1
 log_success "scaffolded at $DIR"
 
-log_info "=== 2. Write REAL user logic into every user-owned seam ==="
+step_header 2 "Write REAL user logic into every user-owned seam"
 
 # ProviderConfig gains a user field
 python3 - <<'PY'
@@ -287,21 +297,26 @@ git add -A && git commit -q -m "feat: real ACME provider logic"
 BEFORE=$(git rev-parse HEAD)
 log_success "committed user logic at $BEFORE"
 
-log_info "=== 3. Baseline behavior: seam tests + flag reachability ==="
+step_header 3 "Baseline behavior: seam tests + flag reachability"
 if go test ./... >/dev/null 2>&1; then
     log_success "  ✓ behavioral tests pass before upgrade"
 else
-    log_error "  ✗ behavioral tests FAIL before upgrade — harness broken"; go test ./...; exit 1
+    log_error "  ✗ behavioral tests FAIL before upgrade — harness broken"
+    go test ./...
+    exit 1
 fi
-go build -o "${DIR}-provider" ./cmd/provider
-if "${DIR}-provider" --help 2>&1 | grep -q -- '--region'; then
+go build -o "$AUX/provider" ./cmd/provider
+if grep -q -- '--region' <<<"$("$AUX/provider" --help 2>&1)"; then
     log_success "  ✓ user flag --region reachable before upgrade"
 else
-    log_error "  ✗ user flag --region missing before upgrade — harness broken"; exit 1
+    log_error "  ✗ user flag --region missing before upgrade — harness broken"
+    exit 1
 fi
 
-log_info "=== 4. Simulate a NEW generator version (change tool-owned templates) ==="
+step_header 4 "Simulate a NEW generator version (change tool-owned templates)"
 cd "$REPO"
+git diff --quiet -- pkg/templates ||
+  fail "pkg/templates is dirty — git checkout it before running"
 cp pkg/templates/files/internal/provider/connector.go.tmpl "$AUX/connector.bak"
 cp pkg/templates/files/internal/controller/KIND/wiring.go.tmpl "$AUX/wiring.bak"
 cp pkg/templates/files/hack/xp-provider-gen.mk.tmpl "$AUX/xp-provider-gen.mk.bak"
@@ -347,36 +362,42 @@ PY
 make build >/dev/null 2>&1
 log_success "generator v2 built"
 
-log_info "=== 5. Run update in the provider ==="
+step_header 5 "Run update in the provider"
 cd "$DIR"
-$B update >/dev/null 2>&1 && log_success "update completed" || { log_error "update FAILED"; exit 1; }
+if $B update >/dev/null 2>&1; then
+    log_success "update completed"
+else
+    log_error "update FAILED"
+    exit 1
+fi
 
-log_info "=== 6. What did the update diff touch? ==="
+step_header 6 "What did the update diff touch?"
 git diff --stat | sed 's/^/  /'
 
-log_info "=== 7. Verdict ==="
+step_header 7 "Verdict"
 FAIL=0
+DIFF_NAMES="$(git diff --name-only)"
 for f in internal/provider/client.go internal/provider/options.go \
          internal/controller/instance/external.go apis/v1alpha1/types.go AGENTS.md Makefile; do
-    if git diff --name-only | grep -qx "$f"; then
-        log_error "  ✗ USER FILE MODIFIED: $f"; FAIL=1
+    if grep -qx "$f" <<<"$DIFF_NAMES"; then
+        log_error "  ✗ USER-OWNED FILE MODIFIED: $f"; FAIL=1
     else
-        log_success "  ✓ user file untouched: $f"
+        log_success "  ✓ user-owned file untouched: $f"
     fi
 done
 
 for f in internal/provider/connector.go internal/controller/instance/wiring.go hack/xp-provider-gen.mk; do
     if grep -q "SIMULATED-V2-CHANGE" "$f"; then
-        log_success "  ✓ tool file received the v2 change: $f"
+        log_success "  ✓ tool-owned file received the v2 change: $f"
     else
-        log_error "  ✗ tool file did NOT receive the v2 change: $f"; FAIL=1
+        log_error "  ✗ tool-owned file did NOT receive the v2 change: $f"; FAIL=1
     fi
 done
 
 # The make fragment is how build pipeline fixes reach an existing provider: it
 # must stay tool-owned and show up in the update's diff.
 if grep -q "Code generated by xp-provider-gen. DO NOT EDIT." hack/xp-provider-gen.mk &&
-   git diff --name-only | grep -qx "hack/xp-provider-gen.mk"; then
+   grep -qx "hack/xp-provider-gen.mk" <<<"$DIFF_NAMES"; then
     log_success "  ✓ hack/xp-provider-gen.mk carries the header and was refreshed by update"
 else
     log_error "  ✗ hack/xp-provider-gen.mk lost its header or was not refreshed"; FAIL=1
@@ -391,7 +412,7 @@ else
     log_error "  ✗ user logic was lost"; FAIL=1
 fi
 
-log_info "=== 8. Does the upgraded provider still build? ==="
+step_header 8 "Does the upgraded provider still build?"
 # generate+lint+build; step 9 is the single post-upgrade test run
 if make generate >/dev/null 2>&1 && make lint >/dev/null 2>&1 && make build >/dev/null 2>&1; then
     log_success "  ✓ upgraded provider generates, lints and builds"
@@ -399,14 +420,14 @@ else
     log_error "  ✗ upgraded provider does not build"; FAIL=1
 fi
 
-log_info "=== 9. Behavior unchanged after upgrade? ==="
+step_header 9 "Behavior unchanged after upgrade?"
 if go test ./... >/dev/null 2>&1; then
     log_success "  ✓ behavioral tests pass after upgrade"
 else
     log_error "  ✗ behavioral tests FAIL after upgrade"; go test ./... | tail -20; FAIL=1
 fi
-if go build -o "${DIR}-provider" ./cmd/provider &&
-   "${DIR}-provider" --help 2>&1 | grep -q -- '--region'; then
+if go build -o "$AUX/provider" ./cmd/provider &&
+   grep -q -- '--region' <<<"$("$AUX/provider" --help 2>&1)"; then
     log_success "  ✓ user flag --region still reachable after upgrade"
 else
     log_error "  ✗ user flag --region lost after upgrade"; FAIL=1

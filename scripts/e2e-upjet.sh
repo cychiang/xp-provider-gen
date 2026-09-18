@@ -20,9 +20,22 @@ AUX=/tmp/xpg-e2e-upjet-aux
 # shellcheck source=scripts/lib.sh
 source "$SCRIPT_DIR/lib.sh"
 
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    echo "Usage: $0"
+    echo
+    echo "End-to-end test for the upjet flavor: scaffolds a provider wrapping"
+    echo "hashicorp/kubernetes, configures resources with create api, then runs the"
+    echo "real upjet pipeline (make generate) and the generated provider's own e2e."
+    echo
+    echo "Env vars:"
+    echo "  E2E_SKIP_DOCKER  Skip the Docker-dependent live-cluster stage (step 10),"
+    echo "                   even if a docker daemon is available."
+    exit 0
+fi
+
 [ -x "$BIN" ] || fail "binary not found at $BIN — run 'make build' first"
 
-log_info "=== 1. Scaffold an upjet provider for hashicorp/kubernetes ==="
+step_header 1 "Scaffold an upjet provider for hashicorp/kubernetes"
 rm -rf "$DIR" && mkdir -p "$DIR"
 rm -rf "$AUX" && mkdir -p "$AUX"
 cd "$DIR"
@@ -34,7 +47,7 @@ log_success "  ✓ scaffolded"
 grep -q 'hashicorp/kubernetes' Makefile || fail "Terraform provider not wired into the Makefile"
 log_success "  ✓ upjet config surface present and wired"
 
-log_info "=== 2. Configure a Terraform resource ==="
+step_header 2 "Configure a Terraform resource"
 "$BIN" create api --group=core --version=v1alpha1 --kind=Secret \
   --terraform-resource=kubernetes_secret >/dev/null
 [ -f config/secret/config.go ] || fail "per-resource config was not created"
@@ -42,14 +55,14 @@ grep -q 'secret.Configure' config/zz_resources.go || fail "resource not wired in
 grep -q 'secret.TerraformResource' config/zz_resources.go || fail "resource missing from the include list"
 log_success "  ✓ kubernetes_secret configured and wired"
 
-log_info "=== 3. Run the upjet generation pipeline (make generate) ==="
+step_header 3 "Run the upjet generation pipeline (make generate)"
 make generate >$AUX/generate.log 2>&1 || {
   tail -20 $AUX/generate.log
   fail "make generate failed"
 }
 log_success "  ✓ generation completed"
 
-log_info "=== 4. Assert upjet produced the provider ==="
+step_header 4 "Assert upjet produced the provider"
 [ -f apis/cluster/core/v1alpha1/zz_secret_types.go ] || fail "API types were not generated"
 [ -f internal/controller/cluster/core/secret/zz_controller.go ] || fail "controller was not generated"
 [ -f apis/cluster/zz_register.go ] || fail "scheme registration was not generated"
@@ -58,14 +71,14 @@ ls package/crds/*secrets.yaml >/dev/null 2>&1 || fail "CRDs were not generated"
 grep -q 'kubernetes' apis/cluster/core/v1alpha1/zz_secret_types.go || fail "generated types do not reflect the provider schema"
 log_success "  ✓ types, controllers, registration and CRDs generated from the real schema"
 
-log_info "=== 5. The generated provider builds ==="
+step_header 5 "The generated provider builds"
 go build ./... >$AUX/build.log 2>&1 || {
   tail -20 $AUX/build.log
   fail "generated provider does not build"
 }
 log_success "  ✓ builds"
 
-log_info "=== 6. update refreshes tool-owned files and seeds no user-owned ones ==="
+step_header 6 "update refreshes tool-owned files and seeds no user-owned ones"
 # update needs a clean tree, so commit what generation produced first. Then make
 # two tool-owned files stale (Go source and the make fragment) and delete one
 # user-owned file: update must refresh the first two and must not re-seed the
@@ -99,7 +112,7 @@ git checkout HEAD~1 -- examples/providerconfig/providerconfig.yaml ||
 git add -A && git commit -qm "Update provider" || fail "could not commit the update"
 log_success "  ✓ update refreshed config/provider.go and hack/xp-provider-gen.mk, did not re-seed the ProviderConfig example, and finalized"
 
-log_info "=== 7. create api --force, update --adopt, and update's dirty-tree refusal ==="
+step_header 7 "create api --force, update --adopt, and update's dirty-tree refusal"
 
 log_info "  --- 7a. create api --force refreshes tool-owned files, preserves user edits ---"
 # Mark a tool-owned file (the resource aggregator) and a user-owned one (the
@@ -133,7 +146,7 @@ log_success "  ✓ adopt restored config/provider.go's header and stamped PROJEC
 log_info "  --- 7c. update refuses a dirty working tree ---"
 assert_update_refuses_dirty "$BIN" config/provider.go
 
-log_info "=== 8. The generated provider starts, not just builds ==="
+step_header 8 "The generated provider starts, not just builds"
 
 log_info "  --- 8a. Provider binary builds via the scaffold's own build system, and --help works ---"
 # Use the scaffold's own "make go.build" (the Docker-free half of "make build")
@@ -254,7 +267,7 @@ else
 fi
 rm -f "$ENVTEST_SETUP_LOG"
 
-log_info "=== 9. Configure the ConfigMap resource and scaffold its own e2e (no Docker needed) ==="
+step_header 9 "Configure the ConfigMap resource and scaffold its own e2e (no Docker needed)"
 "$BIN" create api --group=core --version=v1alpha1 --kind=ConfigMap \
   --terraform-resource=kubernetes_config_map >/dev/null
 make generate >$AUX/configmap-generate.log 2>&1 || {
@@ -295,7 +308,7 @@ log_success "  ✓ wrote examples/core/configmap.yaml (uptest lifecycle input)"
   fail "create-test did not scaffold test/behavior/configmap-basic/chainsaw-test.yaml"
 log_success "  ✓ create-test scaffolded test/behavior/configmap-basic/chainsaw-test.yaml"
 
-log_info "=== 10. The generated provider's own e2e (uptest + chainsaw) against a live cluster ==="
+step_header 10 "The generated provider's own e2e (uptest + chainsaw) against a live cluster"
 if ! docker_skip_requested && docker info >/dev/null 2>&1; then
   LIVE_TEARDOWN_DONE=0
   cleanup_live_cluster() {

@@ -16,6 +16,14 @@ log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 # throughout these scripts.
 fail() { log_error "✗ $1"; exit 1; }
 
+# step_header prints a banner for numbered step N with the given title —
+# the shared step-output format for all three e2e scripts.
+step_header() {
+    echo -e "\n${BLUE}========================================${NC}"
+    echo -e "${BLUE} Step $1: $2${NC}"
+    echo -e "${BLUE}========================================${NC}"
+}
+
 # E2E_SKIP_DOCKER is a real boolean, not a "set means yes" flag: unset, empty,
 # 0/false/no means "do not skip"; anything else (1, true, yes, ...) means
 # "skip". Centralized here so the truthiness test isn't repeated (and doesn't

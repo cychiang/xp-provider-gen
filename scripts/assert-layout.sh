@@ -6,7 +6,7 @@
 # Usage:
 #   assert-layout.sh [--upjet] <project-dir>                          base layout (after init)
 #   assert-layout.sh <project-dir> <group> <version> <Kind>           native: base + per-kind files
-set -e
+set -euo pipefail
 
 flavor=native
 if [ "$1" = "--upjet" ]; then
