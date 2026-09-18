@@ -13,9 +13,9 @@ is the map, not a transcript of them.
 | 🧭 `e2e-native-full.yml` — E2E Native (full) & Upgrade | daily; `workflow_dispatch`; PRs touching the generator/template/version surfaces this exercises | The same native e2e with step 12 included (no `E2E_SKIP_DOCKER`) — the generated provider's own uptest+chainsaw suite against a real kind cluster — plus `make e2e-upgrade` |
 | 🧱 `e2e-upjet.yml` — E2E Upjet | daily; `workflow_dispatch`; PRs touching the upjet flavor's templates/plugin/version surfaces | `scripts/e2e-upjet.sh`: the real upjet generation pipeline (Terraform download, schema read, docs scrape), build, and — with Docker (`E2E_SKIP_DOCKER=0`, explicit) — the generated provider's own e2e |
 | ⚙️ `go-version.yml` — Go version alignment | push/PR to `main`, `develop` | `make check-go-version`: asserts go.mod and the Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version`, and that it's new enough for every pinned dependency |
-| 🔨 `build.yml` — Build Binaries | push/PR to `main`, `develop` | Cross-platform binaries + checksums, builds and smoke-tests the repository `Dockerfile`, uploads artifacts |
-| 🚀 `release.yml` — Release Management | git tags (`v*`) | Full test suite, release binaries, changelog, GitHub release, Docker image push — **not yet exercised: no tags have been cut** (see [SECURITY.md](../SECURITY.md)) |
-| 🔒 `ci.yml` — Security & Additional Checks | push/PR to `main`, `develop` | gosec and Trivy scans; results upload to the repository's Security tab |
+| 🔨 `build.yml` — Build | push/PR to `main`, `develop` | Cross-platform binaries + checksums, builds and smoke-tests the repository `Dockerfile`, uploads artifacts |
+| 🚀 `release.yml` — Release | git tags (`v*`) | Full test suite, release binaries, changelog, GitHub release, Docker image push — **not yet exercised: no tags have been cut** (see [SECURITY.md](../SECURITY.md)) |
+| 🔒 `security.yml` — Security | push/PR to `main`, `develop` | gosec and Trivy scans; results upload to the repository's Security tab |
 
 ## Docker Images
 
