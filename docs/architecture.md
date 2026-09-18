@@ -138,15 +138,18 @@ fully committed.
 - **`steps.go`** — `Step` interface (`Name`, `Execute`); steps: `GitInitStep`, `GitCommitStep`,
   `GitFoldCommitStep`, `GitSubmoduleStep`, `MakeStep(target)`, `GoModTidyStep`, `ExecutableBitStep` (machinery
   writes 0644; uptest execs `test/setup.sh`, so the bit is set and committed at scaffold time).
-- **`pipeline.go`** — `NewInitPipeline()` runs git init → exec bit → submodule →
-  `make submodules` → `go mod tidy` → `make generate` → `make reviewable` → **commit**;
-  `NewAPICommitPipeline()` runs `make generate` → **commit**. `Run()` aborts on the first
-  failure. `NewUpjetInitPipeline()` runs git init → exec bit → submodule → `make submodules` →
-  `go mod download` → **commit**, skipping tidy/generate/reviewable: the project doesn't
-  compile until `make generate` runs; the generated make fragment scopes `make generate` to
-  `./apis/...` for the same reason; and `go mod download` still fetches `go.sum` entries for
-  the generator's own tools (behind the `generate` build tag). `NewUpjetAPICommitPipeline()` is
-  a fold-commit only — no `make generate`.
+- **`pipeline.go`** — `InitPipelineFor(flavor, ...)` and `APICommitPipelineFor(flavor, ...)`
+  are the one place `init` and `create api` choose a pipeline for a project's flavor,
+  mirroring `UpdateFinalizePipelineFor` (see below). The native pipeline runs git init →
+  exec bit → submodule → `make submodules` → `go mod tidy` → `make generate` →
+  `make reviewable` → **commit** for init, and `make generate` → **commit** for create api.
+  `Run()` aborts on the first failure. The upjet init pipeline runs git init → exec bit →
+  submodule → `make submodules` → `go mod download` → **commit**, skipping
+  tidy/generate/reviewable: the project doesn't compile until `make generate` runs; the
+  generated make fragment scopes `make generate` to `./apis/...` for the same reason; and
+  `go mod download` still fetches `go.sum` entries for the generator's own tools (behind the
+  `generate` build tag). The upjet create-api pipeline is a fold-commit only — no
+  `make generate`.
 - **`git.go`** — `GitOperations`: idempotent `Init`, `CreateCommit`, idempotent `AddSubmodule`.
 
 ## 6. Ownership contract (the upgrade foundation)
