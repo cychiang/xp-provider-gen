@@ -21,17 +21,19 @@ on:
       # this job.
       - 'pkg/templates/upjet/**'
       - 'pkg/templates/generators/**'
+      - 'pkg/templates/loader.go'
       - 'pkg/versions/**'
       - 'pkg/plugins/crossplane/v2/**'
       - 'scripts/e2e-upjet.sh'
       - 'scripts/lib.sh'
       - 'scripts/assert-layout.sh'
       - 'hack/envtest-provider-check/**'
+      - 'Makefile'
       - '.github/workflows/e2e-upjet.yml'
 
 jobs:
   e2e-upjet:
-    name: E2E Test (upjet)
+    name: E2E (upjet)
     runs-on: ubuntu-latest
     # Stage 10 of e2e-upjet.sh stands up a real kind cluster, installs
     # Crossplane, deploys the built provider, and runs the generated

@@ -419,17 +419,17 @@ step_provider_e2e() {
 
 step_summary() {
     echo
-    step_header "✅" "E2E Test Summary"
+    step_header "✅" "Native E2E Test Summary"
     log_success "✅ Generated provider's own e2e (uptest + chainsaw): ${PROVIDER_E2E_RESULT}"
     log_success "✅ scaffolded test runs against the live provider: ${CREATE_TEST_LIVE_RESULT}"
     echo
-    log_success "🎉 All E2E tests completed successfully!"
+    log_success "🎉 All native E2E tests completed successfully!"
     log_info "Pristine scaffold (single 'Initial commit', clean tree) at: $TEST_DIR"
     log_info "  inspect with:  git -C $TEST_DIR log --oneline && git -C $TEST_DIR status"
 }
 
 main() {
-    log_info "Starting local E2E test for xp-provider-gen"
+    log_info "Starting local native E2E test for xp-provider-gen"
     log_info "Test directory: $TEST_DIR"
     log_info "Domain: $DOMAIN"
     log_info "Repository: $REPO"
@@ -462,7 +462,7 @@ main() {
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "Usage: $0"
     echo
-    echo "This script runs a comprehensive E2E test for xp-provider-gen:"
+    echo "This script runs a comprehensive native-flavor E2E test for xp-provider-gen:"
     echo "   1. Prepare test folder"
     echo "   2. Initialize provider project"
     echo "   3. Test initial build targets"
@@ -493,7 +493,7 @@ on_exit() {
     # The lifecycle copy is always throwaway.
     rm -rf "$LIFECYCLE_DIR"
     if [[ $exit_code -ne 0 ]]; then
-        log_error "E2E test failed"
+        log_error "Native E2E test failed"
         log_info "Cleaning up incomplete test directory..."
         rm -rf "$TEST_DIR"
     fi

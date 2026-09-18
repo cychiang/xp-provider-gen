@@ -1,6 +1,6 @@
 #!/bin/bash
 # Asserts the generated provider's file layout. This is the single source of
-# truth for which files a scaffold must contain — called from scripts/e2e-test.sh
+# truth for which files a scaffold must contain — called from scripts/e2e-native.sh
 # at each scaffolding stage, and from scripts/e2e-upjet.sh after init.
 #
 # Usage:

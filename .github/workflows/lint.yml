@@ -51,3 +51,6 @@ jobs:
           git diff go.mod go.sum
           exit 1
         fi
+
+    - name: Check workflow paths filters match actual usage
+      run: make check-workflow-paths

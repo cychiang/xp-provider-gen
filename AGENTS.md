@@ -28,9 +28,10 @@ Prerequisites (Go version, gosec, Docker for e2e) are in
 |---------|---------|
 | `make test` | Unit tests with the race detector |
 | `make lint` | golangci-lint (config in `.golangci.yml`) |
-| `make e2e-test` | Native flavor: scaffold → build → the generated provider's own e2e |
+| `make e2e-native` | Native flavor: scaffold → build → the generated provider's own e2e |
 | `make e2e-upjet` | Upjet flavor: scaffold, generate with upjet, build, run (network) |
-| `make upgrade-sim` | Simulate a generator bump against real user logic |
+| `make e2e-upgrade` | Run a generator bump against real user logic (native flavor) |
+| `make check-workflow-paths` | Verify workflow `paths:` filters match the files each e2e workflow actually uses |
 | `make reviewable` | mod-tidy + fmt/vet/lint/gosec/test — the same checks CI enforces |
 | `make help` | List all targets |
 
@@ -75,12 +76,15 @@ reconsider.
 - `cmd/xp-provider-gen/` — CLI entry point (Kubebuilder CLI wiring)
 - `pkg/plugins/crossplane/v2/` — the plugin: commands, template engine, automation, validation
 - `pkg/templates/files/`, `pkg/templates/upjet/` — embedded `.tmpl` scaffolding, one root per flavor
-- `scripts/` — `e2e-test.sh` (native e2e), `e2e-upjet.sh` (upjet e2e), `upgrade-sim.sh`
-  (upgrade simulation), `assert-layout.sh` (generated-layout assertions, shared with CI),
-  `lib.sh` (log helpers, `docker_skip_requested`, shared `--force`/`--adopt`/dirty-tree
-  assertions — sourced by the three scripts above)
+- `scripts/` — `e2e-native.sh` (native e2e), `e2e-upjet.sh` (upjet e2e), `e2e-upgrade.sh`
+  (upgrade e2e, native flavor only), `assert-layout.sh` (generated-layout assertions, shared
+  with CI), `lib.sh` (log helpers, `docker_skip_requested`, shared `--force`/`--adopt`/dirty-tree
+  assertions — sourced by the three scripts above), `check-go-version` (go.mod/Dockerfile vs.
+  `pkg/versions/dependencies.yaml`, network)
 - `hack/envtest-provider-check/` — its own Go module; proves an upjet-generated provider's
   controllers actually start, used by `e2e-upjet.sh`
+- `hack/check-workflow-paths.py` — verifies each e2e workflow's `paths:` filter matches the
+  files it actually uses, run via `make check-workflow-paths`
 
 ## Further reading
 
