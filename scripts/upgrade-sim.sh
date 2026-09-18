@@ -18,31 +18,15 @@ REPO="$(dirname "$SCRIPT_DIR")"
 SIM=/tmp/upgrade-sim
 B="$REPO/bin/xp-provider-gen"
 
-blue()  { printf '\033[0;34m%s\033[0m\n' "$1"; }
-green() { printf '\033[0;32m%s\033[0m\n' "$1"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$1"; }
+# shellcheck source=scripts/lib.sh
+source "$SCRIPT_DIR/lib.sh"
 
-blue "=== 1. Scaffold with the current generator ==="
-rm -rf "$SIM" && mkdir -p "$SIM" && cd "$SIM"
-$B init --domain=acme.io --repo=github.com/example/provider-acme >/dev/null 2>&1
-$B create api --group=compute --version=v1alpha1 --kind=Instance >/dev/null 2>&1
-green "scaffolded at $SIM"
-
-blue "=== 2. Write REAL user logic into every user-owned seam ==="
-
-# ProviderConfig gains a user field
-python3 - <<'PY'
-import pathlib
-p = pathlib.Path("apis/v1alpha1/types.go")
-s = p.read_text()
-s = s.replace(
-    "type ProviderConfigSpec struct {\n\t// Credentials required to authenticate to this provider.\n\tCredentials ProviderCredentials `json:\"credentials\"`\n}",
-    "type ProviderConfigSpec struct {\n\t// Credentials required to authenticate to this provider.\n\tCredentials ProviderCredentials `json:\"credentials\"`\n\n\t// Endpoint is the ACME API base URL.\n\t// +optional\n\tEndpoint string `json:\"endpoint,omitempty\"`\n}")
-p.write_text(s)
-PY
-
-# client.go: real client built from the user's own spec field + a flag
-cat > internal/provider/client.go <<'EOF'
+# apache_header prints the Apache 2.0 file header written into every
+# user-owned seam file below — inlined four times here as literal Go source,
+# so it can't be read from the scaffold's own hack/boilerplate.go.txt (that
+# file doesn't exist at this path relative to $SIM).
+apache_header() {
+    cat <<'EOF'
 /*
 Copyright 2025 The Crossplane Authors.
 
@@ -58,6 +42,32 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+EOF
+}
+
+log_info "=== 1. Scaffold with the current generator ==="
+rm -rf "$SIM" && mkdir -p "$SIM" && cd "$SIM"
+$B init --domain=acme.io --repo=github.com/example/provider-acme >/dev/null 2>&1
+$B create api --group=compute --version=v1alpha1 --kind=Instance >/dev/null 2>&1
+log_success "scaffolded at $SIM"
+
+log_info "=== 2. Write REAL user logic into every user-owned seam ==="
+
+# ProviderConfig gains a user field
+python3 - <<'PY'
+import pathlib
+p = pathlib.Path("apis/v1alpha1/types.go")
+s = p.read_text()
+s = s.replace(
+    "type ProviderConfigSpec struct {\n\t// Credentials required to authenticate to this provider.\n\tCredentials ProviderCredentials `json:\"credentials\"`\n}",
+    "type ProviderConfigSpec struct {\n\t// Credentials required to authenticate to this provider.\n\tCredentials ProviderCredentials `json:\"credentials\"`\n\n\t// Endpoint is the ACME API base URL.\n\t// +optional\n\tEndpoint string `json:\"endpoint,omitempty\"`\n}")
+p.write_text(s)
+PY
+
+# client.go: real client built from the user's own spec field + a flag
+{
+    apache_header
+    cat <<'EOF'
 
 package provider
 
@@ -89,24 +99,12 @@ func NewClient(_ context.Context, cfg ClientConfig) (*Client, error) {
 	}, nil
 }
 EOF
+} > internal/provider/client.go
 
 # options.go: real flag + validation
-cat > internal/provider/options.go <<'EOF'
-/*
-Copyright 2025 The Crossplane Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+{
+    apache_header
+    cat <<'EOF'
 
 package provider
 
@@ -135,6 +133,7 @@ func Configure(o *controller.Options) error {
 	return nil
 }
 EOF
+} > internal/provider/options.go
 
 # external.go: real reconcile logic + reconciler options
 python3 - <<'PY'
@@ -152,22 +151,9 @@ PY
 
 # USER tests: pin the behavior of every seam. Run before AND after the upgrade —
 # passing both times is the sim's proof that the upgrade changed plumbing, not semantics.
-cat > internal/provider/client_test.go <<'EOF'
-/*
-Copyright 2025 The Crossplane Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+{
+    apache_header
+    cat <<'EOF'
 
 package provider
 
@@ -232,23 +218,11 @@ func TestConfigureRejectsEmptyRegion(t *testing.T) {
 	}
 }
 EOF
+} > internal/provider/client_test.go
 
-cat > internal/controller/instance/external_test.go <<'EOF'
-/*
-Copyright 2025 The Crossplane Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+{
+    apache_header
+    cat <<'EOF'
 
 package instance
 
@@ -300,27 +274,28 @@ func TestReconcilerOptions(t *testing.T) {
 	}
 }
 EOF
+} > internal/controller/instance/external_test.go
 
 # generate+lint here; the baseline behavioral step below is the single test run
-make generate >/dev/null 2>&1 && make lint >/dev/null 2>&1 && green "user logic compiles and lints"
+make generate >/dev/null 2>&1 && make lint >/dev/null 2>&1 && log_success "user logic compiles and lints"
 git add -A && git commit -q -m "feat: real ACME provider logic"
 BEFORE=$(git rev-parse HEAD)
-green "committed user logic at $BEFORE"
+log_success "committed user logic at $BEFORE"
 
-blue "=== 3. Baseline behavior: seam tests + flag reachability ==="
+log_info "=== 3. Baseline behavior: seam tests + flag reachability ==="
 if go test ./... >/dev/null 2>&1; then
-    green "  ✓ behavioral tests pass before upgrade"
+    log_success "  ✓ behavioral tests pass before upgrade"
 else
-    red "  ✗ behavioral tests FAIL before upgrade — harness broken"; go test ./...; exit 1
+    log_error "  ✗ behavioral tests FAIL before upgrade — harness broken"; go test ./...; exit 1
 fi
 go build -o /tmp/upgrade-sim-provider ./cmd/provider
 if /tmp/upgrade-sim-provider --help 2>&1 | grep -q -- '--region'; then
-    green "  ✓ user flag --region reachable before upgrade"
+    log_success "  ✓ user flag --region reachable before upgrade"
 else
-    red "  ✗ user flag --region missing before upgrade — harness broken"; exit 1
+    log_error "  ✗ user flag --region missing before upgrade — harness broken"; exit 1
 fi
 
-blue "=== 4. Simulate a NEW generator version (change tool-owned templates) ==="
+log_info "=== 4. Simulate a NEW generator version (change tool-owned templates) ==="
 cd "$REPO"
 cp pkg/templates/files/internal/provider/connector.go.tmpl /tmp/connector.bak
 cp pkg/templates/files/internal/controller/KIND/wiring.go.tmpl /tmp/wiring.bak
@@ -330,12 +305,12 @@ cp pkg/templates/files/hack/xp-provider-gen.mk.tmpl /tmp/xp-provider-gen.mk.bak
 # success, assertion failure, or a set -e abort mid-sim — so a failed run can
 # never leave the working tree (and bin/) built from simulated-v2 templates.
 restore_templates() {
-    blue "=== Restore generator templates ==="
+    log_info "=== Restore generator templates ==="
     cp /tmp/connector.bak "$REPO/pkg/templates/files/internal/provider/connector.go.tmpl"
     cp /tmp/wiring.bak "$REPO/pkg/templates/files/internal/controller/KIND/wiring.go.tmpl"
     cp /tmp/xp-provider-gen.mk.bak "$REPO/pkg/templates/files/hack/xp-provider-gen.mk.tmpl"
     (cd "$REPO" && make build >/dev/null 2>&1) || true
-    green "templates restored"
+    log_success "templates restored"
 }
 trap restore_templates EXIT
 
@@ -362,31 +337,31 @@ s = s.replace("-include build/makelib/common.mk",
 p.write_text(s)
 PY
 make build >/dev/null 2>&1
-green "generator v2 built"
+log_success "generator v2 built"
 
-blue "=== 5. Run update in the provider ==="
+log_info "=== 5. Run update in the provider ==="
 cd "$SIM"
-$B update >/dev/null 2>&1 && green "update completed" || { red "update FAILED"; exit 1; }
+$B update >/dev/null 2>&1 && log_success "update completed" || { log_error "update FAILED"; exit 1; }
 
-blue "=== 6. What did the update diff touch? ==="
+log_info "=== 6. What did the update diff touch? ==="
 git diff --stat | sed 's/^/  /'
 
-blue "=== 7. Verdict ==="
+log_info "=== 7. Verdict ==="
 FAIL=0
 for f in internal/provider/client.go internal/provider/options.go \
          internal/controller/instance/external.go apis/v1alpha1/types.go AGENTS.md Makefile; do
     if git diff --name-only | grep -qx "$f"; then
-        red "  ✗ USER FILE MODIFIED: $f"; FAIL=1
+        log_error "  ✗ USER FILE MODIFIED: $f"; FAIL=1
     else
-        green "  ✓ user file untouched: $f"
+        log_success "  ✓ user file untouched: $f"
     fi
 done
 
 for f in internal/provider/connector.go internal/controller/instance/wiring.go hack/xp-provider-gen.mk; do
     if grep -q "SIMULATED-V2-CHANGE" "$f"; then
-        green "  ✓ tool file received the v2 change: $f"
+        log_success "  ✓ tool file received the v2 change: $f"
     else
-        red "  ✗ tool file did NOT receive the v2 change: $f"; FAIL=1
+        log_error "  ✗ tool file did NOT receive the v2 change: $f"; FAIL=1
     fi
 done
 
@@ -394,39 +369,39 @@ done
 # must stay tool-owned and show up in the update's diff.
 if grep -q "Code generated by xp-provider-gen. DO NOT EDIT." hack/xp-provider-gen.mk &&
    git diff --name-only | grep -qx "hack/xp-provider-gen.mk"; then
-    green "  ✓ hack/xp-provider-gen.mk carries the header and was refreshed by update"
+    log_success "  ✓ hack/xp-provider-gen.mk carries the header and was refreshed by update"
 else
-    red "  ✗ hack/xp-provider-gen.mk lost its header or was not refreshed"; FAIL=1
+    log_error "  ✗ hack/xp-provider-gen.mk lost its header or was not refreshed"; FAIL=1
 fi
 
 if grep -q "USER LOGIC observing" internal/controller/instance/external.go &&
    grep -q "providerConfig.spec.endpoint must be set" internal/provider/client.go &&
    grep -q "ACME_REGION" internal/provider/options.go &&
    grep -q "Endpoint is the ACME API base URL" apis/v1alpha1/types.go; then
-    green "  ✓ all user logic still present after upgrade"
+    log_success "  ✓ all user logic still present after upgrade"
 else
-    red "  ✗ user logic was lost"; FAIL=1
+    log_error "  ✗ user logic was lost"; FAIL=1
 fi
 
-blue "=== 8. Does the upgraded provider still build? ==="
+log_info "=== 8. Does the upgraded provider still build? ==="
 # generate+lint+build; step 9 is the single post-upgrade test run
 if make generate >/dev/null 2>&1 && make lint >/dev/null 2>&1 && make build >/dev/null 2>&1; then
-    green "  ✓ upgraded provider generates, lints and builds"
+    log_success "  ✓ upgraded provider generates, lints and builds"
 else
-    red "  ✗ upgraded provider does not build"; FAIL=1
+    log_error "  ✗ upgraded provider does not build"; FAIL=1
 fi
 
-blue "=== 9. Behavior unchanged after upgrade? ==="
+log_info "=== 9. Behavior unchanged after upgrade? ==="
 if go test ./... >/dev/null 2>&1; then
-    green "  ✓ behavioral tests pass after upgrade"
+    log_success "  ✓ behavioral tests pass after upgrade"
 else
-    red "  ✗ behavioral tests FAIL after upgrade"; go test ./... | tail -20; FAIL=1
+    log_error "  ✗ behavioral tests FAIL after upgrade"; go test ./... | tail -20; FAIL=1
 fi
 if go build -o /tmp/upgrade-sim-provider ./cmd/provider &&
    /tmp/upgrade-sim-provider --help 2>&1 | grep -q -- '--region'; then
-    green "  ✓ user flag --region still reachable after upgrade"
+    log_success "  ✓ user flag --region still reachable after upgrade"
 else
-    red "  ✗ user flag --region lost after upgrade"; FAIL=1
+    log_error "  ✗ user flag --region lost after upgrade"; FAIL=1
 fi
 
 exit $FAIL

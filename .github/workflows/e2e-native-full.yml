@@ -25,6 +25,7 @@ on:
       - 'scripts/e2e-test.sh'
       - 'scripts/upgrade-sim.sh'
       - 'scripts/assert-layout.sh'
+      - 'scripts/lib.sh'
       - 'Makefile'
       - '.github/workflows/e2e-native-full.yml'
 

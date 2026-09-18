@@ -76,7 +76,9 @@ reconsider.
 - `pkg/plugins/crossplane/v2/` — the plugin: commands, template engine, automation, validation
 - `pkg/templates/files/`, `pkg/templates/upjet/` — embedded `.tmpl` scaffolding, one root per flavor
 - `scripts/` — `e2e-test.sh` (native e2e), `e2e-upjet.sh` (upjet e2e), `upgrade-sim.sh`
-  (upgrade simulation), `assert-layout.sh` (generated-layout assertions, shared with CI)
+  (upgrade simulation), `assert-layout.sh` (generated-layout assertions, shared with CI),
+  `lib.sh` (log helpers, `docker_skip_requested`, shared `--force`/`--adopt`/dirty-tree
+  assertions — sourced by the three scripts above)
 - `hack/envtest-provider-check/` — its own Go module; proves an upjet-generated provider's
   controllers actually start, used by `e2e-upjet.sh`
 
