@@ -61,7 +61,7 @@ func assertStepOrder(t *testing.T, p *Pipeline, want []string) {
 }
 
 func TestNewInitPipeline_CommitsLast(t *testing.T) {
-	cfg := core.NewPluginConfig("crossplane")
+	cfg := core.NewPluginConfig()
 	p := newInitPipeline(cfg, "provider-test")
 
 	assertStepOrder(t, p, []string{
@@ -116,7 +116,7 @@ func TestUpdateFinalizePipelineFor(t *testing.T) {
 // pipeline: swapping them passes every step-order test above and fails only
 // in e2e.
 func TestInitPipelineFor(t *testing.T) {
-	cfg := core.NewPluginConfig("crossplane")
+	cfg := core.NewPluginConfig()
 	tests := []struct {
 		flavor core.Flavor
 		want   *Pipeline
@@ -135,7 +135,7 @@ func TestInitPipelineFor(t *testing.T) {
 // resource with its own pipeline: swapping them passes every step-order test
 // above and fails only in e2e.
 func TestAPICommitPipelineFor(t *testing.T) {
-	cfg := core.NewPluginConfig("crossplane")
+	cfg := core.NewPluginConfig()
 	tests := []struct {
 		flavor core.Flavor
 		want   *Pipeline
@@ -166,7 +166,7 @@ func TestAPICommitPipelineFor(t *testing.T) {
 // no new accessor was needed: it is already the stable, meaningful
 // identifier this codebase uses for "which step is this".
 func TestInitPipelines_ShareLeadingStepsAndFinalStep(t *testing.T) {
-	cfg := core.NewPluginConfig("crossplane")
+	cfg := core.NewPluginConfig()
 	native := stepNames(newInitPipeline(cfg, "provider-test"))
 	upjet := stepNames(newUpjetInitPipeline(cfg, "provider-test"))
 
@@ -212,7 +212,7 @@ func resolveIndex(i, length int) (int, bool) {
 }
 
 func TestNewAPICommitPipeline_CommitsLast(t *testing.T) {
-	cfg := core.NewPluginConfig("crossplane")
+	cfg := core.NewPluginConfig()
 	p := newAPICommitPipeline(cfg, "Bucket")
 
 	assertStepOrder(t, p, []string{

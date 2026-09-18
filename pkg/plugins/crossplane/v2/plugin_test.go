@@ -124,14 +124,6 @@ func TestCreateAPISubcommand_Interface(_ *testing.T) {
 func TestPluginConfig_Defaults(t *testing.T) {
 	cfg := NewPluginConfig()
 
-	if cfg.Name == "" {
-		t.Error("Plugin config name should not be empty")
-	}
-
-	if cfg.Version == "" {
-		t.Error("Plugin config version should not be empty")
-	}
-
 	if cfg.Git.BuildSubmoduleURL == "" {
 		t.Error("Build submodule URL should not be empty")
 	}

@@ -27,7 +27,7 @@ type createAPISubcommand struct {
 
 	config       config.Config
 	resource     *resource.Resource
-	pluginConfig *PluginConfig
+	pluginConfig *core.PluginConfig
 
 	// meta is this project's plugin block, loaded once in PreScaffold and read
 	// by Scaffold and PostScaffold.
@@ -63,8 +63,7 @@ This command scaffolds a complete managed resource with:
 func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
 	p.ensureConfig()
 
-	defaults := p.pluginConfig.Defaults
-	fs.BoolVar(&p.force, "force", defaults.Force,
+	fs.BoolVar(&p.force, "force", false,
 		"overwrite existing tool-owned files (files without the generated header are never overwritten)")
 	fs.StringVar(&p.terraformResource, "terraform-resource", "",
 		"Terraform resource this kind is generated from, e.g. kubernetes_secret (required on an upjet provider)")
@@ -127,6 +126,10 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	fmt.Printf("Creating Crossplane managed resource API %s/%s %s\n",
 		p.resource.Group, p.resource.Version, p.resource.Kind)
 
+	if err := p.config.AddResource(*p.resource); err != nil {
+		return validation.CreateAPIError("recording resource in project config", err)
+	}
+
 	scaffold := machinery.NewScaffold(fs,
 		machinery.WithConfig(p.config),
 		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
@@ -152,14 +155,11 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		return validation.CreateAPIError("template discovery", err)
 	}
 
-	// Regenerate the registration files deterministically from the full resource
-	// list. The resource being created is not yet persisted to the config (that
-	// happens in PostScaffold), so include it explicitly.
-	existing, err := p.config.GetResources()
+	// Regenerate the registration files deterministically from the full resource list.
+	resources, err := p.config.GetResources()
 	if err != nil {
 		return validation.CreateAPIError("reading project resources", err)
 	}
-	resources := append(append([]resource.Resource{}, existing...), *p.resource)
 
 	// Combine the new resource's API templates with the regenerated registration files.
 	allTemplates := engine.AsBuilders(apiTemplates)
@@ -180,11 +180,6 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 
 func (p *createAPISubcommand) PostScaffold() error {
 	p.ensureConfig()
-
-	projectFile := core.NewProjectFile(p.config)
-	if err := projectFile.AddResource(*p.resource); err != nil {
-		return validation.CreateAPIError("PROJECT file persistence", err)
-	}
 
 	// Run API commit automation pipeline
 	pipeline := automation.APICommitPipelineFor(p.meta.Flavor, p.pluginConfig, p.resource.Kind)
