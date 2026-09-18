@@ -50,7 +50,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 
 	initTemplates, err := factory.GetInitTemplates(engine.WithUpjet(s.upjet))
 	if err != nil {
-		return fmt.Errorf("failed to get init templates: %w", err)
+		return fmt.Errorf("get init templates: %w", err)
 	}
 
 	allTemplates := engine.AsBuilders(initTemplates)
@@ -63,7 +63,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	allTemplates = append(allTemplates, engine.NewGoModGenerator(s.config.GetRepository(), deps))
 
 	if err := scaffold.Execute(allTemplates...); err != nil {
-		return fmt.Errorf("error scaffolding Crossplane provider project: %w", err)
+		return fmt.Errorf("scaffold Crossplane provider project: %w", err)
 	}
 
 	fmt.Printf("Crossplane provider project scaffolded successfully!\n")
