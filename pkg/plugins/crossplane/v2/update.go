@@ -334,7 +334,7 @@ func renderToMemFS(cfg config.Config, meta projectMeta, memFS machinery.Filesyst
 
 	initTemplates, err := factory.GetInitTemplates(engine.WithUpjet(meta.Upjet))
 	if err != nil {
-		return fmt.Errorf("init templates: %w", err)
+		return fmt.Errorf("getting init templates: %w", err)
 	}
 
 	base := machinery.NewScaffold(memFS,
@@ -351,7 +351,7 @@ func renderToMemFS(cfg config.Config, meta projectMeta, memFS machinery.Filesyst
 		apiTemplates, err := factory.GetAPITemplates(
 			engine.WithForce(true), engine.WithResource(&res), engine.WithUpjet(meta.Upjet))
 		if err != nil {
-			return fmt.Errorf("api templates for %s: %w", res.Kind, err)
+			return fmt.Errorf("getting api templates for %s: %w", res.Kind, err)
 		}
 		apiScaffold := machinery.NewScaffold(memFS,
 			machinery.WithConfig(cfg),

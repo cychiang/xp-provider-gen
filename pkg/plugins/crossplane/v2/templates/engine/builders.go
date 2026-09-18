@@ -83,11 +83,11 @@ func configureProduct(product *GenericTemplateProduct, cfg config.Config, option
 		product.UpjetSettings = *options.Upjet
 	}
 	if err := product.Configure(cfg); err != nil {
-		return fmt.Errorf("configure template: %w", err)
+		return fmt.Errorf("configuring template: %w", err)
 	}
 	if options.Resource != nil {
 		if err := product.SetResource(options.Resource); err != nil {
-			return fmt.Errorf("set resource: %w", err)
+			return fmt.Errorf("setting resource: %w", err)
 		}
 	}
 	if options.Force {
@@ -98,7 +98,7 @@ func configureProduct(product *GenericTemplateProduct, cfg config.Config, option
 		product.IfExistsAction = machinery.OverwriteFile
 	}
 	if err := product.SetTemplateDefaults(); err != nil {
-		return fmt.Errorf("set template defaults: %w", err)
+		return fmt.Errorf("setting template defaults: %w", err)
 	}
 	// --force refreshes what the tool owns; a file without the generated
 	// header is the user's and is never overwritten, forced or not.

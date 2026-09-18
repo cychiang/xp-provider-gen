@@ -69,7 +69,7 @@ type manifest struct {
 func parseManifest(raw []byte) (manifest, error) {
 	var m manifest
 	if err := yaml.Unmarshal(raw, &m); err != nil {
-		return manifest{}, fmt.Errorf("parse dependencies manifest: %w", err)
+		return manifest{}, fmt.Errorf("parsing dependencies manifest: %w", err)
 	}
 	return m, nil
 }

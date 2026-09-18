@@ -81,7 +81,7 @@ func (f *CrossplaneTemplateFactory) build(infos []TemplateInfo, opts []Option) (
 	for _, info := range infos {
 		product, err := BuildTemplate(f.config, info, opts...)
 		if err != nil {
-			return nil, fmt.Errorf("build template %s: %w", info.Path, err)
+			return nil, fmt.Errorf("building template %s: %w", info.Path, err)
 		}
 		products = append(products, product)
 	}
