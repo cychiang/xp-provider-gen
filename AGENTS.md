@@ -83,6 +83,8 @@ reconsider.
   `pkg/versions/dependencies.yaml`, network)
 - `hack/envtest-provider-check/` — its own Go module; proves an upjet-generated provider's
   controllers actually start, used by `e2e-upjet.sh`
+- `hack/check-workflow-paths.py` — verifies each e2e workflow's `paths:` filter matches the
+  files it actually uses, run via `make check-workflow-paths`
 
 ## Further reading
 

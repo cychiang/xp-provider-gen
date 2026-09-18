@@ -53,6 +53,4 @@ jobs:
         fi
 
     - name: Check workflow paths filters match actual usage
-      run: |
-        pip install --quiet pyyaml
-        make check-workflow-paths
+      run: make check-workflow-paths
