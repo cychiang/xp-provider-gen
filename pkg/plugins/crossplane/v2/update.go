@@ -268,15 +268,15 @@ func revertAdvice(seeded []string) string {
 func validateProject(cfg config.Config) (projectMeta, error) {
 	meta, err := loadProjectMeta(cfg)
 	if err != nil {
-		return projectMeta{}, fmt.Errorf("PROJECT is not usable: %w", err)
+		return projectMeta{}, projectNotUsable(err)
 	}
 	v := validation.ValidatorFor(meta.Flavor)
 	if err := v.ValidateRepository(cfg.GetRepository()); err != nil {
-		return projectMeta{}, fmt.Errorf("PROJECT is not usable: %w", err)
+		return projectMeta{}, projectNotUsable(err)
 	}
 	if domain := cfg.GetDomain(); domain != "" {
 		if err := v.ValidateDomain(domain); err != nil {
-			return projectMeta{}, fmt.Errorf("PROJECT is not usable: %w", err)
+			return projectMeta{}, projectNotUsable(err)
 		}
 	}
 	resources, err := cfg.GetResources()
@@ -285,10 +285,16 @@ func validateProject(cfg config.Config) (projectMeta, error) {
 	}
 	for i := range resources {
 		if err := v.ValidateResource(&resources[i]); err != nil {
-			return projectMeta{}, fmt.Errorf("PROJECT is not usable: %w", err)
+			return projectMeta{}, projectNotUsable(err)
 		}
 	}
 	return meta, nil
+}
+
+// projectNotUsable wraps err with the message validateProject's callers use to report
+// that PROJECT failed one of its checks.
+func projectNotUsable(err error) error {
+	return fmt.Errorf("PROJECT is not usable: %w", err)
 }
 
 // loadProjectStore loads the PROJECT config store from the working directory.
