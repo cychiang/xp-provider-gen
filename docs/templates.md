@@ -118,7 +118,7 @@ if it goes missing.
   are the only registries.
 - **Tool-owned means rewritten.** If users must be able to edit a file, it
   must not carry the header — there is no third state.
-- **The ownership header is a substring match.** A user-owned template whose
+- **The generated header is a substring match.** A user-owned template whose
   body *quotes* the header line becomes tool-owned by accident; phrase docs
   around it (see `AGENTS.md.tmpl` for an example that links instead of quoting).
 - **Five templates must stay byte-identical across both roots.** `LICENSE`,

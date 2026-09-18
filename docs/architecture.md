@@ -80,14 +80,14 @@ Reusable, side-effecting building blocks with no template knowledge:
   `GROUP`/`VERSION`/`KIND`/`IMAGENAME`). Pure functions — there is no state to carry.
 - **`ownership.go`** — the **ownership gate**: `GeneratedHeader`, `IsToolOwned(content)`, and
   `DecideWrite(exists, existing) → Seed | Overwrite | Skip`. This is the rule that lets `update`
-  refresh tool files while never clobbering user files (§6).
+  refresh tool-owned files while never clobbering user-owned files (§6).
 
 ## 4. Template engine (`pkg/plugins/crossplane/v2/templates/engine/`)
 
 The engine turns embedded `.tmpl` files into Kubebuilder template products. Its defining
 trait is **auto-discovery**: templates are found by walking the embedded filesystem at factory
 init, not registered by hand. ([templates.md](templates.md) is the contributor-facing guide
-to adding one — placeholders, the ownership header, the golden-test step.)
+to adding one — placeholders, the generated header, the golden-test step.)
 
 - **Discovery** — `autodiscovery.go` classifies each template by its path placeholders:
   `GROUP`/`VERSION`/`KIND` mean per-kind (`APICategory`), `IMAGENAME` or none mean
@@ -199,8 +199,8 @@ overwrite.
    (`projectmeta.go`); only an empty flavor reads as native.
 2. **Render** the flavor's full template set into an in-memory FS (`afero.NewMemMapFs`); upjet
    renders with the settings PROJECT keeps (`WithUpjet`).
-3. **Reconcile** onto disk through `core.DecideWrite` (tool files overwritten, user files
-   skipped, new files seeded). On an upjet project a missing user-owned file is not seeded —
+3. **Reconcile** onto disk through `core.DecideWrite` (tool-owned files overwritten, user-owned
+   files skipped, new files seeded). On an upjet project a missing user-owned file is not seeded —
    some such templates need init-time Terraform settings PROJECT does not keep, so none are
    recreated — and is listed instead.
 4. **Bump dependencies** from the flavor's manifest set via `go get` (go.mod's own requires
@@ -211,7 +211,7 @@ overwrite.
 
 **`update --adopt`** retrofits a provider generated before the contract existed: it writes the
 header onto recognized tool-owned files (so plain `update` can manage them) and stamps
-provenance. User files are never adopted.
+provenance. User-owned files are never adopted.
 
 ## 8. Validation, templates & the dependency manifest
 

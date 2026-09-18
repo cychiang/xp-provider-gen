@@ -57,7 +57,7 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 
 Provider scaffolding lives in `pkg/templates/files/**` (native) and `pkg/templates/upjet/**`
 (upjet), both `*.tmpl` and auto-discovered: drop a file in and it appears in every generated
-provider of that flavor. The full contributor flow — path placeholders, the ownership header,
+provider of that flavor. The full contributor flow — path placeholders, the generated header,
 the golden-test step — is in [templates.md](templates.md).
 
 ## Updating an existing provider
