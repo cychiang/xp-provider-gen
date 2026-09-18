@@ -1,7 +1,7 @@
 # Testing
 
 This page covers the **automated** suites: fast Go unit tests, a full end-to-end scaffold
-test, an upgrade simulation, and an upjet-flavor e2e — four layers, all run by `make`
+test, an upgrade e2e, and an upjet-flavor e2e — four layers, all run by `make`
 targets and wired into CI. For a **manual** walkthrough of the same surfaces — reproducing
 a bug report, sanity-checking a change by hand, or seeing what a provider author actually
 experiences — see [docs/manual-testing.md](manual-testing.md).
@@ -52,11 +52,11 @@ name-keyed map silently drops a file.
 
 Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 
-## End-to-end test
+## Native-flavor end-to-end test
 
-`scripts/e2e-test.sh` (run via `make e2e-test`) exercises the real generator workflow against
+`scripts/e2e-native.sh` (run via `make e2e-native`) exercises the real generator workflow against
 a throwaway project in `/tmp/provider-template`. The expected file layout lives in
-`scripts/assert-layout.sh`, called by `e2e-test.sh` at each scaffolding stage (and by
+`scripts/assert-layout.sh`, called by `e2e-native.sh` at each scaffolding stage (and by
 `e2e-upjet.sh --upjet` after init) — edit that when the scaffold gains or loses a file:
 
 The script is one function per numbered step (`step_prepare_dir`, `step_init`, ...), called
@@ -101,27 +101,27 @@ in order from `main`; `--help` lists the same steps:
 
 The `--force`/`--adopt`/dirty-tree assertions (steps 8, 9, and the dirty-tree check inside
 step 7) and `docker_skip_requested` live in `scripts/lib.sh`, shared with `e2e-upjet.sh` and
-`upgrade-sim.sh` — see that file for the shared helpers.
+`e2e-upgrade.sh` — see that file for the shared helpers.
 
 `/tmp/provider-template`, the scaffold this leaves behind, is kept only when the run succeeds
 (a failure removes it so the next run starts clean) — the next run recreates it either way:
 
 ```bash
-make e2e-test            # build + run
-./scripts/e2e-test.sh -h # usage
+make e2e-native            # build + run
+./scripts/e2e-native.sh -h # usage
 ```
 
 Run the e2e test whenever you change templates, the template engine, or the automation
 pipeline — unit tests alone do not catch broken generated output.
 
-## Upgrade-path simulation (`make upgrade-sim`)
+## Upgrade e2e (`make e2e-upgrade`)
 
-`scripts/upgrade-sim.sh` covers a gap the e2e cannot: e2e step 7 runs `update` with
+`scripts/e2e-upgrade.sh` covers a gap the e2e cannot: e2e step 7 runs `update` with
 the **same** generator, so tool-owned files come out byte-identical and it can only
 prove that user files survive — never that tool-owned files actually receive a new
 generator's changes.
 
-The simulation scaffolds a provider, writes **real** logic into every user-owned seam
+The upgrade e2e scaffolds a provider, writes **real** logic into every user-owned seam
 (an HTTP client reading a user-added `ProviderConfigSpec` field, a `--region` flag
 with validation, custom `ReconcilerOptions` and observe logic) plus unit tests that
 pin that behavior, commits it, then
@@ -139,7 +139,7 @@ and runs `update`. It asserts:
 
 It restores the templates it mutated. **Run it before shipping a framework bump.**
 
-`/tmp/upgrade-sim`, its temp project, is left in place after each run, whether it succeeded or
+`/tmp/xpg-e2e-upgrade`, its temp project, is left in place after each run, whether it succeeded or
 failed, for inspection; the next run removes and recreates it before scaffolding.
 
 ## Upjet-flavor e2e (`make e2e-upjet`)
@@ -189,7 +189,7 @@ with `E2E_SKIP_DOCKER` set, same as the native e2e's step 12), it then:
 That is the only test that proves the config files this tool scaffolds satisfy
 upjet's contract; a unit test cannot, because the contract is upjet's generator.
 It needs network access and takes several minutes, so it is a separate target
-rather than part of `make e2e-test`.
+rather than part of `make e2e-native`.
 
 ## In CI
 
@@ -197,7 +197,7 @@ See [.github/WORKFLOWS.md](../.github/WORKFLOWS.md) for the full list; the layer
 
 - `test.yml` — unit tests with coverage, plus the native e2e with its Docker-dependent step 12
   skipped (`E2E_SKIP_DOCKER=1`), on every push/PR.
-- `e2e-native-full.yml` — the same native e2e with step 12 included, plus `make upgrade-sim`;
+- `e2e-native-full.yml` — the same native e2e with step 12 included, plus `make e2e-upgrade`;
   daily and on PRs touching the surfaces they exercise.
 - `e2e-upjet.yml` — the upjet e2e; daily and on PRs touching the upjet flavor.
 - `go-version.yml` — `make check-go-version`, on every push/PR.

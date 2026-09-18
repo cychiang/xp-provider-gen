@@ -41,7 +41,7 @@ apply to either; substitute the root you are working in.
 
 That's all. The file now appears in new scaffolds, in the generated ownership
 doc, and (if tool-owned) flows to existing providers on their next `update`.
-Run `make e2e-test` before pushing — it scaffolds a real provider and runs its
+Run `make e2e-native` before pushing — it scaffolds a real provider and runs its
 build and e2e.
 
 ## When is a template rendered?

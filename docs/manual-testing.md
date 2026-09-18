@@ -1,13 +1,13 @@
 # Manual testing guide
 
-The automated suites (`make test`, `make e2e-test`, `make e2e-upjet`, `make upgrade-sim`) cover
+The automated suites (`make test`, `make e2e-native`, `make e2e-upjet`, `make e2e-upgrade`) cover
 regressions in CI. This guide is for the opposite case: a human walking through the same
 surfaces by hand — to sanity-check a change before it ships, to reproduce a bug report, or to
 see what a provider author actually experiences. Each scenario below is copy-pasteable except
 for the scratch directory name, which is yours to pick (this guide uses `/tmp/xpg-manual-*`).
 
 None of this touches the automated scripts' fixed paths or kind cluster names, so it is safe to
-run alongside CI or another `make e2e-test`/`make e2e-upjet` run on the same machine — see
+run alongside CI or another `make e2e-native`/`make e2e-upjet` run on the same machine — see
 [Prerequisites](#prerequisites) for the one rule that keeps them from colliding.
 
 ## Prerequisites

@@ -12,7 +12,7 @@
   and `pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl`. Renovate currently bumps only `lint.yml`; align
   the other three in the same PR.
 - **gosec** — security scanner
-- **Docker** — without it, both `make e2e-test` and `make e2e-upjet` skip their
+- **Docker** — without it, both `make e2e-native` and `make e2e-upjet` skip their
   Docker-dependent stage rather than failing; `make e2e-upjet` also needs network access
   for its non-Docker stages (downloading Terraform and a provider schema)
 
@@ -36,10 +36,11 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 | `make mod-tidy` / `make mod-verify` | Module hygiene |
 | `make check` | fmt + vet + lint + gosec + test |
 | `make reviewable` | `mod-tidy` + `check` — run this before pushing |
-| `make e2e-test` | Build, then run the end-to-end scaffold test |
-| `make upgrade-sim` | Simulate a generator version bump against real user logic |
+| `make e2e-native` | Build, then run the end-to-end scaffold test |
+| `make e2e-upgrade` | Run a generator version bump against real user logic (native flavor) |
 | `make e2e-upjet` | Scaffold an upjet provider and run the real upjet pipeline (network) |
 | `make check-go-version` | Verify go.mod/Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version` (network) |
+| `make check-workflow-paths` | Verify workflow `paths:` filters match the files each e2e workflow actually uses |
 
 `make reviewable` mirrors what CI enforces. If it passes locally, CI should pass too.
 
@@ -47,7 +48,7 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 
 1. Make a focused change. Keep it [KISS and DRY](../AGENTS.md#code-style).
 2. `make reviewable` — fix anything it reports.
-3. `make e2e-test` if you touched templates, the engine, or the automation pipeline.
+3. `make e2e-native` if you touched templates, the engine, or the automation pipeline.
 4. Commit with a [conventional commit](https://www.conventionalcommits.org/) message
    (`feat:`, `fix:`, `refactor:`, `chore:`, `ci:`, `docs:`, `test:`), small and focused.
 5. Open a PR. CI runs lint, tests, e2e, build, and security scans.

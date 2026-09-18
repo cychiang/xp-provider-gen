@@ -1,11 +1,13 @@
 #!/bin/bash
-# Upgrade-path simulation: prove a generator version bump cannot touch user logic.
+# Upgrade E2E test: prove a generator version bump cannot touch user logic.
+# Covers the native flavor only — it mutates pkg/templates/files/** tool-owned
+# templates; upjet has no equivalent flow.
 #
 # 1. Scaffold with generator v1, write REAL user logic in all user-owned seams
 # 2. Simulate v2 of the generator by changing tool-owned templates
 # 3. Run `update` and inspect exactly which files the diff touches
 #
-# This covers a gap in scripts/e2e-test.sh: that script runs `update` with the
+# This covers a gap in scripts/e2e-native.sh: that script runs `update` with the
 # SAME generator, so tool-owned files come out byte-identical and it can only
 # prove user files survive. This proves the other direction too — that tool-owned
 # files actually receive a new generator's changes.
@@ -15,7 +17,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(dirname "$SCRIPT_DIR")"
-SIM=/tmp/upgrade-sim
+DIR=/tmp/xpg-e2e-upgrade
 B="$REPO/bin/xp-provider-gen"
 
 # shellcheck source=scripts/lib.sh
@@ -24,7 +26,7 @@ source "$SCRIPT_DIR/lib.sh"
 # apache_header prints the Apache 2.0 file header written into every
 # user-owned seam file below — inlined four times here as literal Go source,
 # so it can't be read from the scaffold's own hack/boilerplate.go.txt (that
-# file doesn't exist at this path relative to $SIM).
+# file doesn't exist at this path relative to $DIR).
 apache_header() {
     cat <<'EOF'
 /*
@@ -46,10 +48,10 @@ EOF
 }
 
 log_info "=== 1. Scaffold with the current generator ==="
-rm -rf "$SIM" && mkdir -p "$SIM" && cd "$SIM"
+rm -rf "$DIR" && mkdir -p "$DIR" && cd "$DIR"
 $B init --domain=acme.io --repo=github.com/example/provider-acme >/dev/null 2>&1
 $B create api --group=compute --version=v1alpha1 --kind=Instance >/dev/null 2>&1
-log_success "scaffolded at $SIM"
+log_success "scaffolded at $DIR"
 
 log_info "=== 2. Write REAL user logic into every user-owned seam ==="
 
@@ -150,7 +152,7 @@ p.write_text(s)
 PY
 
 # USER tests: pin the behavior of every seam. Run before AND after the upgrade —
-# passing both times is the sim's proof that the upgrade changed plumbing, not semantics.
+# passing both times proves the upgrade changed plumbing, not semantics.
 {
     apache_header
     cat <<'EOF'
@@ -288,8 +290,8 @@ if go test ./... >/dev/null 2>&1; then
 else
     log_error "  ✗ behavioral tests FAIL before upgrade — harness broken"; go test ./...; exit 1
 fi
-go build -o /tmp/upgrade-sim-provider ./cmd/provider
-if /tmp/upgrade-sim-provider --help 2>&1 | grep -q -- '--region'; then
+go build -o "${DIR}-provider" ./cmd/provider
+if "${DIR}-provider" --help 2>&1 | grep -q -- '--region'; then
     log_success "  ✓ user flag --region reachable before upgrade"
 else
     log_error "  ✗ user flag --region missing before upgrade — harness broken"; exit 1
@@ -302,7 +304,7 @@ cp pkg/templates/files/internal/controller/KIND/wiring.go.tmpl /tmp/wiring.bak
 cp pkg/templates/files/hack/xp-provider-gen.mk.tmpl /tmp/xp-provider-gen.mk.bak
 
 # From here on the repo's templates are mutated: restore them on ANY exit —
-# success, assertion failure, or a set -e abort mid-sim — so a failed run can
+# success, assertion failure, or a set -e abort mid-run — so a failed run can
 # never leave the working tree (and bin/) built from simulated-v2 templates.
 restore_templates() {
     log_info "=== Restore generator templates ==="
@@ -340,7 +342,7 @@ make build >/dev/null 2>&1
 log_success "generator v2 built"
 
 log_info "=== 5. Run update in the provider ==="
-cd "$SIM"
+cd "$DIR"
 $B update >/dev/null 2>&1 && log_success "update completed" || { log_error "update FAILED"; exit 1; }
 
 log_info "=== 6. What did the update diff touch? ==="
@@ -397,8 +399,8 @@ if go test ./... >/dev/null 2>&1; then
 else
     log_error "  ✗ behavioral tests FAIL after upgrade"; go test ./... | tail -20; FAIL=1
 fi
-if go build -o /tmp/upgrade-sim-provider ./cmd/provider &&
-   /tmp/upgrade-sim-provider --help 2>&1 | grep -q -- '--region'; then
+if go build -o "${DIR}-provider" ./cmd/provider &&
+   "${DIR}-provider" --help 2>&1 | grep -q -- '--region'; then
     log_success "  ✓ user flag --region still reachable after upgrade"
 else
     log_error "  ✗ user flag --region lost after upgrade"; FAIL=1

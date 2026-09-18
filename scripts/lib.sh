@@ -1,5 +1,5 @@
-# Shared helpers for scripts/e2e-test.sh, scripts/e2e-upjet.sh and
-# scripts/upgrade-sim.sh. Source it, do not execute it.
+# Shared helpers for scripts/e2e-native.sh, scripts/e2e-upjet.sh and
+# scripts/e2e-upgrade.sh. Source it, do not execute it.
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
