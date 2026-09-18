@@ -71,7 +71,7 @@ in order from `main`; `--help` lists the same steps:
 6. Build targets after both APIs; verify the generated CRDs and examples; **Ownership
    contract:** assert tool-owned files (`register.go`, `wiring.go`,
    `internal/provider/connector.go`, `main.go`, `config.go`, `docs/ownership.md`) carry the
-   `DO NOT EDIT` header, and that user files (`external.go`, `internal/provider/client.go`,
+   `DO NOT EDIT` header, and that user-owned files (`external.go`, `internal/provider/client.go`,
    `internal/provider/options.go`, `*_types.go`, `apis/v1alpha1/types.go`, `AGENTS.md`) do not;
    **assert the tree is clean again** and that init + create api folded into a single
    `Initial commit`.
@@ -118,7 +118,7 @@ pipeline — unit tests alone do not catch broken generated output.
 
 `scripts/e2e-upgrade.sh` covers a gap the e2e cannot: e2e step 7 runs `update` with
 the **same** generator, so tool-owned files come out byte-identical and it can only
-prove that user files survive — never that tool-owned files actually receive a new
+prove that user-owned files survive — never that tool-owned files actually receive a new
 generator's changes.
 
 The upgrade e2e scaffolds a provider, writes **real** logic into every user-owned seam
@@ -139,7 +139,7 @@ and runs `update`. It asserts:
   results, so the upgrade changed plumbing, not semantics,
 - the user's `--region` flag still appears in the rebuilt binary's `--help`.
 
-It restores the templates it mutated. **Run it before shipping a framework bump.**
+It restores the templates it mutated. **Run it before shipping a generator bump.**
 
 `/tmp/xpg-e2e-upgrade`, its temp project, is left in place after each run, whether it succeeded or
 failed, for inspection; the next run removes and recreates it before scaffolding.
@@ -168,7 +168,7 @@ which need Docker:
 - **`--adopt`:** strip `config/provider.go`'s header to simulate a pre-contract provider,
   run `update --adopt`, and assert it reports adopting exactly one file and that
   `git diff --name-only` contains `config/provider.go` and, optionally, `PROJECT` (adopt
-  stamps a generator version there, but stage 6's own `update` may already have stamped
+  stamps a generator version there, but step 6's own `update` may already have stamped
   the same value).
 - **Dirty-tree refusal:** leave an uncommitted change and assert `update` refuses it,
   citing the working tree.

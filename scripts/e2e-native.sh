@@ -1,6 +1,7 @@
 #!/bin/bash
-
-set -e
+# End-to-end test for the native flavor: init, two APIs, the update/adopt/
+# create-test lifecycle, and the generated provider's own uptest+chainsaw e2e.
+set -euo pipefail
 
 # Configuration
 TEST_DIR="/tmp/xpg-e2e-native"
@@ -21,12 +22,6 @@ BINARY_PATH="$PROJECT_ROOT/bin/xp-provider-gen"
 
 # shellcheck source=scripts/lib.sh
 source "$SCRIPT_DIR/lib.sh"
-
-step_header() {
-    echo -e "\n${BLUE}========================================${NC}"
-    echo -e "${BLUE} Step $1: $2${NC}"
-    echo -e "${BLUE}========================================${NC}"
-}
 
 # Step 12 (the generated provider's own uptest + chainsaw e2e) needs a running
 # Docker daemon. Most CI runners (including GitHub's ubuntu-latest) already
@@ -120,7 +115,7 @@ assert_ownership() {
     done
 
     [[ $failed -eq 0 ]] || return 1
-    log_success "Ownership headers correct"
+    log_success "Generated headers correct"
 }
 
 assert_clean_tree() {
@@ -362,7 +357,7 @@ step_final_verification() {
     find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "Makefile" -o -name "go.mod" \) |
         sort |
         head -20 |
-        sed 's/^/  /'
+        sed 's/^/  /' || true
 
     if [[ $(find . -type f \( -name "*.go" -o -name "*.yaml" \) | wc -l) -gt 20 ]]; then
         echo "  ... and more files"
@@ -459,7 +454,7 @@ main() {
 
 
 # Handle script arguments
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "Usage: $0"
     echo
     echo "This script runs a comprehensive native-flavor E2E test for xp-provider-gen:"

@@ -3,7 +3,7 @@ name: E2E Upjet
 permissions:
   contents: read
 
-# scripts/e2e-upjet.sh needs network (Terraform download, Terraform Registry
+# `make e2e-upjet` (`scripts/e2e-upjet.sh`) needs network (Terraform download, Terraform Registry
 # schema read, provider docs scrape) and takes several minutes, so it does not
 # run on every PR. It runs on a daily schedule, on PRs that touch the upjet
 # flavor's templates or the script/helper that exercise it, and on demand.
@@ -35,10 +35,10 @@ jobs:
   e2e-upjet:
     name: E2E (upjet)
     runs-on: ubuntu-latest
-    # Stage 10 of e2e-upjet.sh stands up a real kind cluster, installs
+    # Step 10 of e2e-upjet.sh stands up a real kind cluster, installs
     # Crossplane, deploys the built provider, and runs the generated
     # provider's own e2e (its uptest lifecycle, then its chainsaw suite).
-    # This workflow's runner has a Docker daemon, so that stage would run
+    # This workflow's runner has a Docker daemon, so that step would run
     # whether or not this variable is set — E2E_SKIP_DOCKER=0 makes running
     # it here an explicit choice, not a side effect of leaving the variable
     # unset (which is exactly the kind of accidental trigger this repo has
@@ -60,18 +60,15 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-    - name: Build binary
-      run: make build
-
     # Runs the full scaffold -> configure -> generate -> build -> run pipeline
     # against the real hashicorp/kubernetes Terraform provider, including
-    # stage 10's live run of the generated provider's own e2e (see
-    # E2E_SKIP_DOCKER above). Stage 8c (the envtest-backed
+    # step 10's live run of the generated provider's own e2e (see
+    # E2E_SKIP_DOCKER above). Step 8c (the envtest-backed
     # real-controller-setup check) resolves its own kube-apiserver/etcd
     # assets and degrades to a skip-with-warning, not a failure, if they
     # can't be fetched — no extra CI wiring needed for that. kind itself is
     # downloaded by the scaffolded project's own Makefile (KIND_VERSION is
     # pinned there), so this runner does not need kind preinstalled — only
     # the Docker daemon GitHub's ubuntu-latest runners already provide.
-    - name: Run upjet E2E test (including the live stage 10 lifecycle)
+    - name: Run upjet E2E test (including the live step 10 lifecycle)
       run: make e2e-upjet
