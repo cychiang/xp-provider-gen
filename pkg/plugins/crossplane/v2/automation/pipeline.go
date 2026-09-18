@@ -29,9 +29,8 @@ type Pipeline struct {
 // scaffoldCommitMessage builds the initial-scaffold commit message shared by
 // newInitPipeline and newUpjetInitPipeline, which differ only in how they
 // describe what was scaffolded (e.g. "Crossplane provider project" vs.
-// "upjet Crossplane provider project"). Worth factoring out because the
-// message text isn't what those two functions are about — unlike their step
-// lists, which are kept flat and duplicated on purpose (see
+// "upjet Crossplane provider project"). Their step lists, by contrast, are
+// kept flat and duplicated on purpose (see
 // TestInitPipelines_ShareLeadingStepsAndFinalStep in pipeline_test.go).
 func scaffoldCommitMessage(description, providerName string) string {
 	return fmt.Sprintf(`Initial commit

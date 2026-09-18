@@ -53,12 +53,6 @@ func Get() Info {
 	}
 }
 
-// String returns version information as a string.
-func (i Info) String() string {
-	return fmt.Sprintf("xp-provider-gen version %s (%s) built on %s with %s for %s",
-		i.Version, i.GitCommit, i.BuildDate, i.GoVersion, i.Platform)
-}
-
 // Short returns a short version string.
 func (i Info) Short() string {
 	return fmt.Sprintf("v%s", i.Version)

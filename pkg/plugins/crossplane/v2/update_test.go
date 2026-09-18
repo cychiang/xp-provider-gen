@@ -45,7 +45,7 @@ func newUpdateTestConfig(t *testing.T, meta projectMeta, kinds ...string) config
 	if err != nil {
 		t.Fatalf("config.New: %v", err)
 	}
-	if err := cfg.SetDomain("example.com"); err != nil {
+	if err := cfg.SetDomain(testDomain); err != nil {
 		t.Fatalf("SetDomain: %v", err)
 	}
 	if err := cfg.SetRepository("github.com/example/provider-test"); err != nil {
@@ -191,8 +191,8 @@ const (
 	makeFragmentPath        = "hack/xp-provider-gen.mk"
 )
 
-// TestReconcile_UpjetDoesNotSeedUserOwned pins policy C7: a user-owned file
-// missing on disk is seeded for a native project, but not for an upjet one:
+// TestReconcile_UpjetDoesNotSeedUserOwned pins that a user-owned file missing
+// on disk is seeded for a native project, but not for an upjet one:
 // some upjet user-owned templates need init-time Terraform settings PROJECT
 // does not keep, so seeding would write empty values, and none are recreated.
 // Tool-owned files are seeded either way.
@@ -292,10 +292,10 @@ func TestInsertGeneratedHeader(t *testing.T) {
 	}
 }
 
-// TestInsertGeneratedHeader_Shebang pins A9: a naive insertion before "\npackage "
-// (or at byte 0 when there is none) used to land the header ABOVE a script's
-// shebang line, breaking it ("//: No such file or directory" on line 1). The
-// header must sit after the shebang instead.
+// TestInsertGeneratedHeader_Shebang pins that a script's shebang line stays
+// on line 1: a naive insertion before "\npackage " (or at byte 0 when there
+// is none) would land the header ABOVE it, breaking it ("//: No such file or
+// directory"). The header must sit after the shebang instead.
 func TestInsertGeneratedHeader_Shebang(t *testing.T) {
 	script := "#!/usr/bin/env bash\nset -euo pipefail\necho hi\n"
 	got := string(insertGeneratedHeader([]byte(script)))
@@ -399,7 +399,7 @@ func TestReconcile_NestedSeed(t *testing.T) {
 	}
 }
 
-// TestRevertAdvice pins A10: 'git reset --hard' alone does not undo a failed
+// TestRevertAdvice pins that 'git reset --hard' alone does not undo a failed
 // update once reconcile has seeded new (untracked) files — they are left
 // behind while the advice implies the tree is clean. The advice must name
 // them explicitly instead of blanket-suggesting 'git clean -fd', which would

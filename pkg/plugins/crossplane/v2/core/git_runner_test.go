@@ -22,11 +22,10 @@ import (
 	"testing"
 )
 
-// TestGitCommandRunner_DelegatesToCommandRunner pins C5/A7 together:
-// GitCommandRunner used to duplicate CommandRunner's exec plumbing with its
-// own silent cmd.Run()/cmd.Output() calls, so a failing git step also
-// reported a bare exit status. Now that it delegates, git failures are
-// self-diagnosing the same way make/go failures are.
+// TestGitCommandRunner_DelegatesToCommandRunner pins that GitCommandRunner
+// delegates to CommandRunner's exec plumbing, so a failing git step is
+// self-diagnosing the same way make/go failures are (see
+// TestCommandRunner_Run_ErrorSurfacesChildOutput).
 func TestGitCommandRunner_DelegatesToCommandRunner(t *testing.T) {
 	g := NewGitCommandRunner("")
 

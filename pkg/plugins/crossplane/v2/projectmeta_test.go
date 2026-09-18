@@ -30,10 +30,9 @@ import (
 // used across this package's tests to exercise the "unknown flavor" error.
 const unknownTestFlavor core.Flavor = "bogus"
 
-// TestLoadProjectMeta pins A8: a PROJECT that declares flavor: upjet but
-// carries no upjet: block used to reach a nil-pointer dereference in
-// createapi.go (meta.Upjet.TerraformResourcePrefix). loadProjectMeta must
-// reject that shape itself rather than swallow the decode error.
+// TestLoadProjectMeta pins that a PROJECT declaring flavor: upjet but
+// carrying no upjet: block is rejected here rather than reaching a
+// nil-pointer dereference in createapi.go (meta.Upjet.TerraformResourcePrefix).
 func TestLoadProjectMeta(t *testing.T) {
 	tests := []struct {
 		name       string

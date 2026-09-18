@@ -38,7 +38,7 @@ const (
 
 // BuildTemplate turns one discovered template into a renderable product: it
 // resolves the output path's placeholders and loads the template body.
-func BuildTemplate(cfg config.Config, info TemplateInfo, opts ...Option) (TemplateProduct, error) {
+func BuildTemplate(cfg config.Config, info TemplateInfo, opts ...Option) (*GenericTemplateProduct, error) {
 	options := &TemplateOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -95,7 +95,7 @@ func configureProduct(product *GenericTemplateProduct, cfg config.Config, option
 		// what a second `create api` in an existing group/version needs: the
 		// group-scoped templates (groupversion_info.go) are already on disk and
 		// must be left alone rather than erroring the whole command.
-		product.SetForce(true)
+		product.IfExistsAction = machinery.OverwriteFile
 	}
 	if err := product.SetTemplateDefaults(); err != nil {
 		return fmt.Errorf("failed to set template defaults: %w", err)

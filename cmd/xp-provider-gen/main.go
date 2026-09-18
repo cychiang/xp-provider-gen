@@ -30,11 +30,8 @@ import (
 )
 
 // commandName is this binary's name, as the built binary, the Go module, the
-// docs and the skill all spell it — the plugin-style "crossplane-" prefixed
-// name this file used to hardcode here does not exist anywhere else in the
-// project. Extracted to one constant so the two user-facing strings naming
-// it below cannot drift apart from each other the way
-// go.mod/Dockerfile/dependencies.yaml did on the previous branch.
+// docs and the skill all spell it. One constant so the two user-facing
+// strings naming it below cannot drift apart from each other.
 const commandName = "xp-provider-gen"
 
 // alphaCommand is the name of Kubebuilder's "alpha" command tree, which this
@@ -95,7 +92,7 @@ func main() {
 
 	versionInfo := version.Get()
 
-	cli, err := cli.New(
+	c, err := cli.New(
 		cli.WithCommandName(commandName),
 		cli.WithVersion(versionInfo.Short()),
 		cli.WithDescription("Crossplane Provider Generator - A tool for scaffolding Crossplane providers "+
@@ -107,10 +104,11 @@ func main() {
 		cli.WithCompletion(),
 	)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
-	hideInertCommands(cli.Command())
-	if err := cli.Run(); err != nil {
+	hideInertCommands(c.Command())
+	if err := c.Run(); err != nil {
 		os.Exit(1)
 	}
 }

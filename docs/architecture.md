@@ -71,7 +71,7 @@ the project's flavor from PROJECT and renders, validates and finalizes with that
 Reusable, side-effecting building blocks with no template knowledge:
 
 - **`command_runner.go`** — `CommandRunner` wraps `exec.CommandContext` with a working dir.
-- **`git_runner.go`** — `GitCommandRunner`: `Init`, `Add`, `Commit`/`CommitWithAuthor`,
+- **`git_runner.go`** — `GitCommandRunner`: `Init`, `Add`, `CommitWithSystemAuthor`,
   `GetUserName/Email`, `AddSubmodule`.
 - **`config.go`** — `PluginConfig` (repo prefix, git author); `GenerateDefaultRepo()`.
 - **`provider.go`** — `ExtractProviderName` / `ExtractProjectName` helpers.
@@ -134,8 +134,9 @@ A sequential chain of steps run after scaffolding. **Every step is required** �
 aborts (no warn-and-continue) — and the **commit is last**, so the tree is left clean and
 fully committed.
 
-- **`steps.go`** — `Step` interface (`Name`, `Execute`); steps: `GitInitStep`, `GitCommitStep`,
-  `GitFoldCommitStep`, `GitSubmoduleStep`, `MakeStep(target)`, `GoModTidyStep`, `ExecutableBitStep` (machinery
+- **`steps.go`** — `Step` interface (`Name`, `Execute`); steps: `GitInitStep`, `GitCommitStep`
+  (or, via `NewGitFoldCommitStep`, folded into the scaffold commit), `GitSubmoduleStep`,
+  `MakeStep(target)`, `GoModTidyStep`, `ExecutableBitStep` (machinery
   writes 0644; uptest execs `test/setup.sh`, so the bit is set and committed at scaffold time).
 - **`pipeline.go`** — `InitPipelineFor(flavor, ...)` and `APICommitPipelineFor(flavor, ...)`
   are the one place `init` and `create api` choose a pipeline for a project's flavor,

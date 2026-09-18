@@ -32,11 +32,11 @@ func dedupTestResource(kind string) resource.Resource {
 	return resource.Resource{GVK: resource.GVK{Group: group, Version: version, Kind: kind}}
 }
 
-// TestNewUpjetResourcesGenerator_Dedups pins the fix for `create api --force`
-// against an existing kind: PROJECT's stored resources and the current run's
-// resource used to be concatenated unconditionally, so a kind seen twice
-// produced two aggregator entries (duplicate import alias, duplicate
-// Configure call) and the generated project failed to compile.
+// TestNewUpjetResourcesGenerator_Dedups pins that `create api --force`
+// against an existing kind does not duplicate the aggregator entry: PROJECT's
+// stored resources and the current run's resource can name the same kind
+// twice, and a duplicate import alias plus a duplicate Configure call would
+// fail the generated project to compile.
 func TestNewUpjetResourcesGenerator_Dedups(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -18,7 +18,6 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
@@ -60,13 +59,7 @@ var _ machinery.Template = &UpjetResourcesGenerator{}
 // TestNewUpjetResourcesGenerator_Dedups).
 func NewUpjetResourcesGenerator(repo string, resources []resource.Resource) *UpjetResourcesGenerator {
 	g := &UpjetResourcesGenerator{}
-	seen := map[string]bool{}
-	for _, res := range ManagedResources(resources) {
-		pkg := strings.ToLower(res.Kind)
-		if seen[pkg] {
-			continue
-		}
-		seen[pkg] = true
+	for _, pkg := range uniqueKindPackages(resources) {
 		g.Resources = append(g.Resources, upjetResource{
 			Alias: pkg,
 			Path:  fmt.Sprintf("%s/config/%s", repo, pkg),

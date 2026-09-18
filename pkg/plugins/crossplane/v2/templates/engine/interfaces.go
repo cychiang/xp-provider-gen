@@ -17,27 +17,10 @@ limitations under the License.
 package engine
 
 import (
-	"sigs.k8s.io/kubebuilder/v4/pkg/config"
-	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
-
-// TemplateProduct is a template ready for machinery to render.
-type TemplateProduct interface {
-	machinery.Template
-	machinery.Builder
-	Configure(cfg config.Config) error
-	SetResource(res *resource.Resource) error
-}
-
-// TemplateFactory serves the templates discovered in the embedded FS, split by
-// when they render.
-type TemplateFactory interface {
-	GetInitTemplates(opts ...Option) ([]TemplateProduct, error)
-	GetAPITemplates(opts ...Option) ([]TemplateProduct, error)
-}
 
 type Option func(*TemplateOptions)
 

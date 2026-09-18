@@ -58,10 +58,7 @@ func (s *InitScaffolder) Scaffold(fs machinery.Filesystem) error {
 	// Seed the registration files through the same deterministic generators used
 	// by `create api` (with no managed resources yet), so init and create produce
 	// byte-identical register.go for the base case — one source of truth.
-	deps, err := engine.DependenciesFor(s.flavor)
-	if err != nil {
-		return fmt.Errorf("failed to load dependency manifest: %w", err)
-	}
+	deps := engine.DependenciesFor(s.flavor)
 	allTemplates = append(allTemplates, engine.CoreGeneratorsFor(s.flavor, s.config, nil)...)
 	allTemplates = append(allTemplates, engine.NewGoModGenerator(s.config.GetRepository(), deps))
 

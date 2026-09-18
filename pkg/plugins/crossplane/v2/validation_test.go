@@ -37,6 +37,9 @@ const (
 // package's tests (validation and init).
 const testProviderRepo = "github.com/example/provider-test"
 
+// testDomain is a sample valid domain reused across this package's tests.
+const testDomain = "example.com"
+
 func TestValidator_ValidateDomain(t *testing.T) {
 	validator := validation.NewValidator()
 
@@ -47,7 +50,7 @@ func TestValidator_ValidateDomain(t *testing.T) {
 	}{
 		{
 			name:    "valid domain",
-			domain:  "example.com",
+			domain:  testDomain,
 			wantErr: false,
 		},
 		{
@@ -66,7 +69,7 @@ func TestValidator_ValidateDomain(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "local domain warning",
+			name:    ".local domain is rejected",
 			domain:  "example.local",
 			wantErr: true,
 		},
@@ -134,6 +137,22 @@ func TestValidator_ValidateRepository(t *testing.T) {
 				t.Errorf("ValidateRepository() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestValidator_ValidateRepository_NeverPrints pins that the validator only
+// ever returns an error for a non-conventional repo name, never prints —
+// see TestInitSubcommand_InjectConfig_WarnsOnUnconventionalRepoName for
+// where that warning is printed instead.
+func TestValidator_ValidateRepository_NeverPrints(t *testing.T) {
+	validator := validation.NewValidator()
+	out := captureStdout(t, func() {
+		if err := validator.ValidateRepository("github.com/example/not-conventional"); err != nil {
+			t.Fatalf("ValidateRepository() unexpected error: %v", err)
+		}
+	})
+	if out != "" {
+		t.Errorf("ValidateRepository() printed %q, want no output", out)
 	}
 }
 

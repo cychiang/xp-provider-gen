@@ -42,7 +42,7 @@ func newTestConfig(t *testing.T) config.Config {
 	return cfg
 }
 
-// TestBuildTemplate_DerivesNamespacedDomainFromPersistedSettings pins C1:
+// TestBuildTemplate_DerivesNamespacedDomainFromPersistedSettings pins that
 // settings read back from PROJECT carry no NamespacedDomain (json:"-"), and
 // applying them must not wipe the value Configure derives from the domain.
 func TestBuildTemplate_DerivesNamespacedDomainFromPersistedSettings(t *testing.T) {
@@ -53,7 +53,7 @@ func TestBuildTemplate_DerivesNamespacedDomainFromPersistedSettings(t *testing.T
 	if err != nil {
 		t.Fatalf("BuildTemplate: %v", err)
 	}
-	got := product.(*GenericTemplateProduct).NamespacedDomain
+	got := product.NamespacedDomain
 	if want := core.NamespacedDomain("example.com"); got != want {
 		t.Errorf("NamespacedDomain = %q, want %q", got, want)
 	}

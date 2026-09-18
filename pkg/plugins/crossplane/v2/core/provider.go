@@ -40,3 +40,9 @@ func ExtractProjectName(cfg config.Config) string {
 
 	return ExtractProviderName(cfg.GetRepository())
 }
+
+// APIImportPath returns the Go import path a resource's API group/version
+// package is generated at: <repo>/apis/<group>/<version>.
+func APIImportPath(repo, group, version string) string {
+	return repo + "/apis/" + group + "/" + version
+}

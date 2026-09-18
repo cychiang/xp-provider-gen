@@ -53,7 +53,7 @@ func NewGoModGenerator(repo string, deps []versions.Dependency) *GoModGenerator 
 
 // DependenciesFor returns the go.mod dependency set for a project of the given
 // flavor. It is the one place a command chooses between the two sets.
-func DependenciesFor(flavor core.Flavor) ([]versions.Dependency, error) {
+func DependenciesFor(flavor core.Flavor) []versions.Dependency {
 	if flavor == core.FlavorUpjet {
 		return versions.UpjetGoModDependencies()
 	}

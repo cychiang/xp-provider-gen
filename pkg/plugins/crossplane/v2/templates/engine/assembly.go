@@ -24,9 +24,10 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
 
-// AsBuilders adapts a slice of TemplateProduct to the []machinery.Builder that
-// machinery.Scaffold.Execute expects (Go cannot implicitly convert the slices).
-func AsBuilders(products []TemplateProduct) []machinery.Builder {
+// AsBuilders adapts a slice of *GenericTemplateProduct to the
+// []machinery.Builder that machinery.Scaffold.Execute expects (Go cannot
+// implicitly convert the slices).
+func AsBuilders(products []*GenericTemplateProduct) []machinery.Builder {
 	builders := make([]machinery.Builder, 0, len(products))
 	for _, p := range products {
 		builders = append(builders, p)

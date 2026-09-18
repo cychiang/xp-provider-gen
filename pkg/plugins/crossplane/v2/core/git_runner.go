@@ -18,7 +18,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"strings"
 )
 
@@ -26,10 +25,9 @@ import (
 // and the automation pipeline, on top of CommandRunner: the executable is
 // always the literal "git", never a variable, and CommandRunner's allowlist
 // (which already includes "git") applies uniformly instead of git commands
-// spawning exec.Command directly. The two runners used to duplicate the same
-// ~25 lines of exec plumbing; this keeps that in one place plus git treats
-// values after -m/-- as data, so no shell is involved and the variable
-// argument lists carry no injection risk either way.
+// spawning exec.Command directly. git treats values after -m/-- as data, so
+// no shell is involved and the variable argument lists carry no injection
+// risk either way.
 type GitCommandRunner struct {
 	runner *CommandRunner
 }
@@ -80,12 +78,6 @@ func (g *GitCommandRunner) GetUserEmail(ctx context.Context) (string, error) {
 func (g *GitCommandRunner) CommitWithSystemAuthor(ctx context.Context, message string) error {
 	// Git will automatically use system config for author if not specified
 	return g.RunCommandWithStdin(ctx, message, "commit", "-F", "-")
-}
-
-// CommitWithAuthor creates a commit with the provided message and author.
-func (g *GitCommandRunner) CommitWithAuthor(ctx context.Context, message, author string) error {
-	authorFlag := fmt.Sprintf("--author=%s", author)
-	return g.RunCommandWithStdin(ctx, message, "commit", "-F", "-", authorFlag)
 }
 
 // AddSubmodule adds a git submodule.

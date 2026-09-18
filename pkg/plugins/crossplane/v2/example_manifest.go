@@ -69,6 +69,13 @@ func generatedExamplePath(res resource.Resource) string {
 		strings.ToLower(res.Group), res.Version, strings.ToLower(res.Kind))
 }
 
+// upjetExampleHint tells an upjet author where to copy their scraped example
+// from and what to fix before it is a valid manifest. Shared by create api's
+// upjet next-steps text and create-test's missing-manifest error.
+func upjetExampleHint(res resource.Resource) string {
+	return fmt.Sprintf("copy %s there and fix any Terraform interpolations (${...})", generatedExamplePath(res))
+}
+
 // loadExampleManifest reads examples/<group>/<kind>.yaml and extracts the
 // apiVersion, namespace and spec (pre-indented, ready to splice under the
 // chainsaw skeleton's spec: key) create-test needs. This is the one thing
@@ -82,9 +89,8 @@ func loadExampleManifest(fs afero.Fs, res resource.Resource) (string, string, st
 		return "", "", "", fmt.Errorf(
 			"no example manifest at %s: create-test derives the test from it, so it must exist first\n"+
 				"  native: 'create api' already seeded one there — fill in its spec\n"+
-				"  upjet: run 'make generate', then copy %s "+
-				"there and fix any Terraform interpolations (${...})",
-			path, generatedExamplePath(res))
+				"  upjet: run 'make generate', then %s",
+			path, upjetExampleHint(res))
 	}
 
 	var manifest exampleManifest

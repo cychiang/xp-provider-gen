@@ -52,50 +52,41 @@ func (s *GitInitStep) Execute() error {
 	return s.git.Init(context.Background())
 }
 
+// stepNameFoldCommit is the display name of the fold-commit step (see
+// GitOperations.CommitOrAmendScaffold).
+const stepNameFoldCommit = "Commit changes (fold into initial scaffold if applicable)"
+
+// GitCommitStep commits pending changes: a plain commit, or, when fold is
+// set, folded into the initial scaffold commit while the provider is still
+// in initial setup (see GitOperations.CommitOrAmendScaffold).
 type GitCommitStep struct {
 	git     *GitOperations
 	message string
-	author  string
+	fold    bool
 }
 
 func NewGitCommitStep(config *core.PluginConfig, message string) *GitCommitStep {
-	return &GitCommitStep{
-		git:     NewGitOperations(config),
-		message: message,
-		author:  "", // Empty to use system git config, fallback to default in CreateCommit
-	}
+	return &GitCommitStep{git: NewGitOperations(config), message: message}
+}
+
+// NewGitFoldCommitStep builds a commit step that folds into the initial
+// scaffold commit while applicable.
+func NewGitFoldCommitStep(config *core.PluginConfig, message string) *GitCommitStep {
+	return &GitCommitStep{git: NewGitOperations(config), message: message, fold: true}
 }
 
 func (s *GitCommitStep) Name() string {
+	if s.fold {
+		return stepNameFoldCommit
+	}
 	return stepNameInitialCommit
 }
 
 func (s *GitCommitStep) Execute() error {
-	return s.git.CreateCommit(context.Background(), s.message, s.author)
-}
-
-// GitFoldCommitStep commits, folding into the initial scaffold commit while the
-// provider is still in initial setup (see GitOperations.CommitOrAmendScaffold).
-type GitFoldCommitStep struct {
-	git     *GitOperations
-	message string
-	author  string
-}
-
-func NewGitFoldCommitStep(config *core.PluginConfig, message string) *GitFoldCommitStep {
-	return &GitFoldCommitStep{
-		git:     NewGitOperations(config),
-		message: message,
-		author:  "",
+	if s.fold {
+		return s.git.CommitOrAmendScaffold(context.Background(), s.message)
 	}
-}
-
-func (s *GitFoldCommitStep) Name() string {
-	return "Commit changes (fold into initial scaffold if applicable)"
-}
-
-func (s *GitFoldCommitStep) Execute() error {
-	return s.git.CommitOrAmendScaffold(context.Background(), s.message, s.author)
+	return s.git.CreateCommit(context.Background(), s.message)
 }
 
 type GitSubmoduleStep struct {
@@ -213,7 +204,7 @@ func NewGoModTidyStep() *GoModTidyStep {
 }
 
 func (s *GoModTidyStep) Name() string {
-	return "Download dependencies (go mod tidy)"
+	return "Tidy dependencies (go mod tidy)"
 }
 
 func (s *GoModTidyStep) Execute() error {

@@ -77,7 +77,7 @@ func TestCreateCommit_NoChanges_SkipsWithoutError(t *testing.T) {
 	git := initTestRepo(t)
 	before := commitCount(t)
 
-	if err := git.CreateCommit(context.Background(), "no-op commit", ""); err != nil {
+	if err := git.CreateCommit(context.Background(), "no-op commit"); err != nil {
 		t.Fatalf("CreateCommit() with no changes = %v, want nil", err)
 	}
 
@@ -94,7 +94,7 @@ func TestCreateCommit_WithChanges_Commits(t *testing.T) {
 		t.Fatalf("write file: %v", err)
 	}
 
-	if err := git.CreateCommit(context.Background(), "add new.txt", ""); err != nil {
+	if err := git.CreateCommit(context.Background(), "add new.txt"); err != nil {
 		t.Fatalf("CreateCommit() with changes = %v", err)
 	}
 
@@ -112,7 +112,7 @@ func TestCommitOrAmendScaffold_NoChanges_SkipsWithoutError(t *testing.T) {
 		t.Fatalf("rev-parse HEAD: %v", err)
 	}
 
-	if err := git.CommitOrAmendScaffold(context.Background(), "fold commit", ""); err != nil {
+	if err := git.CommitOrAmendScaffold(context.Background(), "fold commit"); err != nil {
 		t.Fatalf("CommitOrAmendScaffold() with no changes = %v, want nil", err)
 	}
 
@@ -149,7 +149,7 @@ func TestCommitOrAmendScaffold_WithChanges_AmendsScaffoldHead(t *testing.T) {
 		t.Fatalf("write file: %v", err)
 	}
 
-	if err := git.CommitOrAmendScaffold(context.Background(), "fold commit", ""); err != nil {
+	if err := git.CommitOrAmendScaffold(context.Background(), "fold commit"); err != nil {
 		t.Fatalf("CommitOrAmendScaffold() with changes = %v", err)
 	}
 

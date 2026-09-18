@@ -35,8 +35,6 @@ type createAPISubcommand struct {
 }
 
 func (p *createAPISubcommand) UpdateMetadata(cliMeta plugin.CLIMetadata, subcmdMeta *plugin.SubcommandMetadata) {
-	p.ensureConfig()
-
 	subcmdMeta.Description = `Create a new Crossplane managed resource API.
 
 This command scaffolds a complete managed resource with:
@@ -61,8 +59,6 @@ This command scaffolds a complete managed resource with:
 }
 
 func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
-	p.ensureConfig()
-
 	fs.BoolVar(&p.force, "force", false,
 		"overwrite existing tool-owned files (files without the generated header are never overwritten)")
 	fs.StringVar(&p.terraformResource, "terraform-resource", "",
@@ -78,7 +74,7 @@ func (p *createAPISubcommand) InjectResource(res *resource.Resource) error {
 	p.resource = res
 
 	if res != nil {
-		res.Path = fmt.Sprintf("%s/apis/%s/%s", p.config.GetRepository(), res.Group, res.Version)
+		res.Path = core.APIImportPath(p.config.GetRepository(), res.Group, res.Version)
 		res.Domain = p.config.GetDomain()
 		res.API = &resource.API{
 			CRDVersion: "v1",
@@ -97,12 +93,10 @@ func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 	}
 	p.meta = meta
 
-	// Validate resource parameters before scaffolding
 	if err := validation.ValidatorFor(meta.Flavor).ValidateResource(p.resource); err != nil {
 		return validation.CreateAPIError("resource validation", err)
 	}
 
-	// Additional kubebuilder-compatible checks
 	if p.resource.Domain == "" {
 		return validation.CreateAPIError("configuration check",
 			fmt.Errorf("resource domain is required - ensure project is properly initialized"))
@@ -165,7 +159,6 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	allTemplates := engine.AsBuilders(apiTemplates)
 	allTemplates = append(allTemplates, engine.CoreGeneratorsFor(p.meta.Flavor, p.config, resources)...)
 
-	// Execute scaffolding with discovered templates
 	if err := scaffold.Execute(allTemplates...); err != nil {
 		return validation.CreateAPIError("scaffolding", err)
 	}
@@ -181,7 +174,6 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 func (p *createAPISubcommand) PostScaffold() error {
 	p.ensureConfig()
 
-	// Run API commit automation pipeline
 	pipeline := automation.APICommitPipelineFor(p.meta.Flavor, p.pluginConfig, p.resource.Kind)
 	fmt.Println("Running post-scaffolding automation...")
 	if err := pipeline.Run(); err != nil {
@@ -193,9 +185,8 @@ func (p *createAPISubcommand) PostScaffold() error {
 	if p.meta.Flavor == core.FlavorUpjet {
 		fmt.Printf("  1. Run 'make generate' to generate its API types and controller\n")
 		fmt.Printf("  2. Map any new credentials in internal/clients/clients.go\n")
-		fmt.Printf("  3. Write examples/%s/%s.yaml: copy %s "+
-			"there and fix any Terraform interpolations (${...}) — 'create-test' and 'make e2e' both derive from it\n",
-			strings.ToLower(p.resource.Group), strings.ToLower(p.resource.Kind), generatedExamplePath(*p.resource))
+		fmt.Printf("  3. Write %s: %s — 'create-test' and 'make e2e' both derive from it\n",
+			examplePath(*p.resource), upjetExampleHint(*p.resource))
 		fmt.Printf("  4. Run 'xp-provider-gen create-test --kind=%s' once that example exists\n", p.resource.Kind)
 		return nil
 	}
@@ -203,8 +194,7 @@ func (p *createAPISubcommand) PostScaffold() error {
 	fmt.Printf("  2. Implement the external client logic\n")
 	fmt.Printf("  3. Update controller reconciliation logic\n")
 	fmt.Printf("  4. Run 'make generate' to generate CRDs\n")
-	fmt.Printf("  5. Check examples/%s/%s.yaml for usage examples\n",
-		strings.ToLower(p.resource.Group), strings.ToLower(p.resource.Kind))
+	fmt.Printf("  5. Check %s for usage examples\n", examplePath(*p.resource))
 
 	return nil
 }

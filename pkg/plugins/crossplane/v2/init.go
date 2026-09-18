@@ -3,7 +3,6 @@ package v2
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -75,8 +74,6 @@ This command scaffolds a complete Crossplane provider project with:
 }
 
 func (p *initSubcommand) BindFlags(fs *pflag.FlagSet) {
-	p.ensureConfig()
-
 	fs.StringVar(&p.domain, "domain", "", "domain for API groups (required)")
 	fs.StringVar(&p.repo, "repo", "", "name to use for go module (e.g., github.com/user/repo)")
 	fs.StringVar(&p.gitName, "git-name", "", "git user name for commits (uses system config if not provided)")
@@ -143,6 +140,11 @@ func (p *initSubcommand) InjectConfig(c config.Config) error {
 	if err := validator.ValidateRepository(repo); err != nil {
 		return validation.InitError("repository validation", err)
 	}
+	if !validation.IsConventionalRepoName(repo) {
+		parts := strings.Split(repo, "/")
+		fmt.Printf("Warning: Repository name '%s' doesn't follow Crossplane convention 'provider-*'\n",
+			parts[len(parts)-1])
+	}
 
 	if err := p.config.SetRepository(repo); err != nil {
 		return validation.InitError("configuration", err)
@@ -180,7 +182,6 @@ func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 func (p *initSubcommand) PostScaffold() error {
 	p.ensureConfig()
 
-	// Run automation pipeline
 	providerName := core.ExtractProviderName(p.config.GetRepository())
 	pipeline := automation.InitPipelineFor(p.flavor(), p.pluginConfig, providerName)
 
@@ -218,10 +219,7 @@ func (p *initSubcommand) ensureConfig() {
 // current directory's git configuration for values neither --git-name nor
 // --git-email supplied.
 func (p *initSubcommand) resolveGitConfig() {
-	wd, _ := os.Getwd()
-	p.pluginConfig.Git.Author, p.pluginConfig.Git.Email = p.gitIdentity(func() (string, string) {
-		return systemGitConfig(wd)
-	})
+	p.pluginConfig.Git.Author, p.pluginConfig.Git.Email = p.gitIdentity(systemGitConfig)
 }
 
 // gitIdentity resolves the git identity used for automation commits, in
@@ -252,11 +250,11 @@ func (p *initSubcommand) gitIdentity(query func() (name, email string)) (string,
 }
 
 // systemGitConfig reads user.name and user.email from git's own config
-// resolution for workDir, returning "" for a value that is unset or
-// unreadable.
-func systemGitConfig(workDir string) (string, string) {
+// resolution for the current directory, returning "" for a value that is
+// unset or unreadable.
+func systemGitConfig() (string, string) {
 	var name, email string
-	runner := core.NewGitCommandRunner(workDir)
+	runner := core.NewGitCommandRunner("")
 	if v, err := runner.GetUserName(context.Background()); err == nil {
 		name = v
 	}

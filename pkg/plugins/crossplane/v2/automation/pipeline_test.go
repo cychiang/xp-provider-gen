@@ -69,7 +69,7 @@ func TestNewInitPipeline_CommitsLast(t *testing.T) {
 		"Mark scaffolded scripts executable",
 		"Add build submodule from " + cfg.Git.BuildSubmoduleURL,
 		"Run make submodules",
-		"Download dependencies (go mod tidy)",
+		"Tidy dependencies (go mod tidy)",
 		stepNameMakeGenerate,
 		stepNameMakeReviewable,
 		stepNameInitialCommit,
@@ -150,21 +150,15 @@ func TestAPICommitPipelineFor(t *testing.T) {
 	}
 }
 
-// TestInitPipelines_ShareLeadingStepsAndFinalStep pins the invariant
-// pipeline.go's own comments describe but never enforce: newInitPipeline and
-// newUpjetInitPipeline share their first four steps (git init, executable
-// bit, git submodule, make submodules) and their last (the commit), diverging
-// only in the middle (native tidies/generates/reviews; upjet just downloads,
-// since a fresh upjet project doesn't compile until `make generate` runs).
-//
-// The two pipelines are compared directly against EACH OTHER, not against a
-// hardcoded list of expected literal step names — the point is to catch one
-// prefix drifting away from the other (someone adds a step to one and
-// forgets the other), not to re-assert today's exact wording. Step.Name()
-// already exists on the interface (Pipeline.Run itself prints it, and
-// TestNewInitPipeline_CommitsLast above already keys assertions off it), so
-// no new accessor was needed: it is already the stable, meaningful
-// identifier this codebase uses for "which step is this".
+// TestInitPipelines_ShareLeadingStepsAndFinalStep pins that newInitPipeline
+// and newUpjetInitPipeline share their first four steps (git init,
+// executable bit, git submodule, make submodules) and their last (the
+// commit), diverging only in the middle (native tidies/generates/reviews;
+// upjet just downloads, since a fresh upjet project doesn't compile until
+// `make generate` runs). The two pipelines are compared directly against
+// EACH OTHER, not a hardcoded list of literal step names, to catch one
+// prefix drifting away from the other rather than re-asserting today's
+// exact wording.
 func TestInitPipelines_ShareLeadingStepsAndFinalStep(t *testing.T) {
 	cfg := core.NewPluginConfig()
 	native := stepNames(newInitPipeline(cfg, "provider-test"))

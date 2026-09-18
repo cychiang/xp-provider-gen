@@ -112,10 +112,7 @@ func checkDockerfileTag(goVersion string) error {
 // of any dependency pkg/versions/dependencies.yaml pins, fetched live from
 // proxy.golang.org (never guessed).
 func checkDependencyFloors(goVersion string) error {
-	deps, err := versions.UpjetGoModDependencies()
-	if err != nil {
-		return fmt.Errorf("loading dependency manifest: %w", err)
-	}
+	deps := versions.UpjetGoModDependencies()
 	client := &http.Client{Timeout: 15 * time.Second}
 	for _, d := range deps {
 		depDirective, err := fetchGoDirective(client, d.Module, d.Version)
