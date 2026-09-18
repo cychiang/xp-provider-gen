@@ -55,7 +55,7 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 ## Native-flavor e2e (`make e2e-native`)
 
 `scripts/e2e-native.sh` (run via `make e2e-native`) exercises the real generator workflow against
-a throwaway project in `/tmp/provider-template`. The expected file layout lives in
+a throwaway project in `/tmp/xpg-e2e-native`. The expected file layout lives in
 `scripts/assert-layout.sh`, called by `e2e-native.sh` at each scaffolding stage (and by
 `e2e-upjet.sh --upjet` after init) — edit that when the scaffold gains or loses a file:
 
@@ -79,8 +79,8 @@ in order from `main`; `--help` lists the same steps:
    files and commit, run `update`, then assert (a) every marker survives, (b) `wiring.go`,
    `connector.go` and `docs/ownership.md` are refreshed with headers intact, (c) seed-once
    `AGENTS.md` is untouched, (d) `update` refuses a dirty tree. Steps 7–10 run against a copy
-   of the scaffold at `/tmp/provider-template-lifecycle` (`LIFECYCLE_DIR`), so the pristine
-   `/tmp/provider-template` keeps its single `Initial commit`.
+   of the scaffold at `/tmp/xpg-e2e-native-lifecycle` (`LIFECYCLE_DIR`), so the pristine
+   `/tmp/xpg-e2e-native` keeps its single `Initial commit`.
 8. **`create api --force`:** mark a tool-owned file (`wiring.go`) and a user-owned one
    (`external.go`), commit, then re-run `create api` for the same kind with `--force` and
    assert (a) it exits 0, (b) the tool-owned marker is gone (regenerated), (c) the
@@ -103,7 +103,7 @@ The `--force`/`--adopt`/dirty-tree assertions (steps 8, 9, and the dirty-tree ch
 step 7) and `docker_skip_requested` live in `scripts/lib.sh`, shared with `e2e-upjet.sh` and
 `e2e-upgrade.sh` — see that file for the shared helpers.
 
-`/tmp/provider-template`, the scaffold this leaves behind, is kept only when the run succeeds
+`/tmp/xpg-e2e-native`, the scaffold this leaves behind, is kept only when the run succeeds
 (a failure removes it so the next run starts clean) — the next run recreates it either way:
 
 ```bash

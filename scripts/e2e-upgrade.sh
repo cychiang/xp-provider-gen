@@ -18,6 +18,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(dirname "$SCRIPT_DIR")"
 DIR=/tmp/xpg-e2e-upgrade
+AUX=/tmp/xpg-e2e-upgrade-aux
 B="$REPO/bin/xp-provider-gen"
 
 # shellcheck source=scripts/lib.sh
@@ -48,7 +49,9 @@ EOF
 }
 
 log_info "=== 1. Scaffold with the current generator ==="
-rm -rf "$DIR" && mkdir -p "$DIR" && cd "$DIR"
+rm -rf "$DIR" && mkdir -p "$DIR"
+rm -rf "$AUX" && mkdir -p "$AUX"
+cd "$DIR"
 $B init --domain=acme.io --repo=github.com/example/provider-acme >/dev/null 2>&1
 $B create api --group=compute --version=v1alpha1 --kind=Instance >/dev/null 2>&1
 log_success "scaffolded at $DIR"
@@ -299,18 +302,21 @@ fi
 
 log_info "=== 4. Simulate a NEW generator version (change tool-owned templates) ==="
 cd "$REPO"
-cp pkg/templates/files/internal/provider/connector.go.tmpl /tmp/connector.bak
-cp pkg/templates/files/internal/controller/KIND/wiring.go.tmpl /tmp/wiring.bak
-cp pkg/templates/files/hack/xp-provider-gen.mk.tmpl /tmp/xp-provider-gen.mk.bak
+cp pkg/templates/files/internal/provider/connector.go.tmpl "$AUX/connector.bak"
+cp pkg/templates/files/internal/controller/KIND/wiring.go.tmpl "$AUX/wiring.bak"
+cp pkg/templates/files/hack/xp-provider-gen.mk.tmpl "$AUX/xp-provider-gen.mk.bak"
 
 # From here on the repo's templates are mutated: restore them on ANY exit —
 # success, assertion failure, or a set -e abort mid-run — so a failed run can
 # never leave the working tree (and bin/) built from simulated-v2 templates.
+# $AUX itself is only cleaned at script start (step 1), never here: the trap
+# fires on every exit path, and a mid-run cleanup would delete the very
+# backups this restore needs.
 restore_templates() {
     log_info "=== Restore generator templates ==="
-    cp /tmp/connector.bak "$REPO/pkg/templates/files/internal/provider/connector.go.tmpl"
-    cp /tmp/wiring.bak "$REPO/pkg/templates/files/internal/controller/KIND/wiring.go.tmpl"
-    cp /tmp/xp-provider-gen.mk.bak "$REPO/pkg/templates/files/hack/xp-provider-gen.mk.tmpl"
+    cp "$AUX/connector.bak" "$REPO/pkg/templates/files/internal/provider/connector.go.tmpl"
+    cp "$AUX/wiring.bak" "$REPO/pkg/templates/files/internal/controller/KIND/wiring.go.tmpl"
+    cp "$AUX/xp-provider-gen.mk.bak" "$REPO/pkg/templates/files/hack/xp-provider-gen.mk.tmpl"
     (cd "$REPO" && make build >/dev/null 2>&1) || true
     log_success "templates restored"
 }

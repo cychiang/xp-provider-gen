@@ -14,7 +14,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(dirname "$SCRIPT_DIR")"
 BIN="$REPO/bin/xp-provider-gen"
-DIR=/tmp/provider-upjet-e2e
+DIR=/tmp/xpg-e2e-upjet
+AUX=/tmp/xpg-e2e-upjet-aux
 
 # shellcheck source=scripts/lib.sh
 source "$SCRIPT_DIR/lib.sh"
@@ -22,7 +23,9 @@ source "$SCRIPT_DIR/lib.sh"
 [ -x "$BIN" ] || fail "binary not found at $BIN — run 'make build' first"
 
 log_info "=== 1. Scaffold an upjet provider for hashicorp/kubernetes ==="
-rm -rf "$DIR" && mkdir -p "$DIR" && cd "$DIR"
+rm -rf "$DIR" && mkdir -p "$DIR"
+rm -rf "$AUX" && mkdir -p "$AUX"
+cd "$DIR"
 "$BIN" init --domain=example.com --repo=github.com/example/provider-k8s \
   --upjet --terraform-provider=hashicorp/kubernetes --terraform-provider-version=2.38.0 >/dev/null
 log_success "  ✓ scaffolded"
@@ -40,8 +43,8 @@ grep -q 'secret.TerraformResource' config/zz_resources.go || fail "resource miss
 log_success "  ✓ kubernetes_secret configured and wired"
 
 log_info "=== 3. Run the upjet generation pipeline (make generate) ==="
-make generate >/tmp/e2e-upjet-generate.log 2>&1 || {
-  tail -20 /tmp/e2e-upjet-generate.log
+make generate >$AUX/generate.log 2>&1 || {
+  tail -20 $AUX/generate.log
   fail "make generate failed"
 }
 log_success "  ✓ generation completed"
@@ -56,8 +59,8 @@ grep -q 'kubernetes' apis/cluster/core/v1alpha1/zz_secret_types.go || fail "gene
 log_success "  ✓ types, controllers, registration and CRDs generated from the real schema"
 
 log_info "=== 5. The generated provider builds ==="
-go build ./... >/tmp/e2e-upjet-build.log 2>&1 || {
-  tail -20 /tmp/e2e-upjet-build.log
+go build ./... >$AUX/build.log 2>&1 || {
+  tail -20 $AUX/build.log
   fail "generated provider does not build"
 }
 log_success "  ✓ builds"
@@ -75,8 +78,8 @@ echo "$MK_MARKER" >>hack/xp-provider-gen.mk
 rm examples/providerconfig/providerconfig.yaml
 git commit -qam "Make tool-owned files stale and delete the ProviderConfig example" ||
   fail "could not commit the simulated drift"
-"$BIN" update >/tmp/e2e-upjet-update.log 2>&1 || {
-  tail -30 /tmp/e2e-upjet-update.log
+"$BIN" update >$AUX/update.log 2>&1 || {
+  tail -30 $AUX/update.log
   fail "update failed on the generated upjet provider"
 }
 if grep -qF "$UPDATE_MARKER" config/provider.go; then
@@ -87,7 +90,7 @@ if grep -qF "$MK_MARKER" hack/xp-provider-gen.mk; then
 fi
 [ ! -e examples/providerconfig/providerconfig.yaml ] ||
   fail "update re-seeded user-owned examples/providerconfig/providerconfig.yaml"
-grep -q 'Not seeded.*examples/providerconfig/providerconfig.yaml' /tmp/e2e-upjet-update.log ||
+grep -q 'Not seeded.*examples/providerconfig/providerconfig.yaml' $AUX/update.log ||
   fail "update did not list the ProviderConfig example as not seeded"
 # Stage 10's test/setup.sh applies the ProviderConfig example, so bring it back
 # from the commit before the simulated deletion.
@@ -137,16 +140,16 @@ log_info "  --- 8a. Provider binary builds via the scaffold's own build system, 
 # rather than a bare "go build -o", which bypasses the Makefile's GO_PROJECT/
 # PROJECT_REPO-based import path resolution entirely — that is exactly how a
 # hard-coded PROJECT_REPO in the upjet Makefile stayed invisible before.
-make go.build >/tmp/e2e-upjet-provider-build.log 2>&1 || {
-  tail -20 /tmp/e2e-upjet-provider-build.log
+make go.build >$AUX/provider-build.log 2>&1 || {
+  tail -20 $AUX/provider-build.log
   fail "provider binary failed to build via the scaffold's own build system (make go.build)"
 }
 PROVIDER_BIN="$(find _output/bin -type f -name provider | head -1)"
 [ -n "$PROVIDER_BIN" ] || fail "make go.build reported success but produced no provider binary"
 mkdir -p "$DIR/bin"
 cp "$PROVIDER_BIN" "$DIR/bin/provider"
-"$DIR/bin/provider" --help >/tmp/e2e-upjet-provider-help.log 2>&1 || {
-  tail -20 /tmp/e2e-upjet-provider-help.log
+"$DIR/bin/provider" --help >$AUX/provider-help.log 2>&1 || {
+  tail -20 $AUX/provider-help.log
   fail "provider --help failed"
 }
 log_success "  ✓ provider binary builds via 'make go.build' and --help exits cleanly"
@@ -211,8 +214,8 @@ ENVTEST_SETUP_LOG="$(mktemp)"
 if ENVTEST_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path 2>"$ENVTEST_SETUP_LOG")"; then
   HELPER_DIR="$REPO/hack/envtest-provider-check"
   HELPER_BIN="$(mktemp -d)/envtest-provider-check"
-  ( cd "$HELPER_DIR" && go build -o "$HELPER_BIN" . ) >/tmp/e2e-upjet-envtest-helper-build.log 2>&1 || {
-    tail -20 /tmp/e2e-upjet-envtest-helper-build.log
+  ( cd "$HELPER_DIR" && go build -o "$HELPER_BIN" . ) >$AUX/envtest-helper-build.log 2>&1 || {
+    tail -20 $AUX/envtest-helper-build.log
     fail "hack/envtest-provider-check failed to build"
   }
 
@@ -229,7 +232,7 @@ if ENVTEST_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@l
   KUBEBUILDER_ASSETS="$ENVTEST_ASSETS" "$HELPER_BIN" \
     -provider "$DIR/bin/provider" -crd-dir "$DIR/package/crds" \
     -terraform-version "$TERRAFORM_VERSION" \
-    >/tmp/e2e-upjet-provider-run.log 2>&1 &
+    >$AUX/provider-run.log 2>&1 &
   HELPER_PID=$!
   ( sleep 90 && kill -KILL "$HELPER_PID" 2>/dev/null ) &
   HELPER_WATCHDOG=$!
@@ -241,7 +244,7 @@ if ENVTEST_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@l
   HELPER_PID=""
 
   if [ "$HELPER_STATUS" -ne 0 ]; then
-    tail -40 /tmp/e2e-upjet-provider-run.log
+    tail -40 $AUX/provider-run.log
     fail "generated provider failed its real-cluster startup check"
   fi
   log_success "  ✓ provider registers its scheme and starts controllers against a real API server, no panics"
@@ -254,8 +257,8 @@ rm -f "$ENVTEST_SETUP_LOG"
 log_info "=== 9. Configure the ConfigMap resource and scaffold its own e2e (no Docker needed) ==="
 "$BIN" create api --group=core --version=v1alpha1 --kind=ConfigMap \
   --terraform-resource=kubernetes_config_map >/dev/null
-make generate >/tmp/e2e-upjet-configmap-generate.log 2>&1 || {
-  tail -20 /tmp/e2e-upjet-configmap-generate.log
+make generate >$AUX/configmap-generate.log 2>&1 || {
+  tail -20 $AUX/configmap-generate.log
   fail "make generate failed for the ConfigMap resource"
 }
 log_success "  ✓ kubernetes_config_map configured and generated"
@@ -297,7 +300,7 @@ if ! docker_skip_requested && docker info >/dev/null 2>&1; then
   LIVE_TEARDOWN_DONE=0
   cleanup_live_cluster() {
     if [ "$LIVE_TEARDOWN_DONE" -eq 0 ]; then
-      make e2e-clean >/tmp/e2e-upjet-e2e-clean.log 2>&1 || true
+      make e2e-clean >$AUX/e2e-clean.log 2>&1 || true
       LIVE_TEARDOWN_DONE=1
     fi
   }
@@ -310,8 +313,8 @@ if ! docker_skip_requested && docker info >/dev/null 2>&1; then
   # skeleton sets its own cleanup timeout (pkg/templates/generators/
   # chainsaw_test.yaml.tmpl), so no CHAINSAW_ARGS override is needed here —
   # this proves the provider passes with the defaults an author actually gets.
-  make e2e >/tmp/e2e-upjet-project-e2e.log 2>&1 || {
-    tail -40 /tmp/e2e-upjet-project-e2e.log
+  make e2e >$AUX/project-e2e.log 2>&1 || {
+    tail -40 $AUX/project-e2e.log
     fail "generated provider's make e2e failed"
   }
   grep -q 'configmap-basic' junit.xml || fail "junit.xml does not show configmap-basic having run"
@@ -329,8 +332,8 @@ if ! docker_skip_requested && docker info >/dev/null 2>&1; then
 
   "$LIVE_KUBECTL" apply -f examples/core/configmap.yaml || fail "failed to apply the ConfigMap example"
   "$LIVE_KUBECTL" wait configmap.core.example.m.com/example -n crossplane-system \
-    --for=condition=Ready --timeout=5m >/tmp/e2e-upjet-update-wait.log 2>&1 || {
-    cat /tmp/e2e-upjet-update-wait.log
+    --for=condition=Ready --timeout=5m >$AUX/update-wait.log 2>&1 || {
+    cat $AUX/update-wait.log
     fail "ConfigMap example never became Ready"
   }
   REAL_DATA="$("$LIVE_KUBECTL" -n default get configmap example -o jsonpath='{.data.hello}')"
