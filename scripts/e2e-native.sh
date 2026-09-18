@@ -3,10 +3,10 @@
 set -e
 
 # Configuration
-TEST_DIR="/tmp/provider-template"
+TEST_DIR="/tmp/xpg-e2e-native"
 # The update/adopt lifecycle tests run on a throwaway COPY so TEST_DIR is left as
 # the pristine, single-commit scaffold for inspection.
-LIFECYCLE_DIR="/tmp/provider-template-lifecycle"
+LIFECYCLE_DIR="/tmp/xpg-e2e-native-lifecycle"
 DOMAIN="template.crossplane.io"
 REPO="github.com/example/provider-template"
 GROUP="sample"
