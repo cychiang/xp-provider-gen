@@ -362,7 +362,7 @@ func TestAdoptHeaders(t *testing.T) {
 	_ = afero.WriteFile(src, "internal/controller/mytype/setup.go", []byte(core.GeneratedHeader+"\npackage mytype\n"), 0o644)
 	_ = afero.WriteFile(dst, "internal/controller/mytype/setup.go", []byte("package mytype\n\nfunc Setup() {}\n"), 0o644)
 
-	// User-owned render (no header) + on-disk user file — must NOT be adopted.
+	// User-owned render (no header) + on-disk user-owned file — must NOT be adopted.
 	_ = afero.WriteFile(src, "internal/controller/mytype/controller.go", []byte("package mytype\n// stub\n"), 0o644)
 	_ = afero.WriteFile(dst, "internal/controller/mytype/controller.go", []byte("package mytype\n// my logic\n"), 0o644)
 

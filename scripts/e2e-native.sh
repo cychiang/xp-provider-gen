@@ -115,7 +115,7 @@ assert_ownership() {
     done
 
     [[ $failed -eq 0 ]] || return 1
-    log_success "Ownership headers correct"
+    log_success "Generated headers correct"
 }
 
 assert_clean_tree() {

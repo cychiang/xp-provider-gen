@@ -57,7 +57,7 @@ const (
 )
 
 // DecideWrite applies the overwrite gate: seed if absent, overwrite if the
-// existing file is tool-owned, otherwise skip (never clobber user files).
+// existing file is tool-owned, otherwise skip (never clobber user-owned files).
 func DecideWrite(targetExists bool, existingContent []byte) WriteDecision {
 	switch {
 	case !targetExists:

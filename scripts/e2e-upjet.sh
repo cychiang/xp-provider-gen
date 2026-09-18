@@ -105,7 +105,7 @@ fi
   fail "update re-seeded user-owned examples/providerconfig/providerconfig.yaml"
 grep -q 'Not seeded.*examples/providerconfig/providerconfig.yaml' $AUX/update.log ||
   fail "update did not list the ProviderConfig example as not seeded"
-# Stage 10's test/setup.sh applies the ProviderConfig example, so bring it back
+# Step 10's test/setup.sh applies the ProviderConfig example, so bring it back
 # from the commit before the simulated deletion.
 git checkout HEAD~1 -- examples/providerconfig/providerconfig.yaml ||
   fail "could not restore the ProviderConfig example"
@@ -130,7 +130,7 @@ assert_adopt_restores config/provider.go -- "$BIN" update --adopt
 grep -q 'Adopted 1 tool-owned file(s)' "$ASSERT_LOG" ||
   fail "update --adopt did not report adopting exactly 1 tool-owned file"
 rm -f "$ASSERT_LOG"
-# adopt also stamps the generator version into PROJECT — but stage 6's update
+# adopt also stamps the generator version into PROJECT — but step 6's update
 # already stamped the same version and committed it, so PROJECT may or may
 # not show a diff here depending on whether the version changed since. Assert
 # what's true either way: config/provider.go is in the diff, nothing besides
@@ -171,7 +171,7 @@ log_success "  ✓ provider binary builds via 'make go.build' and --help exits c
 # recorded once in pkg/versions/dependencies.yaml and rendered into the
 # scaffold's tool-owned make fragment. Read it back out of that fragment rather
 # than repeating the literal here, so this e2e always runs the provider with the
-# version the tool actually generated — after stage 6's update refreshed it.
+# version the tool actually generated — after step 6's update refreshed it.
 TERRAFORM_VERSION="$(sed -n 's/^export TERRAFORM_VERSION[[:space:]]*?*=[[:space:]]*//p' "$DIR/hack/xp-provider-gen.mk" | head -1)"
 [ -n "$TERRAFORM_VERSION" ] || fail "could not read TERRAFORM_VERSION out of hack/xp-provider-gen.mk"
 log_success "  ✓ generated make fragment pins Terraform CLI $TERRAFORM_VERSION (from pkg/versions/dependencies.yaml)"
@@ -262,7 +262,7 @@ if ENVTEST_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@l
   fi
   log_success "  ✓ provider registers its scheme and starts controllers against a real API server, no panics"
 else
-  log_warning "  ⚠ envtest assets unavailable (no network, or nothing cached) — skipping stage 8c"
+  log_warning "  ⚠ envtest assets unavailable (no network, or nothing cached) — skipping step 8c"
   tail -10 "$ENVTEST_SETUP_LOG"
 fi
 rm -f "$ENVTEST_SETUP_LOG"
