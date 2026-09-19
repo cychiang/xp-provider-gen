@@ -119,7 +119,7 @@ func runAdopt(ctx context.Context) error {
 
 	fmt.Printf("Adopted %d tool-owned file(s) and stamped generator version %s in PROJECT.\n",
 		len(adopted), version.Get().Version)
-	fmt.Println("Review with 'git diff', commit, then run 'xp-provider-gen update' to refresh them.")
+	fmt.Printf("Review with 'git diff', commit, then run '%s update' to refresh them.\n", version.CommandName)
 	return nil
 }
 

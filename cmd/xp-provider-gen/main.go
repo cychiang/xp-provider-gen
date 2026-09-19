@@ -29,11 +29,6 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
-// commandName is this binary's name, as the built binary, the Go module, the
-// docs and the skill all spell it. One constant so the two user-facing
-// strings naming it below cannot drift apart from each other.
-const commandName = "xp-provider-gen"
-
 // alphaCommand is the name of Kubebuilder's "alpha" command tree, which this
 // generator blocks (refuseAlpha) and hides (hideInertCommands) — see both for
 // why.
@@ -60,7 +55,7 @@ func refuseAlpha(args []string) {
 	if firstPositionalArg(args) != alphaCommand {
 		return
 	}
-	fmt.Fprintln(os.Stderr, "Error: alpha commands are not supported by "+commandName)
+	fmt.Fprintln(os.Stderr, "Error: alpha commands are not supported by "+version.CommandName)
 	os.Exit(1)
 }
 
@@ -93,7 +88,7 @@ func main() {
 	versionInfo := version.Get()
 
 	c, err := cli.New(
-		cli.WithCommandName(commandName),
+		cli.WithCommandName(version.CommandName),
 		cli.WithVersion(versionInfo.Short()),
 		cli.WithDescription("Crossplane Provider Generator - A tool for scaffolding Crossplane providers "+
 			"and managed resources following Crossplane v2 patterns"),
