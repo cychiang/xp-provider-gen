@@ -41,9 +41,11 @@ hits() {
 # in the other direction. The separator may be `-`, `_` or nothing (hits is
 # case-insensitive, so upgradeSim and UPGRADE_SIM are covered too); "upgrade sim"
 # with a space is a legacy name as well, but "e2e test" is ordinary English.
+# Known trade-off: this also blocks file names like `_e2e_test.go` and `sim.go`;
+# narrow it when one is really needed.
 LEGACY='upgrade[-_ ]?sim|e2e[-_]?test|(^|[^[:alnum:]_])sim($|[^[:alnum:]_])'
 legacy_files=$(git ls-files --cached --others --exclude-standard -- . ':!docs/plans' ':!hack/check-consistency.sh' |
-    { grep -Ei "$LEGACY" || true; } | sed 's/$/: file name carries a legacy name/')
+    { grep -Ei "$LEGACY" || true; } | sed 's/$/: file name carries a legacy name/') || legacy_files="listing file names failed"
 report C1 "no legacy script names" "$(
     hits "$LEGACY" | grep -v SIMULATED-V2-CHANGE || true
     printf '%s' "$legacy_files"
@@ -125,8 +127,10 @@ report C6 "retired terminology is gone" "$(
 # string opens on the call's line or — as gofmt leaves a long message — on the next.
 BARE_VERBS='failed to|unable to|could not|error|adopt|build|check|configure|create|decode|derive|discover|encode|enumerate|fetch|get|init|load|open|parse|read|reconcile|record|refuse|render|run|scaffold|set|stamp|start|work|write'
 # awk keeps one line of memory: `open` is true when the previous line ended at the
-# call's opening parenthesis, so this line starts the string. A scan that cannot
-# run is reported as a violation, like `hits` does.
+# call's opening parenthesis, so this line starts the string. The /dev/null
+# argument keeps awk from reading stdin when xargs has no files to pass (GNU xargs
+# still runs it once). A scan that cannot run is reported as a violation, like
+# `hits` does.
 bare_verb_errors=$(git ls-files --cached --others --exclude-standard -z -- '*.go' | xargs -0 awk -v verbs="$BARE_VERBS" '
     FNR == 1 { open = 0 }
     {
@@ -136,7 +140,7 @@ bare_verb_errors=$(git ls-files --cached --others --exclude-standard -z -- '*.go
         re = open ? "^[[:space:]]*\"" opens : call "\"" opens
         if (line ~ re) print FILENAME ":" FNR ":" $0
         open = (line ~ (call "[[:space:]]*$"))
-    }') || bare_verb_errors="scanning *.go for error strings failed"
+    }' /dev/null) || bare_verb_errors="scanning *.go for error strings failed"
 report C7 "error strings start with a gerund, not a bare verb" "$bare_verb_errors"
 
 # A workflow whose paths: filter misses a file it depends on silently skips the
