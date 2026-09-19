@@ -37,9 +37,18 @@ hits() {
 
 # Names are stable only if nothing still points at the old ones: a stale
 # reference in a doc or workflow reads as valid but names a script that no
-# longer exists.
+# longer exists — and a file that still carries an old name is the same drift
+# in the other direction. The separator may be `-`, `_` or nothing (hits is
+# case-insensitive, so upgradeSim and UPGRADE_SIM are covered too); "upgrade sim"
+# with a space is a legacy name as well, but "e2e test" is ordinary English.
+# Known trade-off: this also blocks file names like `_e2e_test.go` and `sim.go`;
+# narrow it when one is really needed.
+LEGACY='upgrade[-_ ]?sim|e2e[-_]?test|(^|[^[:alnum:]_])sim($|[^[:alnum:]_])'
+legacy_files=$(git ls-files --cached --others --exclude-standard -- . ':!docs/plans' ':!hack/check-consistency.sh' |
+    { grep -Ei "$LEGACY" || true; } | sed 's/$/: file name carries a legacy name/') || legacy_files="listing file names failed"
 report C1 "no legacy script names" "$(
-    hits 'upgrade-sim|e2e-test|upgrade[- ]sim|(^|[^[:alnum:]_])sim($|[^[:alnum:]_])' | grep -v SIMULATED-V2-CHANGE || true
+    hits "$LEGACY" | grep -v SIMULATED-V2-CHANGE || true
+    printf '%s' "$legacy_files"
 )"
 
 # A target missing from .PHONY silently stops running once a file with its name
@@ -61,10 +70,12 @@ report C3 "make help lists exactly the documented targets" "$(
 )"
 
 # The e2e scripts are read and edited as one family; a skeleton that differs in
-# one of them makes every cross-script edit a guessing game. Strict mode is
-# checked against the expected line, not just for agreement, so the whole family
-# cannot quietly slide back to `set -e` together; assert-layout.sh is held to it
-# too. (lib.sh is sourced, so it deliberately has no `set`.)
+# one of them makes every cross-script edit a guessing game. Each facet is checked
+# against its expected value, not just for agreement, so the whole family cannot
+# quietly slide back together (to `set -e`, or to no lib.sh) with nothing noticing.
+# assert-layout.sh is held to strict mode only: it is standalone, so it neither
+# sources lib.sh nor uses step_header. (lib.sh is sourced, so it deliberately has
+# no `set`.)
 # facet FILE NAME prints one line describing how FILE handles NAME.
 facet() {
     case $2 in
@@ -74,20 +85,19 @@ facet() {
         "uses step_header") grep -q 'step_header' "$1" && echo yes || echo no ;;
     esac
 }
-strict="set -euo pipefail"
+# want_facet NAME WANT FILE... records every FILE whose NAME facet is not WANT.
 skeleton=""
-for f in scripts/e2e-*.sh scripts/assert-layout.sh; do
-    got=$(facet "$f" "set line")
-    [ "$got" = "$strict" ] || skeleton="$skeleton$f: set line is '$got', want '$strict'"$'\n'
-done
-for name in "sources lib.sh" "line-2 comment" "uses step_header"; do
-    values=""
-    for f in scripts/e2e-*.sh; do
-        values="$values$(printf '%s: %s' "$f" "$(facet "$f" "$name")")"$'\n'
+want_facet() {
+    local name=$1 want=$2 f got
+    shift 2
+    for f in "$@"; do
+        got=$(facet "$f" "$name")
+        [ "$got" = "$want" ] || skeleton="$skeleton$f: $name is '$got', want '$want'"$'\n'
     done
-    if [ "$(printf '%s' "$values" | sed 's/^[^:]*: //' | sort -u | wc -l)" -gt 1 ]; then
-        skeleton="$skeleton$(printf '%s differs:\n%s' "$name" "$values" | sed '2,$s/^/  /')"$'\n'
-    fi
+}
+want_facet "set line" "set -euo pipefail" scripts/e2e-*.sh scripts/assert-layout.sh
+for name in "sources lib.sh" "line-2 comment" "uses step_header"; do
+    want_facet "$name" yes scripts/e2e-*.sh
 done
 report C4 "scripts share strict mode and one e2e skeleton" "${skeleton%$'\n'}"
 
@@ -113,11 +123,25 @@ report C6 "retired terminology is gone" "$(
 # cheapest check that catches this: it is the bare form of every gerund the repo
 # already opens an error string with, plus the "failed to"/"unable to" phrasings.
 # Extend it when a new verb shows up. It scans the generator's own Go
-# (fmt.Errorf/errors.New, not t.Errorf test messages) on a single line.
+# (fmt.Errorf/errors.New, not t.Errorf test messages, not *.go.tmpl), whether the
+# string opens on the call's line or — as gofmt leaves a long message — on the next.
 BARE_VERBS='failed to|unable to|could not|error|adopt|build|check|configure|create|decode|derive|discover|encode|enumerate|fetch|get|init|load|open|parse|read|reconcile|record|refuse|render|run|scaffold|set|stamp|start|work|write'
-report C7 "error strings start with a gerund, not a bare verb" "$(
-    hits '(fmt\.Errorf|errors\.New)\("('"$BARE_VERBS"')([^[:alnum:]_]|$)' '*.go'
-)"
+# awk keeps one line of memory: `open` is true when the previous line ended at the
+# call's opening parenthesis, so this line starts the string. The /dev/null
+# argument keeps awk from reading stdin when xargs has no files to pass (GNU xargs
+# still runs it once). A scan that cannot run is reported as a violation, like
+# `hits` does.
+bare_verb_errors=$(git ls-files --cached --others --exclude-standard -z -- '*.go' | xargs -0 awk -v verbs="$BARE_VERBS" '
+    FNR == 1 { open = 0 }
+    {
+        line = tolower($0)
+        call = "(fmt\\.errorf|errors\\.new)\\("
+        opens = "(" verbs ")([^[:alnum:]_]|$)"
+        re = open ? "^[[:space:]]*\"" opens : call "\"" opens
+        if (line ~ re) print FILENAME ":" FNR ":" $0
+        open = (line ~ (call "[[:space:]]*$"))
+    }' /dev/null) || bare_verb_errors="scanning *.go for error strings failed"
+report C7 "error strings start with a gerund, not a bare verb" "$bare_verb_errors"
 
 # A workflow whose paths: filter misses a file it depends on silently skips the
 # e2e run on the PRs that most need it. The logic lives in the Python script.

@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
 // projectMeta is this plugin's block in PROJECT. It records what the project is
@@ -55,8 +56,8 @@ func loadProjectMeta(cfg config.Config) (projectMeta, error) {
 	case !meta.Flavor.Valid():
 		return projectMeta{}, fmt.Errorf(
 			"PROJECT declares unknown flavor %q (known: %s); "+
-				"the file is corrupt, hand-edited, or written by a newer xp-provider-gen",
-			meta.Flavor, knownFlavors())
+				"the file is corrupt, hand-edited, or written by a newer %s",
+			meta.Flavor, knownFlavors(), version.CommandName)
 	}
 	if meta.Flavor == core.FlavorUpjet && meta.Upjet == nil {
 		return projectMeta{}, fmt.Errorf(

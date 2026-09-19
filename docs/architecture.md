@@ -33,7 +33,7 @@ and adds the standalone `update` and `create-test` commands (Kubebuilder's plugi
 
 ```go
 cli.New(
-    cli.WithCommandName(commandName),
+    cli.WithCommandName(version.CommandName),
     cli.WithVersion(versionInfo.Short()),
     cli.WithPlugins(&crossplanev2.Plugin{}),
     cli.WithDefaultPlugins(cfgv3.Version, &crossplanev2.Plugin{}),
