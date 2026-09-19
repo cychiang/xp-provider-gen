@@ -21,6 +21,11 @@ import (
 	"runtime"
 )
 
+// CommandName is this binary's name, as the built binary, the Go module, the
+// docs and the skill all spell it. One constant so every user-facing string
+// naming it cannot drift apart from the others.
+const CommandName = "xp-provider-gen"
+
 // Build information. Populated at build-time via -ldflags.
 var (
 	Version   = "dev"

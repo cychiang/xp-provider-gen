@@ -14,6 +14,7 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
+	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
@@ -185,7 +186,7 @@ func (p *createAPISubcommand) PostScaffold() error {
 		fmt.Printf("  2. Map any new credentials in internal/clients/clients.go\n")
 		fmt.Printf("  3. Write %s: %s — 'create-test' and 'make e2e' both derive from it\n",
 			examplePath(*p.resource), upjetExampleHint(*p.resource))
-		fmt.Printf("  4. Run 'xp-provider-gen create-test --kind=%s' once that example exists\n", p.resource.Kind)
+		fmt.Printf("  4. Run '%s create-test --kind=%s' once that example exists\n", version.CommandName, p.resource.Kind)
 		return nil
 	}
 	fmt.Printf("  1. Customize the %sParameters and %sObservation structs\n", p.resource.Kind, p.resource.Kind)
