@@ -255,12 +255,17 @@ step_update_lifecycle() {
     git add -A && git commit -q -m "user: customize ${KIND1} controller, client and options"
 
     log_info "Running: $BINARY_PATH update"
-    if "$BINARY_PATH" update; then
+    local log
+    log="$(mktemp)"
+    if "$BINARY_PATH" update >"$log" 2>&1; then
         log_success "update completed"
     else
         log_error "update failed"
+        tail -30 "$log"
         exit 1
     fi
+    grep -q 'removed 0' "$log" || fail "same-generator update removed files"
+    rm -f "$log"
 
     for f in "$CTRL" "$CLIENT_FILE" "$OPTS_FILE"; do
         if grep -q "USER-EDIT-MARKER" "$f"; then

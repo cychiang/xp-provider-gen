@@ -223,25 +223,30 @@ git commit -m "chore: update provider core"
 `update` refuses outright if PROJECT declares an unknown `flavor:` value, or `flavor: upjet`
 with no `upjet:` settings block — only an empty flavor is read as native.
 
-`update` does five things:
+`update` does six things:
 
 1. Regenerates every tool-owned file from the current templates.
 2. Seeds any file that is new in this version.
 3. **Skips every user-owned file**, whether or not it has changed.
-4. Bumps the framework dependency versions in `go.mod` via `go get`, leaving your
+4. Removes any tracked, tool-owned file this version no longer produces — a
+   template this generator retired since you last updated.
+5. Bumps the framework dependency versions in `go.mod` via `go get`, leaving your
    own requires alone.
-5. Runs `go mod tidy`, `make generate` and `make reviewable`, and refuses if any of
+6. Runs `go mod tidy`, `make generate` and `make reviewable`, and refuses if any of
    them fail — this is why the diff also contains regenerated `zz_generated.*` and CRDs.
 
 It stops there deliberately — no commit — so `git diff` is your review surface.
 
 **What you should see in that diff:** tool-owned files (including the build pipeline in
 `hack/xp-provider-gen.mk`), `go.mod` / `go.sum` version lines, regenerated
-`zz_generated.*` and CRDs.
+`zz_generated.*` and CRDs, and occasionally a deleted tool-owned file the summary names.
 
 **What you should never see:** `external.go`, `client.go`, `options.go`, any
 `*_types.go`, `AGENTS.md`, or your `Makefile`. If one appears, that is a bug in the generator, not
-something to work around — please report it with the diff.
+something to work around — please report it with the diff. Never paste the generated-file
+header line into a file of your own, even in a comment: step 3 and step 4 both key off that
+one substring, so a file that merely quotes it reads as tool-owned and can be overwritten or
+deleted the same as a real generated file.
 
 If a step fails midway, the error message spells out the exact revert steps: `git reset
 --hard` to restore modified tool-owned files, plus `rm -rf` for any file this run seeded (those
