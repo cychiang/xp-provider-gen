@@ -95,6 +95,7 @@ git commit -qam "Make tool-owned files stale and delete the ProviderConfig examp
   tail -30 $AUX/update.log
   fail "update failed on the generated upjet provider"
 }
+grep -q 'removed 0' $AUX/update.log || fail "same-generator update removed files"
 if grep -qF "$UPDATE_MARKER" config/provider.go; then
   fail "update did not refresh tool-owned config/provider.go"
 fi
