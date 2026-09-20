@@ -10,10 +10,12 @@ one bucket, decided by whether it carries this header:
 **This file is generated.** Editing it has no effect — it is rewritten by
 `xp-provider-gen update`.
 
-## Tool-owned — overwritten by `update`
+## Tool-owned — overwritten (or removed) by `update`
 
 Do not edit these. Your changes are lost on the next update, and everything in
-here is framework wiring you should not need to touch.
+here is framework wiring you should not need to touch. If a listed file stops
+being produced by a newer generator, `update` removes it rather than leaving
+a stale copy behind.
 {{ range .ToolOwned }}
 - `{{ . }}`
 {{- end }}
