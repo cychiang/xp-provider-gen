@@ -386,6 +386,67 @@ func reconcile(src, dst afero.Fs, seedUserOwned bool) (reconcileResult, error) {
 	return result, err
 }
 
+// trackedFiles lists the files git tracks in the project, the only files a
+// deletion may consider: a file git does not track cannot be restored with
+// 'git reset --hard', and `git status --porcelain` — the clean-tree gate — does
+// not see ignored files at all, so a disk walk could silently and irreversibly
+// delete a headered file sitting in .work/, _output/ or vendor/.
+func trackedFiles(ctx context.Context) ([]string, error) {
+	out, err := core.NewCommandRunner("").RunWithOutput(ctx, "git", "ls-files", "-z")
+	if err != nil {
+		return nil, fmt.Errorf("listing git-tracked files: %w", err)
+	}
+	var files []string
+	for _, f := range strings.Split(strings.TrimRight(out, "\x00"), "\x00") {
+		if f != "" {
+			files = append(files, f)
+		}
+	}
+	return files, nil
+}
+
+// removeOrphans deletes the tracked files that carry the generated header but
+// are absent from this render: the tool-owned files this generator no longer
+// produces. It returns the paths it removed, in the order given.
+func removeOrphans(tracked []string, src, dst afero.Fs) ([]string, error) {
+	var removed []string
+	for _, rel := range tracked {
+		if err := checkContained(rel); err != nil {
+			return removed, err
+		}
+		fi, err := dst.Stat(rel)
+		switch {
+		case os.IsNotExist(err):
+			continue // tracked but not on disk — the user already removed it
+		case err != nil:
+			return removed, err
+		case fi.IsDir():
+			// A submodule gitlink: git ls-files reports it, but it is not a
+			// regular file to read or remove.
+			continue
+		}
+		existing, err := afero.ReadFile(dst, rel)
+		if err != nil {
+			return removed, err
+		}
+		if !core.IsToolOwned(existing) {
+			continue // user-owned — never touched
+		}
+		stillRendered, err := afero.Exists(src, rel)
+		if err != nil {
+			return removed, err
+		}
+		if stillRendered {
+			continue // this run still produces it
+		}
+		if err := dst.Remove(rel); err != nil {
+			return removed, err
+		}
+		removed = append(removed, rel)
+	}
+	return removed, nil
+}
+
 // checkContained rejects a rendered path that would write outside the project
 // directory. Rendered paths come from PROJECT (group/version/kind are
 // substituted into template paths), so a hand-edited PROJECT must not be able

@@ -17,6 +17,10 @@ limitations under the License.
 package v2
 
 import (
+	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -421,6 +425,202 @@ func TestRevertAdvice(t *testing.T) {
 	}
 	if strings.Contains(got, "clean -fd") {
 		t.Errorf("advice must not suggest git clean -fd (would delete unrelated untracked work): %q", got)
+	}
+}
+
+// TestRemoveOrphans pins removeOrphans's deletion gate. dst is always a real
+// on-disk filesystem (afero.NewBasePathFs over t.TempDir()), never MemMapFs:
+// MemMapFs returns a nil error when reading a directory, so the
+// submodule-gitlink case below would pass even against a wrong
+// implementation that never checks fi.IsDir(). src may be MemMapFs — it is
+// only ever read.
+func TestRemoveOrphans(t *testing.T) {
+	headered := []byte(core.GeneratedHeader + "\npackage foo\n")
+	headerless := []byte("package foo\n// mine\n")
+
+	tests := []struct {
+		name        string
+		tracked     []string
+		src         map[string][]byte
+		setupDst    func(t *testing.T, dst afero.Fs)
+		wantRemoved []string
+		wantErr     bool
+		checkDst    func(t *testing.T, dst afero.Fs)
+	}{
+		{
+			name:    "removes an orphaned tool-owned file",
+			tracked: []string{"a.go"},
+			setupDst: func(t *testing.T, dst afero.Fs) {
+				t.Helper()
+				if err := afero.WriteFile(dst, "a.go", headered, 0o644); err != nil {
+					t.Fatalf("seeding dst: %v", err)
+				}
+			},
+			wantRemoved: []string{"a.go"},
+			checkDst: func(t *testing.T, dst afero.Fs) {
+				t.Helper()
+				if ok, _ := afero.Exists(dst, "a.go"); ok {
+					t.Error("a.go should have been removed")
+				}
+			},
+		},
+		{
+			name:    "keeps a rendered tool-owned file",
+			tracked: []string{"a.go"},
+			src:     map[string][]byte{"a.go": headered},
+			setupDst: func(t *testing.T, dst afero.Fs) {
+				t.Helper()
+				if err := afero.WriteFile(dst, "a.go", headered, 0o644); err != nil {
+					t.Fatalf("seeding dst: %v", err)
+				}
+			},
+			checkDst: func(t *testing.T, dst afero.Fs) {
+				t.Helper()
+				if ok, _ := afero.Exists(dst, "a.go"); !ok {
+					t.Error("a.go should still exist")
+				}
+			},
+		},
+		{
+			name:    "keeps a user-owned file",
+			tracked: []string{"u.go"},
+			setupDst: func(t *testing.T, dst afero.Fs) {
+				t.Helper()
+				if err := afero.WriteFile(dst, "u.go", headerless, 0o644); err != nil {
+					t.Fatalf("seeding dst: %v", err)
+				}
+			},
+			checkDst: func(t *testing.T, dst afero.Fs) {
+				t.Helper()
+				if ok, _ := afero.Exists(dst, "u.go"); !ok {
+					t.Error("u.go should still exist")
+				}
+			},
+		},
+		{
+			name:    "ignores a tracked file missing on disk",
+			tracked: []string{"gone.go"},
+		},
+		{
+			name:    "skips a tracked directory entry (submodule gitlink)",
+			tracked: []string{"build"},
+			setupDst: func(t *testing.T, dst afero.Fs) {
+				t.Helper()
+				if err := dst.MkdirAll("build", 0o755); err != nil {
+					t.Fatalf("seeding dst: %v", err)
+				}
+			},
+		},
+		{
+			name:    "rejects a path outside the project",
+			tracked: []string{"../x.go"},
+			wantErr: true,
+		},
+		{
+			name:    "removes several, in the order given",
+			tracked: []string{"b.go", "a.go"},
+			setupDst: func(t *testing.T, dst afero.Fs) {
+				t.Helper()
+				if err := afero.WriteFile(dst, "b.go", headered, 0o644); err != nil {
+					t.Fatalf("seeding dst: %v", err)
+				}
+				if err := afero.WriteFile(dst, "a.go", headered, 0o644); err != nil {
+					t.Fatalf("seeding dst: %v", err)
+				}
+			},
+			wantRemoved: []string{"b.go", "a.go"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dst := afero.NewBasePathFs(afero.NewOsFs(), t.TempDir())
+			if tt.setupDst != nil {
+				tt.setupDst(t, dst)
+			}
+			src := afero.NewMemMapFs()
+			for path, content := range tt.src {
+				if err := afero.WriteFile(src, path, content, 0o644); err != nil {
+					t.Fatalf("seeding src: %v", err)
+				}
+			}
+
+			got, err := removeOrphans(tt.tracked, src, dst)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("removeOrphans() error = nil, want an error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("removeOrphans() error = %v", err)
+			}
+			if !slices.Equal(got, tt.wantRemoved) {
+				t.Errorf("removeOrphans() = %v, want %v", got, tt.wantRemoved)
+			}
+			if tt.checkDst != nil {
+				tt.checkDst(t, dst)
+			}
+		})
+	}
+}
+
+// TestTrackedFiles proves the whole point of trackedFiles existing: a file
+// git ignores never appears in its output, however deletion-eligible it
+// otherwise looks (tracked file, present on disk, carries the header). None
+// of TestRemoveOrphans's cases can prove this — their `tracked` slice is fed
+// by the test itself, not read from git — so this shells out to real git,
+// the same style command_runner_test.go already uses.
+func TestTrackedFiles(t *testing.T) {
+	dir := t.TempDir()
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=xp-provider-gen-test", "GIT_AUTHOR_EMAIL=test@example.com",
+			"GIT_COMMITTER_NAME=xp-provider-gen-test", "GIT_COMMITTER_EMAIL=test@example.com")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	runGit("init", "-q")
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n"), 0o644); err != nil {
+		t.Fatalf("writing a.go: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("_output/\n"), 0o644); err != nil {
+		t.Fatalf("writing .gitignore: %v", err)
+	}
+	runGit("add", "a.go", ".gitignore")
+	runGit("commit", "-q", "-m", "init")
+
+	if err := os.MkdirAll(filepath.Join(dir, "_output"), 0o755); err != nil {
+		t.Fatalf("mkdir _output: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "_output", "copied.go"),
+		[]byte(core.GeneratedHeader+"\npackage x\n"), 0o644); err != nil {
+		t.Fatalf("writing _output/copied.go: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "untracked.go"), []byte("package u\n"), 0o644); err != nil {
+		t.Fatalf("writing untracked.go: %v", err)
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+
+	got, err := trackedFiles(context.Background())
+	if err != nil {
+		t.Fatalf("trackedFiles: %v", err)
+	}
+	want := []string{".gitignore", "a.go"}
+	if !slices.Equal(got, want) {
+		t.Errorf("trackedFiles() = %v, want %v (must not include gitignored _output/copied.go or untracked untracked.go)", got, want)
 	}
 }
 
