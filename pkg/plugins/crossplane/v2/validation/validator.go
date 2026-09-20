@@ -34,6 +34,7 @@ const (
 	fieldVersion           = "version"
 	fieldKind              = "kind"
 	fieldTerraformResource = "terraform-resource"
+	fieldTerraformVersion  = "terraform-provider-version"
 )
 
 // maxNameLength is the Kubernetes DNS label limit applied to groups and kinds.
@@ -48,6 +49,13 @@ var (
 	versionRe           = regexp.MustCompile(`^v\d+(alpha\d+|beta\d+)?$`)
 	kindRe              = regexp.MustCompile(`^[A-Z][a-zA-Z0-9]*$`) // PascalCase
 	terraformResourceRe = regexp.MustCompile(`^[a-z0-9_]+$`)        // Terraform resource type name
+	// terraformVersionRe is a semver whitelist, not a blacklist: the value is
+	// interpolated into a JSON string in main.tf.json and into make variable
+	// assignments in a scaffolded Makefile, so '"', '#', '$', '\' and newlines
+	// all have to be impossible, not merely the characters a blacklist happens
+	// to think of. The three required numeric segments also reject a bare tag
+	// like "2.38" that `git clone --branch v2.38` would fail to find.
+	terraformVersionRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$`)
 )
 
 // reservedKinds are Kubernetes core kinds a managed resource must not shadow.
@@ -209,6 +217,18 @@ func ValidateTerraformResource(resource, prefix string) error {
 		}
 	}
 	return nil
+}
+
+// ValidateTerraformProviderVersion validates a Terraform provider version
+// value, shared by `init` and `update --terraform-provider-version`: both
+// bake the value into main.tf.json and a scaffolded Makefile, so both must
+// refuse the same unsafe values before either writes anything.
+func ValidateTerraformProviderVersion(v string) error {
+	if err := checkRequired(fieldTerraformVersion, v); err != nil {
+		return err
+	}
+	return checkPattern(fieldTerraformVersion, v, terraformVersionRe,
+		"must be a semver value such as 2.38.0 (major.minor.patch, optional -prerelease or +build)")
 }
 
 // validateGroup validates API group name.

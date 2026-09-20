@@ -682,6 +682,150 @@ func TestReconcileResultPrint(t *testing.T) {
 	}
 }
 
+// TestBumpTerraformVersion pins bumpTerraformVersion's contract: it rewrites
+// exactly the two version-carrying lines a scaffolded Makefile declares,
+// refuses to guess when the file's shape is not what it expects (rather than
+// silently leaving one line stale), and never assumes a binary-name suffix
+// beyond the "_v<version>_" substring it is told to replace.
+func TestBumpTerraformVersion(t *testing.T) {
+	const (
+		oldTFVersion = "2.37.1"
+		newTFVersion = "2.38.0"
+	)
+	validMakefile := "export TERRAFORM_PROVIDER_SOURCE ?= hashicorp/kubernetes\n" +
+		"export TERRAFORM_PROVIDER_VERSION ?= " + oldTFVersion + "\n" +
+		"export TERRAFORM_NATIVE_PROVIDER_BINARY ?= terraform-provider-kubernetes_v" + oldTFVersion + "_x5\n"
+
+	tests := []struct {
+		name        string
+		makefile    string
+		newVersion  string
+		wantErr     bool
+		wantOld     string
+		wantContain []string
+		wantMissing []string
+	}{
+		{
+			name:        "rewrites both lines and reports the old version",
+			makefile:    validMakefile,
+			newVersion:  newTFVersion,
+			wantOld:     oldTFVersion,
+			wantContain: []string{"export TERRAFORM_PROVIDER_VERSION ?= " + newTFVersion, "terraform-provider-kubernetes_v" + newTFVersion + "_x5"},
+			wantMissing: []string{oldTFVersion},
+		},
+		{
+			name:       "missing TERRAFORM_PROVIDER_VERSION line errors",
+			makefile:   "export TERRAFORM_NATIVE_PROVIDER_BINARY ?= terraform-provider-kubernetes_v" + oldTFVersion + "_x5\n",
+			newVersion: newTFVersion,
+			wantErr:    true,
+		},
+		{
+			name: "two TERRAFORM_PROVIDER_VERSION lines errors",
+			makefile: "export TERRAFORM_PROVIDER_VERSION ?= " + oldTFVersion + "\n" +
+				"export TERRAFORM_PROVIDER_VERSION ?= " + oldTFVersion + "\n" +
+				"export TERRAFORM_NATIVE_PROVIDER_BINARY ?= terraform-provider-kubernetes_v" + oldTFVersion + "_x5\n",
+			newVersion: newTFVersion,
+			wantErr:    true,
+		},
+		{
+			name: "binary line with a non-_x5 suffix keeps the suffix, replaces only the version marker",
+			makefile: "export TERRAFORM_PROVIDER_VERSION ?= " + oldTFVersion + "\n" +
+				"export TERRAFORM_NATIVE_PROVIDER_BINARY ?= terraform-provider-kubernetes_v" + oldTFVersion + "_x3\n",
+			newVersion:  newTFVersion,
+			wantOld:     oldTFVersion,
+			wantContain: []string{"terraform-provider-kubernetes_v" + newTFVersion + "_x3"},
+			wantMissing: []string{oldTFVersion},
+		},
+		{
+			name:        "new version equal to old version is idempotent, not an error",
+			makefile:    validMakefile,
+			newVersion:  oldTFVersion,
+			wantOld:     oldTFVersion,
+			wantContain: []string{"export TERRAFORM_PROVIDER_VERSION ?= " + oldTFVersion, "terraform-provider-kubernetes_v" + oldTFVersion + "_x5"},
+		},
+		{
+			name: "binary line missing the old version marker errors",
+			makefile: "export TERRAFORM_PROVIDER_VERSION ?= " + oldTFVersion + "\n" +
+				"export TERRAFORM_NATIVE_PROVIDER_BINARY ?= terraform-provider-kubernetes_v9.9.9_x5\n",
+			newVersion: newTFVersion,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, oldVersion, err := bumpTerraformVersion([]byte(tt.makefile), tt.newVersion)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("bumpTerraformVersion() error = nil, want an error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("bumpTerraformVersion() unexpected error: %v", err)
+			}
+			if oldVersion != tt.wantOld {
+				t.Errorf("oldVersion = %q, want %q", oldVersion, tt.wantOld)
+			}
+			for _, want := range tt.wantContain {
+				if !strings.Contains(string(got), want) {
+					t.Errorf("result = %q, want it to contain %q", got, want)
+				}
+			}
+			for _, missing := range tt.wantMissing {
+				if strings.Contains(string(got), missing) {
+					t.Errorf("result = %q, want it to not contain %q", got, missing)
+				}
+			}
+		})
+	}
+}
+
+// TestUpdateFlagRejects pins the four independent ways
+// --terraform-provider-version is refused. Conditions 2-4 are pure flag
+// checks and must reject before prepare ever touches git or the filesystem;
+// condition 1 (flavor) is checked separately from those since it needs
+// PROJECT's flavor, which only exists after prepare runs.
+func TestUpdateFlagRejects(t *testing.T) {
+	t.Run("project flavor is not upjet", func(t *testing.T) {
+		err := checkTerraformVersionFlavor(core.FlavorNative)
+		if err == nil {
+			t.Fatal("checkTerraformVersionFlavor(native) = nil, want an error")
+		}
+		if !strings.Contains(err.Error(), "native") {
+			t.Errorf("error = %q, want it to name the flavor", err)
+		}
+	})
+
+	t.Run("adopt and terraform-provider-version are mutually exclusive", func(t *testing.T) {
+		cmd := NewUpdateCommand()
+		cmd.SilenceUsage = true
+		cmd.SilenceErrors = true
+		cmd.SetArgs([]string{"--adopt", "--terraform-provider-version=2.38.0"})
+		if err := cmd.Execute(); err == nil {
+			t.Fatal("Execute() = nil, want an error when --adopt and --terraform-provider-version are both set")
+		}
+	})
+
+	t.Run("an inherited environment variable would silently override the flag", func(t *testing.T) {
+		t.Setenv("TERRAFORM_PROVIDER_VERSION", "2.37.1")
+		if err := checkTerraformVersionFlag("2.38.0"); err == nil {
+			t.Error("checkTerraformVersionFlag() = nil, want an error when TERRAFORM_PROVIDER_VERSION is set")
+		}
+		t.Setenv("TERRAFORM_PROVIDER_VERSION", "")
+		t.Setenv("TERRAFORM_NATIVE_PROVIDER_BINARY", "terraform-provider-kubernetes_v2.37.1_x5")
+		if err := checkTerraformVersionFlag("2.38.0"); err == nil {
+			t.Error("checkTerraformVersionFlag() = nil, want an error when TERRAFORM_NATIVE_PROVIDER_BINARY is set")
+		}
+	})
+
+	t.Run("version value is not valid semver", func(t *testing.T) {
+		if err := checkTerraformVersionFlag("not-a-version"); err == nil {
+			t.Fatal("checkTerraformVersionFlag(\"not-a-version\") = nil, want an error")
+		}
+	})
+}
+
 func assertContains(t *testing.T, label string, list []string, want string) {
 	t.Helper()
 	if !slices.Contains(list, want) {
