@@ -628,36 +628,53 @@ func (r reconcileResult) print(w io.Writer, lastVersion string) {
 // Makefile declares the wrapped Terraform provider's version on.
 var terraformProviderVersionLineRe = regexp.MustCompile(`(?m)^export TERRAFORM_PROVIDER_VERSION \?= (\S+)$`)
 
+// terraformNativeProviderBinaryLineRe matches the single line a scaffolded
+// upjet Makefile declares the native provider binary name on, capturing its
+// value so the `_v<version>_` substring is only ever replaced inside that
+// line, never anywhere else in the file a version string happens to match.
+var terraformNativeProviderBinaryLineRe = regexp.MustCompile(`(?m)^export TERRAFORM_NATIVE_PROVIDER_BINARY \?= (.*)$`)
+
 // bumpTerraformVersion rewrites a scaffolded upjet Makefile's two
 // version-carrying lines to newVersion: the single
 // `export TERRAFORM_PROVIDER_VERSION ?=` line, and the `_v<old>_` substring
-// of the TERRAFORM_NATIVE_PROVIDER_BINARY line. It returns the rewritten
-// content and the version it replaced.
+// of the TERRAFORM_NATIVE_PROVIDER_BINARY line — and only inside that line's
+// value, so a version string that happens to appear elsewhere in the
+// Makefile (a comment, a user target) is never touched. It returns the
+// rewritten content and the version it replaced.
 //
 // The Makefile is user-owned, so this only ever changes the value already
 // declared there — it never assumes a binary-name suffix (`_x5`) or provider
-// name beyond that substring. It requires exactly one
-// TERRAFORM_PROVIDER_VERSION line, and requires the binary line to already
-// carry that same old version: a Makefile that fails either check already
-// disagrees with itself about the current version, and guessing which line
-// is right would be worse than refusing.
+// name beyond that substring. It requires exactly one line of each kind, and
+// requires the binary line to already carry that same old version: a
+// Makefile that fails either check already disagrees with itself about the
+// current version, and guessing which line is right would be worse than
+// refusing.
 func bumpTerraformVersion(makefile []byte, newVersion string) ([]byte, string, error) {
-	matches := terraformProviderVersionLineRe.FindAllSubmatch(makefile, -1)
-	if len(matches) != 1 {
+	versionMatches := terraformProviderVersionLineRe.FindAllSubmatch(makefile, -1)
+	if len(versionMatches) != 1 {
 		return nil, "", fmt.Errorf(
-			"finding a single 'export TERRAFORM_PROVIDER_VERSION ?=' line in Makefile (found %d)", len(matches))
+			"finding a single 'export TERRAFORM_PROVIDER_VERSION ?=' line in Makefile (found %d)", len(versionMatches))
 	}
-	oldVersion := string(matches[0][1])
+	oldVersion := string(versionMatches[0][1])
 
-	oldMarker := "_v" + oldVersion + "_"
-	if !bytes.Contains(makefile, []byte(oldMarker)) {
+	binaryMatches := terraformNativeProviderBinaryLineRe.FindAllSubmatch(makefile, -1)
+	if len(binaryMatches) != 1 {
+		return nil, "", fmt.Errorf(
+			"finding a single 'export TERRAFORM_NATIVE_PROVIDER_BINARY ?=' line in Makefile (found %d)", len(binaryMatches))
+	}
+	oldMarker := []byte("_v" + oldVersion + "_")
+	if !bytes.Contains(binaryMatches[0][1], oldMarker) {
 		return nil, "", fmt.Errorf(
 			"finding %q in Makefile's TERRAFORM_NATIVE_PROVIDER_BINARY line", oldMarker)
 	}
+	newMarker := []byte("_v" + newVersion + "_")
 
-	updated := terraformProviderVersionLineRe.ReplaceAll(makefile,
-		[]byte("export TERRAFORM_PROVIDER_VERSION ?= "+newVersion))
-	updated = bytes.ReplaceAll(updated, []byte(oldMarker), []byte("_v"+newVersion+"_"))
+	updated := terraformProviderVersionLineRe.ReplaceAllFunc(makefile, func([]byte) []byte {
+		return []byte("export TERRAFORM_PROVIDER_VERSION ?= " + newVersion)
+	})
+	updated = terraformNativeProviderBinaryLineRe.ReplaceAllFunc(updated, func(line []byte) []byte {
+		return bytes.Replace(line, oldMarker, newMarker, 1)
+	})
 	return updated, oldVersion, nil
 }
 
