@@ -17,7 +17,7 @@ limitations under the License.
 package v2
 
 import (
-	"context"
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"github.com/cychiang/xp-provider-gen/pkg/version"
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
@@ -428,6 +429,27 @@ func TestRevertAdvice(t *testing.T) {
 	}
 }
 
+// Paths TestRemoveOrphans, TestTrackedFiles and TestReconcileResultPrint key
+// off.
+const (
+	orphanFileA    = "a.go"
+	orphanFileB    = "b.go"
+	orphanFileUser = "u.go"
+	orphanDir      = "build" // stands in for a submodule gitlink entry
+)
+
+// removeOrphansCase is one TestRemoveOrphans table row.
+type removeOrphansCase struct {
+	name        string
+	tracked     []string
+	srcFiles    map[string][]byte
+	dstFiles    map[string][]byte
+	dstDirs     []string
+	wantRemoved []string
+	wantErr     bool
+	wantPresent []string
+}
+
 // TestRemoveOrphans pins removeOrphans's deletion gate. dst is always a real
 // on-disk filesystem (afero.NewBasePathFs over t.TempDir()), never MemMapFs:
 // MemMapFs returns a nil error when reading a directory, so the
@@ -438,64 +460,25 @@ func TestRemoveOrphans(t *testing.T) {
 	headered := []byte(core.GeneratedHeader + "\npackage foo\n")
 	headerless := []byte("package foo\n// mine\n")
 
-	tests := []struct {
-		name        string
-		tracked     []string
-		src         map[string][]byte
-		setupDst    func(t *testing.T, dst afero.Fs)
-		wantRemoved []string
-		wantErr     bool
-		checkDst    func(t *testing.T, dst afero.Fs)
-	}{
+	tests := []removeOrphansCase{
 		{
-			name:    "removes an orphaned tool-owned file",
-			tracked: []string{"a.go"},
-			setupDst: func(t *testing.T, dst afero.Fs) {
-				t.Helper()
-				if err := afero.WriteFile(dst, "a.go", headered, 0o644); err != nil {
-					t.Fatalf("seeding dst: %v", err)
-				}
-			},
-			wantRemoved: []string{"a.go"},
-			checkDst: func(t *testing.T, dst afero.Fs) {
-				t.Helper()
-				if ok, _ := afero.Exists(dst, "a.go"); ok {
-					t.Error("a.go should have been removed")
-				}
-			},
+			name:        "removes an orphaned tool-owned file",
+			tracked:     []string{orphanFileA},
+			dstFiles:    map[string][]byte{orphanFileA: headered},
+			wantRemoved: []string{orphanFileA},
 		},
 		{
-			name:    "keeps a rendered tool-owned file",
-			tracked: []string{"a.go"},
-			src:     map[string][]byte{"a.go": headered},
-			setupDst: func(t *testing.T, dst afero.Fs) {
-				t.Helper()
-				if err := afero.WriteFile(dst, "a.go", headered, 0o644); err != nil {
-					t.Fatalf("seeding dst: %v", err)
-				}
-			},
-			checkDst: func(t *testing.T, dst afero.Fs) {
-				t.Helper()
-				if ok, _ := afero.Exists(dst, "a.go"); !ok {
-					t.Error("a.go should still exist")
-				}
-			},
+			name:        "keeps a rendered tool-owned file",
+			tracked:     []string{orphanFileA},
+			srcFiles:    map[string][]byte{orphanFileA: headered},
+			dstFiles:    map[string][]byte{orphanFileA: headered},
+			wantPresent: []string{orphanFileA},
 		},
 		{
-			name:    "keeps a user-owned file",
-			tracked: []string{"u.go"},
-			setupDst: func(t *testing.T, dst afero.Fs) {
-				t.Helper()
-				if err := afero.WriteFile(dst, "u.go", headerless, 0o644); err != nil {
-					t.Fatalf("seeding dst: %v", err)
-				}
-			},
-			checkDst: func(t *testing.T, dst afero.Fs) {
-				t.Helper()
-				if ok, _ := afero.Exists(dst, "u.go"); !ok {
-					t.Error("u.go should still exist")
-				}
-			},
+			name:        "keeps a user-owned file",
+			tracked:     []string{orphanFileUser},
+			dstFiles:    map[string][]byte{orphanFileUser: headerless},
+			wantPresent: []string{orphanFileUser},
 		},
 		{
 			name:    "ignores a tracked file missing on disk",
@@ -503,13 +486,8 @@ func TestRemoveOrphans(t *testing.T) {
 		},
 		{
 			name:    "skips a tracked directory entry (submodule gitlink)",
-			tracked: []string{"build"},
-			setupDst: func(t *testing.T, dst afero.Fs) {
-				t.Helper()
-				if err := dst.MkdirAll("build", 0o755); err != nil {
-					t.Fatalf("seeding dst: %v", err)
-				}
-			},
+			tracked: []string{orphanDir},
+			dstDirs: []string{orphanDir},
 		},
 		{
 			name:    "rejects a path outside the project",
@@ -517,51 +495,64 @@ func TestRemoveOrphans(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "removes several, in the order given",
-			tracked: []string{"b.go", "a.go"},
-			setupDst: func(t *testing.T, dst afero.Fs) {
-				t.Helper()
-				if err := afero.WriteFile(dst, "b.go", headered, 0o644); err != nil {
-					t.Fatalf("seeding dst: %v", err)
-				}
-				if err := afero.WriteFile(dst, "a.go", headered, 0o644); err != nil {
-					t.Fatalf("seeding dst: %v", err)
-				}
-			},
-			wantRemoved: []string{"b.go", "a.go"},
+			name:        "removes several, in the order given",
+			tracked:     []string{orphanFileB, orphanFileA},
+			dstFiles:    map[string][]byte{orphanFileB: headered, orphanFileA: headered},
+			wantRemoved: []string{orphanFileB, orphanFileA},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dst := afero.NewBasePathFs(afero.NewOsFs(), t.TempDir())
-			if tt.setupDst != nil {
-				tt.setupDst(t, dst)
-			}
-			src := afero.NewMemMapFs()
-			for path, content := range tt.src {
-				if err := afero.WriteFile(src, path, content, 0o644); err != nil {
-					t.Fatalf("seeding src: %v", err)
-				}
-			}
+		t.Run(tt.name, func(t *testing.T) { runRemoveOrphansCase(t, tt) })
+	}
+}
 
-			got, err := removeOrphans(tt.tracked, src, dst)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("removeOrphans() error = nil, want an error")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("removeOrphans() error = %v", err)
-			}
-			if !slices.Equal(got, tt.wantRemoved) {
-				t.Errorf("removeOrphans() = %v, want %v", got, tt.wantRemoved)
-			}
-			if tt.checkDst != nil {
-				tt.checkDst(t, dst)
-			}
-		})
+// runRemoveOrphansCase seeds dst (a real on-disk FS) and src (in-memory) per
+// tt, calls removeOrphans, and checks its return value plus dst's resulting
+// state. Split out of TestRemoveOrphans to keep both functions' cyclomatic
+// complexity low.
+func runRemoveOrphansCase(t *testing.T, tt removeOrphansCase) {
+	t.Helper()
+	dst := afero.NewBasePathFs(afero.NewOsFs(), t.TempDir())
+	for _, dir := range tt.dstDirs {
+		if err := dst.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("seeding dst dir %s: %v", dir, err)
+		}
+	}
+	for path, content := range tt.dstFiles {
+		if err := afero.WriteFile(dst, path, content, 0o644); err != nil {
+			t.Fatalf("seeding dst file %s: %v", path, err)
+		}
+	}
+	src := afero.NewMemMapFs()
+	for path, content := range tt.srcFiles {
+		if err := afero.WriteFile(src, path, content, 0o644); err != nil {
+			t.Fatalf("seeding src file %s: %v", path, err)
+		}
+	}
+
+	got, err := removeOrphans(tt.tracked, src, dst)
+	if tt.wantErr {
+		if err == nil {
+			t.Fatal("removeOrphans() error = nil, want an error")
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("removeOrphans() error = %v", err)
+	}
+	if !slices.Equal(got, tt.wantRemoved) {
+		t.Errorf("removeOrphans() = %v, want %v", got, tt.wantRemoved)
+	}
+	for _, p := range tt.wantRemoved {
+		if ok, _ := afero.Exists(dst, p); ok {
+			t.Errorf("%s should have been removed", p)
+		}
+	}
+	for _, p := range tt.wantPresent {
+		if ok, _ := afero.Exists(dst, p); !ok {
+			t.Errorf("%s should still exist", p)
+		}
 	}
 }
 
@@ -575,7 +566,7 @@ func TestTrackedFiles(t *testing.T) {
 	dir := t.TempDir()
 	runGit := func(args ...string) {
 		t.Helper()
-		cmd := exec.Command("git", args...)
+		cmd := exec.CommandContext(t.Context(), "git", args...)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(),
 			"GIT_AUTHOR_NAME=xp-provider-gen-test", "GIT_AUTHOR_EMAIL=test@example.com",
@@ -585,23 +576,23 @@ func TestTrackedFiles(t *testing.T) {
 		}
 	}
 	runGit("init", "-q")
-	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n"), 0o644); err != nil {
-		t.Fatalf("writing a.go: %v", err)
+	if err := os.WriteFile(filepath.Join(dir, orphanFileA), []byte("package a\n"), 0o600); err != nil {
+		t.Fatalf("writing %s: %v", orphanFileA, err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("_output/\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("_output/\n"), 0o600); err != nil {
 		t.Fatalf("writing .gitignore: %v", err)
 	}
-	runGit("add", "a.go", ".gitignore")
+	runGit("add", orphanFileA, ".gitignore")
 	runGit("commit", "-q", "-m", "init")
 
 	if err := os.MkdirAll(filepath.Join(dir, "_output"), 0o755); err != nil {
 		t.Fatalf("mkdir _output: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "_output", "copied.go"),
-		[]byte(core.GeneratedHeader+"\npackage x\n"), 0o644); err != nil {
+		[]byte(core.GeneratedHeader+"\npackage x\n"), 0o600); err != nil {
 		t.Fatalf("writing _output/copied.go: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "untracked.go"), []byte("package u\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "untracked.go"), []byte("package u\n"), 0o600); err != nil {
 		t.Fatalf("writing untracked.go: %v", err)
 	}
 
@@ -614,13 +605,80 @@ func TestTrackedFiles(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(wd) })
 
-	got, err := trackedFiles(context.Background())
+	got, err := trackedFiles(t.Context())
 	if err != nil {
 		t.Fatalf("trackedFiles: %v", err)
 	}
-	want := []string{".gitignore", "a.go"}
+	want := []string{".gitignore", orphanFileA}
 	if !slices.Equal(got, want) {
 		t.Errorf("trackedFiles() = %v, want %v (must not include gitignored _output/copied.go or untracked untracked.go)", got, want)
+	}
+}
+
+// TestReconcileResultPrint pins the summary line and the per-removal lines
+// reconcileResult.print writes, and the version-drift note that appears only
+// when a removal happened and lastVersion names an older generator than the
+// one running now: an unexpected removal is exactly the case where knowing
+// "this binary is older than the one that last touched PROJECT" matters.
+func TestReconcileResultPrint(t *testing.T) {
+	const (
+		noteMarker      = "note:"
+		removedOneCount = "removed 1"
+		removedALine    = "  removed " + orphanFileA + ": "
+	)
+	oneRemoved := reconcileResult{removed: []string{orphanFileA}}
+
+	tests := []struct {
+		name         string
+		result       reconcileResult
+		lastVersion  string
+		wantContains []string
+		wantAbsent   []string
+	}{
+		{
+			name:         "no removal",
+			result:       reconcileResult{},
+			lastVersion:  version.Get().Version,
+			wantContains: []string{"removed 0"},
+			wantAbsent:   []string{"  removed ", noteMarker},
+		},
+		{
+			name:         "removes one, same version",
+			result:       oneRemoved,
+			lastVersion:  version.Get().Version,
+			wantContains: []string{removedOneCount, removedALine},
+			wantAbsent:   []string{noteMarker},
+		},
+		{
+			name:         "removes one, different version",
+			result:       oneRemoved,
+			lastVersion:  "old",
+			wantContains: []string{removedOneCount, removedALine, noteMarker + " PROJECT was last updated by generator old"},
+		},
+		{
+			name:         "removes one, lastVersion is empty",
+			result:       oneRemoved,
+			lastVersion:  "",
+			wantContains: []string{removedOneCount},
+			wantAbsent:   []string{noteMarker},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			tt.result.print(&buf, tt.lastVersion)
+			got := buf.String()
+			for _, want := range tt.wantContains {
+				if !strings.Contains(got, want) {
+					t.Errorf("print() = %q, want it to contain %q", got, want)
+				}
+			}
+			for _, notWant := range tt.wantAbsent {
+				if strings.Contains(got, notWant) {
+					t.Errorf("print() = %q, want it to NOT contain %q", got, notWant)
+				}
+			}
+		})
 	}
 }
 

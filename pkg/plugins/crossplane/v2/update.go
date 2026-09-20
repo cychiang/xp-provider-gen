@@ -19,6 +19,7 @@ package v2
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -222,7 +223,16 @@ func runUpdate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("reconciling generated files: %w\n%s", err, revertAdvice(result.seeded))
 	}
-	result.print()
+
+	tracked, err := trackedFiles(ctx)
+	if err != nil {
+		return fmt.Errorf("listing tracked files: %w\n%s", err, revertAdvice(result.seeded))
+	}
+	result.removed, err = removeOrphans(tracked, mem, afero.NewOsFs())
+	if err != nil {
+		return fmt.Errorf("removing files this generator no longer produces: %w\n%s", err, revertAdvice(result.seeded))
+	}
+	result.print(os.Stdout, meta.Version)
 
 	if err := applyDependencies(ctx, meta.Flavor); err != nil {
 		return fmt.Errorf("%w\n%s", err, revertAdvice(result.seeded))
@@ -509,6 +519,9 @@ type reconcileResult struct {
 	// seeded (upjet: some need init-time Terraform settings PROJECT lacks, so
 	// none are recreated).
 	unseeded []string
+	// removed are tracked, tool-owned files this render no longer produces,
+	// deleted by removeOrphans.
+	removed []string
 }
 
 func (r *reconcileResult) record(decision core.WriteDecision, rel string) {
@@ -524,12 +537,26 @@ func (r *reconcileResult) record(decision core.WriteDecision, rel string) {
 	}
 }
 
-func (r reconcileResult) print() {
-	fmt.Printf("Refreshed %d tool-owned file(s), added %d, left %d user-owned file(s) untouched.\n",
-		len(r.overwritten), len(r.seeded), len(r.skipped))
+// print writes the update summary to w. lastVersion is the generator version
+// PROJECT was stamped with before this run (empty for a project predating
+// provenance stamping); when a removal happened and it differs from the
+// version running now, an extra note flags that the removal may be explained
+// by an older binary rather than a template this generator truly retired.
+func (r reconcileResult) print(w io.Writer, lastVersion string) {
+	fmt.Fprintf(w, "Refreshed %d tool-owned file(s), added %d, removed %d, left %d user-owned file(s) untouched.\n",
+		len(r.overwritten), len(r.seeded), len(r.removed), len(r.skipped))
+	for _, rel := range r.removed {
+		fmt.Fprintf(w, "  removed %s: carries the generated header but is no longer generated — "+
+			"if this file is yours, remove the header\n", rel)
+	}
 	if len(r.unseeded) > 0 {
-		fmt.Printf("Not seeded (user-owned; update does not recreate these on an upjet provider): %s\n",
+		fmt.Fprintf(w, "Not seeded (user-owned; update does not recreate these on an upjet provider): %s\n",
 			strings.Join(r.unseeded, ", "))
+	}
+	if len(r.removed) > 0 && lastVersion != "" && lastVersion != version.Get().Version {
+		fmt.Fprintf(w, "  note: PROJECT was last updated by generator %s; this is %s. "+
+			"A removal you did not expect may mean this binary is older.\n",
+			lastVersion, version.Get().Version)
 	}
 }
 
