@@ -111,7 +111,7 @@ var terraformVersionEnvVars = []string{"TERRAFORM_PROVIDER_VERSION", "TERRAFORM_
 // silently override the Makefile edit this run is about to make.
 func checkTerraformVersionFlag(v string) error {
 	for _, name := range terraformVersionEnvVars {
-		if os.Getenv(name) != "" {
+		if _, ok := os.LookupEnv(name); ok {
 			return fmt.Errorf(
 				"rejecting --terraform-provider-version: %s is set in the environment and would "+
 					"silently override the Makefile's '?=' assignment; unset it first", name)

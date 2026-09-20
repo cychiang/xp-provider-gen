@@ -820,9 +820,24 @@ func TestUpdateFlagRejects(t *testing.T) {
 			t.Error("checkTerraformVersionFlag() = nil, want an error when TERRAFORM_PROVIDER_VERSION is set")
 		}
 		t.Setenv("TERRAFORM_PROVIDER_VERSION", "")
+		if err := os.Unsetenv("TERRAFORM_PROVIDER_VERSION"); err != nil {
+			t.Fatal(err)
+		}
 		t.Setenv("TERRAFORM_NATIVE_PROVIDER_BINARY", "terraform-provider-kubernetes_v2.37.1_x5")
 		if err := checkTerraformVersionFlag("2.38.0"); err == nil {
 			t.Error("checkTerraformVersionFlag() = nil, want an error when TERRAFORM_NATIVE_PROVIDER_BINARY is set")
+		}
+		if err := os.Unsetenv("TERRAFORM_NATIVE_PROVIDER_BINARY"); err != nil {
+			t.Fatal(err)
+		}
+
+		// make's `?=` cares whether the variable is defined at all, not
+		// whether it is non-empty: exporting it as "" still overrides the
+		// Makefile's default, so the flag must reject that too (this pins
+		// os.LookupEnv, not os.Getenv(name) != "").
+		t.Setenv("TERRAFORM_PROVIDER_VERSION", "")
+		if err := checkTerraformVersionFlag("2.38.0"); err == nil {
+			t.Error("checkTerraformVersionFlag() = nil, want an error when TERRAFORM_PROVIDER_VERSION is exported empty")
 		}
 	})
 
