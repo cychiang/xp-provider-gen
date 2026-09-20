@@ -917,6 +917,30 @@ func TestUpdateFlagRejects(t *testing.T) {
 	})
 }
 
+// TestUpdateCommand_RejectsTerraformVersionFlagBeforeRunning pins that RunE
+// actually calls checkTerraformVersionFlag, not just that the function
+// rejects in isolation (TestUpdateFlagRejects calls it directly, so it can't
+// tell whether RunE is still wired to it). Going through cmd.Execute() with a
+// real flag value proves the wiring; the env var makes this reject before
+// runUpdate ever touches git or the filesystem, so it's safe to run as a unit
+// test with no fixture project.
+func TestUpdateCommand_RejectsTerraformVersionFlagBeforeRunning(t *testing.T) {
+	t.Setenv("TERRAFORM_PROVIDER_VERSION", "2.37.1")
+
+	cmd := NewUpdateCommand()
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	cmd.SetArgs([]string{"--terraform-provider-version=2.38.0"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Execute() = nil, want an error when TERRAFORM_PROVIDER_VERSION is set in the environment")
+	}
+	if !strings.Contains(err.Error(), "TERRAFORM_PROVIDER_VERSION is set in the environment") {
+		t.Errorf("err = %q, want it to name the env-var rejection (RunE must call checkTerraformVersionFlag)", err)
+	}
+}
+
 func assertContains(t *testing.T, label string, list []string, want string) {
 	t.Helper()
 	if !slices.Contains(list, want) {
