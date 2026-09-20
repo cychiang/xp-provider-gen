@@ -802,8 +802,15 @@ func TestUpdateFlagRejects(t *testing.T) {
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
 		cmd.SetArgs([]string{"--adopt", "--terraform-provider-version=2.38.0"})
-		if err := cmd.Execute(); err == nil {
+		err := cmd.Execute()
+		if err == nil {
 			t.Fatal("Execute() = nil, want an error when --adopt and --terraform-provider-version are both set")
+		}
+		// Must be cobra's mutual-exclusion error specifically, not some later
+		// failure (e.g. requireCleanTree) that Execute() would also return
+		// nil-checked-only tests can't tell apart from the real rejection.
+		if !strings.Contains(err.Error(), "[adopt terraform-provider-version]") {
+			t.Errorf("err = %q, want cobra's mutually-exclusive-flags error naming [adopt terraform-provider-version]", err)
 		}
 	})
 
