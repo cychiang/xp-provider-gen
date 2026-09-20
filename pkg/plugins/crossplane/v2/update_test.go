@@ -827,8 +827,22 @@ func TestUpdateFlagRejects(t *testing.T) {
 	})
 
 	t.Run("version value is not valid semver", func(t *testing.T) {
-		if err := checkTerraformVersionFlag("not-a-version"); err == nil {
+		// Clear both env vars first: otherwise an inherited
+		// TERRAFORM_PROVIDER_VERSION or TERRAFORM_NATIVE_PROVIDER_BINARY
+		// (plausible in an upjet developer's shell) would make this pass
+		// for the wrong reason — the env-var check, not the semver one.
+		for _, name := range terraformVersionEnvVars {
+			t.Setenv(name, "")
+			if err := os.Unsetenv(name); err != nil {
+				t.Fatal(err)
+			}
+		}
+		err := checkTerraformVersionFlag("not-a-version")
+		if err == nil {
 			t.Fatal("checkTerraformVersionFlag(\"not-a-version\") = nil, want an error")
+		}
+		if !strings.Contains(err.Error(), "must be a semver value") {
+			t.Errorf("err = %q, want it to reject on the semver check, not the env-var check", err)
 		}
 	})
 }
