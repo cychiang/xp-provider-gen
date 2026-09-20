@@ -19,6 +19,7 @@ package v2
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -278,6 +279,15 @@ func runUpdate(ctx context.Context, terraformProviderVersion string) error {
 		}
 		oldVersion, err := applyTerraformVersionBump(afero.NewOsFs(), terraformProviderVersion)
 		if err != nil {
+			if errors.Is(err, errMakefileWriteFailed) {
+				// The write itself failed: afero.WriteFile truncates before
+				// writing, so the Makefile on disk may already differ from
+				// what git has committed. "no changes were made" would be
+				// false here; reconcile has not run yet, so a plain 'git
+				// reset --hard' (revertAdvice's no-seeded-files case) is
+				// enough to restore it.
+				return fmt.Errorf("%w\n%s", err, revertAdvice(nil))
+			}
 			return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
 		}
 		fmt.Printf("Bumped Terraform provider version %s -> %s in Makefile.\n", oldVersion, terraformProviderVersion)
@@ -694,10 +704,18 @@ func applyTerraformVersionBump(dst afero.Fs, newVersion string) (string, error) 
 		return "", fmt.Errorf("bumping Terraform provider version in Makefile: %w", err)
 	}
 	if err := afero.WriteFile(dst, makefilePath, updated, core.FileMode(makefilePath)); err != nil {
-		return "", fmt.Errorf("writing Makefile: %w", err)
+		return "", fmt.Errorf("%w: %w", errMakefileWriteFailed, err)
 	}
 	return oldVersion, nil
 }
+
+// errMakefileWriteFailed marks an applyTerraformVersionBump failure that
+// happened during the write itself, once afero.WriteFile's O_TRUNC may
+// already have truncated the file on disk. Unlike the read/parse failures
+// above it, "no changes were made" would be false here — the tree is left
+// dirty, and only a plain 'git reset --hard' (revertAdvice's no-seeded-files
+// case, correct here since reconcile has not run yet) restores it.
+var errMakefileWriteFailed = errors.New("writing Makefile")
 
 // applyDependencies bumps the flavor's framework dependency versions from the
 // manifest via `go get`, leaving the rest of go.mod (the user's own requires) alone.

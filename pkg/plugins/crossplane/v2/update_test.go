@@ -18,6 +18,7 @@ package v2
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -779,6 +780,60 @@ func TestBumpTerraformVersion(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestApplyTerraformVersionBump_WriteFailure pins that a failure writing the
+// Makefile back is distinguishable (via errors.Is(err, errMakefileWriteFailed))
+// from a failure reading or parsing it: only the write can leave the tree
+// dirty (afero.WriteFile truncates before writing), so runUpdate must give it
+// different revert advice than the "no changes were made" it gives the other
+// two.
+func TestApplyTerraformVersionBump_WriteFailure(t *testing.T) {
+	makefile := "export TERRAFORM_PROVIDER_VERSION ?= 2.37.1\n" +
+		"export TERRAFORM_NATIVE_PROVIDER_BINARY ?= terraform-provider-kubernetes_v2.37.1_x5\n"
+
+	t.Run("write failure is marked with errMakefileWriteFailed", func(t *testing.T) {
+		mem := afero.NewMemMapFs()
+		if err := afero.WriteFile(mem, "Makefile", []byte(makefile), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		ro := afero.NewReadOnlyFs(mem)
+
+		_, err := applyTerraformVersionBump(ro, "2.38.0")
+		if err == nil {
+			t.Fatal("applyTerraformVersionBump() on a read-only Fs = nil, want a write error")
+		}
+		if !errors.Is(err, errMakefileWriteFailed) {
+			t.Errorf("err = %q, want errors.Is(err, errMakefileWriteFailed)", err)
+		}
+	})
+
+	t.Run("read failure is not marked with errMakefileWriteFailed", func(t *testing.T) {
+		mem := afero.NewMemMapFs() // no Makefile written at all
+
+		_, err := applyTerraformVersionBump(mem, "2.38.0")
+		if err == nil {
+			t.Fatal("applyTerraformVersionBump() with no Makefile = nil, want a read error")
+		}
+		if errors.Is(err, errMakefileWriteFailed) {
+			t.Errorf("err = %q, a read failure must not be marked as a write failure", err)
+		}
+	})
+
+	t.Run("parse failure is not marked with errMakefileWriteFailed", func(t *testing.T) {
+		mem := afero.NewMemMapFs()
+		if err := afero.WriteFile(mem, "Makefile", []byte("no version lines here\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := applyTerraformVersionBump(mem, "2.38.0")
+		if err == nil {
+			t.Fatal("applyTerraformVersionBump() on an unparsable Makefile = nil, want an error")
+		}
+		if errors.Is(err, errMakefileWriteFailed) {
+			t.Errorf("err = %q, a parse failure must not be marked as a write failure", err)
+		}
+	})
 }
 
 // TestUpdateFlagRejects pins the four independent ways
