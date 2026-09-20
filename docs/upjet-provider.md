@@ -201,33 +201,37 @@ cloud API needs real credentials in that Secret.
 
 ## 7. Bumping the Terraform provider
 
-Edit `TERRAFORM_PROVIDER_VERSION` in the Makefile, clear the previous version's
-Terraform lock, then regenerate:
-
 ```bash
-rm -rf .work/terraform
-make generate
+xp-provider-gen update --terraform-provider-version=2.38.0
 ```
 
-Skip the `rm -rf` and the schema step fails outright — Terraform's own lock
-file still pins the old version:
+rewrites both Makefile version lines — `TERRAFORM_PROVIDER_VERSION` and the `_v<version>_`
+marker in `TERRAFORM_NATIVE_PROVIDER_BINARY` — then runs the rest of `update` as usual:
+generator refresh, framework dependency bump, `make generate`, `go mod tidy`, `make
+reviewable`. That coupling is deliberate: there is no way to bump only the Terraform
+provider version through `update` — a generator upgrade and framework dependency bump ride
+along in the same diff. The flag refuses a non-semver value, an inherited
+`TERRAFORM_PROVIDER_VERSION` or `TERRAFORM_NATIVE_PROVIDER_BINARY` environment variable
+(either would silently win over the Makefile's `?=` assignment), `--adopt` used at the same
+time, and a non-upjet project. Run it on a clean tree, same as plain `update`, so the result
+is reviewable as a diff.
 
-```
-Error: Failed to query available provider packages
-Could not retrieve the list of available versions for provider hashicorp/kubernetes: locked
-provider registry.terraform.io/hashicorp/kubernetes 2.38.0 does not match configured version
-constraint 3.0.0; must use terraform init -upgrade to allow selection of new versions
-```
+To bump *only* the version, without the generator refresh, edit `TERRAFORM_PROVIDER_VERSION`
+and `TERRAFORM_NATIVE_PROVIDER_BINARY` in the Makefile by hand instead, then run `make
+generate`. The `.work/` caches are keyed on `source@version`
+(`.work/terraform@<version>`, `.work/<terraform-provider-source>@<version>`), so each
+version gets its own Terraform lock and docs clone — there is no stale lock to clear first.
 
 Three things to expect once generation succeeds:
 
 - **Most kinds won't change.** A bump only reshapes a kind if its own Terraform schema
   changed between the two versions — `git diff` showing nothing for your kind means the
   schema didn't change, not that something went wrong.
-- **`TERRAFORM_NATIVE_PROVIDER_BINARY` is a second version string**, set once at `init` and
-  never re-derived. Update it too (`terraform-provider-<name>_v<version>_x5`) — Terraform's
-  filesystem-mirror install matches by directory, not filename, so nothing reads it
-  incorrectly today, but a stale value is one more thing to explain later.
+- **`TERRAFORM_NATIVE_PROVIDER_BINARY` is a second version string.** `update
+  --terraform-provider-version` keeps it in sync automatically; bumping the Makefile by hand
+  means updating it yourself too (`terraform-provider-<name>_v<version>_x5`) — Terraform's
+  filesystem-mirror install matches by directory, not filename, so nothing reads a stale
+  value incorrectly today, but it is one more thing to explain later.
 - **A resource the new version drops breaks the build, not just "stops updating."** If a
   configured Terraform resource type disappears from the bumped schema, `make generate`
   cleans up its own generated files but leaves `config/<kind>/config.go` and its
@@ -259,10 +263,10 @@ the framework dependency set, then runs `make generate`, `go mod tidy` and
 `make reviewable`, leaving the result for `git diff`. Unlike on a native
 provider, it never recreates a missing user-owned file — some need init-time
 Terraform settings PROJECT does not keep, so it recreates none — and lists the
-ones it skipped instead. This is a different need than
-[bumping the Terraform provider](#7-bumping-the-terraform-provider): `update`
-does not help with that, since the provider version lives in the user-owned
-Makefile.
+ones it skipped instead. Plain `update` does not touch the wrapped Terraform
+provider's version, which lives in the user-owned Makefile; `update
+--terraform-provider-version` bumps that too, folded into the same refresh —
+see [§7](#7-bumping-the-terraform-provider).
 Everything without the header is yours forever, and everything upjet itself
 generates (`zz_*`) is reproduced by `make generate` and should not be edited
 either.

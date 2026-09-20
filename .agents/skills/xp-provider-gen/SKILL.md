@@ -64,9 +64,11 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   `pkg/versions/dependencies.yaml` and rendered into `TERRAFORM_VERSION` in the tool-owned
   `hack/xp-provider-gen.mk` (the build pipeline the user-owned Makefile includes; `update`
   refreshes it). Check: **TERRAFORM_VERSION must stay below `1.6.0`** — Terraform 1.6+ is BSL
-  licensed and the fragment's `check-terraform-version` target refuses it. Bumping the *wrapped* provider's own version later
-  (`TERRAFORM_PROVIDER_VERSION` in the Makefile) is a separate operation with its own gotchas —
-  see [docs/upjet-provider.md §7](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#7-bumping-the-terraform-provider).
+  licensed and the fragment's `check-terraform-version` target refuses it. Bumping the *wrapped*
+  provider's own version later is `update --terraform-provider-version` (see below) — it rewrites
+  `TERRAFORM_PROVIDER_VERSION` and `TERRAFORM_NATIVE_PROVIDER_BINARY` in the Makefile and folds
+  that into the same refresh as a plain `update`; see
+  [docs/upjet-provider.md §7](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#7-bumping-the-terraform-provider).
 
 ### `create api` — native
 
@@ -131,10 +133,30 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   review, then your own commit. On a mid-run failure the error names the exact revert step.
   Check: on an **upjet** provider it never recreates a missing user-owned file (some need
   init-time Terraform settings PROJECT does not keep, so it recreates none) and lists the
-  ones it skipped; it does
-  not bump the wrapped Terraform provider — that is the Makefile's `TERRAFORM_PROVIDER_VERSION`.
+  ones it skipped; plain `update` does
+  not bump the wrapped Terraform provider — that is the Makefile's `TERRAFORM_PROVIDER_VERSION`,
+  bumped instead by `update --terraform-provider-version` (see below).
   It also refuses outright if PROJECT declares an unknown `flavor:` value, or `flavor: upjet`
   with no `upjet:` settings block.
+
+### `update --terraform-provider-version` — upjet
+
+- **What**: bumps the wrapped Terraform provider's version, folded into the same refresh as a
+  plain `update`.
+- **When**: moving an upjet provider to a newer Terraform provider release.
+- **Command**:
+  ```bash
+  xp-provider-gen update --terraform-provider-version=2.38.0
+  ```
+- **Produces**: rewrites `TERRAFORM_PROVIDER_VERSION` and the `_v<version>_` marker in
+  `TERRAFORM_NATIVE_PROVIDER_BINARY` in the Makefile, then runs the rest of `update` as usual —
+  generator refresh, framework dependency bump, `make generate`, `go mod tidy`, `make
+  reviewable`. That coupling is deliberate: there is no way to bump only the Terraform provider
+  version through this flag. Check: refuses a non-semver value; refuses if
+  `TERRAFORM_PROVIDER_VERSION` or `TERRAFORM_NATIVE_PROVIDER_BINARY` is set in the environment
+  (either would silently win over the Makefile's `?=` assignment); mutually exclusive with
+  `--adopt`; refuses on a non-**upjet** project. See
+  [docs/upjet-provider.md §7](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#7-bumping-the-terraform-provider).
 
 ### `update --adopt`
 

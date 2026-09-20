@@ -60,14 +60,19 @@ dependency versions are bumped via 'go get', so your own requires are preserved.
 
 On an upjet provider it never recreates a missing user-owned file — some need init-time
 Terraform settings PROJECT does not keep, so it recreates none — and lists the ones it
-skipped instead. It does not change the wrapped Terraform provider's version; that lives
-in your Makefile.
+skipped instead. Plain 'update' does not change the wrapped Terraform provider's version;
+that lives in your Makefile — use --terraform-provider-version to bump it.
 
 The working tree must be clean; the result is left uncommitted so you can review it with
 'git diff' before committing. If a step fails midway, the error names exactly how to revert.
 
 Use --adopt once on a provider generated before the ownership contract existed: it stamps
-provenance and writes the header onto recognized tool-owned files so plain 'update' works.`,
+provenance and writes the header onto recognized tool-owned files so plain 'update' works.
+
+Use --terraform-provider-version on an upjet provider to bump the wrapped Terraform
+provider: it rewrites the version in your Makefile, then runs the rest of update as usual —
+there is no way to bump only the version, since the generator refresh and framework
+dependency bump ride along in the same diff.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if adopt {
 				if err := runAdopt(context.Background()); err != nil {
