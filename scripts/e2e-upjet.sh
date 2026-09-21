@@ -40,7 +40,7 @@ rm -rf "$DIR" && mkdir -p "$DIR"
 rm -rf "$AUX" && mkdir -p "$AUX"
 cd "$DIR"
 "$BIN" init --domain=example.com --repo=github.com/example/provider-k8s \
-  --upjet --terraform-provider=hashicorp/kubernetes --terraform-provider-version=2.38.0 >/dev/null
+  --upjet --terraform-provider=hashicorp/kubernetes --terraform-provider-version=2.37.1 >/dev/null
 log_success "  ✓ scaffolded"
 
 "$SCRIPT_DIR/assert-layout.sh" --upjet "$DIR"
@@ -78,7 +78,7 @@ go build ./... >$AUX/build.log 2>&1 || {
 }
 log_success "  ✓ builds"
 
-step_header 6 "update refreshes tool-owned files and seeds no user-owned ones"
+step_header 6 "update refreshes tool-owned files, seeds no user-owned ones, and bumps the Terraform provider version"
 # update needs a clean tree, so commit what generation produced first. Then make
 # two tool-owned files stale (Go source and the make fragment) and delete one
 # user-owned file: update must refresh the first two and must not re-seed the
@@ -91,11 +91,19 @@ echo "$MK_MARKER" >>hack/xp-provider-gen.mk
 rm examples/providerconfig/providerconfig.yaml
 git commit -qam "Make tool-owned files stale and delete the ProviderConfig example" ||
   fail "could not commit the simulated drift"
-"$BIN" update >$AUX/update.log 2>&1 || {
+"$BIN" update --terraform-provider-version=2.38.0 >$AUX/update.log 2>&1 || {
   tail -30 $AUX/update.log
   fail "update failed on the generated upjet provider"
 }
 grep -q 'removed 0' $AUX/update.log || fail "same-generator update removed files"
+grep -c '2.38.0' Makefile | grep -qx 2                                     || fail "(a) Makefile lines not bumped"
+grep -q '^export TERRAFORM_NATIVE_PROVIDER_BINARY ?= terraform-provider-kubernetes_v2.38.0_x5' Makefile || fail "(a) binary line"
+! grep -q '2.37.1' Makefile                                                || fail "(a) a stale 2.37.1 survived in the Makefile"
+# (b) update succeeding means make generate succeeded (pipeline.go:158)
+[ -d .work/hashicorp/kubernetes@2.37.1 ] && [ -d .work/hashicorp/kubernetes@2.38.0 ] || fail "(c) docs cache not versioned"
+[ ! -d .work/hashicorp/kubernetes ]                                        || fail "(c) unversioned docs dir still used"
+[ "$(git -C .work/hashicorp/kubernetes@2.38.0 describe --tags)" = v2.38.0 ] || fail "(c) new docs dir is not at v2.38.0"
+[ -d .work/terraform@2.38.0 ]                                              || fail "(c) terraform workdir not versioned"
 if grep -qF "$UPDATE_MARKER" config/provider.go; then
   fail "update did not refresh tool-owned config/provider.go"
 fi
@@ -111,7 +119,7 @@ grep -q 'Not seeded.*examples/providerconfig/providerconfig.yaml' $AUX/update.lo
 git checkout HEAD~1 -- examples/providerconfig/providerconfig.yaml ||
   fail "could not restore the ProviderConfig example"
 git add -A && git commit -qm "Update provider" || fail "could not commit the update"
-log_success "  ✓ update refreshed config/provider.go and hack/xp-provider-gen.mk, did not re-seed the ProviderConfig example, and finalized"
+log_success "  ✓ update refreshed config/provider.go and hack/xp-provider-gen.mk, bumped the Terraform provider to 2.38.0 with a versioned cache, did not re-seed the ProviderConfig example, and finalized"
 
 step_header 7 "create api --force, update --adopt, and update's dirty-tree refusal"
 

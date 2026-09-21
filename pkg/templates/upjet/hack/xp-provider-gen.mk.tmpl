@@ -90,8 +90,11 @@ build.init: $(UP) $(CROSSPLANE_CLI) check-terraform-version
 # ====================================================================================
 # Setup Terraform for fetching provider schema
 TERRAFORM := $(TOOLS_HOST_DIR)/terraform-$(TERRAFORM_VERSION)
-TERRAFORM_WORKDIR := $(WORK_DIR)/terraform
+TERRAFORM_WORKDIR := $(WORK_DIR)/terraform@$(TERRAFORM_PROVIDER_VERSION)
 TERRAFORM_PROVIDER_SCHEMA := config/schema.json
+# Exported so apis/generate.go (go:generate, which only sees environment
+# variables) can key its scraped-docs cache on the provider version too.
+export TERRAFORM_DOCS_DIR := $(WORK_DIR)/$(TERRAFORM_PROVIDER_SOURCE)@$(TERRAFORM_PROVIDER_VERSION)
 
 check-terraform-version:
 ifneq ($(TERRAFORM_VERSION_VALID),1)
@@ -116,11 +119,11 @@ $(TERRAFORM_PROVIDER_SCHEMA): $(TERRAFORM)
 	@$(OK) generating provider schema for $(TERRAFORM_PROVIDER_SOURCE) $(TERRAFORM_PROVIDER_VERSION)
 
 pull-docs:
-	@if [ ! -d "$(WORK_DIR)/$(TERRAFORM_PROVIDER_SOURCE)" ]; then \
-  		mkdir -p "$(WORK_DIR)/$(TERRAFORM_PROVIDER_SOURCE)" && \
-		git clone -c advice.detachedHead=false --depth 1 --filter=blob:none --branch "v$(TERRAFORM_PROVIDER_VERSION)" --sparse "$(TERRAFORM_PROVIDER_REPO)" "$(WORK_DIR)/$(TERRAFORM_PROVIDER_SOURCE)"; \
+	@if [ ! -d "$(TERRAFORM_DOCS_DIR)" ]; then \
+  		mkdir -p "$(TERRAFORM_DOCS_DIR)" && \
+		git clone -c advice.detachedHead=false --depth 1 --filter=blob:none --branch "v$(TERRAFORM_PROVIDER_VERSION)" --sparse "$(TERRAFORM_PROVIDER_REPO)" "$(TERRAFORM_DOCS_DIR)"; \
 	fi
-	@git -C "$(WORK_DIR)/$(TERRAFORM_PROVIDER_SOURCE)" sparse-checkout set "$(TERRAFORM_DOCS_PATH)"
+	@git -C "$(TERRAFORM_DOCS_DIR)" sparse-checkout set "$(TERRAFORM_DOCS_PATH)"
 
 generate.init: $(TERRAFORM_PROVIDER_SCHEMA) pull-docs
 

@@ -100,6 +100,9 @@ func (p *initSubcommand) upjetSettings() (*core.UpjetSettings, error) {
 	if strings.Count(p.tfProvider, "/") != 1 {
 		return nil, fmt.Errorf("--terraform-provider must be <org>/<name>, e.g. hashicorp/kubernetes (got %q)", p.tfProvider)
 	}
+	if err := validation.ValidateTerraformProviderVersion(p.tfProviderVersion); err != nil {
+		return nil, fmt.Errorf("validating --terraform-provider-version: %w", err)
+	}
 	name := core.ProviderNameFromSource(p.tfProvider)
 	repo := p.tfProviderRepo
 	if repo == "" {

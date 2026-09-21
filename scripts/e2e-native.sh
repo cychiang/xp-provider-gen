@@ -293,6 +293,32 @@ step_update_lifecycle() {
     # Commit whatever update produced, then confirm update refuses a dirty tree.
     git add -A && git commit -q -m "chore: update core components" || true
     assert_update_refuses_dirty "$BINARY_PATH" "$CTRL"
+
+    # --terraform-provider-version is upjet-only; confirm it's rejected here,
+    # by name, on a native provider. Checking only the exit code (or a bare
+    # "! cmd | grep" with no message check) would also pass if the flag were
+    # silently accepted and printed nothing, or if it failed later for an
+    # unrelated reason — the flavor name in the error is what proves
+    # checkTerraformVersionFlavor is actually wired into runUpdate.
+    log_info "Asserting update --terraform-provider-version is rejected on a native provider..."
+    local flag_log
+    flag_log="$(mktemp)"
+    if "$BINARY_PATH" update --terraform-provider-version=1.0.0 >"$flag_log" 2>&1; then
+        cat "$flag_log"
+        rm -f "$flag_log"
+        log_error "✗ update --terraform-provider-version was accepted on a native provider"
+        exit 1
+    fi
+    if grep -q 'flavor is "native"' "$flag_log"; then
+        log_success "✓ update --terraform-provider-version rejected: native flavor named in the error"
+    else
+        cat "$flag_log"
+        rm -f "$flag_log"
+        log_error "✗ update --terraform-provider-version rejection did not name the flavor"
+        exit 1
+    fi
+    rm -f "$flag_log"
+    assert_clean_tree "the rejected --terraform-provider-version attempt"
 }
 
 # step_force: `create api --force` refreshes a tool-owned file, preserves user edits.
