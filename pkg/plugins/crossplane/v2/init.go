@@ -172,9 +172,13 @@ func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 	}
 
 	// Record what this project is, so create api and update never ask again.
+	// Stamping the version here — not only on the first update — means a
+	// fresh project is protected by checkNotDowngrade from the moment it
+	// exists, not just after its first update.
 	if err := saveProjectMeta(p.config, func(m *projectMeta) {
 		m.Flavor = flavor
 		m.Upjet = upjet
+		m.Version = version.Get().Version
 	}); err != nil {
 		return fmt.Errorf("recording project flavor: %w", err)
 	}

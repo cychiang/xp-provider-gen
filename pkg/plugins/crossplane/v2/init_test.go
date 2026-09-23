@@ -23,8 +23,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/afero"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
+	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
+
+	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
 // captureStdout runs fn with os.Stdout redirected, returning what it wrote.
@@ -120,6 +124,36 @@ func TestInitSubcommand_InjectConfig_WarnsOnUnconventionalRepoName(t *testing.T)
 
 	if got := strings.Count(out, "doesn't follow Crossplane convention"); got != 1 {
 		t.Errorf("naming warning printed %d time(s), want exactly 1:\n%s", got, out)
+	}
+}
+
+// TestInitStampsGeneratorVersion pins that init stamps the running
+// generator's version into PROJECT's plugin block on the way in, the same
+// field update and adopt later read as checkNotDowngrade's "last" — without
+// this, every project would be unprotected against a downgrade until its
+// first update. Scaffold only renders into the given machinery.Filesystem
+// (here an in-memory one); the post-init automation pipeline that touches
+// real disk and runs external commands lives in PostScaffold, which this
+// test never calls.
+func TestInitStampsGeneratorVersion(t *testing.T) {
+	cfg, err := config.New(cfgv3.Version)
+	if err != nil {
+		t.Fatalf("config.New: %v", err)
+	}
+	p := &initSubcommand{domain: testDomain, repo: testProviderRepo}
+	if err := p.InjectConfig(cfg); err != nil {
+		t.Fatalf("InjectConfig: %v", err)
+	}
+	if err := p.Scaffold(machinery.Filesystem{FS: afero.NewMemMapFs()}); err != nil {
+		t.Fatalf("Scaffold: %v", err)
+	}
+
+	meta, err := loadProjectMeta(p.config)
+	if err != nil {
+		t.Fatalf("loadProjectMeta: %v", err)
+	}
+	if want := version.Get().Version; meta.Version != want {
+		t.Errorf("PROJECT's stamped version = %q, want %q", meta.Version, want)
 	}
 }
 
