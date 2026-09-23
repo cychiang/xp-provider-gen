@@ -18,6 +18,12 @@ package version
 
 import "testing"
 
+// Values TestInfoShort and TestResolveVersion reuse across table rows.
+const (
+	testGenV010 = "v0.1.0"
+	testGenDev  = "dev"
+)
+
 func TestInfoShort(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -25,7 +31,7 @@ func TestInfoShort(t *testing.T) {
 		want    string
 	}{
 		{name: "bare version gets v-prefixed", version: "1.2.3", want: "v1.2.3"},
-		{name: "already v-prefixed version is not doubled", version: "v0.1.0", want: "v0.1.0"},
+		{name: "already v-prefixed version is not doubled", version: testGenV010, want: testGenV010},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -48,13 +54,13 @@ func TestResolveVersion(t *testing.T) {
 		buildInfo string
 		want      string
 	}{
-		{name: "ldflags-injected version wins", ldflags: "v0.1.0", buildInfo: "x", want: "v0.1.0"},
-		{name: "dev falls back to build info module version", ldflags: "dev", buildInfo: "v0.1.0", want: "v0.1.0"},
-		{name: "dev with (devel) build info stays dev", ldflags: "dev", buildInfo: "(devel)", want: "dev"},
-		{name: "dev with empty build info stays dev", ldflags: "dev", buildInfo: "", want: "dev"},
+		{name: "ldflags-injected version wins", ldflags: testGenV010, buildInfo: "x", want: testGenV010},
+		{name: "dev falls back to build info module version", ldflags: testGenDev, buildInfo: testGenV010, want: testGenV010},
+		{name: "dev with (devel) build info stays dev", ldflags: testGenDev, buildInfo: "(devel)", want: testGenDev},
+		{name: "dev with empty build info stays dev", ldflags: testGenDev, buildInfo: "", want: testGenDev},
 		{
 			name:      "dev falls back to a pseudo-version",
-			ldflags:   "dev",
+			ldflags:   testGenDev,
 			buildInfo: "v0.0.0-20260923200331-c7b96e644331",
 			want:      "v0.0.0-20260923200331-c7b96e644331",
 		},
