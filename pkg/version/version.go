@@ -19,6 +19,8 @@ package version
 import (
 	"fmt"
 	"runtime"
+	"runtime/debug"
+	"strings"
 )
 
 // CommandName is this binary's name, as the built binary, the Go module, the
@@ -49,7 +51,7 @@ type Info struct {
 // Get returns version and build information.
 func Get() Info {
 	return Info{
-		Version:   Version,
+		Version:   resolveVersion(Version, buildInfoVersion()),
 		GitCommit: GitCommit,
 		BuildDate: BuildDate,
 		GoVersion: GoVersion,
@@ -58,7 +60,38 @@ func Get() Info {
 	}
 }
 
-// Short returns a short version string.
+// resolveVersion prefers the ldflags-injected version; a plain
+// `go install …@vX.Y.Z` sets none, so Version stays "dev", and this falls
+// back to the module version recorded in the build info. "(devel)" (a local
+// checkout, not a version-pinned install) and "" (no build info available)
+// both keep "dev".
+func resolveVersion(ldflags, buildInfo string) string {
+	if ldflags != "dev" {
+		return ldflags
+	}
+	if buildInfo == "" || buildInfo == "(devel)" {
+		return "dev"
+	}
+	return buildInfo
+}
+
+// buildInfoVersion returns the main module's version as recorded by the Go
+// toolchain (e.g. what `go install pkg@vX.Y.Z` embeds), or "" if build info
+// is unavailable.
+func buildInfoVersion() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	return bi.Main.Version
+}
+
+// Short returns a short version string, always "v"-prefixed. Version may
+// already carry the "v" (an ldflags-injected release tag or a build-info
+// module version both do); prepending unconditionally would produce "vv0.1.0".
 func (i Info) Short() string {
+	if strings.HasPrefix(i.Version, "v") {
+		return i.Version
+	}
 	return fmt.Sprintf("v%s", i.Version)
 }
