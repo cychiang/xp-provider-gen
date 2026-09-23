@@ -148,7 +148,7 @@ ADOPT_DIFF="$(git diff --name-only | sort)"
 echo "$ADOPT_DIFF" | grep -qx 'config/provider.go' || fail "adopt did not touch config/provider.go"
 echo "$ADOPT_DIFF" | grep -vxE 'config/provider.go|PROJECT' | grep -q . &&
   fail "adopt touched unexpected files: $ADOPT_DIFF"
-grep -q '^ *version:' PROJECT || fail "PROJECT carries no generator version after adopt"
+/usr/bin/grep -qE '^    version: ' PROJECT || fail "PROJECT carries no generator version after adopt"
 git add -A && git commit -qm "chore: adopt tool-owned headers" || fail "could not commit the adopt result"
 log_success "  ✓ adopt restored config/provider.go's header and stamped PROJECT, nothing else"
 

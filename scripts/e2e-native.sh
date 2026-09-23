@@ -157,6 +157,10 @@ step_init() {
         exit 1
     fi
 
+    # Exactly four spaces: the plugin block's version: is indented four; PROJECT's
+    # top-level version: "3" is at zero, so '^ *version:' would match that instead.
+    /usr/bin/grep -qE '^    version: ' PROJECT || fail "init did not stamp the generator version in PROJECT"
+
     "$SCRIPT_DIR/assert-layout.sh" "$TEST_DIR"
 }
 
