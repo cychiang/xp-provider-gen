@@ -11,11 +11,11 @@ The code is organized into clearly separated layers:
 cmd/xp-provider-gen/            CLI entry point (Kubebuilder CLI + the `update` and `create-test` commands)
 pkg/plugins/crossplane/v2/
 ├── plugin.go, init.go,         Plugin layer — subcommands (init, create api)
-│   createapi.go,               + the update / update --adopt command, split by
-│   update.go, reconcile.go,      responsibility across update.go (orchestration),
-│   adopt.go, tfversion.go,       reconcile.go (reconcile/applyFile), adopt.go
-│   projectmeta.go                (--adopt) and tfversion.go (--terraform-provider-version)
-│                                + the flavor/upjet settings persisted in PROJECT
+│   createapi.go,
+│   update.go, reconcile.go,    + the update / update --adopt command: update.go (orchestration),
+│   adopt.go, tfversion.go,       reconcile.go (ownership-gated copy), adopt.go (--adopt),
+│                                 tfversion.go (--terraform-provider-version)
+│   projectmeta.go              + the flavor/upjet settings persisted in PROJECT
 ├── scaffold/                   Init scaffolder — picks templates + generators by flavor
 ├── core/                       Reusable building blocks (git, exec, config, ownership gate,
 │                                flavor.go, upjet.go)
