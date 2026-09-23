@@ -99,5 +99,12 @@ reconsider.
 - [.github/WORKFLOWS.md](.github/WORKFLOWS.md) — CI/CD pipelines
 - [.agents/skills/xp-provider-gen/](.agents/skills/xp-provider-gen/) — using this tool to
   build a provider (author-facing; how to scaffold, configure and deploy either flavor)
-- [docs/plans/2026-09-15-architecture-review.md](docs/plans/2026-09-15-architecture-review.md) —
-  how the architecture review's 14-item backlog was implemented, and what was deferred
+- [docs/plans/](docs/plans/) — decision records: what each program decided, what it deliberately
+  did not do, and the limits it accepted. Read the relevant one before revisiting a decision it
+  covers.
+  - [2026-09-15-architecture-review.md](docs/plans/2026-09-15-architecture-review.md) — how the
+    architecture review's 14-item backlog was implemented, and what was deferred
+  - [2026-09-19-consistency.md](docs/plans/2026-09-19-consistency.md) — the naming, skeleton and
+    terminology pass behind `make check-consistency`, and the gate's own blind spots
+  - [2026-09-21-phase-b.md](docs/plans/2026-09-21-phase-b.md) — why `update` deletes from
+    `git ls-files`, why the Terraform-provider bump is a flag, and what the review gate caught
