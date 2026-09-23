@@ -154,7 +154,7 @@ func runUpdate(ctx context.Context, terraformProviderVersion string) error {
 	if err != nil {
 		return fmt.Errorf("removing files this generator no longer produces: %w\n%s", err, revertAdvice(result.seeded))
 	}
-	result.print(os.Stdout, meta.Version)
+	result.print(os.Stdout, meta.Version, version.Get().Version)
 
 	if err := applyDependencies(ctx, meta.Flavor); err != nil {
 		return fmt.Errorf("%w\n%s", err, revertAdvice(result.seeded))
