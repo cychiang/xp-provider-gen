@@ -32,17 +32,20 @@ import (
 )
 
 func runAdopt(ctx context.Context) error {
-	st, mem, _, err := prepare(ctx)
+	st, mem, meta, err := prepare(ctx)
 	if err != nil {
+		return err
+	}
+	if err := checkNotDowngrade(meta.Version, version.Get().Version); err != nil {
 		return err
 	}
 
 	adopted, err := adoptHeaders(mem, afero.NewOsFs())
 	if err != nil {
-		return fmt.Errorf("adopting tool-owned files: %w", err)
+		return fmt.Errorf("adopting tool-owned files: %w\n%s", err, revertAdvice(nil))
 	}
 	if err := stampProvenance(st); err != nil {
-		return fmt.Errorf("stamping provenance: %w", err)
+		return fmt.Errorf("stamping provenance: %w\n%s", err, revertAdvice(nil))
 	}
 
 	fmt.Printf("Adopted %d tool-owned file(s) and stamped generator version %s in PROJECT.\n",

@@ -149,3 +149,32 @@ func applyTerraformVersionBump(dst afero.Fs, newVersion string) (string, error) 
 	}
 	return oldVersion, nil
 }
+
+// applyTerraformVersionFlagIfSet rewrites the Makefile's wrapped Terraform
+// provider version when --terraform-provider-version was given; it is a
+// no-op otherwise. runUpdate calls it after checkNotDowngrade and before any
+// other write, so every error path here still reports "no changes were made"
+// except the write failure itself.
+func applyTerraformVersionFlagIfSet(flavor core.Flavor, terraformProviderVersion string) error {
+	if terraformProviderVersion == "" {
+		return nil
+	}
+	if err := checkTerraformVersionFlavor(flavor); err != nil {
+		return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
+	}
+	oldVersion, err := applyTerraformVersionBump(afero.NewOsFs(), terraformProviderVersion)
+	if err != nil {
+		if errors.Is(err, errMakefileWriteFailed) {
+			// The write itself failed: afero.WriteFile truncates before
+			// writing, so the Makefile on disk may already differ from
+			// what git has committed. "no changes were made" would be
+			// false here; reconcile has not run yet, so a plain 'git
+			// reset --hard' (revertAdvice's no-seeded-files case) is
+			// enough to restore it.
+			return fmt.Errorf("%w\n%s", err, revertAdvice(nil))
+		}
+		return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
+	}
+	fmt.Printf("Bumped Terraform provider version %s -> %s in Makefile.\n", oldVersion, terraformProviderVersion)
+	return nil
+}

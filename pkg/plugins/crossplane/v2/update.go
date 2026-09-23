@@ -23,7 +23,6 @@ package v2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -76,10 +75,7 @@ there is no way to bump only the version, since the generator refresh and framew
 dependency bump ride along in the same diff.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if adopt {
-				if err := runAdopt(context.Background()); err != nil {
-					return fmt.Errorf("%w\n%s", err, revertAdvice(nil))
-				}
-				return nil
+				return runAdopt(context.Background())
 			}
 			if terraformProviderVersion != "" {
 				if err := checkTerraformVersionFlag(terraformProviderVersion); err != nil {
@@ -137,25 +133,12 @@ func runUpdate(ctx context.Context, terraformProviderVersion string) error {
 	if err != nil {
 		return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
 	}
+	if err := checkNotDowngrade(meta.Version, version.Get().Version); err != nil {
+		return err
+	}
 
-	if terraformProviderVersion != "" {
-		if err := checkTerraformVersionFlavor(meta.Flavor); err != nil {
-			return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
-		}
-		oldVersion, err := applyTerraformVersionBump(afero.NewOsFs(), terraformProviderVersion)
-		if err != nil {
-			if errors.Is(err, errMakefileWriteFailed) {
-				// The write itself failed: afero.WriteFile truncates before
-				// writing, so the Makefile on disk may already differ from
-				// what git has committed. "no changes were made" would be
-				// false here; reconcile has not run yet, so a plain 'git
-				// reset --hard' (revertAdvice's no-seeded-files case) is
-				// enough to restore it.
-				return fmt.Errorf("%w\n%s", err, revertAdvice(nil))
-			}
-			return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
-		}
-		fmt.Printf("Bumped Terraform provider version %s -> %s in Makefile.\n", oldVersion, terraformProviderVersion)
+	if err := applyTerraformVersionFlagIfSet(meta.Flavor, terraformProviderVersion); err != nil {
+		return err
 	}
 
 	result, err := reconcile(mem, afero.NewOsFs(), meta.Flavor != core.FlavorUpjet)
