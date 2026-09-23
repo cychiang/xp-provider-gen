@@ -11,7 +11,10 @@ The code is organized into clearly separated layers:
 cmd/xp-provider-gen/            CLI entry point (Kubebuilder CLI + the `update` and `create-test` commands)
 pkg/plugins/crossplane/v2/
 ├── plugin.go, init.go,         Plugin layer — subcommands (init, create api)
-│   createapi.go, update.go,    + the update / update --adopt command
+│   createapi.go,
+│   update.go, reconcile.go,    + the update / update --adopt command: update.go (orchestration),
+│   adopt.go, tfversion.go,       reconcile.go (ownership-gated copy), adopt.go (--adopt),
+│                                 tfversion.go (--terraform-provider-version)
 │   projectmeta.go              + the flavor/upjet settings persisted in PROJECT
 ├── scaffold/                   Init scaffolder — picks templates + generators by flavor
 ├── core/                       Reusable building blocks (git, exec, config, ownership gate,
@@ -61,7 +64,10 @@ the project's flavor from PROJECT and renders, validates and finalizes with that
   validates the resource; adds it to the config; renders the resource's API templates and
   **regenerates the register files deterministically** from `GetResources()`; runs the
   API-commit pipeline.
-- **`update.go`** — the `update` / `update --adopt` command. See §7.
+- **`update.go`**, **`reconcile.go`**, **`adopt.go`**, **`tfversion.go`** — the `update` /
+  `update --adopt` command, split by responsibility: `update.go` (the cobra command and the
+  prepare/run orchestration), `reconcile.go` (the ownership-gated copy and orphan removal),
+  `adopt.go` (`--adopt`), and `tfversion.go` (`--terraform-provider-version`). See §7.
 - **`createtest.go`** — the `create-test` command: resolves kind and test name (flag,
   sole kind, or interactive prompt) and renders the chainsaw skeleton.
 - **`config.go`** — `NewPluginConfig()` wraps `core.NewPluginConfig()` to seed defaults.
@@ -187,7 +193,7 @@ would silently make it user-owned and `update` would never refresh it.
 otherwise skip. `go.mod` is seed-once; its framework versions are bumped via `go get`, never by
 overwrite.
 
-## 7. The `update` command (`update.go`)
+## 7. The `update` command (`update.go`, `reconcile.go`, `adopt.go`, `tfversion.go`)
 
 `update` refreshes an existing provider's tool-owned core to the current generator:
 
