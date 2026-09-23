@@ -52,7 +52,7 @@ const (
 	// Overwrite replaces an existing tool-owned file.
 	Overwrite
 	// Unseeded is a user-owned file missing on disk that the caller
-	// deliberately chose not to seed (see update.go's applyFile).
+	// deliberately chose not to seed (see reconcile.go's applyFile).
 	Unseeded
 )
 
