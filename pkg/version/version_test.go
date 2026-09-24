@@ -18,9 +18,58 @@ package version
 
 import "testing"
 
+// Values TestInfoShort and TestResolveVersion reuse across table rows.
+const (
+	testGenV010 = "v0.1.0"
+	testGenDev  = "dev"
+)
+
 func TestInfoShort(t *testing.T) {
-	i := Info{Version: "1.2.3"}
-	if got, want := i.Short(), "v1.2.3"; got != want {
-		t.Errorf("Short() = %q, want %q", got, want)
+	tests := []struct {
+		name    string
+		version string
+		want    string
+	}{
+		{name: "bare version gets v-prefixed", version: "1.2.3", want: "v1.2.3"},
+		{name: "already v-prefixed version is not doubled", version: testGenV010, want: testGenV010},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i := Info{Version: tt.version}
+			if got := i.Short(); got != tt.want {
+				t.Errorf("Short() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestResolveVersion pins the go-install fallback: a plain `go install
+// pkg@vX.Y.Z` never runs the Makefile's ldflags, so Version stays "dev" and
+// resolveVersion must fall back to the module version the Go toolchain
+// records in build info.
+func TestResolveVersion(t *testing.T) {
+	tests := []struct {
+		name      string
+		ldflags   string
+		buildInfo string
+		want      string
+	}{
+		{name: "ldflags-injected version wins", ldflags: testGenV010, buildInfo: "x", want: testGenV010},
+		{name: "dev falls back to build info module version", ldflags: testGenDev, buildInfo: testGenV010, want: testGenV010},
+		{name: "dev with (devel) build info stays dev", ldflags: testGenDev, buildInfo: "(devel)", want: testGenDev},
+		{name: "dev with empty build info stays dev", ldflags: testGenDev, buildInfo: "", want: testGenDev},
+		{
+			name:      "dev falls back to a pseudo-version",
+			ldflags:   testGenDev,
+			buildInfo: "v0.0.0-20260923200331-c7b96e644331",
+			want:      "v0.0.0-20260923200331-c7b96e644331",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveVersion(tt.ldflags, tt.buildInfo); got != tt.want {
+				t.Errorf("resolveVersion(%q, %q) = %q, want %q", tt.ldflags, tt.buildInfo, got, tt.want)
+			}
+		})
 	}
 }

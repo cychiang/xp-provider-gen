@@ -21,6 +21,7 @@ limitations under the License.
 package v2
 
 import (
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -241,6 +242,39 @@ func TestUpdateCommand_RejectsTerraformVersionFlagBeforeRunning(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "TERRAFORM_PROVIDER_VERSION is set in the environment") {
 		t.Errorf("err = %q, want it to name the env-var rejection (RunE must call checkTerraformVersionFlag)", err)
+	}
+}
+
+// TestUpdateCommand_AdoptReturnsPrepareErrorBare pins that the --adopt branch
+// of RunE returns runAdopt's error unwrapped, not every error appended with
+// "changes are uncommitted; run 'git reset --hard' to revert" (revertAdvice's
+// no-seeded-files case). Before this, RunE always appended that advice, so
+// even a prepare failure — nothing written yet, since prepare fails before
+// any write — told the user to revert a change that was never made. This
+// runs somewhere that isn't a git repository at all, so prepare fails at
+// requireCleanTree's very first step: a real regression test without needing
+// a full scaffolded project on disk.
+func TestUpdateCommand_AdoptReturnsPrepareErrorBare(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	cmd := NewUpdateCommand()
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	cmd.SetArgs([]string{"--adopt"})
+
+	got := cmd.Execute()
+	if got == nil {
+		t.Fatal("Execute() = nil, want an error outside a git repository")
+	}
+	if strings.Contains(got.Error(), "git reset --hard") {
+		t.Errorf("err = %q, want it to NOT advise 'git reset --hard' for a failure before any write", got)
 	}
 }
 

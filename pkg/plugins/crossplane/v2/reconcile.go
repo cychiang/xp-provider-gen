@@ -31,7 +31,6 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
-	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
 // reconcile copies every rendered file from src onto dst through the ownership
@@ -198,10 +197,16 @@ func (r *reconcileResult) record(decision core.WriteDecision, rel string) {
 
 // print writes the update summary to w. lastVersion is the generator version
 // PROJECT was stamped with before this run (empty for a project predating
-// provenance stamping); when a removal happened and it differs from the
-// version running now, an extra note flags that the removal may be explained
-// by an older binary rather than a template this generator truly retired.
-func (r reconcileResult) print(w io.Writer, lastVersion string) {
+// provenance stamping); curVersion is the version running now. Whenever both
+// are known and differ, a neutral "Updating from generator ... to ..." line
+// leads the summary — stated as fact, not a warning: checkNotDowngrade
+// already refused before print ever runs if cur were genuinely older, so an
+// undecidable or forward difference reaching here is never something to
+// second-guess.
+func (r reconcileResult) print(w io.Writer, lastVersion, curVersion string) {
+	if lastVersion != "" && lastVersion != curVersion {
+		fmt.Fprintf(w, "Updating from generator %s to %s.\n", lastVersion, curVersion)
+	}
 	fmt.Fprintf(w, "Refreshed %d tool-owned file(s), added %d, removed %d, left %d user-owned file(s) untouched.\n",
 		len(r.overwritten), len(r.seeded), len(r.removed), len(r.skipped))
 	for _, rel := range r.removed {
@@ -211,10 +216,5 @@ func (r reconcileResult) print(w io.Writer, lastVersion string) {
 	if len(r.unseeded) > 0 {
 		fmt.Fprintf(w, "Not seeded (user-owned; update does not recreate these on an upjet provider): %s\n",
 			strings.Join(r.unseeded, ", "))
-	}
-	if len(r.removed) > 0 && lastVersion != "" && lastVersion != version.Get().Version {
-		fmt.Fprintf(w, "  note: PROJECT was last updated by generator %s; this is %s. "+
-			"A removal you did not expect may mean this binary is older.\n",
-			lastVersion, version.Get().Version)
 	}
 }

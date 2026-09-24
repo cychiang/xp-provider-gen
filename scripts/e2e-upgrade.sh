@@ -453,4 +453,30 @@ grep -q 'removed cluster/local/integration_tests.sh' "$AUX/update.log" || fail "
     || { git status --porcelain; fail "update touched more than the orphan and docs/ownership.md"; }
 log_success "  ✓ orphaned tool-owned file removed, reported, and nothing else touched"
 
+step_header 11 "an older generator refuses to update a project a newer one already updated"
+cd "$REPO"
+make build VERSION=v0.2.0 >/dev/null 2>&1 || fail "building the v0.2.0 generator failed"
+cp bin/xp-provider-gen "$AUX/xpg-v0.2.0"
+make build VERSION=v0.1.0 >/dev/null 2>&1 || fail "building the v0.1.0 generator failed"
+cp bin/xp-provider-gen "$AUX/xpg-v0.1.0"
+cd "$DIR"
+git add -A && git commit -qm "chore: before the downgrade check" || true
+# v0.2.0 touches the project through --adopt: it stamps provenance like update does, in seconds
+# instead of a full update's go get / make generate / make reviewable (steps 5 and 10 already prove
+# a full update works). It also gives adopt's stamping an assertion that can fail (G1 r4 N-6).
+"$AUX/xpg-v0.2.0" update --adopt >"$AUX/adopt-v020.log" 2>&1 || { tail -30 "$AUX/adopt-v020.log"; fail "v0.2.0 --adopt failed"; }
+/usr/bin/grep -qE '^    version: v0\.2\.0$' PROJECT || { /usr/bin/grep -n 'version' PROJECT; fail "v0.2.0 did not stamp itself into PROJECT"; }
+git add -A && git commit -qm "chore: touched by v0.2.0"  # required: otherwise the next refusal is the dirty-tree check, not the downgrade
+if "$AUX/xpg-v0.1.0" update >"$AUX/update-v010.log" 2>&1; then fail "v0.1.0 was allowed to update a v0.2.0 project"; fi
+grep -q 'is older than the one that last updated this project' "$AUX/update-v010.log" || { cat "$AUX/update-v010.log"; fail "refused for the wrong reason"; }
+grep -q 'v0.1.0' "$AUX/update-v010.log" && grep -q 'v0.2.0' "$AUX/update-v010.log" || fail "refusal does not name both versions"
+[ -z "$(git status --porcelain)" ] || { git status --porcelain; fail "the refused update changed files"; }
+# the adopt path refuses too, and says only one thing about reverting (G2 r1 F1)
+if "$AUX/xpg-v0.1.0" update --adopt >"$AUX/adopt-v010.log" 2>&1; then fail "v0.1.0 --adopt was allowed on a v0.2.0 project"; fi
+grep -q 'is older than the one that last updated this project' "$AUX/adopt-v010.log" || { cat "$AUX/adopt-v010.log"; fail "adopt refused for the wrong reason"; }
+! grep -q 'git reset --hard' "$AUX/adopt-v010.log" || { cat "$AUX/adopt-v010.log"; fail "adopt refusal still advises git reset --hard"; }
+[ "$(grep -c 'revert' "$AUX/adopt-v010.log")" = 1 ] || { cat "$AUX/adopt-v010.log"; fail "adopt refusal carries more than one revert sentence"; }
+[ -z "$(git status --porcelain)" ] || { git status --porcelain; fail "the refused adopt changed files"; }
+log_success "  ✓ an older generator is refused on update and --adopt, names both versions, and changes nothing"
+
 exit $FAIL

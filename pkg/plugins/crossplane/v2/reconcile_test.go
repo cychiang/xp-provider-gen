@@ -30,7 +30,6 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
-	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
 // TestReconcile_UpjetDoesNotSeedUserOwned pins that a user-owned file missing
@@ -323,13 +322,15 @@ func TestTrackedFiles(t *testing.T) {
 }
 
 // TestReconcileResultPrint pins the summary line and the per-removal lines
-// reconcileResult.print writes, and the version-drift note that appears only
-// when a removal happened and lastVersion names an older generator than the
-// one running now: an unexpected removal is exactly the case where knowing
-// "this binary is older than the one that last touched PROJECT" matters.
+// reconcileResult.print writes, and the neutral "Updating from generator ...
+// to ..." line that appears whenever lastVersion is known and differs from
+// curVersion — regardless of whether anything was removed, and never
+// phrased as a warning: a comparable *upgrade* (v0.1.0 -> v0.2.0) prints it
+// too, and must never say "older" (checkNotDowngrade, not print, is what
+// refuses an actual downgrade, before print ever runs).
 func TestReconcileResultPrint(t *testing.T) {
 	const (
-		noteMarker      = "note:"
+		updatingMarker  = "Updating from generator"
 		removedOneCount = "removed 1"
 		removedALine    = "  removed " + orphanFileA + ": "
 	)
@@ -339,41 +340,56 @@ func TestReconcileResultPrint(t *testing.T) {
 		name         string
 		result       reconcileResult
 		lastVersion  string
+		curVersion   string
 		wantContains []string
 		wantAbsent   []string
 	}{
 		{
-			name:         "no removal",
+			name:         "no removal, same version",
 			result:       reconcileResult{},
-			lastVersion:  version.Get().Version,
+			lastVersion:  testGenV020,
+			curVersion:   testGenV020,
 			wantContains: []string{"removed 0"},
-			wantAbsent:   []string{"  removed ", noteMarker},
+			wantAbsent:   []string{"  removed ", updatingMarker},
 		},
 		{
 			name:         "removes one, same version",
 			result:       oneRemoved,
-			lastVersion:  version.Get().Version,
+			lastVersion:  testGenV020,
+			curVersion:   testGenV020,
 			wantContains: []string{removedOneCount, removedALine},
-			wantAbsent:   []string{noteMarker},
+			wantAbsent:   []string{updatingMarker},
 		},
 		{
-			name:         "removes one, different version",
-			result:       oneRemoved,
-			lastVersion:  "old",
-			wantContains: []string{removedOneCount, removedALine, noteMarker + " PROJECT was last updated by generator old"},
+			name:        "upgrade with a removal prints a neutral note, never 'older'",
+			result:      oneRemoved,
+			lastVersion: testGenV010,
+			curVersion:  testGenV020,
+			wantContains: []string{
+				removedOneCount, removedALine, "Updating from generator v0.1.0 to v0.2.0.",
+			},
+			wantAbsent: []string{"older"},
 		},
 		{
-			name:         "removes one, lastVersion is empty",
+			name:        "lastVersion equals curVersion prints no note",
+			result:      reconcileResult{},
+			lastVersion: testGenV020,
+			curVersion:  testGenV020,
+			wantAbsent:  []string{updatingMarker},
+		},
+		{
+			name:         "lastVersion empty (never updated before) prints no note",
 			result:       oneRemoved,
 			lastVersion:  "",
+			curVersion:   testGenV020,
 			wantContains: []string{removedOneCount},
-			wantAbsent:   []string{noteMarker},
+			wantAbsent:   []string{updatingMarker},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			tt.result.print(&buf, tt.lastVersion)
+			tt.result.print(&buf, tt.lastVersion, tt.curVersion)
 			got := buf.String()
 			for _, want := range tt.wantContains {
 				if !strings.Contains(got, want) {

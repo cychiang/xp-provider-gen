@@ -193,7 +193,7 @@ would silently make it user-owned and `update` would never refresh it.
 otherwise skip. `go.mod` is seed-once; its framework versions are bumped via `go get`, never by
 overwrite.
 
-## 7. The `update` command (`update.go`, `reconcile.go`, `adopt.go`, `tfversion.go`)
+## 7. The `update` command (`update.go`, `reconcile.go`, `adopt.go`, `tfversion.go`, `downgrade.go`)
 
 `update` refreshes an existing provider's tool-owned core to the current generator:
 
@@ -202,7 +202,10 @@ overwrite.
    rest: its flavor picks the validator (upjet allows reserved kinds, as in `create api`).
    An unrecognized `flavor:` value — or `flavor: upjet` with no `upjet:` settings block —
    is treated as a corrupt PROJECT and refused outright, not silently defaulted to native
-   (`projectmeta.go`); only an empty flavor reads as native.
+   (`projectmeta.go`); only an empty flavor reads as native. `checkNotDowngrade` (`downgrade.go`)
+   then refuses if the running generator is an older clean release than the one PROJECT was
+   last stamped with — compared only when both are `^vX.Y.Z`, via `semver.Compare`, never a
+   string comparison, so a maintainer's own development build is never misjudged as older.
 2. **Render** the flavor's full template set into an in-memory FS (`afero.NewMemMapFs`); upjet
    renders with the settings PROJECT keeps (`WithUpjet`).
 3. **Reconcile** onto disk through `core.DecideWrite` (tool-owned files overwritten, user-owned
