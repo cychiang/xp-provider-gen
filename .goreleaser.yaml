@@ -1,0 +1,53 @@
+# GoReleaser config: builds, archives, checksums and creates the GitHub
+# Release. release.yml computes the version and notes with git-cliff before
+# invoking this (see cliff.toml and .github/workflows/release.yml); this file
+# never computes a version itself.
+version: 2
+
+builds:
+  - id: xp-provider-gen
+    main: ./cmd/xp-provider-gen
+    binary: xp-provider-gen
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -X github.com/cychiang/xp-provider-gen/pkg/version.Version={{ .Tag }}
+      - -X github.com/cychiang/xp-provider-gen/pkg/version.GitCommit={{ .FullCommit }}
+      - -X github.com/cychiang/xp-provider-gen/pkg/version.BuildDate={{ .Date }}
+
+archives:
+  - id: xp-provider-gen
+    ids: [xp-provider-gen]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+release:
+  prerelease: auto
+  # Without this, GitHub creates the release's tag at the default branch's
+  # current HEAD instead of the commit GoReleaser actually built and
+  # published assets for. release.yml creates the tag locally first, so this
+  # keeps the tag GitHub creates for the Release pointed at the same commit —
+  # after which the workflow's own `git push` of that tag is a no-op.
+  target_commitish: "{{ .FullCommit }}"
+
+# Notes come from git-cliff via `--release-notes`; disable GoReleaser's own
+# changelog generation so nothing here can conflict with it.
+changelog:
+  disable: true
