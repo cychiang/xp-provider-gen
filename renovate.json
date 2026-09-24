@@ -212,7 +212,7 @@
       "depNameTemplate": "orhun/git-cliff",
       "packageNameTemplate": "orhun/git-cliff",
       "datasourceTemplate": "github-releases",
-      "extractVersion": "^v(?<version>.*)$"
+      "extractVersionTemplate": "^v(?<version>.*)$"
     },
     {
       "customType": "regex",
