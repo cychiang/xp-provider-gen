@@ -86,6 +86,10 @@ reconsider.
 - `hack/check-consistency.sh` — the consistency gate behind `make check-consistency`; its last
   check (a Python helper alongside it) verifies each e2e workflow's `paths:` filter matches the
   files it actually uses
+- `hack/cliff-golden.sh` — golden test for `cliff.toml`'s git-cliff rules (version bump, note
+  grouping, ASCII normalization); runs as a step of every `release.yml` run
+- `.goreleaser.yaml`, `cliff.toml` — release automation config for `release.yml`: GoReleaser
+  builds/archives/releases, git-cliff computes the version and release notes from commits
 
 ## Further reading
 
