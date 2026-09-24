@@ -14,7 +14,7 @@ is the map, not a transcript of them.
 | 🧱 `e2e-upjet.yml` — E2E Upjet | daily; `workflow_dispatch`; PRs touching the upjet flavor's templates/plugin/version surfaces | `scripts/e2e-upjet.sh`: the real upjet generation pipeline (Terraform download, schema read, docs scrape), build, and — with Docker (`E2E_SKIP_DOCKER=0`, explicit) — the generated provider's own e2e |
 | ⚙️ `go-version.yml` — Go version alignment | push/PR to `main`, `develop` | `make check-go-version`: asserts go.mod and the Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version`, and that it's new enough for every pinned dependency |
 | 🔨 `build.yml` — Build | push/PR to `main`, `develop` | Cross-platform binaries + checksums, builds and smoke-tests the repository `Dockerfile`, uploads artifacts |
-| 🚀 `release.yml` — Release | `workflow_dispatch` (**Run workflow** button; `dry_run` input, on by default) | Full test suite, [git-cliff](https://git-cliff.org) computes the next version and grouped release notes from commit messages, [GoReleaser](https://goreleaser.com) builds/archives/checksums and creates the GitHub Release, then the docker job pushes the multi-platform image. `dry_run=true` (the default) rehearses every step — including `hack/cliff-golden.sh`'s check of the git-cliff rules — without tagging, releasing or pushing anything |
+| 🚀 `release.yml` — Release | `workflow_dispatch` (**Run workflow** button; `dry_run` input, on by default) | `go test ./...` as a final sanity check (not the race-detector suite `test.yml` already ran on the PR), [git-cliff](https://git-cliff.org) computes the next version and grouped release notes from commit messages, [GoReleaser](https://goreleaser.com) builds/archives/checksums and creates the GitHub Release, then the docker job pushes the multi-platform image. `dry_run=true` (the default) rehearses every step — including `hack/cliff-golden.sh`'s check of the git-cliff rules — without tagging, releasing or pushing anything |
 | 🔖 `pr-title.yml` — PR title | PR opened/edited/synchronize/reopened | [`amannn/action-semantic-pull-request`](https://github.com/amannn/action-semantic-pull-request) checks the PR title (and, for a single-commit PR, that its commit subject matches too) against the conventional-commit types and an ASCII-plus-typographic-punctuation pattern — the same subjects `cliff.toml` turns into release notes |
 | 🔒 `security.yml` — Security | push/PR to `main`, `develop` | gosec and Trivy scans; results upload to the repository's Security tab |
 
@@ -26,21 +26,18 @@ release version and `<major>.<minor>`.
 
 ## Dependencies
 
-**Automated dependency updates** via [Renovate Bot](https://docs.renovatebot.com/):
-- Go modules (grouped by type: Kubernetes, Crossplane, testing)
+**Automated dependency updates** via [Renovate Bot](https://docs.renovatebot.com/) (schedule and
+grouping rules live in `renovate.json`, the source of truth):
+- Go modules — grouped where they must move together (`kubernetes-api`, `kubernetes-tooling`,
+  `crossplane packages`, `provider framework dependencies`); the testing libraries
+  (testify/ginkgo/gomega) automerge patches individually, ungrouped
 - GitHub Actions — pinned to commit SHAs (`helpers:pinGitHubActionDigests`) and updated by Renovate
 - **Generated-provider dependency versions** — a Renovate **custom (regex) manager** tracks
-  `pkg/versions/dependencies.yaml` (the manifest rendered into generated `go.mod`), so each
-  generated-provider dependency gets its own bump PR against this repo
+  `pkg/versions/dependencies.yaml` (the manifest rendered into generated `go.mod`) and groups
+  them into one PR (`provider framework dependencies`) — crossplane-runtime, crossplane/apis,
+  controller-runtime and k8s.io/* must bump together or the e2e breaks
 - Security vulnerability alerts (high priority)
 - Dependency Dashboard for overview
-
-### Renovate Setup
-1. Install [Renovate GitHub App](https://github.com/apps/renovate)
-2. Configure via `renovate.json` (already included)
-3. Renovate runs weekly, before 6 AM UTC on Mondays
-4. Creates grouped PRs for related dependencies
-5. Provides detailed release notes and changelogs
 
 ## Usage Examples
 
@@ -75,18 +72,8 @@ gh workflow run e2e-upjet.yml --ref feature-branch
 
 ## Development Workflow
 
-1. **Feature development** — `lint`, `test`, `pr-title`, and `go-version` run on every PR;
+1. **Every PR** — `lint`, `test`, `build`, `security`, `pr-title`, and `go-version` all run;
    `e2e-native-full` and `e2e-upjet` run only on PRs that touch the surfaces they cover
-2. **Merge to main** — the same push-triggered workflows run again; `build.yml` builds binaries
+2. **Merge to main** — the same push-triggered workflows run again
 3. **Cut a release** — run `release.yml` from the Actions tab (see "Creating a Release" above)
 4. **Security monitoring** — Renovate keeps dependencies updated (see above)
-
-## Required Secrets
-
-The workflows use these GitHub secrets:
-- `GITHUB_TOKEN` (automatically provided)
-- No additional secrets required
-
-## Workflow Status
-
-View workflow status at: https://github.com/cychiang/xp-provider-gen/actions

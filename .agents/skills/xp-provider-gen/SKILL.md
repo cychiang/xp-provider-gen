@@ -259,8 +259,9 @@ tool's supported surface.
 
 Not scaffolding a provider — contributing to this generator's own code? Start with
 [AGENTS.md](https://github.com/cychiang/xp-provider-gen/blob/main/AGENTS.md) in the repo root:
-it has the make targets (`build`, `test`, `lint`, `reviewable`), the two e2e surfaces (native
-and upjet), and the working agreements. Templates live under `pkg/templates/files/` (native)
+it has the make targets (`build`, `test`, `lint`, `reviewable`), the three e2e targets
+(`e2e-native`, `e2e-upjet`, `e2e-upgrade`), and the working agreements. Templates live under
+`pkg/templates/files/` (native)
 and `pkg/templates/upjet/` (upjet) and are auto-discovered — adding a `.tmpl` file wires it in;
 there is no registration step.
 

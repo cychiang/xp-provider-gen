@@ -33,18 +33,19 @@ provider and runs it on a local kind cluster in about thirty minutes.
 git clone git@github.com:cychiang/xp-provider-gen.git
 cd xp-provider-gen
 make build
+export PATH="$PWD/bin:$PATH"
 ```
 
 ### Generate a Provider
 
 ```bash
-# Initialize provider project (always use a separate directory)
+# Somewhere else entirely — never inside the xp-provider-gen clone itself
 mkdir my-provider && cd my-provider
-./bin/xp-provider-gen init --domain=example.com --repo=github.com/example/provider-awesome
+xp-provider-gen init --domain=example.com --repo=github.com/example/provider-awesome
 
 # Add managed resources
-./bin/xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
-./bin/xp-provider-gen create api --group=storage --version=v1 --kind=Bucket
+xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
+xp-provider-gen create api --group=storage --version=v1 --kind=Bucket
 
 # Build and validate
 make generate && make build && make reviewable

@@ -79,9 +79,10 @@ code. The contract, the review workflow, and `--adopt` are documented in
 `pkg/versions/dependencies.yaml` is the single source of truth for the framework/Kubernetes
 versions a generated provider declares (plus an `upjet_dependencies` block layered on top for
 the upjet flavor). It is rendered into the provider's `go.mod`, tracked by a Renovate custom
-manager (so each dependency gets its own bump PR against this repo), and applied to existing
-providers by `update`. To change a generated provider's dependency versions, edit this file (or
-let Renovate do it) — never hardcode versions in a template.
+manager that groups the whole file into one PR (`provider framework dependencies` — bumping the
+entries individually would break the e2e), and applied to existing providers by `update`. To
+change a generated provider's dependency versions, edit this file (or let Renovate do it) —
+never hardcode versions in a template.
 
 Generated providers target the Go version in `pkg/versions/dependencies.yaml`'s `go_version`
 (`pkg/versions.GoVersion`, rendered into `go.mod`) and lint with the pinned golangci-lint

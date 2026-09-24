@@ -20,9 +20,10 @@ run alongside CI or another `make e2e-native`/`make e2e-upjet` run on the same m
 
 **Cluster names.** Every scaffolded provider's `make e2e` creates a kind cluster named
 `<PROJECT_NAME>-e2e`, where `PROJECT_NAME` is derived from `--repo`. The automated scripts use
-fixed repos (`github.com/example/provider-template`, `github.com/example/provider-k8s`), so
-picking any other `--repo` for these manual runs — as this guide does — already avoids a name
-collision. Nothing further to configure.
+fixed repos (`github.com/example/provider-template` for `e2e-native.sh`,
+`github.com/example/provider-k8s` for `e2e-upjet.sh`, `github.com/example/provider-acme` for
+`e2e-upgrade.sh`), so picking any other `--repo` for these manual runs — as this guide does —
+already avoids a name collision. Nothing further to configure.
 
 Build the binary once before starting:
 
