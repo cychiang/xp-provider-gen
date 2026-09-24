@@ -53,7 +53,8 @@ reconsider.
   Repeated string literals become named constants; repeated logic becomes a shared
   function. The linter enforces part of this (`goconst`, `dupl`).
 - **Match the surrounding code.** Idiomatic Go: small files, explicit error wrapping
-  (`fmt.Errorf("...: %w", err)`), table-driven tests.
+  (`fmt.Errorf("...: %w", err)`), table-driven tests, formatted by `gofumpt`/`gci`
+  (`make lint-fix` fixes both).
 - **Templates are data.** Provider scaffolding lives in `pkg/templates/files/**` (native) and
   `pkg/templates/upjet/**` (upjet), both auto-discovered (see [docs/templates.md](docs/templates.md)).
   Add a template file — do not wire it in by hand.

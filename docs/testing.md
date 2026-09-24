@@ -234,13 +234,6 @@ hack/cliff-golden.sh
 
 ## In CI
 
-See [.github/WORKFLOWS.md](../.github/WORKFLOWS.md) for the full list; the layers above map to:
-
-- `test.yml` — unit tests with coverage, plus the native e2e with its Docker-dependent step 12
-  skipped (`E2E_SKIP_DOCKER=1`), on every push/PR.
-- `e2e-native-full.yml` — the same native e2e with step 12 included, plus `make e2e-upgrade`;
-  daily and on PRs touching the surfaces they exercise.
-- `e2e-upjet.yml` — the upjet e2e; daily and on PRs touching the upjet flavor.
-- `go-version.yml` — `make check-go-version`, on every push/PR.
-- `lint.yml` / `security.yml` — linting, gosec, and Trivy scanning, on every push/PR.
-- `release.yml` — `hack/cliff-golden.sh`, on every run (dry-run and real).
+Which workflow runs which of the layers above, and on what trigger, is
+[.github/WORKFLOWS.md](../.github/WORKFLOWS.md)'s job, not this page's — see its `Workflows`
+table.

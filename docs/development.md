@@ -25,24 +25,14 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 
 ## Commands
 
+Run `make help` for the full target list. A few aren't obvious from their name alone:
+
 | Command | Purpose |
 |---------|---------|
-| `make build` | Build `bin/xp-provider-gen` |
-| `make test` | Unit tests with the race detector |
+| `make reviewable` | `mod-tidy` + `check` (fmt/vet/lint/gosec/test) + `check-consistency` — run this before pushing; mirrors what CI enforces |
 | `make coverage` | Coverage report at `coverage/coverage.html` |
-| `make fmt` / `make vet` | Format / vet |
-| `make lint` / `make lint-fix` | golangci-lint (config: `.golangci.yml`) |
-| `make gosec` | Security scan |
-| `make mod-tidy` / `make mod-verify` | Module hygiene |
-| `make check` | fmt + vet + lint + gosec + test |
-| `make reviewable` | `mod-tidy` + `check` + `check-consistency` — run this before pushing |
-| `make e2e-native` | Build, then run the end-to-end scaffold test |
-| `make e2e-upgrade` | Run a generator version bump against real user logic (native flavor) |
-| `make e2e-upjet` | Scaffold an upjet provider and run the real upjet pipeline (network) |
-| `make check-go-version` | Verify go.mod/Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version` (network) |
-| `make check-consistency` | Assert the repo's naming, skeleton and terminology conventions (part of `reviewable`) |
-
-`make reviewable` mirrors what CI enforces. If it passes locally, CI should pass too.
+| `make e2e-upgrade` | Runs a generator version bump against real user logic (native flavor only) — see [testing.md](testing.md) |
+| `make check-go-version` | Verifies go.mod/Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version` (network) |
 
 ## Consistency gate
 
@@ -89,13 +79,6 @@ Generated providers target the Go version in `pkg/versions/dependencies.yaml`'s 
 (`hack/xp-provider-gen.mk.tmpl`). Keep the generated `go` directive at that language version with
 no `toolchain` pin — golangci-lint reads the system GOROOT, so pinning a toolchain patch above
 golangci-lint's build version breaks `make reviewable` in generated projects.
-
-## Coding conventions
-
-- Idiomatic Go, formatted by `gofumpt`/`gci` (run `make lint-fix`).
-- Small, focused files; explicit error wrapping with `fmt.Errorf("...: %w", err)`.
-- No repeated string literals — extract a named constant (the `goconst` linter enforces this).
-- Table-driven tests (see [testing.md](testing.md)).
 
 ## CI/CD
 
