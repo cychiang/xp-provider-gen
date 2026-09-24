@@ -151,4 +151,12 @@ else
     report C8 "workflow paths filters match the files each e2e workflow uses" "${out:-hack/check-workflow-paths.py failed}"
 fi
 
+# A relative markdown link or #anchor that no longer resolves reads as valid but
+# sends a reader nowhere. The logic lives in the Python script.
+if out=$(python3 hack/check-links.py 2>&1); then
+    report C9 "markdown links and anchors resolve" ""
+else
+    report C9 "markdown links and anchors resolve" "${out:-hack/check-links.py failed}"
+fi
+
 exit "$FAILED"

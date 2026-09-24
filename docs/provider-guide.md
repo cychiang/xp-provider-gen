@@ -244,7 +244,8 @@ It stops there deliberately — no commit — so `git diff` is your review surfa
 
 **What you should see in that diff:** tool-owned files (including the build pipeline in
 `hack/xp-provider-gen.mk`), `go.mod` / `go.sum` version lines, regenerated
-`zz_generated.*` and CRDs, and occasionally a deleted tool-owned file the summary names.
+`zz_generated.*` and CRDs, `PROJECT` (stamped with the generator version that just ran), and
+occasionally a deleted tool-owned file the summary names.
 
 **What you should never see:** `external.go`, `client.go`, `options.go`, any
 `*_types.go`, `AGENTS.md`, or your `Makefile`. If one appears, that is a bug in the generator, not
@@ -305,35 +306,15 @@ Providers generated before the modular layout (`external.go` / `wiring.go` /
 `internal/provider`) must be regenerated instead — there is no in-place migration
 for that change.
 
-**Native providers are namespaced-only as of 2026-08-16.** `ClusterProviderConfig` is
-gone: managed resources are namespaced, so a cluster-scoped config bought
-nothing that a config in the resource's own namespace does not, while widening
-who could reach whose credentials. Credentials now use a
-`LocalSecretKeySelector` — the Secret must live in the ProviderConfig's own
-namespace — and the `Filesystem`/`Environment` sources are no longer offered,
-since both read the provider pod itself on behalf of whoever wrote the config.
-
-For an existing provider, `update` refreshes the tool-owned side (`config.go`,
-`connector.go`, `register.go`), but `apis/v1alpha1/types.go` is yours: delete
-the `ClusterProviderConfig`, `ClusterProviderConfigList` and
-`ClusterProviderConfigUsage` types by hand, switch `ProviderCredentials` to the
-form in a fresh scaffold, then `make generate`. Any `ClusterProviderConfig`
-objects in your clusters must be replaced with a `ProviderConfig` in each
-consuming namespace.
-
-On such providers `update` also seeds the new `test/` tree — but two pieces it
-cannot deliver live in user-owned files: the Makefile's uptest section (move the
-Makefile onto `hack/xp-provider-gen.mk` as described above to get `make e2e` /
-`test-behavior`)
-and the sample drift-mirroring in `external.go` that the seeded pause test's
-`status.atProvider` assertions rely on (irrelevant once you implement real
-logic — adjust or delete the seed test to match your controller's behavior).
-
-This whole namespaced-only rule, and the migration above, apply to the native
-flavor only. An upjet provider follows upjet's own contract and scaffolds both
-a namespaced `ProviderConfig` and a `ClusterProviderConfig`, with the full
-`CommonCredentialSelectors` (cross-namespace `secretRef`, `Filesystem`,
-`Environment`). See [upjet-provider.md](upjet-provider.md).
+**Native providers are namespaced-only as of 2026-08-16** — `ClusterProviderConfig` and the
+`Filesystem`/`Environment` credential sources were dropped in favor of a namespaced
+`ProviderConfig` with a `LocalSecretKeySelector`; `update` refreshes the tool-owned side
+automatically, but a provider scaffolded before that date needs a one-time hand migration of
+`apis/v1alpha1/types.go` (drop the removed types, switch `ProviderCredentials` to the current
+form) and, if it also predates the modular `test/` tree, of the Makefile's uptest section and
+the seeded pause test's drift-mirroring. This applies to the native flavor only — upjet keeps
+`ClusterProviderConfig` and the full `CommonCredentialSelectors`; see
+[upjet-provider.md](upjet-provider.md).
 
 ## 6. Where to look next
 

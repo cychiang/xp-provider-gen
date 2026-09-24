@@ -25,32 +25,23 @@ go install github.com/securego/gosec/v2/cmd/gosec@latest
 
 ## Commands
 
+Run `make help` for the full target list. A few aren't obvious from their name alone:
+
 | Command | Purpose |
 |---------|---------|
-| `make build` | Build `bin/xp-provider-gen` |
-| `make test` | Unit tests with the race detector |
+| `make reviewable` | `mod-tidy` + `check` (fmt/vet/lint/gosec/test) + `check-consistency` — run this before pushing; mirrors what CI enforces |
 | `make coverage` | Coverage report at `coverage/coverage.html` |
-| `make fmt` / `make vet` | Format / vet |
-| `make lint` / `make lint-fix` | golangci-lint (config: `.golangci.yml`) |
-| `make gosec` | Security scan |
-| `make mod-tidy` / `make mod-verify` | Module hygiene |
-| `make check` | fmt + vet + lint + gosec + test |
-| `make reviewable` | `mod-tidy` + `check` + `check-consistency` — run this before pushing |
-| `make e2e-native` | Build, then run the end-to-end scaffold test |
-| `make e2e-upgrade` | Run a generator version bump against real user logic (native flavor) |
-| `make e2e-upjet` | Scaffold an upjet provider and run the real upjet pipeline (network) |
-| `make check-go-version` | Verify go.mod/Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version` (network) |
-| `make check-consistency` | Assert the repo's naming, skeleton and terminology conventions (part of `reviewable`) |
-
-`make reviewable` mirrors what CI enforces. If it passes locally, CI should pass too.
+| `make e2e-upgrade` | Runs a generator version bump against real user logic (native flavor only) — see [testing.md](testing.md) |
+| `make check-go-version` | Verifies go.mod/Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version` (network) |
 
 ## Consistency gate
 
-`make check-consistency` runs `hack/check-consistency.sh`, eight checks that stop drift from
+`make check-consistency` runs `hack/check-consistency.sh`, nine checks that stop drift from
 growing back: stale script names, a `Makefile` whose `.PHONY` or `make help` disagrees with its
 targets, e2e scripts that diverge from one skeleton or `/tmp` prefix, retired terminology,
-non-gerund error strings, and workflow `paths:` filters. To add a check, append a
-`report Cn "<title>" "<violations>"` block to the script; CI and `make reviewable` both run it.
+non-gerund error strings, workflow `paths:` filters, and markdown links/anchors that no longer
+resolve. To add a check, append a `report Cn "<title>" "<violations>"` block to the script; CI
+and `make reviewable` both run it.
 
 ## Typical workflow
 
@@ -79,22 +70,16 @@ code. The contract, the review workflow, and `--adopt` are documented in
 `pkg/versions/dependencies.yaml` is the single source of truth for the framework/Kubernetes
 versions a generated provider declares (plus an `upjet_dependencies` block layered on top for
 the upjet flavor). It is rendered into the provider's `go.mod`, tracked by a Renovate custom
-manager (so each dependency gets its own bump PR against this repo), and applied to existing
-providers by `update`. To change a generated provider's dependency versions, edit this file (or
-let Renovate do it) — never hardcode versions in a template.
+manager that groups the whole file into one PR (`provider framework dependencies` — bumping the
+entries individually would break the e2e), and applied to existing providers by `update`. To
+change a generated provider's dependency versions, edit this file (or let Renovate do it) —
+never hardcode versions in a template.
 
 Generated providers target the Go version in `pkg/versions/dependencies.yaml`'s `go_version`
 (`pkg/versions.GoVersion`, rendered into `go.mod`) and lint with the pinned golangci-lint
 (`hack/xp-provider-gen.mk.tmpl`). Keep the generated `go` directive at that language version with
 no `toolchain` pin — golangci-lint reads the system GOROOT, so pinning a toolchain patch above
 golangci-lint's build version breaks `make reviewable` in generated projects.
-
-## Coding conventions
-
-- Idiomatic Go, formatted by `gofumpt`/`gci` (run `make lint-fix`).
-- Small, focused files; explicit error wrapping with `fmt.Errorf("...: %w", err)`.
-- No repeated string literals — extract a named constant (the `goconst` linter enforces this).
-- Table-driven tests (see [testing.md](testing.md)).
 
 ## CI/CD
 

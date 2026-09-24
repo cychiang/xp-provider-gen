@@ -50,7 +50,9 @@ types and controllers for the new resource. Nothing compiles until you do.
 After upgrading `xp-provider-gen`, run `xp-provider-gen update` on a clean
 tree: it refreshes the tool-owned files, removes the tool-owned ones this
 generator no longer produces, bumps the framework dependencies, runs
-`make generate` and `make reviewable`, and leaves the result for `git diff`.
+`make generate`, `go mod tidy` and `make reviewable` (in that order — tidy
+cannot resolve the packages generation produces until after it runs), and
+leaves the result for `git diff`.
 It never recreates a file of yours that you deleted — some need init-time
 Terraform settings `PROJECT` does not keep, so it recreates none — and lists any
 it skipped. Plain `update` does not change the Terraform provider version; that

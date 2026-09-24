@@ -4,8 +4,10 @@
 # generated provider targets. It is rendered into the provider's go.mod at init
 # and applied to existing providers by `xp-provider-gen update`.
 #
-# Tracked upstream by Renovate via a custom manager (see renovate.json), so each
-# entry gets its own bump PR against this repository, gated by CI + e2e.
+# Tracked upstream by Renovate via a custom manager (see renovate.json), which groups
+# the whole file into one bump PR against this repository, gated by CI + e2e — bumping
+# entries individually would leave crossplane-runtime, crossplane/apis, controller-runtime
+# and k8s.io/* mutually incompatible.
 
 # The go.mod `go` directive generated providers declare. go.mod's own `go`
 # directive (this repo's, not a generated provider's) and the Dockerfile's
