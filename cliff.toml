@@ -1,0 +1,42 @@
+# git-cliff config: computes the next version and the release notes from
+# conventional-commit subjects. hack/cliff-golden.sh pins the exact behavior
+# of the rules below against a fixture, and runs as a step of every release
+# (see .github/workflows/release.yml) so a rule change that breaks grouping,
+# ASCII normalization or the version bump turns the release run red before it
+# ever reaches GoReleaser.
+[changelog]
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}- {{ commit.message | split(pat="\n") | first | upper_first }}
+{% endfor %}{% endfor %}"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true      # drops the repo's ~25 early non-conventional subjects
+protect_breaking_commits = true
+# Normalize the six typographic characters the maintainer's own commit style
+# uses (e.g. em dash in subjects) to plain ASCII, so a release note built from
+# them still passes the `LC_ALL=C grep '[^ -~]'` guard in release.yml.
+commit_preprocessors = [
+  { pattern = "—", replace = "-" }, { pattern = "–", replace = "-" },
+  { pattern = "‘", replace = "'" }, { pattern = "’", replace = "'" },
+  { pattern = "“", replace = '"' }, { pattern = "”", replace = '"' },
+  { pattern = "…", replace = "..." },
+]
+commit_parsers = [
+  # git-cliff parses a `BREAKING CHANGE:` body line as a footer, not the body,
+  # so a `body = "BREAKING CHANGE"` rule never matches. `field = "breaking"`
+  # covers both a `type!:` subject and a `BREAKING CHANGE:` footer.
+  { field = "breaking", pattern = "true", group = "<!-- 0 -->Breaking changes" },
+  { message = "^feat", group = "<!-- 1 -->Features" },
+  { message = "^(fix|perf)", group = "<!-- 2 -->Bug fixes" },
+  { message = "^deps", group = "<!-- 3 -->Dependency updates" },
+  { message = "^(chore|ci|docs|test|refactor|build|style|revert)", skip = true },
+]
+
+[bump]
+initial_tag = "v0.1.0"
+features_always_bump_minor = true
+breaking_always_bump_major = false   # stay on 0.x: breaking bumps minor until an explicit 1.0

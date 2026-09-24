@@ -1,0 +1,46 @@
+name: PR title
+
+# `pull_request`, not `pull_request_target`: this action only reads the PR's
+# own metadata (title, commits), so it never needs the elevated permissions
+# and base-branch checkout that `pull_request_target` grants — one less
+# high-privilege trigger in the repo.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      # After a squash merge, GitHub's default `squash_merge_commit_title`
+      # setting (COMMIT_OR_PR_TITLE) lets a single-commit PR's commit subject
+      # become the merge commit's subject instead of the PR title — and that
+      # subject is exactly what cliff.toml turns into a release-note line.
+      # validateSingleCommit(+MatchesPrTitle) closes that gap by requiring
+      # the single commit to also match this pattern and the PR title.
+      - name: Validate PR title
+        uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        with:
+          types: |
+            feat
+            fix
+            perf
+            deps
+            refactor
+            docs
+            test
+            ci
+            chore
+            build
+          validateSingleCommit: true
+          validateSingleCommitMatchesPrTitle: true
+          # Printable ASCII plus the six typographic characters cliff.toml
+          # normalizes (em/en dash, curly single/double quotes, ellipsis) —
+          # this repo's own commit style already uses some of these.
+          subjectPattern: '^[\x20-\x7E—–‘’“”…]+$'
+          subjectPatternError: 'Write the subject in English: printable ASCII plus the dashes, curly quotes and ellipsis.'

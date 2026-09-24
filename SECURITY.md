@@ -17,8 +17,8 @@ within a week, and no guaranteed patch timeline.
 
 ## Supported versions
 
-`main` only. There are no tagged releases yet, so fixes land on `main` and you
-pick them up by rebuilding.
+`main`, and the latest release once one exists. Releases are cut from `main`
+by the Release workflow.
 
 ## What is in scope
 

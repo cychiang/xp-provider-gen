@@ -1,152 +1,154 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build everything and print the version and notes, but publish nothing
+        type: boolean
+        default: true
 
 permissions:
-  contents: write
-  packages: write
+  contents: write   # push the tag, create the release
+  packages: write   # push the image
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  GIT_CLIFF_VERSION: 2.14.2   # Renovate customManager tracks this line
 
 jobs:
   release:
-    name: Create Release
     runs-on: ubuntu-latest
-
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      with:
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0   # git-cliff and GoReleaser both need full tag/commit history
 
-    - name: Set up Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version-file: go.mod
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
 
-    - name: Download dependencies
-      run: go mod download
+      - name: Run tests
+        run: go test ./...
 
-    - name: Run tests
-      run: go test -v ./...
+      # Not orhun/git-cliff-action: it never puts the git-cliff binary on
+      # PATH for a later `run:` step. Install the official release tarball
+      # instead, verifying its published sha512 checksum.
+      - name: Install git-cliff (pinned, checksum-verified)
+        run: |
+          base="https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}"
+          file="git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "$base/$file"
+          curl -fsSLO "$base/$file.sha512"
+          sha512sum -c "$file.sha512"
+          tar -xzf "$file"
+          echo "$RUNNER_TEMP/git-cliff-${GIT_CLIFF_VERSION}" >> "$GITHUB_PATH"
 
-    - name: Build release binaries
-      run: |
-        VERSION=${GITHUB_REF#refs/tags/}
-        mkdir -p dist
+      - name: Check the release-note rules
+        run: hack/cliff-golden.sh   # same binary, same cliff.toml as the real run below
 
-        # Define build targets
-        declare -a targets=(
-          "linux/amd64"
-          "linux/arm64"
-          "darwin/amd64"
-          "darwin/arm64"
-          "windows/amd64"
-        )
+      - name: Compute the next version and release notes
+        id: version
+        env:
+          DRY_RUN: "${{ inputs.dry_run }}"
+        run: |
+          [ "$DRY_RUN" = true ] || [ "$GITHUB_REF" = refs/heads/main ] || { echo "releases are cut from main only (got $GITHUB_REF)"; exit 1; }
 
-        for target in "${targets[@]}"; do
-          GOOS=${target%/*}
-          GOARCH=${target#*/}
+          # Written outside the workspace: GoReleaser's real release path
+          # fails with errors/dirty on any untracked file, and --snapshot
+          # (the dry-run path) skips that check entirely, so a dry run alone
+          # would never catch a note written into the workspace.
+          NOTES="$RUNNER_TEMP/NOTES.md"
 
-          BINARY_NAME=xp-provider-gen
-          if [ "${GOOS}" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
-
-          OUTPUT_PATH="dist/${BINARY_NAME}_${GOOS}_${GOARCH}"
-          if [ "${GOOS}" = "windows" ]; then
-            OUTPUT_PATH="${OUTPUT_PATH}.exe"
-          fi
-
-          echo "Building ${GOOS}/${GOARCH}..."
-          GOOS=${GOOS} GOARCH=${GOARCH} go build \
-            -ldflags "-X github.com/cychiang/xp-provider-gen/pkg/version.Version=${VERSION} -X github.com/cychiang/xp-provider-gen/pkg/version.GitCommit=${GITHUB_SHA} -X github.com/cychiang/xp-provider-gen/pkg/version.BuildDate=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            -trimpath \
-            -o "${OUTPUT_PATH}" \
-            ./cmd/xp-provider-gen
-
-          # Create archive
-          ARCHIVE_NAME="xp-provider-gen_${VERSION}_${GOOS}_${GOARCH}"
-          if [ "${GOOS}" = "windows" ]; then
-            zip "${ARCHIVE_NAME}.zip" -j "${OUTPUT_PATH}"
+          TAG=$(git-cliff --bumped-version)
+          if PREV=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null); then
+            [ "$TAG" != "$PREV" ] || { echo "nothing to release since $PREV (no feat/fix/perf/deps/breaking commits)"; exit 1; }
+            git-cliff --unreleased --tag "$TAG" --strip all > "$NOTES"
           else
-            tar -czf "${ARCHIVE_NAME}.tar.gz" -C dist "$(basename "${OUTPUT_PATH}")"
+            echo "Initial release." > "$NOTES"
           fi
 
-          # Create checksum
-          if [ "${GOOS}" = "windows" ]; then
-            sha256sum "${ARCHIVE_NAME}.zip" > "${ARCHIVE_NAME}.zip.sha256"
-          else
-            sha256sum "${ARCHIVE_NAME}.tar.gz" > "${ARCHIVE_NAME}.tar.gz.sha256"
-          fi
-        done
+          if LC_ALL=C grep -n '[^ -~]' "$NOTES"; then echo "release notes contain non-ASCII text"; exit 1; fi
 
-    - name: Generate changelog
-      run: |
-        # Get the previous tag
-        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          { echo "## $TAG"; echo; cat "$NOTES"; } >> "$GITHUB_STEP_SUMMARY"
 
-        if [ -n "$PREVIOUS_TAG" ]; then
-          echo "## Changes since ${PREVIOUS_TAG}" > CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          git log --pretty=format:"- %s (%h)" ${PREVIOUS_TAG}..HEAD >> CHANGELOG.md
-        else
-          echo "## Initial Release" > CHANGELOG.md
-        fi
+      # GoReleaser's real release path needs a tag on HEAD (checked locally,
+      # not against the remote); pushing it only after GoReleaser succeeds
+      # means a failed run leaves nothing on origin to clean up.
+      - name: Tag locally
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: "${{ steps.version.outputs.tag }}"
+        run: git tag "$TAG"
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-      with:
-        body_path: CHANGELOG.md
-        files: |
-          *.tar.gz
-          *.zip
-          *.sha256
-        draft: false
-        prerelease: ${{ contains(github.ref_name, '-') }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: v2.18.2   # Renovate customManager tracks this line
+          args: ${{ inputs.dry_run && 'release --snapshot --clean' || format('release --clean --release-notes {0}/NOTES.md', runner.temp) }}
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-  docker-release:
-    name: Release Docker Image
-    runs-on: ubuntu-latest
+      - name: Push the tag
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: "${{ steps.version.outputs.tag }}"
+        run: git push origin "$TAG"
+
+  docker:
     needs: release
-
+    runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: "${{ inputs.dry_run && github.sha || needs.release.outputs.tag }}"
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      # linux/arm64 on an amd64 runner needs QEMU; the workflow this replaced
+      # never had this step and had also never run (0 tags existed), so the
+      # gap went unnoticed.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-      with:
-        images: ghcr.io/${{ github.repository }}
-        tags: |
-          type=ref,event=tag
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
+      - name: Log in to GitHub Container Registry
+        if: ${{ !inputs.dry_run }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        build-args: |
-          VERSION=${{ github.ref_name }}
-          COMMIT=${{ github.sha }}
-          BUILD_DATE=${{ steps.meta.outputs.created }}
+      # Under workflow_dispatch, github.ref is the branch, not a tag, so the
+      # semver patterns need the release tag given explicitly via `value=`.
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.release.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release.outputs.tag }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ !inputs.dry_run }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.release.outputs.tag }}
+            COMMIT=${{ github.sha }}

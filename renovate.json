@@ -203,6 +203,25 @@
       ],
       "depNameTemplate": "generated-provider-go-version",
       "datasourceTemplate": "golang-version"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the git-cliff release version release.yml installs from GitHub releases as a pinned binary (deliberately not orhun/git-cliff-action, see release.yml's comment). The action's own `uses:` SHA is tracked separately by helpers:pinGitHubActionDigests.",
+      "managerFilePatterns": [".github/workflows/release.yml"],
+      "matchStrings": ["GIT_CLIFF_VERSION:\\s*(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*#\\s*Renovate customManager tracks this line"],
+      "depNameTemplate": "orhun/git-cliff",
+      "packageNameTemplate": "orhun/git-cliff",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the GoReleaser version goreleaser-action's `version:` input pins in release.yml - a floating input Renovate does not follow on its own (the action's `uses:` SHA is tracked separately by helpers:pinGitHubActionDigests).",
+      "managerFilePatterns": [".github/workflows/release.yml"],
+      "matchStrings": ["version:\\s*(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\s*#\\s*Renovate customManager tracks this line"],
+      "depNameTemplate": "goreleaser/goreleaser",
+      "packageNameTemplate": "goreleaser/goreleaser",
+      "datasourceTemplate": "github-releases"
     }
   ],
   "osvVulnerabilityAlerts": true,

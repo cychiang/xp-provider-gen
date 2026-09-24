@@ -2,9 +2,10 @@
 
 This page covers the **automated** suites: fast Go unit tests, a full end-to-end scaffold
 test, an upgrade e2e, and an upjet-flavor e2e — four layers, all run by `make`
-targets and wired into CI. For a **manual** walkthrough of the same surfaces — reproducing
-a bug report, sanity-checking a change by hand, or seeing what a provider author actually
-experiences — see [docs/manual-testing.md](manual-testing.md).
+targets and wired into CI — plus a golden test for the release pipeline's git-cliff rules.
+For a **manual** walkthrough of the same surfaces — reproducing a bug report,
+sanity-checking a change by hand, or seeing what a provider author actually experiences —
+see [docs/manual-testing.md](manual-testing.md).
 
 ## Unit tests
 
@@ -193,6 +194,21 @@ upjet's contract; a unit test cannot, because the contract is upjet's generator.
 It needs network access and takes several minutes, so it is a separate target
 rather than part of `make e2e-native`.
 
+## Release-note rules (`hack/cliff-golden.sh`)
+
+`hack/cliff-golden.sh` is a golden test for `cliff.toml`'s git-cliff rules: it builds a
+fixture repo with a known commit history and asserts the exact next version, the exact
+grouped release notes (Breaking changes / Features / Bug fixes / Dependency updates), that
+the six typographic characters `cliff.toml` normalizes come out as ASCII, and that a range
+with nothing releasable leaves the version unchanged. It requires `git-cliff` on `PATH` and
+runs as a step of every `release.yml` run — dry-run and real alike — so a rule change that
+breaks version bumping, note grouping, or ASCII normalization turns the release run red
+before GoReleaser ever executes. Run it locally the same way:
+
+```bash
+hack/cliff-golden.sh
+```
+
 ## In CI
 
 See [.github/WORKFLOWS.md](../.github/WORKFLOWS.md) for the full list; the layers above map to:
@@ -204,3 +220,4 @@ See [.github/WORKFLOWS.md](../.github/WORKFLOWS.md) for the full list; the layer
 - `e2e-upjet.yml` — the upjet e2e; daily and on PRs touching the upjet flavor.
 - `go-version.yml` — `make check-go-version`, on every push/PR.
 - `lint.yml` / `security.yml` — linting, gosec, and Trivy scanning, on every push/PR.
+- `release.yml` — `hack/cliff-golden.sh`, on every run (dry-run and real).

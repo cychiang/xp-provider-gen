@@ -1,0 +1,61 @@
+# GoReleaser config: builds, archives, checksums and creates the GitHub
+# Release. release.yml computes the version and notes with git-cliff before
+# invoking this (see cliff.toml and .github/workflows/release.yml); this file
+# never computes a version itself.
+version: 2
+
+builds:
+  - id: xp-provider-gen
+    main: ./cmd/xp-provider-gen
+    binary: xp-provider-gen
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -X github.com/cychiang/xp-provider-gen/pkg/version.Version={{ .Tag }}
+      - -X github.com/cychiang/xp-provider-gen/pkg/version.GitCommit={{ .FullCommit }}
+      - -X github.com/cychiang/xp-provider-gen/pkg/version.BuildDate={{ .Date }}
+
+archives:
+  - id: xp-provider-gen
+    ids: [xp-provider-gen]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+release:
+  prerelease: auto
+  # Without this, GitHub creates the release's tag at the default branch's
+  # current HEAD instead of the commit GoReleaser actually built and
+  # published assets for. release.yml creates the tag locally first, so this
+  # keeps the tag GitHub creates for the Release pointed at the same commit —
+  # after which the workflow's own `git push` of that tag is a no-op.
+  target_commitish: "{{ .FullCommit }}"
+
+# No `changelog:` block: release.yml always passes `--release-notes`, which
+# already skips GoReleaser's own changelog generation on its own (per
+# `goreleaser release --help`). Setting `changelog.disable: true` here looks
+# equivalent but is not — GoReleaser's changelog pipe is also what loads
+# `--release-notes` into the release body, so `Skip()` returning true from
+# `disable: true` would skip loading the notes file too and ship an empty
+# release body. Confirmed by reading internal/pipe/changelog/changelog.go
+# (v2.18.2): Run() calls loadContent(ctx.ReleaseNotesFile) and only after
+# that checks ctx.Config.Changelog.Disable for its own generation, but Skip()
+# short-circuits Run() entirely when Disable is set — neither `goreleaser
+# check` nor a `--snapshot` dry run exercises this path (snapshot mode skips
+# the pipe outright), so it must be left unset instead.
