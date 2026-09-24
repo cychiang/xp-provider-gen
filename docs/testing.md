@@ -64,7 +64,8 @@ The script is one function per numbered step (`step_prepare_dir`, `step_init`, .
 in order from `main`; `--help` lists the same steps:
 
 1. Build the binary and prepare a clean temp directory.
-2. `init` a provider project; verify the base structure.
+2. `init` a provider project; verify the base structure and that it stamped PROJECT's plugin
+   block with the generator `version:` that ran it.
 3. Initial build targets; **assert the working tree is clean** (generate-then-commit leaves
    nothing uncommitted).
 4. `create api` for the first kind; verify the generated types and controller.
@@ -79,7 +80,10 @@ in order from `main`; `--help` lists the same steps:
 7. **`update` (the upgrade guarantee):** append a marker to **all three** user-owned seam
    files and commit, run `update`, then assert (a) every marker survives, (b) `wiring.go`,
    `connector.go` and `docs/ownership.md` are refreshed with headers intact, (c) seed-once
-   `AGENTS.md` is untouched, (d) `update` refuses a dirty tree. Steps 7–10 run against a copy
+   `AGENTS.md` is untouched, (d) the same-generator update log reports `removed 0` (nothing is
+   orphaned when the templates haven't changed), (e) `update --terraform-provider-version=1.0.0`
+   is rejected on a native provider, naming the flavor in the error — that flag is upjet-only,
+   (f) `update` refuses a dirty tree. Steps 7–10 run against a copy
    of the scaffold at `/tmp/xpg-e2e-native-lifecycle` (`LIFECYCLE_DIR`), so the pristine
    `/tmp/xpg-e2e-native` keeps its single `Initial commit`.
 8. **`create api --force`:** mark a tool-owned file (`wiring.go`) and a user-owned one
@@ -140,6 +144,16 @@ and runs `update`. It asserts:
   results, so the upgrade changed plumbing, not semantics,
 - the user's `--region` flag still appears in the rebuilt binary's `--help`.
 
+Two more steps run after that upgrade:
+
+- **Orphan removal:** a tool-owned template (`cluster/local/integration_tests.sh`) is removed
+  from the simulated new generator version; `update` deletes the now-orphaned tracked file on
+  disk and its log reports `removed 1` and names the removed path.
+- **Downgrade refusal:** with the project stamped by a simulated newer generator version,
+  running an older one is refused on both `update` and `update --adopt` — the error says the
+  running generator **is older than** the one that last updated the project, names both
+  versions, and changes nothing.
+
 It restores the templates it mutated. **Run it before shipping a generator bump.**
 
 `/tmp/xpg-e2e-upgrade`, its temp project, is left in place after each run, whether it succeeded or
@@ -152,8 +166,17 @@ wrapping `hashicorp/kubernetes`, configure `kubernetes_secret` with `create api`
 then run the **real** upjet pipeline — `make generate` downloads Terraform, reads
 the provider schema, scrapes the provider's docs and generates API types,
 controllers, scheme registration and CRDs — and finally build the result. It
-then runs `update` once on the generated provider, asserting a stale tool-owned
-file is refreshed and a deleted user-owned file is not re-seeded.
+then runs `update --terraform-provider-version=2.38.0` once on the generated
+provider, asserting a stale tool-owned file is refreshed, the Makefile no longer
+pins the old `2.37.1`, and a deleted user-owned file is not re-seeded (the log
+also reports `removed 0`, since the same-generator run orphans nothing).
+
+Step 8, **"the generated provider starts, not just builds,"** goes past a bare
+build: it runs the provider binary's scheme registration against an unreachable
+API server (asserting no panic), then builds and runs
+`hack/envtest-provider-check` — its own Go module — against a real, ephemeral
+`envtest` API server to prove the generated controllers actually start and
+register, not merely compile.
 
 It then covers three git-automation paths native's e2e already had (`--force`)
 or that upjet previously lacked (`--adopt`, the dirty-tree refusal), none of

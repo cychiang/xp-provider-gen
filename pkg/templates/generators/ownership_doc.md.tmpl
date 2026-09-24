@@ -36,6 +36,12 @@ The generator creates these once and then leaves them alone forever.
 
 Tool-owned code calls these by name. Renaming any of them breaks the build:
 {{ if eq .Flavor "upjet" }}
+Also generated, by upjet itself rather than by `xp-provider-gen`: every `zz_*_types.go` and
+`zz_controller.go` under `apis/**` and `internal/controller/**`, plus `examples-generated/**`.
+Not covered by the "Also generated" bucket above (that one is `make generate`'s
+`zz_generated.*.go`/`package/crds/*` only) — these are upjet's own output, regenerated
+unconditionally by `make generate` every run, and not yours to edit either.
+
 | Name | Where you define it |
 |---|---|
 | `TerraformSetupBuilder` | `internal/clients/clients.go` |

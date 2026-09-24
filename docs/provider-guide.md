@@ -244,7 +244,8 @@ It stops there deliberately — no commit — so `git diff` is your review surfa
 
 **What you should see in that diff:** tool-owned files (including the build pipeline in
 `hack/xp-provider-gen.mk`), `go.mod` / `go.sum` version lines, regenerated
-`zz_generated.*` and CRDs, and occasionally a deleted tool-owned file the summary names.
+`zz_generated.*` and CRDs, `PROJECT` (stamped with the generator version that just ran), and
+occasionally a deleted tool-owned file the summary names.
 
 **What you should never see:** `external.go`, `client.go`, `options.go`, any
 `*_types.go`, `AGENTS.md`, or your `Makefile`. If one appears, that is a bug in the generator, not

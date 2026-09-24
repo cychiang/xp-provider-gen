@@ -77,53 +77,19 @@ make help        # List all targets
 Requirements, the full target list and the contributor workflow are in
 [docs/development.md](docs/development.md).
 
-**For provider authors**, start with [docs/provider-guide.md](docs/provider-guide.md) (native)
-or [docs/upjet-provider.md](docs/upjet-provider.md) (upjet). **For contributors to this
-generator**, [AGENTS.md](AGENTS.md) indexes the rest of `docs/`.
+**Provider authors** start with [docs/provider-guide.md](docs/provider-guide.md) (native) /
+[docs/upjet-provider.md](docs/upjet-provider.md) (upjet); **generator contributors** start with
+[AGENTS.md](AGENTS.md).
 
 ### Generated Project Structure
 
-Native flavor (an upjet scaffold's layout differs — see
-[docs/upjet-provider.md](docs/upjet-provider.md)):
-
-```
-provider-awesome/
-├── apis/
-│   ├── v1alpha1/              # ProviderConfig types
-│   ├── compute/v1alpha1/      # Compute resources
-│   ├── storage/v1/            # Storage resources
-│   └── register.go            # generated — scheme registration
-├── cmd/provider/              # Provider binary
-├── internal/
-│   ├── provider/              # Provider-wide concerns
-│   │   ├── client.go          # YOURS — build the API client from credentials
-│   │   ├── options.go         # YOURS — CLI flags, controller options
-│   │   └── connector.go       # generated — ProviderConfig + credential resolution
-│   └── controller/
-│       ├── bucket/
-│       │   ├── external.go    # YOURS — observe/create/update/delete
-│       │   └── wiring.go      # generated — SetupGated, reconciler construction
-│       ├── config/
-│       │   └── config.go
-│       └── register.go        # Controller registration
-├── test/                      # YOURS — chainsaw behavior tests + setup script
-│   ├── setup.sh
-│   └── behavior/               # chainsaw behavior tests
-├── cluster/local/integration_tests.sh
-├── hack/
-│   ├── boilerplate.go.txt     # license header for generated code
-│   └── xp-provider-gen.mk     # generated — the build pipeline the Makefile includes
-├── docs/ownership.md          # generated — which files are yours
-├── AGENTS.md                  # yours — orientation for humans and agents
-├── OWNERS.md
-├── LICENSE
-├── .gitignore
-├── package/
-│   ├── crossplane.yaml        # Provider metadata (with safe-start capability)
-│   └── crds/                  # Generated CRDs
-├── examples/                  # usage examples — also uptest's lifecycle input (make e2e)
-└── Makefile                   # YOURS — project variables, then includes hack/xp-provider-gen.mk
-```
+You write four files: `external.go` (observe/create/update/delete), `client.go` (the API
+client), `options.go` (CLI flags), and each kind's `apis/<group>/<version>/<kind>_types.go`.
+Everything else starts tool-owned. Every scaffold gets its own generated `docs/ownership.md`
+listing exactly which files are yours for that provider — see
+[docs/provider-guide.md](docs/provider-guide.md) (native) or
+[docs/upjet-provider.md](docs/upjet-provider.md) (upjet, whose layout differs) for the full
+picture.
 
 ## License
 
