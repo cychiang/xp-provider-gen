@@ -47,7 +47,15 @@ release:
   # after which the workflow's own `git push` of that tag is a no-op.
   target_commitish: "{{ .FullCommit }}"
 
-# Notes come from git-cliff via `--release-notes`; disable GoReleaser's own
-# changelog generation so nothing here can conflict with it.
-changelog:
-  disable: true
+# No `changelog:` block: release.yml always passes `--release-notes`, which
+# already skips GoReleaser's own changelog generation on its own (per
+# `goreleaser release --help`). Setting `changelog.disable: true` here looks
+# equivalent but is not — GoReleaser's changelog pipe is also what loads
+# `--release-notes` into the release body, so `Skip()` returning true from
+# `disable: true` would skip loading the notes file too and ship an empty
+# release body. Confirmed by reading internal/pipe/changelog/changelog.go
+# (v2.18.2): Run() calls loadContent(ctx.ReleaseNotesFile) and only after
+# that checks ctx.Config.Changelog.Disable for its own generation, but Skip()
+# short-circuits Run() entirely when Disable is set — neither `goreleaser
+# check` nor a `--snapshot` dry run exercises this path (snapshot mode skips
+# the pipe outright), so it must be left unset instead.
