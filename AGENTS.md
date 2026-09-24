@@ -110,4 +110,5 @@ reconsider.
   did not do, and the limits it accepted. Read the relevant one before revisiting a decision it
   covers: [2026-09-15-architecture-review.md](docs/plans/2026-09-15-architecture-review.md),
   [2026-09-19-consistency.md](docs/plans/2026-09-19-consistency.md),
-  [2026-09-21-phase-b.md](docs/plans/2026-09-21-phase-b.md).
+  [2026-09-21-phase-b.md](docs/plans/2026-09-21-phase-b.md),
+  [2026-09-24-release-and-docs.md](docs/plans/2026-09-24-release-and-docs.md).
