@@ -223,6 +223,11 @@ git commit -m "chore: update provider core"
 `update` refuses outright if PROJECT declares an unknown `flavor:` value, or `flavor: upjet`
 with no `upjet:` settings block — only an empty flavor is read as native.
 
+`update` (and `update --adopt`) also refuses when the generator running is an older clean
+release than the one that last updated this project, naming both versions; to downgrade
+deliberately, edit `version:` under the `crossplane.go.kubebuilder.io` plugin in PROJECT,
+commit it, then run `update` again.
+
 `update` does six things:
 
 1. Regenerates every tool-owned file from the current templates.
