@@ -27,7 +27,16 @@ A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crosspla
 Prefer a guided walkthrough? [The tutorial](docs/tutorial.md) builds a complete
 provider and runs it on a local kind cluster in about thirty minutes.
 
-### Build the Generator
+### Install the Generator
+
+```bash
+go install github.com/cychiang/xp-provider-gen/cmd/xp-provider-gen@latest
+```
+
+Prebuilt binaries for Linux, macOS and Windows, with checksums, are on the
+[Releases](https://github.com/cychiang/xp-provider-gen/releases) page, and a multi-arch
+container image is published as `ghcr.io/cychiang/xp-provider-gen`. To build from source
+instead:
 
 ```bash
 git clone git@github.com:cychiang/xp-provider-gen.git
