@@ -17,7 +17,7 @@ within a week, and no guaranteed patch timeline.
 
 ## Supported versions
 
-`main`, and the latest release once one exists. Releases are cut from `main`
+`main`, and the latest release. Releases are cut from `main`
 by the Release workflow.
 
 ## What is in scope
