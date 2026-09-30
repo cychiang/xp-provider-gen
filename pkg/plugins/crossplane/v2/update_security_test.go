@@ -82,7 +82,7 @@ func TestApplyFileAllowsProjectPaths(t *testing.T) {
 	if err := afero.WriteFile(src, "rendered", []byte("payload"), 0o644); err != nil {
 		t.Fatalf("seeding src: %v", err)
 	}
-	for _, rel := range []string{"go.mod", "apis/register.go", "internal/controller/thing/wiring.go"} {
+	for _, rel := range []string{"go.mod", apisRegisterPath, "internal/controller/thing/wiring.go"} {
 		if _, err := applyFile(src, dst, "rendered", rel, true); err != nil {
 			t.Fatalf("applyFile(%q) refused a legitimate path: %v", rel, err)
 		}

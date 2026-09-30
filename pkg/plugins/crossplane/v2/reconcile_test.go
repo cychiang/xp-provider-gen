@@ -93,7 +93,7 @@ func TestReconcile(t *testing.T) {
 	_ = afero.WriteFile(dst, "internal/controller/mytype/controller.go", []byte(userEdited), 0o644)
 
 	// New tool-owned file absent on disk -> seeded.
-	_ = afero.WriteFile(src, "apis/register.go", []byte(headered), 0o644)
+	_ = afero.WriteFile(src, apisRegisterPath, []byte(headered), 0o644)
 
 	result, err := reconcile(src, dst, true)
 	if err != nil {
@@ -108,14 +108,14 @@ func TestReconcile(t *testing.T) {
 	if string(got) != userEdited {
 		t.Errorf("user-owned controller.go = %q, want preserved", got)
 	}
-	got, _ = afero.ReadFile(dst, "apis/register.go")
+	got, _ = afero.ReadFile(dst, apisRegisterPath)
 	if string(got) != headered {
 		t.Errorf("new register.go = %q, want seeded", got)
 	}
 
 	assertContains(t, "overwritten", result.overwritten, "internal/controller/mytype/setup.go")
 	assertContains(t, "skipped", result.skipped, "internal/controller/mytype/controller.go")
-	assertContains(t, "seeded", result.seeded, "apis/register.go")
+	assertContains(t, "seeded", result.seeded, apisRegisterPath)
 }
 
 // TestReconcile_NestedSeed verifies a new file in a directory that does not yet

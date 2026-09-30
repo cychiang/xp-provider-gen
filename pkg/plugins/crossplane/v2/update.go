@@ -257,44 +257,11 @@ func requireCleanTree(ctx context.Context) error {
 // filesystem. An upjet project renders with the settings PROJECT keeps; its
 // user-owned templates need more, which is why reconcile never seeds them.
 func renderToMemFS(cfg config.Config, meta projectMeta, memFS machinery.Filesystem) error {
-	factory := engine.NewFactoryForFlavor(cfg, meta.Flavor)
-
 	resources, err := cfg.GetResources()
 	if err != nil {
 		return fmt.Errorf("reading project resources: %w", err)
 	}
-
-	initTemplates, err := factory.GetInitTemplates(engine.WithUpjet(meta.Upjet))
-	if err != nil {
-		return fmt.Errorf("getting init templates: %w", err)
-	}
-
-	base := machinery.NewScaffold(memFS,
-		machinery.WithConfig(cfg),
-		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
-	)
-	builders := engine.AsBuilders(initTemplates)
-	builders = append(builders, engine.CoreGeneratorsFor(meta.Flavor, cfg, resources)...)
-	if err := base.Execute(builders...); err != nil {
-		return fmt.Errorf("rendering base templates: %w", err)
-	}
-
-	for _, res := range resources {
-		apiTemplates, err := factory.GetAPITemplates(
-			engine.WithForce(true), engine.WithResource(&res), engine.WithUpjet(meta.Upjet))
-		if err != nil {
-			return fmt.Errorf("getting api templates for %s: %w", res.Kind, err)
-		}
-		apiScaffold := machinery.NewScaffold(memFS,
-			machinery.WithConfig(cfg),
-			machinery.WithBoilerplate(engine.DefaultBoilerplate()),
-			machinery.WithResource(&res),
-		)
-		if err := apiScaffold.Execute(engine.AsBuilders(apiTemplates)...); err != nil {
-			return fmt.Errorf("rendering api templates for %s: %w", res.Kind, err)
-		}
-	}
-	return nil
+	return engine.Render(memFS, cfg, meta.Flavor, meta.Upjet, resources, engine.ScopeProject, nil)
 }
 
 // applyDependencies bumps the flavor's framework dependency versions from the

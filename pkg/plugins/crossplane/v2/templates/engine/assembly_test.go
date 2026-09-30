@@ -29,17 +29,13 @@ import (
 // own generator set: upjet has no native register.go, native has no upjet
 // resource aggregator.
 func TestCoreGeneratorsFor(t *testing.T) {
-	const (
-		apisRegister   = "apis/register.go"
-		upjetResources = "config/zz_resources.go"
-	)
 	tests := []struct {
 		flavor      core.Flavor
 		wantPath    string
 		notWantPath string
 	}{
-		{flavor: core.FlavorNative, wantPath: apisRegister, notWantPath: upjetResources},
-		{flavor: core.FlavorUpjet, wantPath: upjetResources, notWantPath: apisRegister},
+		{flavor: core.FlavorNative, wantPath: apisRegisterPath, notWantPath: upjetResourcesPath},
+		{flavor: core.FlavorUpjet, wantPath: upjetResourcesPath, notWantPath: apisRegisterPath},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.flavor), func(t *testing.T) {

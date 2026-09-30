@@ -16,10 +16,10 @@ pkg/plugins/crossplane/v2/
 │   adopt.go, tfversion.go,       reconcile.go (ownership-gated copy), adopt.go (--adopt),
 │                                 tfversion.go (--terraform-provider-version)
 │   projectmeta.go              + the flavor/upjet settings persisted in PROJECT
-├── scaffold/                   Init scaffolder — picks templates + generators by flavor
 ├── core/                       Reusable building blocks (git, exec, config, ownership gate,
 │                                flavor.go, upjet.go)
-├── templates/engine/           Template discovery + deterministic generators (+ upjet_generator.go,
+├── templates/engine/           Template discovery + deterministic generators + `Render`, the one
+│                                place init, create api and update assemble them (+ upjet_generator.go,
 │                                boilerplate.go, interfaces.go)
 ├── automation/                 Post-scaffold pipeline (steps + git operations)
 └── validation/                 Input validation (domain, repo, group/version/kind)
@@ -57,7 +57,7 @@ the project's flavor from PROJECT and renders, validates and finalizes with that
 - **`init.go`** — binds `--domain`, `--repo`, `--git-name`, `--git-email`, plus (for `--upjet`)
   four `--terraform-*` flags validated by `upjetSettings`; validates inputs; resolves
   git author (CLI flags > system git config > defaults); delegates scaffolding to
-  `scaffold.NewInitScaffolder(cfg, flavor, upjet)`, which renders the flavor's init templates
+  `engine.Render(..., engine.ScopeInit, ...)`, which renders the flavor's init templates
   plus its generators; runs the init pipeline. Propagates pipeline errors (fails loudly).
   Kubebuilder's own CLI saves PROJECT right after `Scaffold` returns, before `PostScaffold` runs.
 - **`createapi.go`** — injects the Kubebuilder resource model with Crossplane defaults;
@@ -127,9 +127,11 @@ to adding one — placeholders, the generated header, the golden-test step.)
     names are not unique) and maps each template through `core.GenerateOutputPath`, so the
     doc lists the paths a provider actually has.
   - `chainsaw_generator.go` — `ChainsawTestGenerator` renders the `create-test` skeleton.
+  - `render.go` — `Render` and the three Scopes (init, kind, project): the one assembly of
+    templates + generators every command calls.
   - `assembly.go` — `AsBuilders`, `coreGenerators` (native) and `upjetCoreGenerators` (upjet:
     `config/zz_resources.go` + the ownership doc) helpers, reached only through
-    `CoreGeneratorsFor`, the one entry point init, create, and update all share.
+    `CoreGeneratorsFor`, which `Render` calls for every scope.
   - Generator template **bodies** are files too: `pkg/templates/generators/*.tmpl`, loaded via
     `templates.GeneratorBody` — deliberately outside `files/` so auto-discovery never renders
     them directly (see [templates.md](templates.md)).

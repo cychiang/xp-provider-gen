@@ -70,36 +70,24 @@ func fixtureUpjetSettings() *core.UpjetSettings {
 	}
 }
 
-// renderProject renders a whole project of one flavor into memory the way
-// `init` followed by one `create api` per fixture resource does: every init
-// template and generator, then every per-kind template. Machinery formats Go
-// output, so a template producing unparsable Go fails here too.
+// renderProject renders a whole project of one flavor into memory through the
+// production entry point, in the order the commands run: `init`, then one
+// `create api` per fixture resource. Machinery formats Go output, so a
+// template producing unparsable Go fails here too.
 func renderProject(t *testing.T, flavor core.Flavor) afero.Fs {
 	t.Helper()
 
 	mem := afero.NewMemMapFs()
+	dst := machinery.Filesystem{FS: mem}
 	cfg := newTestConfig(t)
 	res := fixtureResources(cfg.GetRepository(), cfg.GetDomain())
-	factory := NewFactoryForFlavor(cfg, flavor)
 
 	var settings *core.UpjetSettings
 	if flavor == core.FlavorUpjet {
 		settings = fixtureUpjetSettings()
 	}
-
-	initTemplates, err := factory.GetInitTemplates(WithUpjet(settings))
-	if err != nil {
-		t.Fatalf("%s: building init templates: %v", flavor, err)
-	}
-	builders := append(AsBuilders(initTemplates), CoreGeneratorsFor(flavor, cfg, res)...)
-	builders = append(builders, NewGoModGenerator(cfg.GetRepository(), DependenciesFor(flavor)))
-
-	initScaffold := machinery.NewScaffold(machinery.Filesystem{FS: mem},
-		machinery.WithConfig(cfg),
-		machinery.WithBoilerplate(DefaultBoilerplate()),
-	)
-	if err := initScaffold.Execute(builders...); err != nil {
-		t.Fatalf("%s: rendering init templates: %v", flavor, err)
+	if err := Render(dst, cfg, flavor, settings, res, ScopeInit, nil); err != nil {
+		t.Fatalf("%s: rendering init scope: %v", flavor, err)
 	}
 
 	for i := range res {
@@ -114,17 +102,8 @@ func renderProject(t *testing.T, flavor core.Flavor) afero.Fs {
 				TerraformResource:       testTerraformProviderName + "_" + strings.ToLower(r.Kind),
 			}
 		}
-		apiTemplates, err := factory.GetAPITemplates(WithResource(r), WithUpjet(perKind))
-		if err != nil {
-			t.Fatalf("%s: building API templates for %s: %v", flavor, r.Kind, err)
-		}
-		apiScaffold := machinery.NewScaffold(machinery.Filesystem{FS: mem},
-			machinery.WithConfig(cfg),
-			machinery.WithBoilerplate(DefaultBoilerplate()),
-			machinery.WithResource(r),
-		)
-		if err := apiScaffold.Execute(AsBuilders(apiTemplates)...); err != nil {
-			t.Fatalf("%s: rendering API templates for %s: %v", flavor, r.Kind, err)
+		if err := Render(dst, cfg, flavor, perKind, res, ScopeKind, r); err != nil {
+			t.Fatalf("%s: rendering kind scope for %s: %v", flavor, r.Kind, err)
 		}
 	}
 	return mem
@@ -203,7 +182,7 @@ func TestRenderAllTemplates(t *testing.T) {
 			flavor: core.FlavorNative,
 			golden: wantOwnership,
 			generators: []string{
-				"apis/register.go", "internal/controller/register.go", goModPath, ownershipDocPath,
+				apisRegisterPath, controllerRegisterPath, goModPath, ownershipDocPath,
 			},
 		},
 		{
@@ -284,5 +263,95 @@ func TestRenderUpjetGeneratorsWithoutResources(t *testing.T) {
 	}
 	if ok, err := afero.Exists(mem, upjetResourcesPath); err != nil || !ok {
 		t.Errorf("%s not rendered (exists=%v, err=%v)", upjetResourcesPath, ok, err)
+	}
+}
+
+// TestRenderScopeKindTargetsTheGivenKind pins that ScopeKind renders the kind
+// it is handed, not a kind picked by position: Kubebuilder keeps an existing
+// kind where it was, so re-running `create api` for the first of two kinds
+// must not render the second.
+func TestRenderScopeKindTargetsTheGivenKind(t *testing.T) {
+	cfg := newTestConfig(t)
+	res := fixtureResources(cfg.GetRepository(), cfg.GetDomain())
+	wiring := func(r resource.Resource) string {
+		return "internal/controller/" + strings.ToLower(r.Kind) + "/wiring.go"
+	}
+	first, second := wiring(res[0]), wiring(res[1])
+
+	t.Run("renders the first of two kinds", func(t *testing.T) {
+		mem := afero.NewMemMapFs()
+		err := Render(machinery.Filesystem{FS: mem}, cfg, core.FlavorNative, nil, res, ScopeKind, &res[0])
+		if err != nil {
+			t.Fatalf("Render(ScopeKind): %v", err)
+		}
+		got := renderedPaths(t, mem)
+		if !got[first] {
+			t.Errorf("%s not rendered", first)
+		}
+		if got[second] {
+			t.Errorf("%s rendered, but it belongs to the other kind", second)
+		}
+	})
+
+	t.Run("a nil target is an error", func(t *testing.T) {
+		mem := afero.NewMemMapFs()
+		err := Render(machinery.Filesystem{FS: mem}, cfg, core.FlavorNative, nil, res, ScopeKind, nil)
+		if err == nil || err.Error() != "rendering kind scope: target resource is nil" {
+			t.Errorf("Render(ScopeKind, nil) error = %v, want %q", err, "rendering kind scope: target resource is nil")
+		}
+		if n := len(renderedPaths(t, mem)); n != 0 {
+			t.Errorf("rendered %d files for a nil target, want none", n)
+		}
+	})
+}
+
+// TestRenderGeneratorsCarryEveryKind pins that the registration files list
+// every kind once a project is rendered, and list none straight after init.
+// TestRenderAllTemplates compares paths only, so it cannot see a generator
+// that ran with too few resources.
+func TestRenderGeneratorsCarryEveryKind(t *testing.T) {
+	cfg := newTestConfig(t)
+	repo := cfg.GetRepository()
+	res := fixtureResources(repo, cfg.GetDomain())
+
+	tests := []struct {
+		flavor  core.Flavor
+		file    string
+		listing func(kind string) string
+	}{
+		{core.FlavorNative, controllerRegisterPath, func(k string) string { return repo + "/internal/controller/" + k }},
+		{core.FlavorUpjet, upjetResourcesPath, func(k string) string { return repo + "/config/" + k }},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.flavor), func(t *testing.T) {
+			body, err := afero.ReadFile(renderProject(t, tt.flavor), tt.file)
+			if err != nil {
+				t.Fatalf("reading %s: %v", tt.file, err)
+			}
+			for _, r := range res {
+				if want := tt.listing(strings.ToLower(r.Kind)); !strings.Contains(string(body), want) {
+					t.Errorf("%s does not list %s", tt.file, want)
+				}
+			}
+
+			// Straight after init: the file exists and lists no kind.
+			mem := afero.NewMemMapFs()
+			var settings *core.UpjetSettings
+			if tt.flavor == core.FlavorUpjet {
+				settings = fixtureUpjetSettings()
+			}
+			if err := Render(machinery.Filesystem{FS: mem}, cfg, tt.flavor, settings, res, ScopeInit, nil); err != nil {
+				t.Fatalf("Render(ScopeInit): %v", err)
+			}
+			body, err = afero.ReadFile(mem, tt.file)
+			if err != nil {
+				t.Fatalf("reading %s after init: %v", tt.file, err)
+			}
+			for _, r := range res {
+				if bad := tt.listing(strings.ToLower(r.Kind)); strings.Contains(string(body), bad) {
+					t.Errorf("%s lists %s straight after init", tt.file, bad)
+				}
+			}
+		})
 	}
 }

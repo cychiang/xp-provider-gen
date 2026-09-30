@@ -125,12 +125,6 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		return validation.CreateAPIError("recording resource in project config", err)
 	}
 
-	scaffold := machinery.NewScaffold(fs,
-		machinery.WithConfig(p.config),
-		machinery.WithBoilerplate(engine.DefaultBoilerplate()),
-		machinery.WithResource(p.resource),
-	)
-
 	// Per-resource templates need the Terraform coordinates as well as the kind.
 	// --terraform-resource presence and shape were already validated in PreScaffold.
 	upjet := p.meta.Upjet
@@ -140,27 +134,15 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 		upjet = &settings
 	}
 
-	factory := engine.NewFactoryForFlavor(p.config, p.meta.Flavor)
-	apiTemplates, err := factory.GetAPITemplates(
-		engine.WithForce(p.force),
-		engine.WithResource(p.resource),
-		engine.WithUpjet(upjet),
-	)
-	if err != nil {
-		return validation.CreateAPIError("template discovery", err)
-	}
-
-	// Regenerate the registration files deterministically from the full resource list.
 	resources, err := p.config.GetResources()
 	if err != nil {
 		return validation.CreateAPIError("reading project resources", err)
 	}
 
-	// Combine the new resource's API templates with the regenerated registration files.
-	allTemplates := engine.AsBuilders(apiTemplates)
-	allTemplates = append(allTemplates, engine.CoreGeneratorsFor(p.meta.Flavor, p.config, resources)...)
-
-	if err := scaffold.Execute(allTemplates...); err != nil {
+	// Render the new kind's templates and regenerate the registration files
+	// from the full resource list.
+	if err := engine.Render(fs, p.config, p.meta.Flavor, upjet, resources,
+		engine.ScopeKind, p.resource, engine.WithForce(p.force)); err != nil {
 		return validation.CreateAPIError("scaffolding", err)
 	}
 

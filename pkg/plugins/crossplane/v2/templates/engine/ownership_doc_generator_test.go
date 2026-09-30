@@ -55,7 +55,7 @@ func TestOwnershipDocClassifiesGeneratorOutputs(t *testing.T) {
 		NewGoModGenerator(testRepo, nil),
 	)
 
-	for _, want := range []string{"apis/register.go", "internal/controller/register.go", ownershipDocPath} {
+	for _, want := range []string{apisRegisterPath, controllerRegisterPath, ownershipDocPath} {
 		if !slices.Contains(g.ToolOwned, want) {
 			t.Errorf("tool-owned bucket is missing %q; got %v", want, g.ToolOwned)
 		}
