@@ -89,7 +89,7 @@ func adoptFile(src, dst afero.Fs, srcPath string) (string, bool, error) {
 		return "", false, nil // user-owned template — never adopt
 	}
 	rel := strings.TrimPrefix(filepath.ToSlash(srcPath), "/")
-	if err := checkContained(rel); err != nil {
+	if err := core.CheckContained(rel); err != nil {
 		return "", false, err
 	}
 	exists, err := afero.Exists(dst, rel)

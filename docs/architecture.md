@@ -13,11 +13,11 @@ pkg/plugins/crossplane/v2/
 ├── plugin.go, init.go,         Plugin layer — subcommands (init, create api)
 │   createapi.go,
 │   update.go, reconcile.go,    + the update / update --adopt command: update.go (orchestration),
-│   adopt.go, tfversion.go,       reconcile.go (ownership-gated copy), adopt.go (--adopt),
+│   adopt.go, tfversion.go,       reconcile.go (orphan removal), adopt.go (--adopt),
 │                                 tfversion.go (--terraform-provider-version)
 │   projectmeta.go              + the flavor/upjet settings persisted in PROJECT
 ├── core/                       Reusable building blocks (git, exec, config, ownership gate,
-│                                flavor.go, upjet.go)
+│                                apply.go, flavor.go, upjet.go)
 ├── templates/engine/           Template discovery + deterministic generators + `Render`, the one
 │                                place init, create api and update assemble them (+ upjet_generator.go,
 │                                boilerplate.go, interfaces.go)
@@ -66,7 +66,7 @@ the project's flavor from PROJECT and renders, validates and finalizes with that
   API-commit pipeline.
 - **`update.go`**, **`reconcile.go`**, **`adopt.go`**, **`tfversion.go`** — the `update` /
   `update --adopt` command, split by responsibility: `update.go` (the cobra command and the
-  prepare/run orchestration), `reconcile.go` (the ownership-gated copy and orphan removal),
+  prepare/run orchestration), `reconcile.go` (orphan removal and the summary),
   `adopt.go` (`--adopt`), and `tfversion.go` (`--terraform-provider-version`). See §7.
 - **`createtest.go`** — the `create-test` command: resolves kind and test name (flag,
   sole kind, or interactive prompt) and renders the chainsaw skeleton.
@@ -87,6 +87,9 @@ Reusable, side-effecting building blocks with no template knowledge:
 - **`ownership.go`** — the **ownership gate**: `GeneratedHeader`, `IsToolOwned(content)`, and
   `DecideWrite(exists, existing) → Seed | Overwrite | Skip`. This is the rule that lets `update`
   refresh tool-owned files while never clobbering user-owned files (§6).
+- **`apply.go`** — `Apply(src, dst, seedUserOwned)`, the ownership-gated copy of a rendered tree
+  onto a filesystem (`DecideWrite` per file, `FileMode` for the written mode), and
+  `CheckContained`, the path-containment gate every write and delete passes.
 
 ## 4. Template engine (`pkg/plugins/crossplane/v2/templates/engine/`)
 
@@ -212,10 +215,10 @@ overwrite.
    mismatch.
 2. **Render** the flavor's full template set into an in-memory FS (`afero.NewMemMapFs`); upjet
    renders with the settings PROJECT keeps (`WithUpjet`).
-3. **Reconcile** onto disk through `core.DecideWrite` (tool-owned files overwritten, user-owned
-   files skipped, new files seeded). On an upjet project a missing user-owned file is not seeded —
-   some such templates need init-time Terraform settings PROJECT does not keep, so none are
-   recreated — and is listed instead. Then **remove orphans**: `trackedFiles` lists what git
+3. **Reconcile** onto disk through `core.Apply`, which runs `core.DecideWrite` per file
+   (tool-owned files overwritten, user-owned files skipped, new files seeded). On an upjet
+   project a missing user-owned file is not seeded — some such templates need init-time
+   Terraform settings PROJECT does not keep, so none are recreated — and is listed instead. Then **remove orphans**: `trackedFiles` lists what git
    tracks (`git ls-files -z`, so a gitignored file is never a candidate) and `removeOrphans`
    deletes the tracked, tool-owned ones this render no longer produces.
 4. **Bump dependencies** from the flavor's manifest set via `go get` (go.mod's own requires
