@@ -33,6 +33,12 @@ import (
 // baseSchemeAlias is the import alias for the always-present ProviderConfig API.
 const baseSchemeAlias = "providerv1alpha1"
 
+// The registration files the generators own.
+const (
+	apisRegisterPath       = "apis/register.go"
+	controllerRegisterPath = "internal/controller/register.go"
+)
+
 // apiGroupVersion is one (group, version) scheme registration in apis/register.go.
 // Two kinds in the same group/version share a single scheme builder, so entries
 // are keyed by group/version, not by kind.
@@ -140,7 +146,7 @@ func NewAPIRegisterGenerator(repo, providerName string, resources []resource.Res
 }
 
 func (f *APIRegisterGenerator) SetTemplateDefaults() error {
-	f.Path = "apis/register.go"
+	f.Path = apisRegisterPath
 	f.IfExistsAction = machinery.OverwriteFile
 	f.TemplateBody = templates.GeneratorBody("apis_register.go.tmpl")
 	return nil
@@ -168,7 +174,7 @@ func NewControllerRegisterGenerator(
 }
 
 func (f *ControllerRegisterGenerator) SetTemplateDefaults() error {
-	f.Path = "internal/controller/register.go"
+	f.Path = controllerRegisterPath
 	f.IfExistsAction = machinery.OverwriteFile
 	f.TemplateBody = templates.GeneratorBody("controller_register.go.tmpl")
 	return nil

@@ -12,7 +12,7 @@ import (
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/automation"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
-	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/scaffold"
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/templates/engine"
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
 	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
@@ -184,7 +184,7 @@ func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 	}
 
 	fmt.Printf("Scaffolding %s Crossplane provider project...\n", flavor)
-	return scaffold.NewInitScaffolder(p.config, flavor, upjet).Scaffold(fs)
+	return engine.Render(fs, p.config, flavor, upjet, nil, engine.ScopeInit, nil)
 }
 
 func (p *initSubcommand) PostScaffold() error {

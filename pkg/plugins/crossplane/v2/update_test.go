@@ -132,7 +132,7 @@ func TestRenderToMemFS(t *testing.T) {
 		{
 			name:      string(core.FlavorNative),
 			meta:      projectMeta{Flavor: core.FlavorNative},
-			wantPaths: []string{nativeConnectorPath, makeFragmentPath},
+			wantPaths: []string{nativeConnectorPath, makeFragmentPath, apisRegisterPath},
 		},
 		{
 			name:        string(core.FlavorUpjet),
@@ -194,6 +194,7 @@ const (
 	nativeConnectorPath     = "internal/provider/connector.go"
 	upjetProviderConfigPath = "config/provider.go"
 	makeFragmentPath        = "hack/xp-provider-gen.mk"
+	apisRegisterPath        = "apis/register.go"
 )
 
 // TestRevertAdvice pins that 'git reset --hard' alone does not undo a failed
@@ -209,7 +210,7 @@ func TestRevertAdvice(t *testing.T) {
 		t.Errorf("no seeded files: advice must not suggest git clean: %q", revertAdvice(nil))
 	}
 
-	seeded := []string{"apis/register.go", "internal/provider/"}
+	seeded := []string{apisRegisterPath, "internal/provider/"}
 	got := revertAdvice(seeded)
 	for _, want := range seeded {
 		if !strings.Contains(got, want) {
