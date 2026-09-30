@@ -38,7 +38,7 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   ```bash
   xp-provider-gen init --domain=example.com --repo=github.com/example/provider-acme
   ```
-- **Produces**: runs 8 steps automatically — git init, mark scripts executable, add the
+- **Produces**: runs 7 steps automatically — git init, add the
   `crossplane/build` submodule, `make submodules`, `go mod tidy`, `make generate`,
   `make reviewable`, then one commit. Check: `--domain` is required (`init --help`); anything
   you scaffold before your own first commit (e.g. `create api`) folds into that same commit

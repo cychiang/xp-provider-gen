@@ -1,7 +1,10 @@
 # Design: one render path and one apply rule for init, create api and update
 
-- **Status:** Proposed — implementation waits for the maintainer to accept the behavior
-  changes in [§4](#4-behavior-changes) and to answer [§7](#7-open-questions).
+- **Status:** Partly implemented. Phase 1 (#176), the `create api` version check (#177) and
+  Phase 1b (#178 and the follow-up init PR) are in; Phase 2 awaits a
+  maintainer decision on [§4](#4-behavior-changes) and [§7](#7-open-questions). The `file:line`
+  references below, and the mechanisms they describe (for example `ExecutableBitStep`), are as of #161, and
+  `scaffold.Apply` became `core.Apply`.
 - **Date:** 2026-09-16
 - **Author:** Chuan-Yen Chiang
 - **Scope:** `pkg/plugins/crossplane/v2/` (`templates/engine/`, `scaffold/`, `createapi.go`,

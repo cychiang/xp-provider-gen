@@ -58,7 +58,9 @@ the project's flavor from PROJECT and renders, validates and finalizes with that
   four `--terraform-*` flags validated by `upjetSettings`; validates inputs; resolves
   git author (CLI flags > system git config > defaults); delegates scaffolding to
   `engine.Render(..., engine.ScopeInit, ...)`, which renders the flavor's init templates
-  plus its generators; runs the init pipeline. Propagates pipeline errors (fails loudly).
+  plus its generators into memory, then writes the result through `core.Apply` — the rule
+  `update` uses (headered files refreshed, headerless ones kept and listed) — so a failed
+  render leaves the directory untouched; runs the init pipeline. Propagates pipeline errors (fails loudly).
   Kubebuilder's own CLI saves PROJECT right after `Scaffold` returns, before `PostScaffold` runs.
 - **`createapi.go`** — injects the Kubebuilder resource model with Crossplane defaults;
   validates the resource; adds it to the config; renders the resource's API templates and
@@ -148,16 +150,15 @@ fully committed.
 - **`steps.go`** — `Step` interface (`Name`, `Execute`); steps: `GitInitStep`, `GitCommitStep`
   (or, via `NewGitFoldCommitStep`, folded into the scaffold commit), `GitSubmoduleStep`,
   `MakeStep(target)`, `GoModDownloadStep` (populates go.sum before `make generate` has run —
-  an upjet init can't `go mod tidy` yet), `GoModTidyStep`, `ExecutableBitStep` (machinery
-  writes 0644; uptest execs `test/setup.sh`, so the bit is set and committed at scaffold time),
+  an upjet init can't `go mod tidy` yet), `GoModTidyStep`,
   `StreamingCommandStep` (runs a command with output streamed live, for steps that take
   minutes — e.g. `update`'s finalize).
 - **`pipeline.go`** — `InitPipelineFor(flavor, ...)` and `APICommitPipelineFor(flavor, ...)`
   are the one place `init` and `create api` choose a pipeline for a project's flavor,
   mirroring `UpdateFinalizePipelineFor` (see below). The native pipeline runs git init →
-  exec bit → submodule → `make submodules` → `go mod tidy` → `make generate` →
+  submodule → `make submodules` → `go mod tidy` → `make generate` →
   `make reviewable` → **commit** for init, and `make generate` → **commit** for create api.
-  `Run()` aborts on the first failure. The upjet init pipeline runs git init → exec bit →
+  `Run()` aborts on the first failure. The upjet init pipeline runs git init →
   submodule → `make submodules` → `go mod download` → **commit**, skipping
   tidy/generate/reviewable: the project doesn't compile until `make generate` runs; the
   generated make fragment scopes `make generate` to `./apis/...` for the same reason; and
@@ -297,11 +298,11 @@ function to build it, no registry keys, strategies or per-template types in betw
 ## Design proposals
 
 - [Render and apply](design/render-apply.md) — one render path and one write rule for `init`,
-  `create api` and `update` (proposed; implementation awaits acceptance).
+  `create api` and `update` (partly implemented: Phase 1 and 1b; Phase 2 awaits a maintainer decision).
 
 ## Command flow summary
 
-**`init`** → validate → scaffold init/static templates + register & go.mod generators → save
+**`init`** → validate → render init/static templates + register & go.mod generators in memory → write through `core.Apply` → save
 PROJECT → init pipeline (git init/submodule, `make submodules`, tidy, generate, reviewable,
 commit).
 
