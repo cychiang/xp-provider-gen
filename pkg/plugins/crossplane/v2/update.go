@@ -131,7 +131,7 @@ func stampProvenance(st store.Store) error {
 func runUpdate(ctx context.Context, terraformProviderVersion string) error {
 	st, mem, meta, err := prepare(ctx)
 	if err != nil {
-		return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
+		return fmt.Errorf("%w\n  "+noChangesToRevert, err)
 	}
 	if err := checkNotDowngrade(meta.Version, version.Get().Version); err != nil {
 		return err

@@ -208,6 +208,8 @@ overwrite.
    then refuses if the running generator is an older clean release than the one PROJECT was
    last stamped with — compared only when both are `^vX.Y.Z`, via `semver.Compare`, never a
    string comparison, so a maintainer's own development build is never misjudged as older.
+   `checkSameGenerator` applies the same ordering to `create api`, refusing any clean-release
+   mismatch.
 2. **Render** the flavor's full template set into an in-memory FS (`afero.NewMemMapFs`); upjet
    renders with the settings PROJECT keeps (`WithUpjet`).
 3. **Reconcile** onto disk through `core.DecideWrite` (tool-owned files overwritten, user-owned
@@ -300,7 +302,7 @@ function to build it, no registry keys, strategies or per-template types in betw
 PROJECT → init pipeline (git init/submodule, `make submodules`, tidy, generate, reviewable,
 commit).
 
-**`create api`** → inject & validate resource → `AddResource` to the config → render API
+**`create api`** → inject & validate resource → version check → `AddResource` to the config → render API
 templates + **regenerate register files** from all resources → save PROJECT → API-commit
 pipeline (generate, commit).
 While the history is still just the tool's scaffold (the `Initial commit` carries the

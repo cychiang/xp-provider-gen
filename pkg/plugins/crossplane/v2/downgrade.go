@@ -16,7 +16,7 @@ limitations under the License.
 
 // Downgrade detection: refusing 'update' and 'update --adopt' when the
 // running generator is an older clean release than the one that last
-// stamped PROJECT's provenance.
+// stamped PROJECT's provenance, and 'create api' when it differs at all.
 package v2
 
 import (
@@ -24,7 +24,12 @@ import (
 	"regexp"
 
 	"golang.org/x/mod/semver"
+
+	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
+
+// noChangesToRevert closes every refusal that happens before any write.
+const noChangesToRevert = "no changes were made; nothing to revert"
 
 // releaseVersionRe matches a clean release version. Only those are ordered:
 // git-describe output such as v0.2.0-5-gabc1234 is valid semver but a
@@ -64,6 +69,31 @@ func checkNotDowngrade(last, cur string) error {
 		"refusing to update: this generator (%s) is older than the one that last updated this project (%s).\n"+
 			"  Run the %s generator or newer. To downgrade deliberately, edit `version:` under the\n"+
 			"  %s plugin in PROJECT, commit it, then run update again.\n"+
-			"  no changes were made; nothing to revert",
+			"  "+noChangesToRevert,
 		cur, last, last, pluginName)
+}
+
+// checkSameGenerator refuses create api when both versions are clean release
+// versions and differ: a new kind rendered by one generator beside tool-owned
+// files from another leaves a mixed-version project. Undecidable shapes pass,
+// for the same accepted reason as checkNotDowngrade. Like it, the error
+// carries the whole message, so nothing more needs adding at the call site.
+func checkSameGenerator(last, cur string) error {
+	cmp, ordered := compareGenerators(last, cur)
+	switch {
+	case !ordered || cmp == 0:
+		return nil
+	case cmp > 0:
+		return fmt.Errorf(
+			"this generator (%s) is newer than the one that last updated this project (%s).\n"+
+				"  Run '%s update' first, so every tool-owned file comes from one generator.\n"+
+				"  "+noChangesToRevert,
+			cur, last, version.CommandName)
+	default:
+		return fmt.Errorf(
+			"this generator (%s) is older than the one that last updated this project (%s).\n"+
+				"  Run the %s generator, or run '%s update' with a newer one.\n"+
+				"  "+noChangesToRevert,
+			cur, last, last, version.CommandName)
+	}
 }
