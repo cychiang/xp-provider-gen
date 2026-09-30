@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
@@ -184,7 +185,26 @@ func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 	}
 
 	fmt.Printf("Scaffolding %s Crossplane provider project...\n", flavor)
-	return engine.Render(fs, p.config, flavor, upjet, nil, engine.ScopeInit, nil)
+
+	// Render in memory, then write through the ownership rule update uses: a
+	// failed render leaves the directory untouched, headered files are
+	// refreshed, and files without the header are the user's and kept.
+	mem := afero.NewMemMapFs()
+	memFS := machinery.Filesystem{FS: mem}
+	if err := engine.Render(memFS, p.config, flavor, upjet, nil, engine.ScopeInit, nil); err != nil {
+		return err
+	}
+	result, err := core.Apply(mem, fs.FS, true)
+	if err != nil {
+		return fmt.Errorf("writing scaffold: %w", err)
+	}
+	if len(result.Skipped) > 0 {
+		fmt.Printf("Kept %d existing file(s) without the generated header:\n", len(result.Skipped))
+		for _, rel := range result.Skipped {
+			fmt.Printf("  %s\n", rel)
+		}
+	}
+	return nil
 }
 
 func (p *initSubcommand) PostScaffold() error {

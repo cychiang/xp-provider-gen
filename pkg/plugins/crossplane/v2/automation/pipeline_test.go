@@ -66,7 +66,6 @@ func TestNewInitPipeline_CommitsLast(t *testing.T) {
 
 	assertStepOrder(t, p, []string{
 		"Initialize git repository",
-		"Mark scaffolded scripts executable",
 		"Add build submodule from " + cfg.Git.BuildSubmoduleURL,
 		"Run make submodules",
 		"Tidy dependencies (go mod tidy)",
@@ -169,9 +168,8 @@ func TestInitPipelines_ShareLeadingStepsAndFinalStep(t *testing.T) {
 		position int // index into each pipeline's step list; -1 means "last"
 	}{
 		{"1st step (git init)", 0},
-		{"2nd step (executable bit)", 1},
-		{"3rd step (git submodule)", 2},
-		{"4th step (make submodules)", 3},
+		{"2nd step (git submodule)", 1},
+		{"3rd step (make submodules)", 2},
 		{"final step (commit)", -1},
 	}
 

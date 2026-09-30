@@ -19,7 +19,6 @@ package automation
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"strings"
 
@@ -113,57 +112,6 @@ func (s *GitSubmoduleStep) Execute() error {
 
 type MakeStep struct {
 	target string
-}
-
-// ExecutableBitStep marks scaffolded shell scripts executable: kubebuilder's
-// machinery writes every file 0644, but scripts are exec'd directly (uptest
-// runs test/setup.sh), so the bit must be set — and committed — at scaffold
-// time. It applies the same core.FileMode rule `update` uses when it writes
-// files, rather than a per-flavor list of paths that would need editing
-// whenever a scaffold gains a script.
-type ExecutableBitStep struct {
-	root string
-}
-
-// NewExecutableBitStep builds the chmod step for a scaffolded project root.
-func NewExecutableBitStep(root string) *ExecutableBitStep {
-	if root == "" {
-		root = "."
-	}
-	return &ExecutableBitStep{root: root}
-}
-
-func (s *ExecutableBitStep) Name() string {
-	return "Mark scaffolded scripts executable"
-}
-
-func (s *ExecutableBitStep) Execute() error {
-	// os.Root confines every operation below to the project directory, so a
-	// symlink planted mid-walk cannot redirect a chmod outside it.
-	root, err := os.OpenRoot(s.root)
-	if err != nil {
-		return fmt.Errorf("opening project root %s: %w", s.root, err)
-	}
-	defer root.Close()
-
-	return fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if d.Name() == ".git" {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if core.FileMode(path) != core.ScriptMode {
-			return nil
-		}
-		if err := root.Chmod(path, core.ScriptMode); err != nil {
-			return fmt.Errorf("chmod +x %s: %w", path, err)
-		}
-		return nil
-	})
 }
 
 func NewMakeStep(target string) *MakeStep {

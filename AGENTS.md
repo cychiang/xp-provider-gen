@@ -24,7 +24,7 @@ Prerequisites (Go version, gosec, Docker for e2e) are in
 
 ## Core concepts
 
-- **Ownership contract** — a `// Code generated … DO NOT EDIT.` header (first 1024 bytes) marks a file tool-owned (`update` overwrites/removes it); never quote that line in your own file, even in a comment — it's a substring match and flips ownership. See [architecture.md §6](docs/architecture.md#6-ownership-contract-the-upgrade-foundation).
+- **Ownership contract** — a `// Code generated … DO NOT EDIT.` header (first 1024 bytes) marks a file tool-owned (`init` and `update` write through `core.Apply`, which overwrites it; `update` also removes it); never quote that line in your own file, even in a comment — it's a substring match and flips ownership. See [architecture.md §6](docs/architecture.md#6-ownership-contract-the-upgrade-foundation).
 - **Golden ownership test** (`templates/engine/ownership_test.go`) fails on any new template until you add it to `wantOwnership` — deliberate, not a bug.
 - **Prove template changes with a scaffold diff** (an old-vs-new binary's `init` output; a git worktree gets the old binary cheaply) — never trust a template read alone.
 - **`PROJECT`** holds flavor, upjet settings and the provenance `version:` stamp of whichever generator last ran `update`/`init`; a corrupt or unrecognized one is refused, not guessed at.
@@ -103,7 +103,7 @@ reconsider.
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow
 - [docs/testing.md](docs/testing.md) — unit and end-to-end testing
 - [.github/WORKFLOWS.md](.github/WORKFLOWS.md) — CI/CD pipelines
-- [docs/design/render-apply.md](docs/design/render-apply.md) — a proposal awaiting a maintainer decision
+- [docs/design/render-apply.md](docs/design/render-apply.md) — partly implemented (Phase 1 and 1b); Phase 2 awaits a maintainer decision
 - [.agents/skills/xp-provider-gen/](.agents/skills/xp-provider-gen/) — using this tool to
   build a provider (author-facing; how to scaffold, configure and deploy either flavor)
 - [docs/plans/](docs/plans/) — decision records: what each program decided, what it deliberately

@@ -51,7 +51,6 @@ func newUpjetInitPipeline(config *core.PluginConfig, providerName string) *Pipel
 	return &Pipeline{
 		steps: []Step{
 			NewGitInitStep(config),
-			NewExecutableBitStep(""),
 			NewGitSubmoduleStep(config),
 			NewMakeStep("submodules"),
 			NewGoModDownloadStep(),
@@ -66,7 +65,6 @@ func newInitPipeline(config *core.PluginConfig, providerName string) *Pipeline {
 	return &Pipeline{
 		steps: []Step{
 			NewGitInitStep(config),
-			NewExecutableBitStep(""),
 			NewGitSubmoduleStep(config),
 			NewMakeStep("submodules"),
 			NewGoModTidyStep(),

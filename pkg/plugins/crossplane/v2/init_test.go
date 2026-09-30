@@ -28,6 +28,7 @@ import (
 	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
@@ -154,6 +155,121 @@ func TestInitStampsGeneratorVersion(t *testing.T) {
 	}
 	if want := version.Get().Version; meta.Version != want {
 		t.Errorf("PROJECT's stamped version = %q, want %q", meta.Version, want)
+	}
+}
+
+// TestInitNonEmptyDir pins how init treats files already on disk when there is
+// no PROJECT (kubebuilder refuses one that has it): the same ownership rule as
+// update. A headered file is refreshed from the render, whichever kind of
+// output it is; a headerless one is the user's, kept and listed.
+func TestInitNonEmptyDir(t *testing.T) {
+	const marker = "STALE-MARKER"
+	headered := core.GeneratedHeader + "\n// " + marker + "\n"
+	const (
+		generatorOutput = "apis/register.go"
+		templateOutput  = "hack/xp-provider-gen.mk"
+	)
+
+	tests := []struct {
+		name, path, existing string
+		wantKept             bool
+	}{
+		{"headered generator output is refreshed", generatorOutput, headered, false},
+		{"headerless generator output is kept and listed", generatorOutput, "package apis // " + marker + "\n", true},
+		{"headered template output is refreshed", templateOutput, headered, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.New(cfgv3.Version)
+			if err != nil {
+				t.Fatalf("config.New: %v", err)
+			}
+			p := &initSubcommand{domain: testDomain, repo: testProviderRepo}
+			if err := p.InjectConfig(cfg); err != nil {
+				t.Fatalf("InjectConfig: %v", err)
+			}
+			dst := afero.NewMemMapFs()
+			if err := afero.WriteFile(dst, tt.path, []byte(tt.existing), 0o644); err != nil {
+				t.Fatalf("seeding %s: %v", tt.path, err)
+			}
+
+			out := captureStdout(t, func() {
+				if err := p.Scaffold(machinery.Filesystem{FS: dst}); err != nil {
+					t.Fatalf("Scaffold: %v", err)
+				}
+			})
+
+			got, err := afero.ReadFile(dst, tt.path)
+			if err != nil {
+				t.Fatalf("reading %s: %v", tt.path, err)
+			}
+			if kept := strings.Contains(string(got), marker); kept != tt.wantKept {
+				t.Errorf("%s keeps its old content = %v, want %v", tt.path, kept, tt.wantKept)
+			}
+			if listed := strings.Contains(out, "  "+tt.path); listed != tt.wantKept {
+				t.Errorf("%s listed under Kept = %v, want %v:\n%s", tt.path, listed, tt.wantKept, out)
+			}
+			const keptHeader = "Kept 1 existing file(s) without the generated header:"
+			if hasHeader := strings.Contains(out, keptHeader); hasHeader != tt.wantKept {
+				t.Errorf("stdout has %q = %v, want %v:\n%s", keptHeader, hasHeader, tt.wantKept, out)
+			}
+			if !tt.wantKept && strings.Contains(out, "Kept ") {
+				t.Errorf("stdout mentions Kept although nothing was kept:\n%s", out)
+			}
+		})
+	}
+}
+
+// TestInitEmptyDir pins what a fresh init writes through core.Apply: a
+// headerless (user-owned) file is seeded rather than withheld, and a script
+// lands 0755 at write time, now that no step chmods it afterwards.
+func TestInitEmptyDir(t *testing.T) {
+	const setupScript = "test/setup.sh" // headerless and executable in both flavors
+	tests := []struct {
+		name string
+		p    *initSubcommand
+	}{
+		{string(core.FlavorNative), &initSubcommand{domain: testDomain, repo: testProviderRepo}},
+		{string(core.FlavorUpjet), &initSubcommand{
+			domain: testDomain, repo: testProviderRepo, upjet: true,
+			tfProvider: "hashicorp/kubernetes", tfProviderVersion: "2.30.0",
+			tfDocsPath: core.DefaultTerraformDocsPath,
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.New(cfgv3.Version)
+			if err != nil {
+				t.Fatalf("config.New: %v", err)
+			}
+			if err := tt.p.InjectConfig(cfg); err != nil {
+				t.Fatalf("InjectConfig: %v", err)
+			}
+			dst := afero.NewMemMapFs()
+			out := captureStdout(t, func() {
+				if err := tt.p.Scaffold(machinery.Filesystem{FS: dst}); err != nil {
+					t.Fatalf("Scaffold: %v", err)
+				}
+			})
+
+			body, err := afero.ReadFile(dst, setupScript)
+			if err != nil {
+				t.Fatalf("reading %s: %v", setupScript, err)
+			}
+			if core.IsToolOwned(body) {
+				t.Errorf("%s carries the generated header, want a user-owned file", setupScript)
+			}
+			info, err := dst.Stat(setupScript)
+			if err != nil {
+				t.Fatalf("Stat: %v", err)
+			}
+			if got := info.Mode().Perm(); got != core.ScriptMode {
+				t.Errorf("%s mode = %#o, want %#o", setupScript, got, core.ScriptMode)
+			}
+			if strings.Contains(out, "Kept ") {
+				t.Errorf("fresh init printed a Kept list:\n%s", out)
+			}
+		})
 	}
 }
 
