@@ -17,8 +17,9 @@ limitations under the License.
 // The update command's own file: the cobra command, the prepare/run
 // orchestration shared with adopt, and the project-loading and
 // dependency-bumping helpers only update itself uses. The command's other
-// responsibilities live in reconcile.go (the ownership-gated copy), adopt.go
-// (--adopt) and tfversion.go (--terraform-provider-version).
+// responsibilities live in core.Apply (the ownership-gated copy), reconcile.go
+// (orphan removal), adopt.go (--adopt) and tfversion.go
+// (--terraform-provider-version).
 package v2
 
 import (
@@ -141,32 +142,33 @@ func runUpdate(ctx context.Context, terraformProviderVersion string) error {
 		return err
 	}
 
-	result, err := reconcile(mem, afero.NewOsFs(), meta.Flavor != core.FlavorUpjet)
+	applied, err := core.Apply(mem, afero.NewOsFs(), meta.Flavor != core.FlavorUpjet)
+	result := updateResult{ApplyResult: applied}
 	if err != nil {
-		return fmt.Errorf("reconciling generated files: %w\n%s", err, revertAdvice(result.seeded))
+		return fmt.Errorf("reconciling generated files: %w\n%s", err, revertAdvice(result.Seeded))
 	}
 
 	tracked, err := trackedFiles(ctx)
 	if err != nil {
-		return fmt.Errorf("listing tracked files: %w\n%s", err, revertAdvice(result.seeded))
+		return fmt.Errorf("listing tracked files: %w\n%s", err, revertAdvice(result.Seeded))
 	}
 	result.removed, err = removeOrphans(tracked, mem, afero.NewOsFs())
 	if err != nil {
-		return fmt.Errorf("removing files this generator no longer produces: %w\n%s", err, revertAdvice(result.seeded))
+		return fmt.Errorf("removing files this generator no longer produces: %w\n%s", err, revertAdvice(result.Seeded))
 	}
 	result.print(os.Stdout, meta.Version, version.Get().Version)
 
 	if err := applyDependencies(ctx, meta.Flavor); err != nil {
-		return fmt.Errorf("%w\n%s", err, revertAdvice(result.seeded))
+		return fmt.Errorf("%w\n%s", err, revertAdvice(result.Seeded))
 	}
 
 	fmt.Println("Finalizing...")
 	if err := automation.UpdateFinalizePipelineFor(meta.Flavor).Run(); err != nil {
-		return fmt.Errorf("%w\n%s", err, revertAdvice(result.seeded))
+		return fmt.Errorf("%w\n%s", err, revertAdvice(result.Seeded))
 	}
 
 	if err := stampProvenance(st); err != nil {
-		return fmt.Errorf("stamping provenance: %w\n%s", err, revertAdvice(result.seeded))
+		return fmt.Errorf("stamping provenance: %w\n%s", err, revertAdvice(result.Seeded))
 	}
 
 	fmt.Println("\nUpdate complete. Review the changes with 'git diff' and commit when ready.")
@@ -174,7 +176,7 @@ func runUpdate(ctx context.Context, terraformProviderVersion string) error {
 }
 
 // revertAdvice tells the user exactly how to undo a failed update. 'git reset
-// --hard' alone is not enough once reconcile has run: it seeds new files,
+// --hard' alone is not enough once core.Apply has run: it seeds new files,
 // which git tracks as untracked, so it restores every modified tool-owned
 // file but leaves every seeded one behind while the tree looks clean. Naming
 // the seeded paths is safer than blanket-advising 'git clean -fd', which would
@@ -255,7 +257,7 @@ func requireCleanTree(ctx context.Context) error {
 // renderToMemFS renders the full template set (init + static + core generators,
 // plus each resource's API templates) of the project's flavor into the in-memory
 // filesystem. An upjet project renders with the settings PROJECT keeps; its
-// user-owned templates need more, which is why reconcile never seeds them.
+// user-owned templates need more, which is why update never seeds them.
 func renderToMemFS(cfg config.Config, meta projectMeta, memFS machinery.Filesystem) error {
 	resources, err := cfg.GetResources()
 	if err != nil {

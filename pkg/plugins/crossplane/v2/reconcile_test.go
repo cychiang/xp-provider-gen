@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Tests for reconcile.go: the ownership-gated copy, orphan removal, tracked
+// Tests for reconcile.go: orphan removal, tracked
 // file listing, and the result-printing summary.
 package v2
 
@@ -31,109 +31,6 @@ import (
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 )
-
-// TestReconcile_UpjetDoesNotSeedUserOwned pins that a user-owned file missing
-// on disk is seeded for a native project, but not for an upjet one:
-// some upjet user-owned templates need init-time Terraform settings PROJECT
-// does not keep, so seeding would write empty values, and none are recreated.
-// Tool-owned files are seeded either way.
-func TestReconcile_UpjetDoesNotSeedUserOwned(t *testing.T) {
-	const (
-		headeredPath   = "config/provider.go"
-		headerlessPath = "examples/providerconfig/providerconfig.yaml"
-	)
-	tests := []struct {
-		name         string
-		seed         bool
-		wantSeeded   []string
-		wantUnseeded []string
-	}{
-		{name: string(core.FlavorUpjet), seed: false, wantSeeded: []string{headeredPath}, wantUnseeded: []string{headerlessPath}},
-		{name: string(core.FlavorNative), seed: true, wantSeeded: []string{headeredPath, headerlessPath}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			src, dst := afero.NewMemMapFs(), afero.NewMemMapFs()
-			_ = afero.WriteFile(src, headeredPath, []byte(core.GeneratedHeader+"\npackage config\n"), 0o644)
-			_ = afero.WriteFile(src, headerlessPath, []byte("kind: ProviderConfig\n"), 0o644)
-
-			result, err := reconcile(src, dst, tt.seed)
-			if err != nil {
-				t.Fatalf("reconcile: %v", err)
-			}
-			if !slices.Equal(result.seeded, tt.wantSeeded) {
-				t.Errorf("seeded = %v, want %v", result.seeded, tt.wantSeeded)
-			}
-			if !slices.Equal(result.unseeded, tt.wantUnseeded) {
-				t.Errorf("unseeded = %v, want %v", result.unseeded, tt.wantUnseeded)
-			}
-			for _, p := range tt.wantUnseeded {
-				if ok, _ := afero.Exists(dst, p); ok {
-					t.Errorf("%s was written despite not being seeded", p)
-				}
-			}
-		})
-	}
-}
-
-func TestReconcile(t *testing.T) {
-	const headered = core.GeneratedHeader + "\npackage foo\n// new\n"
-	const oldHeadered = core.GeneratedHeader + "\npackage foo\n// old\n"
-	const userEdited = "package foo\n// my hand-written logic\n"
-
-	src := afero.NewMemMapFs()
-	dst := afero.NewMemMapFs()
-
-	// Tool-owned file present on disk (old) -> overwritten.
-	_ = afero.WriteFile(src, "internal/controller/mytype/setup.go", []byte(headered), 0o644)
-	_ = afero.WriteFile(dst, "internal/controller/mytype/setup.go", []byte(oldHeadered), 0o644)
-
-	// User-owned file present on disk (edited) -> skipped (the render is just a stub).
-	_ = afero.WriteFile(src, "internal/controller/mytype/controller.go", []byte("package foo\n// stub\n"), 0o644)
-	_ = afero.WriteFile(dst, "internal/controller/mytype/controller.go", []byte(userEdited), 0o644)
-
-	// New tool-owned file absent on disk -> seeded.
-	_ = afero.WriteFile(src, apisRegisterPath, []byte(headered), 0o644)
-
-	result, err := reconcile(src, dst, true)
-	if err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
-
-	got, _ := afero.ReadFile(dst, "internal/controller/mytype/setup.go")
-	if string(got) != headered {
-		t.Errorf("tool-owned setup.go = %q, want overwritten with new content", got)
-	}
-	got, _ = afero.ReadFile(dst, "internal/controller/mytype/controller.go")
-	if string(got) != userEdited {
-		t.Errorf("user-owned controller.go = %q, want preserved", got)
-	}
-	got, _ = afero.ReadFile(dst, apisRegisterPath)
-	if string(got) != headered {
-		t.Errorf("new register.go = %q, want seeded", got)
-	}
-
-	assertContains(t, "overwritten", result.overwritten, "internal/controller/mytype/setup.go")
-	assertContains(t, "skipped", result.skipped, "internal/controller/mytype/controller.go")
-	assertContains(t, "seeded", result.seeded, apisRegisterPath)
-}
-
-// TestReconcile_NestedSeed verifies a new file in a directory that does not yet
-// exist on disk is created (MkdirAll path).
-func TestReconcile_NestedSeed(t *testing.T) {
-	src := afero.NewMemMapFs()
-	dst := afero.NewMemMapFs()
-	content := core.GeneratedHeader + "\npackage v1\n"
-	_ = afero.WriteFile(src, "apis/newgroup/v1/groupversion_info.go", []byte(content), 0o644)
-
-	if _, err := reconcile(src, dst, true); err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
-	got, err := afero.ReadFile(dst, "apis/newgroup/v1/groupversion_info.go")
-	if err != nil || string(got) != content {
-		t.Errorf("nested seed = %q (err %v), want the rendered content", got, err)
-	}
-}
 
 // Paths TestRemoveOrphans, TestTrackedFiles and TestReconcileResultPrint key
 // off.
@@ -322,7 +219,7 @@ func TestTrackedFiles(t *testing.T) {
 }
 
 // TestReconcileResultPrint pins the summary line and the per-removal lines
-// reconcileResult.print writes, and the neutral "Updating from generator ...
+// updateResult.print writes, and the neutral "Updating from generator ...
 // to ..." line that appears whenever lastVersion is known and differs from
 // curVersion — regardless of whether anything was removed, and never
 // phrased as a warning: a comparable *upgrade* (v0.1.0 -> v0.2.0) prints it
@@ -334,11 +231,11 @@ func TestReconcileResultPrint(t *testing.T) {
 		removedOneCount = "removed 1"
 		removedALine    = "  removed " + orphanFileA + ": "
 	)
-	oneRemoved := reconcileResult{removed: []string{orphanFileA}}
+	oneRemoved := updateResult{removed: []string{orphanFileA}}
 
 	tests := []struct {
 		name         string
-		result       reconcileResult
+		result       updateResult
 		lastVersion  string
 		curVersion   string
 		wantContains []string
@@ -346,7 +243,7 @@ func TestReconcileResultPrint(t *testing.T) {
 	}{
 		{
 			name:         "no removal, same version",
-			result:       reconcileResult{},
+			result:       updateResult{},
 			lastVersion:  testGenV020,
 			curVersion:   testGenV020,
 			wantContains: []string{"removed 0"},
@@ -372,7 +269,7 @@ func TestReconcileResultPrint(t *testing.T) {
 		},
 		{
 			name:        "lastVersion equals curVersion prints no note",
-			result:      reconcileResult{},
+			result:      updateResult{},
 			lastVersion: testGenV020,
 			curVersion:  testGenV020,
 			wantAbsent:  []string{updatingMarker},
