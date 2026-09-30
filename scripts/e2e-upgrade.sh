@@ -479,4 +479,22 @@ grep -q 'is older than the one that last updated this project' "$AUX/adopt-v010.
 [ -z "$(git status --porcelain)" ] || { git status --porcelain; fail "the refused adopt changed files"; }
 log_success "  ✓ an older generator is refused on update and --adopt, names both versions, and changes nothing"
 
+step_header 12 "create api refuses a generator other than the one that last updated the project"
+# create api refuses any clean-release mismatch: older (v0.1.0) and newer (v0.3.0) than the stamped v0.2.0
+if "$AUX/xpg-v0.1.0" create api --group=compute --version=v1alpha1 --kind=Volume >"$AUX/createapi-v010.log" 2>&1; then
+    fail "v0.1.0 was allowed to create api in a v0.2.0 project"
+fi
+grep -q 'is older than' "$AUX/createapi-v010.log" || { cat "$AUX/createapi-v010.log"; fail "create api refused for the wrong reason (older)"; }
+[ -z "$(git status --porcelain)" ] || { git status --porcelain; fail "the refused create api (older) changed files"; }
+cd "$REPO"
+make build VERSION=v0.3.0 >/dev/null 2>&1 || fail "building the v0.3.0 generator failed"
+cp bin/xp-provider-gen "$AUX/xpg-v0.3.0"
+cd "$DIR"
+if "$AUX/xpg-v0.3.0" create api --group=compute --version=v1alpha1 --kind=Volume >"$AUX/createapi-v030.log" 2>&1; then
+    fail "v0.3.0 was allowed to create api in a v0.2.0 project"
+fi
+grep -q "update' first" "$AUX/createapi-v030.log" || { cat "$AUX/createapi-v030.log"; fail "create api refused for the wrong reason (newer)"; }
+[ -z "$(git status --porcelain)" ] || { git status --porcelain; fail "the refused create api (newer) changed files"; }
+log_success "  ✓ create api is refused by an older and by a newer generator, and changes nothing"
+
 exit $FAIL

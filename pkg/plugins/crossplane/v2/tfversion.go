@@ -160,7 +160,7 @@ func applyTerraformVersionFlagIfSet(flavor core.Flavor, terraformProviderVersion
 		return nil
 	}
 	if err := checkTerraformVersionFlavor(flavor); err != nil {
-		return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
+		return fmt.Errorf("%w\n  "+noChangesToRevert, err)
 	}
 	oldVersion, err := applyTerraformVersionBump(afero.NewOsFs(), terraformProviderVersion)
 	if err != nil {
@@ -173,7 +173,7 @@ func applyTerraformVersionFlagIfSet(flavor core.Flavor, terraformProviderVersion
 			// enough to restore it.
 			return fmt.Errorf("%w\n%s", err, revertAdvice(nil))
 		}
-		return fmt.Errorf("%w\n  no changes were made; nothing to revert", err)
+		return fmt.Errorf("%w\n  "+noChangesToRevert, err)
 	}
 	fmt.Printf("Bumped Terraform provider version %s -> %s in Makefile.\n", oldVersion, terraformProviderVersion)
 	return nil

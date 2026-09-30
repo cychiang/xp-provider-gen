@@ -19,6 +19,8 @@ package v2
 import (
 	"strings"
 	"testing"
+
+	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/validation"
 )
 
 // Versions TestCheckNotDowngrade's table reuses across rows.
@@ -77,6 +79,50 @@ func TestCheckNotDowngrade(t *testing.T) {
 				if !strings.Contains(err.Error(), want) {
 					t.Errorf("checkNotDowngrade(%q, %q) error = %q, want it to contain %q", tt.last, tt.cur, err, want)
 				}
+			}
+		})
+	}
+}
+
+// TestCheckSameGenerator pins create api's version gate: refuse only when
+// both versions are clean releases and they differ — every undecidable shape
+// passes, like checkNotDowngrade. The wrapped message must not contain the
+// words validation's error classifier keys on, or it would gain a
+// misleading "Suggestions" block.
+func TestCheckSameGenerator(t *testing.T) {
+	tests := []struct {
+		name     string
+		last     string
+		cur      string
+		wantText string // empty: must pass
+	}{
+		{name: "same release passes", last: testGenV020, cur: testGenV020},
+		{name: "newer binary is refused", last: testGenV010, cur: testGenV020, wantText: "is newer than the one that last updated this project"},
+		{name: "older binary is refused", last: testGenV020, cur: testGenV010, wantText: "is older than the one that last updated this project"},
+		{name: "cur is dev passes", last: testGenV020, cur: "dev"},
+		{name: "cur is a git-describe build passes", last: testGenV020, cur: "v0.3.0-5-gabc1234"},
+		{name: "cur is a dirty build passes", last: testGenV020, cur: "v0.2.0-dirty"},
+		{name: "last is empty (pre-stamp project) passes", last: "", cur: testGenV020},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkSameGenerator(tt.last, tt.cur)
+			if tt.wantText == "" {
+				if err != nil {
+					t.Fatalf("checkSameGenerator(%q, %q) = %v, want nil", tt.last, tt.cur, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("checkSameGenerator(%q, %q) = nil, want a refusal", tt.last, tt.cur)
+			}
+			for _, want := range []string{tt.wantText, tt.last, tt.cur, "nothing to revert"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error = %q, want it to contain %q", err, want)
+				}
+			}
+			if got := validation.CreateAPIError("version check", err).Error(); strings.Contains(got, "Suggestions") {
+				t.Errorf("wrapped error gained a Suggestions block: %q", got)
 			}
 		})
 	}

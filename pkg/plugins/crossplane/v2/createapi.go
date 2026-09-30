@@ -94,6 +94,10 @@ func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 	}
 	p.meta = meta
 
+	if err := checkSameGenerator(meta.Version, version.Get().Version); err != nil {
+		return validation.CreateAPIError("version check", err)
+	}
+
 	if err := validation.ValidatorFor(meta.Flavor).ValidateResource(p.resource); err != nil {
 		return validation.CreateAPIError("resource validation", err)
 	}

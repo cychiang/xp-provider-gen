@@ -144,7 +144,7 @@ and runs `update`. It asserts:
   results, so the upgrade changed plumbing, not semantics,
 - the user's `--region` flag still appears in the rebuilt binary's `--help`.
 
-Two more steps run after that upgrade:
+Three more steps run after that upgrade:
 
 - **Orphan removal:** a tool-owned template (`cluster/local/integration_tests.sh`) is removed
   from the simulated new generator version; `update` deletes the now-orphaned tracked file on
@@ -153,6 +153,9 @@ Two more steps run after that upgrade:
   running an older one is refused on both `update` and `update --adopt` — the error says the
   running generator **is older than** the one that last updated the project, names both
   versions, and changes nothing.
+- **create api refusal:** on the same v0.2.0-stamped project, `create api` is refused by an older
+  (v0.1.0) and by a newer (v0.3.0) generator — the older one is told to run the recorded
+  generator, the newer one to run `update` first — and neither changes anything.
 
 It restores the templates it mutated. **Run it before shipping a generator bump.**
 

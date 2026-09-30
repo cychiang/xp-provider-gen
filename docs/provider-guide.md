@@ -220,6 +220,9 @@ make reviewable
 git commit -m "chore: update provider core"
 ```
 
+After upgrading the generator, run `update` before `create api`: `create api` refuses when the
+generator differs from the one that last updated the project.
+
 `update` refuses outright if PROJECT declares an unknown `flavor:` value, or `flavor: upjet`
 with no `upjet:` settings block — only an empty flavor is read as native.
 

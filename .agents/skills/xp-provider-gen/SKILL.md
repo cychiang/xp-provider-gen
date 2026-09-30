@@ -138,6 +138,8 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   bumped instead by `update --terraform-provider-version` (see below).
   It also refuses outright if PROJECT declares an unknown `flavor:` value, or `flavor: upjet`
   with no `upjet:` settings block.
+  After upgrading `xp-provider-gen`, run `update` before `create api`, which refuses when the
+  generator differs from the one that last updated the project.
 
 ### `update --terraform-provider-version` — upjet
 
