@@ -233,7 +233,9 @@ commit it, then run `update` again.
 
 `update` does six things:
 
-1. Regenerates every tool-owned file from the current templates.
+1. Regenerates every tool-owned file from the current templates. A file whose content
+   already matches is not rewritten: the summary counts it as `Unchanged`, and only files
+   whose content actually changed count as `Refreshed`.
 2. Seeds any file that is new in this version.
 3. **Skips every user-owned file**, whether or not it has changed.
 4. Removes any tracked, tool-owned file this version no longer produces — a
@@ -242,6 +244,10 @@ commit it, then run `update` again.
    own requires alone.
 6. Runs `go mod tidy`, `make generate` and `make reviewable`, and refuses if any of
    them fail — this is why the diff also contains regenerated `zz_generated.*` and CRDs.
+
+`update` prints counts by default; `update --verbose` also lists each file under
+`Refreshed`, `Unchanged`, `Added` and `Kept` (user-owned) headings. Combined with `--adopt`,
+it lists the files that were adopted.
 
 It stops there deliberately — no commit — so `git diff` is your review surface.
 

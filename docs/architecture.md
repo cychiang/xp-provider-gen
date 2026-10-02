@@ -217,7 +217,10 @@ overwrite.
 2. **Render** the flavor's full template set into an in-memory FS (`afero.NewMemMapFs`); upjet
    renders with the settings PROJECT keeps (`WithUpjet`).
 3. **Reconcile** onto disk through `core.Apply`, which runs `core.DecideWrite` per file
-   (tool-owned files overwritten, user-owned files skipped, new files seeded). On an upjet
+   (tool-owned files overwritten, user-owned files skipped, new files seeded). A tool-owned
+   file whose bytes already equal the rendered content is not written and is recorded as
+   `Unchanged`, so the summary's `Refreshed` counts only files that really changed;
+   `update --verbose` lists each category. On an upjet
    project a missing user-owned file is not seeded — some such templates need init-time
    Terraform settings PROJECT does not keep, so none are recreated — and is listed instead. Then **remove orphans**: `trackedFiles` lists what git
    tracks (`git ls-files -z`, so a gitignored file is never a candidate) and `removeOrphans`

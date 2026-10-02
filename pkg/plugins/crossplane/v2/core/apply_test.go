@@ -18,6 +18,7 @@ package core
 
 import (
 	"io/fs"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -54,20 +55,23 @@ func TestApplyDecisionTable(t *testing.T) {
 		{name: "absent, rendered headerless, no seed", render: rendered, seedUser: false, want: unseeded},
 		{name: "exists with header, seed", onDisk: ptr(oldHeader), render: headered, seedUser: true, want: overwritten, wantBody: headered, wantMode: existingFM},
 		{name: "exists with header, no seed", onDisk: ptr(oldHeader), render: headered, seedUser: false, want: overwritten, wantBody: headered, wantMode: existingFM},
+		{name: "exists with header, identical content, seed", onDisk: ptr(headered), render: headered, seedUser: true, want: unchanged, wantBody: headered, wantMode: existingFM},
+		{name: "exists with header, identical content, no seed", onDisk: ptr(headered), render: headered, seedUser: false, want: unchanged, wantBody: headered, wantMode: existingFM},
 		{name: "exists headerless, seed", onDisk: ptr(headerless), render: headered, seedUser: true, want: skipped, wantBody: headerless, wantMode: existingFM},
 		{name: "exists headerless, no seed", onDisk: ptr(headerless), render: headered, seedUser: false, want: skipped, wantBody: headerless, wantMode: existingFM},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			src, dst := afero.NewMemMapFs(), afero.NewMemMapFs()
+			src, mem := afero.NewMemMapFs(), afero.NewMemMapFs()
 			if err := afero.WriteFile(src, rel, []byte(tt.render), 0o644); err != nil {
 				t.Fatal(err)
 			}
 			if tt.onDisk != nil {
-				if err := afero.WriteFile(dst, rel, []byte(*tt.onDisk), existingFM); err != nil {
+				if err := afero.WriteFile(mem, rel, []byte(*tt.onDisk), existingFM); err != nil {
 					t.Fatal(err)
 				}
 			}
+			dst := &writeCountingFs{Fs: mem}
 
 			result, err := Apply(src, dst, tt.seedUser)
 			if err != nil {
@@ -75,6 +79,10 @@ func TestApplyDecisionTable(t *testing.T) {
 			}
 
 			assertOutcome(t, result, rel, tt.want)
+			wantWrite := tt.want == seeded || tt.want == overwritten
+			if (dst.writes > 0) != wantWrite {
+				t.Errorf("write opens = %d, want a write: %v", dst.writes, wantWrite)
+			}
 
 			info, statErr := dst.Stat(rel)
 			if tt.wantBody == "" {
@@ -94,6 +102,20 @@ func TestApplyDecisionTable(t *testing.T) {
 			}
 		})
 	}
+}
+
+// writeCountingFs counts the opens that can write, so a test can prove Apply
+// did not touch a file at all (identical bytes would hide a rewrite).
+type writeCountingFs struct {
+	afero.Fs
+	writes int
+}
+
+func (f *writeCountingFs) OpenFile(name string, flag int, perm fs.FileMode) (afero.File, error) {
+	if flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_APPEND) != 0 {
+		f.writes++
+	}
+	return f.Fs.OpenFile(name, flag, perm)
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -283,11 +305,12 @@ const (
 	overwritten
 	skipped
 	unseeded
+	unchanged
 )
 
 // outcomeNames labels each outcome in failure messages.
 var outcomeNames = map[outcome]string{
-	seeded: "seeded", overwritten: "overwritten", skipped: "skipped", unseeded: "unseeded",
+	seeded: "seeded", overwritten: "overwritten", skipped: "skipped", unseeded: "unseeded", unchanged: "unchanged",
 }
 
 // assertOutcome checks rel is in exactly the one result list want names.
@@ -295,7 +318,7 @@ func assertOutcome(t *testing.T, result ApplyResult, rel string, want outcome) {
 	t.Helper()
 	lists := map[outcome][]string{
 		seeded: result.Seeded, overwritten: result.Overwritten,
-		skipped: result.Skipped, unseeded: result.Unseeded,
+		skipped: result.Skipped, unseeded: result.Unseeded, unchanged: result.Unchanged,
 	}
 	for o, list := range lists {
 		wantLen := 0

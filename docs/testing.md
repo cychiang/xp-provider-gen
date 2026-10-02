@@ -79,9 +79,10 @@ in order from `main`; `--help` lists the same steps:
    `Initial commit`.
 7. **`update` (the upgrade guarantee):** append a marker to **all three** user-owned seam
    files and commit, run `update`, then assert (a) every marker survives, (b) `wiring.go`,
-   `connector.go` and `docs/ownership.md` are refreshed with headers intact, (c) seed-once
+   `connector.go` and `docs/ownership.md` still carry their headers, (c) seed-once
    `AGENTS.md` is untouched, (d) the same-generator update log reports `removed 0` (nothing is
-   orphaned when the templates haven't changed), (e) `update --terraform-provider-version=1.0.0`
+   orphaned when the templates haven't changed), `Refreshed 0 tool-owned file(s)` and a
+   non-zero `Unchanged N` (every tool-owned file is byte-identical, so none is rewritten), (e) `update --terraform-provider-version=1.0.0`
    is rejected on a native provider, naming the flavor in the error — that flag is upjet-only,
    (f) `update` refuses a dirty tree. Steps 7–10 run against a copy
    of the scaffold at `/tmp/xpg-e2e-native-lifecycle` (`LIFECYCLE_DIR`), so the pristine

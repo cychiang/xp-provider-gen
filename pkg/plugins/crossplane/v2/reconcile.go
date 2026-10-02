@@ -109,12 +109,13 @@ type updateResult struct {
 // already refused before print ever runs if cur were genuinely older, so an
 // undecidable or forward difference reaching here is never something to
 // second-guess.
-func (r updateResult) print(w io.Writer, lastVersion, curVersion string) {
+func (r updateResult) print(w io.Writer, lastVersion, curVersion string, verbose bool) {
 	if lastVersion != "" && lastVersion != curVersion {
 		fmt.Fprintf(w, "Updating from generator %s to %s.\n", lastVersion, curVersion)
 	}
 	fmt.Fprintf(w, "Refreshed %d tool-owned file(s), added %d, removed %d, left %d user-owned file(s) untouched.\n",
 		len(r.Overwritten), len(r.Seeded), len(r.removed), len(r.Skipped))
+	fmt.Fprintf(w, "Unchanged %d tool-owned file(s) (identical content, not rewritten).\n", len(r.Unchanged))
 	for _, rel := range r.removed {
 		fmt.Fprintf(w, "  removed %s: carries the generated header but is no longer generated — "+
 			"if this file is yours, remove the header\n", rel)
@@ -122,5 +123,34 @@ func (r updateResult) print(w io.Writer, lastVersion, curVersion string) {
 	if len(r.Unseeded) > 0 {
 		fmt.Fprintf(w, "Not seeded (user-owned; update does not recreate these on an upjet provider): %s\n",
 			strings.Join(r.Unseeded, ", "))
+	}
+	if verbose {
+		r.printVerbose(w)
+	}
+}
+
+// printVerbose lists, per category, the files the summary counts. removed and
+// Not seeded are already listed file by file above, so they are not repeated.
+func (r updateResult) printVerbose(w io.Writer) {
+	for _, c := range []struct {
+		heading string
+		paths   []string
+	}{
+		{"Refreshed (tool-owned, content changed):", r.Overwritten},
+		{"Unchanged (tool-owned, identical content, not rewritten):", r.Unchanged},
+		{"Added (missing, seeded):", r.Seeded},
+		{"Kept (no generated header, user-owned):", r.Skipped},
+	} {
+		if len(c.paths) > 0 {
+			fmt.Fprintln(w, c.heading)
+			printPaths(w, c.paths)
+		}
+	}
+}
+
+// printPaths writes one indented path per line.
+func printPaths(w io.Writer, paths []string) {
+	for _, p := range paths {
+		fmt.Fprintf(w, "  %s\n", p)
 	}
 }

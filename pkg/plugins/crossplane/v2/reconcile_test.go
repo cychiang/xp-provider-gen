@@ -238,6 +238,7 @@ func TestReconcileResultPrint(t *testing.T) {
 		result       updateResult
 		lastVersion  string
 		curVersion   string
+		verbose      bool
 		wantContains []string
 		wantAbsent   []string
 	}{
@@ -246,8 +247,46 @@ func TestReconcileResultPrint(t *testing.T) {
 			result:       updateResult{},
 			lastVersion:  testGenV020,
 			curVersion:   testGenV020,
-			wantContains: []string{"removed 0"},
-			wantAbsent:   []string{"  removed ", updatingMarker},
+			wantContains: []string{"removed 0", "Unchanged 0 tool-owned file(s) (identical content, not rewritten).\n"},
+			wantAbsent:   []string{"  removed ", updatingMarker, "(tool-owned, "},
+		},
+		{
+			name: "counts refreshed and unchanged apart, without listing them",
+			result: updateResult{ApplyResult: core.ApplyResult{
+				Overwritten: []string{orphanFileA}, Unchanged: []string{orphanFileB, orphanFileUser},
+			}},
+			lastVersion: testGenV020,
+			curVersion:  testGenV020,
+			wantContains: []string{
+				"Refreshed 1 tool-owned file(s), added 0, removed 0, left 0 user-owned file(s) untouched.\n",
+				"Unchanged 2 tool-owned file(s) (identical content, not rewritten).\n",
+			},
+			wantAbsent: []string{"  " + orphanFileA, "  " + orphanFileB, "(tool-owned, "},
+		},
+		{
+			name: "verbose lists each category with its heading",
+			result: updateResult{ApplyResult: core.ApplyResult{
+				Overwritten: []string{orphanFileA}, Unchanged: []string{orphanFileB},
+				Seeded: []string{"s.go"}, Skipped: []string{orphanFileUser},
+			}},
+			lastVersion: testGenV020,
+			curVersion:  testGenV020,
+			verbose:     true,
+			wantContains: []string{
+				"Refreshed (tool-owned, content changed):\n  " + orphanFileA + "\n",
+				"Unchanged (tool-owned, identical content, not rewritten):\n  " + orphanFileB + "\n",
+				"Added (missing, seeded):\n  s.go\n",
+				"Kept (no generated header, user-owned):\n  " + orphanFileUser + "\n",
+			},
+		},
+		{
+			name:         "verbose omits a category with no files",
+			result:       updateResult{ApplyResult: core.ApplyResult{Unchanged: []string{orphanFileB}}},
+			lastVersion:  testGenV020,
+			curVersion:   testGenV020,
+			verbose:      true,
+			wantContains: []string{"Unchanged (tool-owned, identical content, not rewritten):\n  " + orphanFileB + "\n"},
+			wantAbsent:   []string{"Refreshed (", "Added (", "Kept ("},
 		},
 		{
 			name:         "removes one, same version",
@@ -286,7 +325,7 @@ func TestReconcileResultPrint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			tt.result.print(&buf, tt.lastVersion, tt.curVersion)
+			tt.result.print(&buf, tt.lastVersion, tt.curVersion, tt.verbose)
 			got := buf.String()
 			for _, want := range tt.wantContains {
 				if !strings.Contains(got, want) {
