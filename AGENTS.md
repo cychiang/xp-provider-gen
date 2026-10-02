@@ -103,7 +103,7 @@ reconsider.
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow
 - [docs/testing.md](docs/testing.md) — unit and end-to-end testing
 - [.github/WORKFLOWS.md](.github/WORKFLOWS.md) — CI/CD pipelines
-- [docs/design/render-apply.md](docs/design/render-apply.md) — partly implemented (Phase 1 and 1b); Phase 2 awaits a maintainer decision
+- [docs/design/render-apply.md](docs/design/render-apply.md) — the proposal behind one render path and one write rule; implemented (see its decision record)
 - [.agents/skills/xp-provider-gen/](.agents/skills/xp-provider-gen/) — using this tool to
   build a provider (author-facing; how to scaffold, configure and deploy either flavor)
 - [docs/plans/](docs/plans/) — decision records: what each program decided, what it deliberately
@@ -111,4 +111,5 @@ reconsider.
   covers: [2026-09-15-architecture-review.md](docs/plans/2026-09-15-architecture-review.md),
   [2026-09-19-consistency.md](docs/plans/2026-09-19-consistency.md),
   [2026-09-21-phase-b.md](docs/plans/2026-09-21-phase-b.md),
-  [2026-09-24-release-and-docs.md](docs/plans/2026-09-24-release-and-docs.md).
+  [2026-09-24-release-and-docs.md](docs/plans/2026-09-24-release-and-docs.md),
+  [2026-10-03-render-apply.md](docs/plans/2026-10-03-render-apply.md).

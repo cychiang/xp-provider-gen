@@ -1,11 +1,11 @@
 # Design: one render path and one apply rule for init, create api and update
 
 - **Status:** Implemented. Phase 1 (#176), the `create api` version check (#177), Phase 1b
-  (#178 and the follow-up init PR), skipping byte-identical writes (Q6) and Phase 2
-  (`create api` via `core.Apply`; `--force` deprecated) are in; §4 and §7
+  (#178, #179), skipping byte-identical writes (Q6, #180) and Phase 2
+  (`create api` via `core.Apply`; `--force` deprecated, #181) are in; §4 and §7
   are the proposal as written; the decisions (Q1: `ScopeKind` only, Q3: `--force` deprecated for one
   minor, Q4: skip and warn, Q5: seeding limited by scope, no `inKind` predicate, Q6: implemented) are
-  recorded in the Phase 2 decision record under `docs/plans/`. The `file:line`
+  recorded in [`docs/plans/2026-10-03-render-apply.md`](../plans/2026-10-03-render-apply.md). The `file:line`
   references below, and the mechanisms they describe (for example `ExecutableBitStep`), are as of #161, and
   `scaffold.Apply` became `core.Apply`.
 - **Date:** 2026-09-16
