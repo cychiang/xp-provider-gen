@@ -91,17 +91,16 @@ func configureProduct(product *GenericTemplateProduct, cfg config.Config, option
 		}
 	}
 	if options.Force {
-		// Without --force the zero value (machinery.SkipFile) applies, which is
-		// what a second `create api` in an existing group/version needs: the
-		// group-scoped templates (groupversion_info.go) are already on disk and
-		// must be left alone rather than erroring the whole command.
+		// Only update's in-memory ScopeProject render sets Force, so there it
+		// overwrites freely; without it the zero value (machinery.SkipFile)
+		// applies. Writes to disk are decided by core.Apply, not by this action.
 		product.IfExistsAction = machinery.OverwriteFile
 	}
 	if err := product.SetTemplateDefaults(); err != nil {
 		return fmt.Errorf("setting template defaults: %w", err)
 	}
-	// --force refreshes what the tool owns; a file without the generated
-	// header is the user's and is never overwritten, forced or not.
+	// A force render overwrites what the tool owns; a template without the
+	// generated header is the user's and stays SkipFile, forced or not.
 	if options.Force && !core.IsToolOwned([]byte(product.TemplateBody)) {
 		product.IfExistsAction = machinery.SkipFile
 	}

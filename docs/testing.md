@@ -87,10 +87,10 @@ in order from `main`; `--help` lists the same steps:
    (f) `update` refuses a dirty tree. Steps 7–10 run against a copy
    of the scaffold at `/tmp/xpg-e2e-native-lifecycle` (`LIFECYCLE_DIR`), so the pristine
    `/tmp/xpg-e2e-native` keeps its single `Initial commit`.
-8. **`create api --force`:** mark a tool-owned file (`wiring.go`) and a user-owned one
-   (`external.go`), commit, then re-run `create api` for the same kind with `--force` and
-   assert (a) it exits 0, (b) the tool-owned marker is gone (regenerated), (c) the
-   user-owned marker survives.
+8. **`create api` refresh:** mark a tool-owned file (`wiring.go`) and a user-owned one
+   (`external.go`), commit, then re-run `create api` for the same kind with the deprecated
+   `--force` and again without it, and assert each time (a) it exits 0, (b) the tool-owned
+   marker is gone (regenerated), (c) the user-owned marker survives.
 9. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
    run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
 10. **create-test:** scaffold a chainsaw behavior test non-interactively and assert the file
@@ -105,7 +105,7 @@ in order from `main`; `--help` lists the same steps:
     assert it also passes against the live provider. Skipped with a warning when no Docker
     daemon is available.
 
-The `--force`/`--adopt`/dirty-tree assertions (steps 8, 9, and the dirty-tree check inside
+The create-api-refresh/`--adopt`/dirty-tree assertions (steps 8, 9, and the dirty-tree check inside
 step 7) and `docker_skip_requested` live in `scripts/lib.sh`, shared with `e2e-upjet.sh` and
 `e2e-upgrade.sh` — see that file for the shared helpers.
 
@@ -182,15 +182,15 @@ API server (asserting no panic), then builds and runs
 `envtest` API server to prove the generated controllers actually start and
 register, not merely compile.
 
-It then covers three git-automation paths native's e2e already had (`--force`)
+It then covers three git-automation paths native's e2e already had (the `create api` refresh)
 or that upjet previously lacked (`--adopt`, the dirty-tree refusal), none of
 which need Docker:
 
-- **`--force`:** mark a tool-owned file (`config/zz_resources.go`) and a user-owned one
-  (`config/secret/config.go`), commit, then re-run `create api --force` (with
-  `--terraform-resource`, required on every upjet `create api` call) and assert the
-  tool-owned marker is regenerated while the user-owned one survives.
-- **`--force` with nothing to change:** run it again and assert it still exits 0, reports
+- **`create api` refresh:** mark a tool-owned file (`config/zz_resources.go`) and a user-owned one
+  (`config/secret/config.go`), commit, then re-run `create api --force` and again without
+  `--force` (with `--terraform-resource`, required on every upjet `create api` call) and assert
+  each time that the tool-owned marker is regenerated while the user-owned one survives.
+- **`create api` with nothing to change:** run it again and assert it still exits 0, reports
   the no-change skip, and adds no commit (git.go's `stageAndCheck` skips the commit when
   nothing is staged).
 - **`--adopt`:** strip `config/provider.go`'s header to simulate a pre-contract provider,

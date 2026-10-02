@@ -74,10 +74,7 @@ var (
 		{"version", []string{"Version should follow Kubernetes format (e.g., v1alpha1, v1beta1)"}},
 		{"kind", []string{"Kind should be PascalCase (e.g., Instance, Bucket)"}},
 		{"domain", []string{"Ensure the project is initialized with 'init' command first"}},
-		{"template", []string{
-			"Check if there are conflicting files in the target location",
-			"Use --force flag to overwrite existing tool-owned files",
-		}},
+		{"template", []string{"Check if there are conflicting files in the target location"}},
 	}
 )
 

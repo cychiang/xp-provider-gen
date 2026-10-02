@@ -1,8 +1,11 @@
 # Design: one render path and one apply rule for init, create api and update
 
-- **Status:** Partly implemented. Phase 1 (#176), the `create api` version check (#177) and
-  Phase 1b (#178 and the follow-up init PR) are in; Phase 2 awaits a
-  maintainer decision on [§4](#4-behavior-changes) and [§7](#7-open-questions). The `file:line`
+- **Status:** Implemented. Phase 1 (#176), the `create api` version check (#177), Phase 1b
+  (#178 and the follow-up init PR), skipping byte-identical writes (Q6) and Phase 2
+  (`create api` via `core.Apply`; `--force` deprecated) are in; §4 and §7
+  are the proposal as written; the decisions (Q1: `ScopeKind` only, Q3: `--force` deprecated for one
+  minor, Q4: skip and warn, Q5: seeding limited by scope, no `inKind` predicate, Q6: implemented) are
+  recorded in the Phase 2 decision record under `docs/plans/`. The `file:line`
   references below, and the mechanisms they describe (for example `ExecutableBitStep`), are as of #161, and
   `scaffold.Apply` became `core.Apply`.
 - **Date:** 2026-09-16
@@ -339,7 +342,7 @@ Steps 1–3 are behavior-preserving and can merge whether or not step 4 is accep
    ownership (a special case in Apply)?
 5. **User-owned seeding in `create api`.** Only the new kind's paths (proposed), or native re-seeding of
    every deleted user-owned file, like `update`?
-6. **Idempotent writes.** Should Apply skip byte-identical overwrites, so that mtimes stay untouched and
+6. **Idempotent writes (implemented).** Should Apply skip byte-identical overwrites, so that mtimes stay untouched and
    "Refreshed N file(s)" counts only real changes?
 7. **`ExecutableBitStep`.** Remove it from the init pipelines once Apply writes modes? (`update --adopt`
    already uses `core.FileMode`, `update.go:184`.)

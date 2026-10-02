@@ -93,7 +93,7 @@ func uniqueGroupVersions(repo string, resources []resource.Resource) []apiGroupV
 // uniqueKindPackages returns the lowercased Go package name (the kind,
 // lowercased) for each distinct managed kind, in first-seen order. Callers
 // concatenate PROJECT's stored resources with the current run's (e.g.
-// `create api --force` against an existing kind), so the same kind can
+// re-running `create api` for an existing kind), so the same kind can
 // appear more than once; without dedup that doubles the import alias and the
 // generated project fails to compile. Shared by the native and upjet
 // per-kind generators, which each build a different struct from the result.

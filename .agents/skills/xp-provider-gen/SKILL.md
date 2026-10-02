@@ -80,9 +80,11 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   xp-provider-gen create api --group=storage --version=v1alpha1 --kind=Bucket
   ```
 - **Produces**: runs `make generate`, folds into the scaffold commit until your first own
-  commit. Check: a second kind in an already-scaffolded group/version does **not** need
-  `--force`; `--force` only refreshes existing tool-owned files and never overwrites
-  files without the generated header (`external.go`, `*_types.go`).
+  commit. Check: re-running it for an existing kind refreshes that kind's tool-owned files and never
+  overwrites files without the generated header (`external.go`, `*_types.go`); they are
+  listed as `Kept`. A registration file (`apis/register.go`, `internal/controller/register.go`,
+  or upjet's `config/zz_resources.go`) whose header you removed is also kept, with a warning
+  that the new kind must be registered by hand. `--force` is deprecated and has no effect.
 
 ### `create api` — upjet
 

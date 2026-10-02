@@ -42,7 +42,7 @@ docker_skip_requested() {
 # assert_force_refreshes <tool_file> <user_file> -- <command...>
 #
 # Marks <tool_file> (tool-owned) and <user_file> (user-owned) with distinct
-# markers and commits, runs <command...> (expected: `create api --force`),
+# markers and commits, runs <command...> (expected: `create api`, with or without the deprecated `--force`),
 # then asserts the tool-owned marker was regenerated away and the
 # user-owned marker survived. Repeats <command...> a second time and
 # asserts that no-op run exits 0, reports the no-change skip, and adds no
@@ -56,20 +56,20 @@ assert_force_refreshes() {
     local user_marker="// FORCE-MARKER: user customization"
     printf '\n%s\n' "$tool_marker" >>"$tool_file"
     printf '\n%s\n' "$user_marker" >>"$user_file"
-    git add -A && git commit -q -m "simulate: stale tool-owned file and a user customization before --force" ||
-        fail "could not commit the simulated --force drift"
+    git add -A && git commit -q -m "simulate: stale tool-owned file and a user customization before create api" ||
+        fail "could not commit the simulated drift"
 
     ASSERT_LOG="$(mktemp)"
     if ! "$@" >"$ASSERT_LOG" 2>&1; then
         tail -30 "$ASSERT_LOG"
         rm -f "$ASSERT_LOG"
-        fail "create api --force failed"
+        fail "create api failed"
     fi
     rm -f "$ASSERT_LOG"
 
-    grep -qF "$tool_marker" "$tool_file" && fail "--force did not refresh tool-owned $tool_file (marker survived)"
-    grep -qF "$user_marker" "$user_file" || fail "--force clobbered user-owned $user_file (marker gone)"
-    log_success "✓ --force refreshed tool-owned $tool_file, preserved user-owned $user_file"
+    grep -qF "$tool_marker" "$tool_file" && fail "create api did not refresh tool-owned $tool_file (marker survived)"
+    grep -qF "$user_marker" "$user_file" || fail "create api clobbered user-owned $user_file (marker gone)"
+    log_success "✓ create api refreshed tool-owned $tool_file, preserved user-owned $user_file"
 
     local head_before
     head_before="$(git rev-parse HEAD)"
@@ -77,16 +77,16 @@ assert_force_refreshes() {
     if ! "$@" >"$ASSERT_LOG" 2>&1; then
         tail -30 "$ASSERT_LOG"
         rm -f "$ASSERT_LOG"
-        fail "second --force (no changes) did not exit 0"
+        fail "second create api (no changes) did not exit 0"
     fi
     grep -q "No changes to commit" "$ASSERT_LOG" || {
         rm -f "$ASSERT_LOG"
-        fail "second --force did not report the no-change skip"
+        fail "second create api did not report the no-change skip"
     }
     rm -f "$ASSERT_LOG"
     [[ "$(git rev-parse HEAD)" == "$head_before" ]] ||
-        fail "second --force added or amended a commit although nothing changed"
-    log_success "✓ second --force exited 0 with nothing to commit, added no commit"
+        fail "second create api added or amended a commit although nothing changed"
+    log_success "✓ second create api exited 0 with nothing to commit, added no commit"
 }
 
 # assert_adopt_restores <file> -- <command...>

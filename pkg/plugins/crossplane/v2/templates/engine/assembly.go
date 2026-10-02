@@ -71,3 +71,12 @@ func CoreGeneratorsFor(flavor core.Flavor, cfg config.Config, resources []resour
 	}
 	return coreGenerators(cfg, resources)
 }
+
+// IsRegistrationFile reports whether rel, a path relative to the project root,
+// is one of the files a flavor's generators regenerate to register every kind.
+func IsRegistrationFile(flavor core.Flavor, rel string) bool {
+	if flavor == core.FlavorUpjet {
+		return rel == upjetResourcesPath
+	}
+	return rel == apisRegisterPath || rel == controllerRegisterPath
+}

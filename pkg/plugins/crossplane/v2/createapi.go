@@ -2,8 +2,10 @@ package v2
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
@@ -20,8 +22,6 @@ import (
 var _ plugin.CreateAPISubcommand = &createAPISubcommand{}
 
 type createAPISubcommand struct {
-	force bool
-
 	// terraformResource is the Terraform resource an upjet kind is generated
 	// from, e.g. kubernetes_secret. Unused by native providers.
 	terraformResource string
@@ -52,16 +52,15 @@ This command scaffolds a complete managed resource with:
   %s create api --group=storage --version=v1beta1 --kind=Bucket
 
   # Create a network resource
-  %s create api --group=network --version=v1alpha1 --kind=VPC
-
-  # Re-create a resource, refreshing its tool-owned files
-  %s create api --group=database --version=v1alpha1 --kind=PostgreSQL --force`,
-		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
+  %s create api --group=network --version=v1alpha1 --kind=VPC`,
+		cliMeta.CommandName, cliMeta.CommandName, cliMeta.CommandName)
 }
 
 func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
-	fs.BoolVar(&p.force, "force", false,
-		"overwrite existing tool-owned files (files without the generated header are never overwritten)")
+	var force bool // ignored: create api always refreshes tool-owned files
+	fs.BoolVar(&force, "force", false, "has no effect")
+	_ = fs.MarkDeprecated("force", "create api now refreshes tool-owned files on its own; "+
+		"the flag has no effect and will be removed in the next minor release")
 	fs.StringVar(&p.terraformResource, "terraform-resource", "",
 		"Terraform resource this kind is generated from, e.g. kubernetes_secret (required on an upjet provider)")
 }
@@ -88,7 +87,7 @@ func (p *createAPISubcommand) InjectResource(res *resource.Resource) error {
 }
 
 func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
-	meta, err := loadProjectMeta(p.config)
+	meta, err := validateProject(p.config)
 	if err != nil {
 		return validation.CreateAPIError("configuration check", err)
 	}
@@ -144,10 +143,25 @@ func (p *createAPISubcommand) Scaffold(fs machinery.Filesystem) error {
 	}
 
 	// Render the new kind's templates and regenerate the registration files
-	// from the full resource list.
-	if err := engine.Render(fs, p.config, p.meta.Flavor, upjet, resources,
-		engine.ScopeKind, p.resource, engine.WithForce(p.force)); err != nil {
+	// from the full resource list in memory, then write through the ownership
+	// rule update uses: headered files are refreshed, files without the header
+	// are the author's and kept. ScopeKind renders no init-layer file, so
+	// seeding user-owned files stays limited to this kind's paths.
+	mem := afero.NewMemMapFs()
+	if err := engine.Render(machinery.Filesystem{FS: mem}, p.config, p.meta.Flavor, upjet, resources,
+		engine.ScopeKind, p.resource); err != nil {
 		return validation.CreateAPIError("scaffolding", err)
+	}
+	result, err := core.Apply(mem, fs.FS, true)
+	if err != nil {
+		return validation.CreateAPIError("writing scaffold", err)
+	}
+	printKept(os.Stdout, result.Skipped)
+	for _, rel := range result.Skipped {
+		if engine.IsRegistrationFile(p.meta.Flavor, rel) {
+			fmt.Printf("  warning: %s has no generated header, so %s was not registered in it; add it yourself\n",
+				rel, p.resource.Kind)
+		}
 	}
 
 	return nil

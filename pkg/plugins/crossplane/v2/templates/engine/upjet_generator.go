@@ -52,8 +52,8 @@ var _ machinery.Template = &UpjetResourcesGenerator{}
 
 // NewUpjetResourcesGenerator builds the aggregator for the given resources,
 // one entry per distinct managed kind, in first-seen order. Callers
-// concatenate PROJECT's stored resources with the current run's (e.g. `create
-// api --force` against an existing kind), so the same kind can appear more
+// concatenate PROJECT's stored resources with the current run's (e.g.
+// re-running `create api` for an existing kind), so the same kind can appear more
 // than once; without dedup that doubles the import alias and the Configure
 // call, and the generated project fails to compile (see
 // TestNewUpjetResourcesGenerator_Dedups).
