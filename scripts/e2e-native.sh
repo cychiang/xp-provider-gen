@@ -269,6 +269,8 @@ step_update_lifecycle() {
         exit 1
     fi
     grep -q 'removed 0' "$log" || fail "same-generator update removed files"
+    grep -q 'Refreshed 0 tool-owned file(s)' "$log" || fail "same-generator update rewrote files"
+    grep -qE 'Unchanged [1-9][0-9]* tool-owned file\(s\)' "$log" || fail "same-generator update did not report unchanged files"
     rm -f "$log"
 
     for f in "$CTRL" "$CLIENT_FILE" "$OPTS_FILE"; do

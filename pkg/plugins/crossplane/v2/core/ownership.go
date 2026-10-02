@@ -54,6 +54,9 @@ const (
 	// Unseeded is a user-owned file missing on disk that the caller
 	// deliberately chose not to seed (see applyFile in apply.go).
 	Unseeded
+	// Unchanged is an existing tool-owned file whose rendered bytes already
+	// match the disk, so nothing is written (see applyFile in apply.go).
+	Unchanged
 )
 
 // DecideWrite applies the overwrite gate: seed if absent, overwrite if the

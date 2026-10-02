@@ -17,6 +17,7 @@ limitations under the License.
 package core
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -30,6 +31,9 @@ type ApplyResult struct {
 	Overwritten []string
 	Seeded      []string
 	Skipped     []string
+	// Unchanged are tool-owned files whose rendered bytes already match the
+	// disk: not rewritten.
+	Unchanged []string
 	// Unseeded are user-owned files missing on disk that were deliberately not
 	// seeded (upjet: some need init-time Terraform settings PROJECT lacks, so
 	// none are recreated).
@@ -38,7 +42,8 @@ type ApplyResult struct {
 
 // Apply copies every rendered file from src onto dst through the ownership
 // gate: tool-owned (headered) files are overwritten, new files seeded, and
-// user-owned (headerless) files left untouched. seedUserOwned says whether a
+// user-owned (headerless) files left untouched. A tool-owned file whose bytes
+// already match is not rewritten and is recorded as Unchanged. seedUserOwned says whether a
 // user-owned file missing on disk is seeded or only recorded as unseeded.
 func Apply(src, dst afero.Fs, seedUserOwned bool) (ApplyResult, error) {
 	var result ApplyResult
@@ -67,6 +72,8 @@ func (r *ApplyResult) record(decision WriteDecision, rel string) {
 		r.Overwritten = append(r.Overwritten, rel)
 	case Unseeded:
 		r.Unseeded = append(r.Unseeded, rel)
+	case Unchanged:
+		r.Unchanged = append(r.Unchanged, rel)
 	}
 }
 
@@ -112,6 +119,9 @@ func applyFile(src, dst afero.Fs, srcPath, rel string, seedUserOwned bool) (Writ
 	newContent, err := afero.ReadFile(src, srcPath)
 	if err != nil {
 		return decision, err
+	}
+	if decision == Overwrite && bytes.Equal(existing, newContent) {
+		return Unchanged, nil
 	}
 	if !exists && !seedUserOwned && !IsToolOwned(newContent) {
 		return Unseeded, nil

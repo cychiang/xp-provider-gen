@@ -45,7 +45,7 @@ import (
 // NewUpdateCommand returns the `update` command, registered on the CLI via
 // cli.WithExtraCommands (kubebuilder's plugin interface has no update hook).
 func NewUpdateCommand() *cobra.Command {
-	var adopt bool
+	var adopt, verbose bool
 	var terraformProviderVersion string
 	cmd := &cobra.Command{
 		Use:   "update",
@@ -70,20 +70,24 @@ The working tree must be clean; the result is left uncommitted so you can review
 Use --adopt once on a provider generated before the ownership contract existed: it stamps
 provenance and writes the header onto recognized tool-owned files so plain 'update' works.
 
+Plain 'update' prints counts; add --verbose to list each file by category — refreshed,
+unchanged (identical content, not rewritten), added and kept. Files whose rendered content
+already matches the disk are not rewritten.
+
 Use --terraform-provider-version on an upjet provider to bump the wrapped Terraform
 provider: it rewrites the version in your Makefile, then runs the rest of update as usual —
 there is no way to bump only the version, since the generator refresh and framework
 dependency bump ride along in the same diff.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if adopt {
-				return runAdopt(context.Background())
+				return runAdopt(context.Background(), verbose)
 			}
 			if terraformProviderVersion != "" {
 				if err := checkTerraformVersionFlag(terraformProviderVersion); err != nil {
 					return err
 				}
 			}
-			return runUpdate(context.Background(), terraformProviderVersion)
+			return runUpdate(context.Background(), terraformProviderVersion, verbose)
 		},
 	}
 	cmd.Flags().BoolVar(&adopt, "adopt", false,
@@ -92,6 +96,8 @@ dependency bump ride along in the same diff.`,
 	cmd.Flags().StringVar(&terraformProviderVersion, "terraform-provider-version", "",
 		"bump the wrapped Terraform provider to this version (upjet only): rewrites the Makefile, "+
 			"then runs the rest of update as usual, including a fresh 'make generate'")
+	cmd.Flags().BoolVar(&verbose, "verbose", false,
+		"list every file by category (refreshed, unchanged, added, kept); with --adopt, list the adopted files")
 	cmd.MarkFlagsMutuallyExclusive("adopt", "terraform-provider-version")
 	return cmd
 }
@@ -129,7 +135,7 @@ func stampProvenance(st store.Store) error {
 	return st.Save()
 }
 
-func runUpdate(ctx context.Context, terraformProviderVersion string) error {
+func runUpdate(ctx context.Context, terraformProviderVersion string, verbose bool) error {
 	st, mem, meta, err := prepare(ctx)
 	if err != nil {
 		return fmt.Errorf("%w\n  "+noChangesToRevert, err)
@@ -156,7 +162,7 @@ func runUpdate(ctx context.Context, terraformProviderVersion string) error {
 	if err != nil {
 		return fmt.Errorf("removing files this generator no longer produces: %w\n%s", err, revertAdvice(result.Seeded))
 	}
-	result.print(os.Stdout, meta.Version, version.Get().Version)
+	result.print(os.Stdout, meta.Version, version.Get().Version, verbose)
 
 	if err := applyDependencies(ctx, meta.Flavor); err != nil {
 		return fmt.Errorf("%w\n%s", err, revertAdvice(result.Seeded))

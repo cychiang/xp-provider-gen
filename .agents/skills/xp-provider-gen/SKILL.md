@@ -140,6 +140,8 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   with no `upjet:` settings block.
   After upgrading `xp-provider-gen`, run `update` before `create api`, which refuses when the
   generator differs from the one that last updated the project.
+  Files whose content already matches are not rewritten: the summary reports `Refreshed N`
+  (changed) and `Unchanged N`; `update --verbose` lists each file by category.
 
 ### `update --terraform-provider-version` — upjet
 
@@ -170,7 +172,7 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   xp-provider-gen update --adopt
   ```
 - **Produces**: exits after stamping headers; commit that diff, then run plain `update`
-  afterward to actually refresh the files.
+  afterward to actually refresh the files. Add `--verbose` to list the adopted files.
 
 ### `version` / `completion`
 

@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -31,7 +32,7 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
-func runAdopt(ctx context.Context) error {
+func runAdopt(ctx context.Context, verbose bool) error {
 	st, mem, meta, err := prepare(ctx)
 	if err != nil {
 		return err
@@ -50,6 +51,9 @@ func runAdopt(ctx context.Context) error {
 
 	fmt.Printf("Adopted %d tool-owned file(s) and stamped generator version %s in PROJECT.\n",
 		len(adopted), version.Get().Version)
+	if verbose {
+		printPaths(os.Stdout, adopted)
+	}
 	fmt.Printf("Review with 'git diff', commit, then run '%s update' to refresh them.\n", version.CommandName)
 	return nil
 }
