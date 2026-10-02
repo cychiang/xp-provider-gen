@@ -16,7 +16,8 @@ limitations under the License.
 
 // Reconciling the rendered template set onto disk for the update command: the
 // tracked-files listing and orphan removal, and the result type update's caller
-// reports through. The ownership-gated copy itself is core.Apply.
+// reports through, plus the small print helpers init and create api share. The
+// ownership-gated copy itself is core.Apply.
 package v2
 
 import (
@@ -153,4 +154,14 @@ func printPaths(w io.Writer, paths []string) {
 	for _, p := range paths {
 		fmt.Fprintf(w, "  %s\n", p)
 	}
+}
+
+// printKept lists the files init and create api left alone because they carry
+// no generated header. It prints nothing when there are none.
+func printKept(w io.Writer, kept []string) {
+	if len(kept) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "Kept %d existing file(s) without the generated header:\n", len(kept))
+	printPaths(w, kept)
 }

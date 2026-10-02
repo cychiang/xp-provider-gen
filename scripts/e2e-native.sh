@@ -238,7 +238,7 @@ step_build_after_apis() {
 }
 
 # step_update_lifecycle copies the pristine scaffold to LIFECYCLE_DIR so the
-# rest of the lifecycle steps (update, --force, --adopt, create-test) don't
+# rest of the lifecycle steps (update, create api refresh, --adopt, create-test) don't
 # add commits or leave review changes in TEST_DIR.
 step_update_lifecycle() {
     step_header "7" "Test update command (on a copy)"
@@ -327,12 +327,17 @@ step_update_lifecycle() {
     assert_clean_tree "the rejected --terraform-provider-version attempt"
 }
 
-# step_force: `create api --force` refreshes a tool-owned file, preserves user edits.
+# step_force: re-running create api refreshes a tool-owned file and preserves user edits,
+# with the deprecated --force and without it.
 step_force() {
-    step_header "8" "Test create api --force"
+    step_header "8" "Test create api refresh (--force deprecated)"
     log_info "Marking tool-owned $WIRING and user-owned $CTRL, then running --force..."
     assert_force_refreshes "$WIRING" "$CTRL" -- \
         "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1" --force
+
+    log_info "Marking them again, then re-running create api without --force..."
+    assert_force_refreshes "$WIRING" "$CTRL" -- \
+        "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1"
 }
 
 # step_adopt: `update --adopt` retrofits a provider generated before the ownership contract.
@@ -502,7 +507,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "   5. Create second API ($GROUP/$VERSION $KIND2)"
     echo "   6. Test build targets after API creation"
     echo "   7. Test update command (on a copy)"
-    echo "   8. Test create api --force"
+    echo "   8. Test create api refresh (--force deprecated)"
     echo "   9. Test update --adopt"
     echo "  10. create-test scaffolds a chainsaw test"
     echo "  11. Final verification"

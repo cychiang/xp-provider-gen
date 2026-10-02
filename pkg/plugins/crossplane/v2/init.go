@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/afero"
@@ -198,12 +199,7 @@ func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 	if err != nil {
 		return fmt.Errorf("writing scaffold: %w", err)
 	}
-	if len(result.Skipped) > 0 {
-		fmt.Printf("Kept %d existing file(s) without the generated header:\n", len(result.Skipped))
-		for _, rel := range result.Skipped {
-			fmt.Printf("  %s\n", rel)
-		}
-	}
+	printKept(os.Stdout, result.Skipped)
 	return nil
 }
 

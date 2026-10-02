@@ -121,18 +121,23 @@ git checkout HEAD~1 -- examples/providerconfig/providerconfig.yaml ||
 git add -A && git commit -qm "Update provider" || fail "could not commit the update"
 log_success "  ✓ update refreshed config/provider.go and hack/xp-provider-gen.mk, bumped the Terraform provider to 2.38.0 with a versioned cache, did not re-seed the ProviderConfig example, and finalized"
 
-step_header 7 "create api --force, update --adopt, and update's dirty-tree refusal"
+step_header 7 "create api refresh (--force deprecated), update --adopt, and update's dirty-tree refusal"
 
-log_info "  --- 7a. create api --force refreshes tool-owned files, preserves user edits ---"
+log_info "  --- 7a. create api refresh (--force deprecated) refreshes tool-owned files, preserves user edits ---"
 # Mark a tool-owned file (the resource aggregator) and a user-owned one (the
-# Secret's own config): --force must regenerate the first and leave the
-# second alone. create api commits its own result — git.go's stageAndCheck
-# skips the commit when nothing changed, so it exits 0 even when --force
+# Secret's own config): create api must regenerate the first and leave the
+# second alone. This step passes the deprecated --force (a no-op) and 7a'
+# omits it. create api commits its own result — git.go's stageAndCheck
+# skips the commit when nothing changed, so it exits 0 even when it
 # reproduces something byte-identical — so no trailing commit is needed here.
-# upjet requires --terraform-resource on every create api call, --force
-# included, or it fails fast with "missing flag" (createapi.go PreScaffold).
+# upjet requires --terraform-resource on every create api call, or it fails
+# fast with "missing flag" (createapi.go PreScaffold).
 assert_force_refreshes config/zz_resources.go config/secret/config.go -- \
   "$BIN" create api --group=core --version=v1alpha1 --kind=Secret --terraform-resource=kubernetes_secret --force
+
+log_info "  --- 7a'. the same without --force (deprecated, no longer needed) ---"
+assert_force_refreshes config/zz_resources.go config/secret/config.go -- \
+  "$BIN" create api --group=core --version=v1alpha1 --kind=Secret --terraform-resource=kubernetes_secret
 
 log_info "  --- 7b. update --adopt retrofits a pre-contract provider ---"
 assert_adopt_restores config/provider.go -- "$BIN" update --adopt

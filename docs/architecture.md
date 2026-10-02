@@ -111,14 +111,13 @@ to adding one — placeholders, the generated header, the golden-test step.)
   drop a file.
 - **Building** — `builders.go` turns one `TemplateInfo` into a renderable product
   (`BuildTemplate`): it resolves the output path's placeholders, applies the config,
-  resource and `--force`, and loads the body.
+  and resource, and loads the body.
 - **Products** — `product_base.go` (`BaseTemplateProduct`) embeds Kubebuilder machinery mixins;
   `product_generic.go` (`GenericTemplateProduct`) loads any discovered template's body
   straight from `templates.TemplateFS`.
-  Without `--force` the machinery action is the zero value `SkipFile`, which a second
-  `create api` in an existing group/version depends on: `groupversion_info.go` has no
-  `KIND` in its path, so it is already on disk and must be left alone. `--force` switches
-  only tool-owned (headered) templates to overwrite; user-owned ones stay `SkipFile`.
+  The machinery action is the zero value `SkipFile` unless `WithForce` is given (only the
+  `update` render does, into memory), so a render never overwrites on its own: every write
+  to disk goes through `core.Apply`, which decides from the file already on disk.
 - **Deterministic generators** — instead of parsing and merging existing files, the register
   and go.mod files are rendered **in full** from the project state:
   - `register_generators.go` — `APIRegisterGenerator` (renders `apis/register.go` from the
@@ -301,7 +300,7 @@ function to build it, no registry keys, strategies or per-template types in betw
 ## Design proposals
 
 - [Render and apply](design/render-apply.md) — one render path and one write rule for `init`,
-  `create api` and `update` (partly implemented: Phase 1 and 1b; Phase 2 awaits a maintainer decision).
+  `create api` and `update` (implemented: Phase 1, 1b and Phase 2).
 
 ## Command flow summary
 
@@ -309,9 +308,10 @@ function to build it, no registry keys, strategies or per-template types in betw
 PROJECT → init pipeline (git init/submodule, `make submodules`, tidy, generate, reviewable,
 commit).
 
-**`create api`** → inject & validate resource → version check → `AddResource` to the config → render API
-templates + **regenerate register files** from all resources → save PROJECT → API-commit
-pipeline (generate, commit).
+**`create api`** → inject & validate resource and PROJECT → version check → `AddResource` to the config →
+render the kind's templates + **regenerate register files** from all resources in memory → write through
+`core.Apply` (tool-owned files refreshed, files without the header kept and listed; `--force` is a
+deprecated no-op) → save PROJECT → API-commit pipeline (generate, commit).
 While the history is still just the tool's scaffold (the `Initial commit` carries the
 `xp-provider-gen-scaffold` trailer and the user hasn't committed yet), the commit **folds into
 that `Initial commit`** via `--amend`, so a freshly scaffolded provider has a single commit;

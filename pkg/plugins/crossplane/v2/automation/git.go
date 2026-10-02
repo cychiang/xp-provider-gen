@@ -32,7 +32,7 @@ import (
 const ScaffoldCommitTrailer = "xp-provider-gen-scaffold: true"
 
 // noChangesMessage is printed when a commit step finds nothing staged, e.g.
-// `create api --force` rerun against an already up-to-date scaffold. Skipping
+// `create api` rerun against an already up-to-date scaffold. Skipping
 // avoids git's "nothing to commit" failure and an empty commit in history.
 const noChangesMessage = "No changes to commit; scaffold is already up to date."
 
@@ -124,7 +124,7 @@ func (g *GitOperations) headIsScaffold(ctx context.Context) bool {
 // stageAndCheck stages the working tree (`git add .`) and reports whether
 // anything changed relative to HEAD. When nothing changed it prints
 // noChangesMessage so callers can skip the commit instead of failing on git's
-// "nothing to commit" — the case that broke `create api --force` reruns
+// "nothing to commit" — the case that broke `create api` reruns
 // against an already up-to-date scaffold.
 func (g *GitOperations) stageAndCheck(ctx context.Context) (bool, error) {
 	if err := g.runner.Add(ctx, "."); err != nil {
