@@ -327,17 +327,33 @@ step_update_lifecycle() {
     assert_clean_tree "the rejected --terraform-provider-version attempt"
 }
 
-# step_force: re-running create api refreshes a tool-owned file and preserves user edits,
-# with the deprecated --force and without it.
-step_force() {
-    step_header "8" "Test create api refresh (--force deprecated)"
-    log_info "Marking tool-owned $WIRING and user-owned $CTRL, then running --force..."
-    assert_force_refreshes "$WIRING" "$CTRL" -- \
-        "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1" --force
-
-    log_info "Marking them again, then re-running create api without --force..."
-    assert_force_refreshes "$WIRING" "$CTRL" -- \
+# step_refresh: re-running create api refreshes a tool-owned file and preserves user edits;
+# the removed --force flag is rejected.
+step_refresh() {
+    step_header "8" "Test create api refresh"
+    log_info "Marking tool-owned $WIRING and user-owned $CTRL, then re-running create api..."
+    assert_create_api_refreshes "$WIRING" "$CTRL" -- \
         "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1"
+
+    log_info "Asserting create api --force is rejected..."
+    local force_log
+    force_log="$(mktemp)"
+    if "$BINARY_PATH" create api --group="$GROUP" --version="$VERSION" --kind="$KIND1" --force >"$force_log" 2>&1; then
+        cat "$force_log"
+        rm -f "$force_log"
+        log_error "✗ create api --force was accepted"
+        exit 1
+    fi
+    if grep -q 'unknown flag: --force' "$force_log"; then
+        log_success "✓ create api --force rejected as an unknown flag"
+    else
+        cat "$force_log"
+        rm -f "$force_log"
+        log_error "✗ create api --force rejection did not report an unknown flag"
+        exit 1
+    fi
+    rm -f "$force_log"
+    assert_clean_tree "the rejected --force attempt"
 }
 
 # step_adopt: `update --adopt` retrofits a provider generated before the ownership contract.
@@ -486,7 +502,7 @@ main() {
     step_create_api_second
     step_build_after_apis
     step_update_lifecycle
-    step_force
+    step_refresh
     step_adopt
     step_create_test
     step_final_verification
@@ -507,7 +523,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "   5. Create second API ($GROUP/$VERSION $KIND2)"
     echo "   6. Test build targets after API creation"
     echo "   7. Test update command (on a copy)"
-    echo "   8. Test create api refresh (--force deprecated)"
+    echo "   8. Test create api refresh"
     echo "   9. Test update --adopt"
     echo "  10. create-test scaffolds a chainsaw test"
     echo "  11. Final verification"

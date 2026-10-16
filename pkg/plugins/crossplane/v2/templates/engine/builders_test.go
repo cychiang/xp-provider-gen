@@ -59,7 +59,7 @@ func TestBuildTemplate_DerivesNamespacedDomainFromPersistedSettings(t *testing.T
 	}
 }
 
-// TestBuildTemplate_ForceOnlyOverwritesToolOwned pins that --force refreshes
+// TestBuildTemplate_ForceOnlyOverwritesToolOwned pins that WithForce refreshes
 // only templates carrying the generated header; user-owned ones stay SkipFile.
 func TestBuildTemplate_ForceOnlyOverwritesToolOwned(t *testing.T) {
 	cfg := newTestConfig(t)
@@ -88,10 +88,11 @@ func TestBuildTemplate_ForceOnlyOverwritesToolOwned(t *testing.T) {
 	}
 }
 
-// TestCreateAPIForce_KeepsUserOwnedFiles re-runs create api's per-kind render
-// with --force over an existing kind: the tool-owned wiring.go is rewritten,
+// TestWithForce_KeepsUserOwnedFiles renders a kind's templates with
+// WithForce(true), as the update render sets it, over an existing kind in memory:
+// the tool-owned wiring.go is rewritten,
 // the user's external.go and types file are left exactly as they were.
-func TestCreateAPIForce_KeepsUserOwnedFiles(t *testing.T) {
+func TestWithForce_KeepsUserOwnedFiles(t *testing.T) {
 	const (
 		mine     = "// mine\n"
 		wiring   = "internal/controller/bucket/wiring.go"
@@ -122,10 +123,10 @@ func TestCreateAPIForce_KeepsUserOwnedFiles(t *testing.T) {
 
 	for _, path := range []string{external, types} {
 		if got, _ := afero.ReadFile(mem, path); string(got) != mine {
-			t.Errorf("%s was overwritten by --force", path)
+			t.Errorf("%s was overwritten by WithForce", path)
 		}
 	}
 	if got, _ := afero.ReadFile(mem, wiring); !core.IsToolOwned(got) {
-		t.Errorf("%s was not rewritten by --force", wiring)
+		t.Errorf("%s was not rewritten by WithForce", wiring)
 	}
 }

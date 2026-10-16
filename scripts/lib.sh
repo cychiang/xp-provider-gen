@@ -39,21 +39,21 @@ docker_skip_requested() {
     esac
 }
 
-# assert_force_refreshes <tool_file> <user_file> -- <command...>
+# assert_create_api_refreshes <tool_file> <user_file> -- <command...>
 #
 # Marks <tool_file> (tool-owned) and <user_file> (user-owned) with distinct
-# markers and commits, runs <command...> (expected: `create api`, with or without the deprecated `--force`),
+# markers and commits, runs <command...> (expected: `create api`),
 # then asserts the tool-owned marker was regenerated away and the
 # user-owned marker survived. Repeats <command...> a second time and
 # asserts that no-op run exits 0, reports the no-change skip, and adds no
 # commit (git.go's stageAndCheck skips the commit when nothing is staged).
-assert_force_refreshes() {
+assert_create_api_refreshes() {
     local tool_file=$1 user_file=$2
     shift 2
     [[ ${1:-} == "--" ]] && shift
 
-    local tool_marker="// FORCE-MARKER: stale tool-owned content"
-    local user_marker="// FORCE-MARKER: user customization"
+    local tool_marker="// REFRESH-MARKER: stale tool-owned content"
+    local user_marker="// REFRESH-MARKER: user customization"
     printf '\n%s\n' "$tool_marker" >>"$tool_file"
     printf '\n%s\n' "$user_marker" >>"$user_file"
     git add -A && git commit -q -m "simulate: stale tool-owned file and a user customization before create api" ||
