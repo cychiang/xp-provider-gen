@@ -123,7 +123,7 @@ log_success "  ✓ update refreshed config/provider.go and hack/xp-provider-gen.
 
 step_header 7 "create api refresh, update --adopt, and update's dirty-tree refusal"
 
-log_info "  --- 7a. create api refresh refreshes tool-owned files, preserves user edits ---"
+log_info "  --- 7a. re-running create api refreshes tool-owned files, preserves user edits ---"
 # Mark a tool-owned file (the resource aggregator) and a user-owned one (the
 # Secret's own config): create api must regenerate the first and leave the
 # second alone. create api commits its own result — git.go's stageAndCheck

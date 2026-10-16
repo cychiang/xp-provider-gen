@@ -88,8 +88,9 @@ func TestBuildTemplate_ForceOnlyOverwritesToolOwned(t *testing.T) {
 	}
 }
 
-// TestWithForce_KeepsUserOwnedFiles re-runs the per-kind ScopeProject render
-// with WithForce over an existing kind in memory: the tool-owned wiring.go is rewritten,
+// TestWithForce_KeepsUserOwnedFiles renders a kind's templates with
+// WithForce(true), as the update render sets it, over an existing kind in memory:
+// the tool-owned wiring.go is rewritten,
 // the user's external.go and types file are left exactly as they were.
 func TestWithForce_KeepsUserOwnedFiles(t *testing.T) {
 	const (
