@@ -57,10 +57,6 @@ This command scaffolds a complete managed resource with:
 }
 
 func (p *createAPISubcommand) BindFlags(fs *pflag.FlagSet) {
-	var force bool // ignored: create api always refreshes tool-owned files
-	fs.BoolVar(&force, "force", false, "has no effect")
-	_ = fs.MarkDeprecated("force", "create api now refreshes tool-owned files on its own; "+
-		"the flag has no effect and will be removed in the next minor release")
 	fs.StringVar(&p.terraformResource, "terraform-resource", "",
 		"Terraform resource this kind is generated from, e.g. kubernetes_secret (required on an upjet provider)")
 }

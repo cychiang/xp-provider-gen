@@ -32,7 +32,7 @@ func dedupTestResource(kind string) resource.Resource {
 	return resource.Resource{GVK: resource.GVK{Group: group, Version: version, Kind: kind}}
 }
 
-// TestNewUpjetResourcesGenerator_Dedups pins that `create api --force`
+// TestNewUpjetResourcesGenerator_Dedups pins that re-running create api
 // against an existing kind does not duplicate the aggregator entry: PROJECT's
 // stored resources and the current run's resource can name the same kind
 // twice, and a duplicate import alias plus a duplicate Configure call would
