@@ -38,6 +38,8 @@ trap 'rm -rf "$BUMP_REPO" "$SKIP_REPO"' EXIT
     xgit commit -q --allow-empty -m "deps(go): bump x"
     xgit commit -q --allow-empty -m "chore: e"
     xgit commit -q --allow-empty -m "docs: f"
+    xgit commit -q --allow-empty -m "feat!: g"
+    xgit commit -q --allow-empty -m "fix: h"
 )
 
 GOT_BUMP=$(cd "$BUMP_REPO" && git-cliff --config "$CLIFF_TOML" --bumped-version 2>/dev/null)
@@ -48,9 +50,13 @@ WANT_NOTES='
 ### Breaking changes
 - B
 - R
+- G
 
 ### Features
 - Em - dash
+
+### Bug fixes
+- H
 
 ### Dependency updates
 - Bump x'
