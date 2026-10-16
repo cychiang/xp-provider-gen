@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   title:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       # After a squash merge, GitHub's default `squash_merge_commit_title`
       # setting (COMMIT_OR_PR_TITLE) lets a single-commit PR's commit subject

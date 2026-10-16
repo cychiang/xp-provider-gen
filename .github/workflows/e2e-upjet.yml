@@ -34,7 +34,7 @@ on:
 jobs:
   e2e-upjet:
     name: E2E (upjet)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Step 10 of e2e-upjet.sh stands up a real kind cluster, installs
     # Crossplane, deploys the built provider, and runs the generated
     # provider's own e2e (its uptest lifecycle, then its chainsaw suite).

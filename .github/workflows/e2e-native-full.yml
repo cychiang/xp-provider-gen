@@ -34,7 +34,7 @@ on:
 jobs:
   e2e-native-full:
     name: E2E (native, full)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
     - name: Checkout code
@@ -61,7 +61,7 @@ jobs:
 
   e2e-upgrade:
     name: E2E (upgrade)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
     - name: Checkout code
