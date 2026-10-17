@@ -50,6 +50,8 @@ releasing or pushing anything. Uncheck it to cut a real release: the workflow co
 the next version and release notes from commit messages with git-cliff, tags that
 commit, builds and publishes with GoReleaser, then builds and pushes the Docker image.
 The version is never typed in by hand.
+The run list labels each run "Release (dry run)" or "Release (publish)"; only a
+"(publish)" run creates the tag and the Release.
 
 ```bash
 # Equivalent from the CLI
