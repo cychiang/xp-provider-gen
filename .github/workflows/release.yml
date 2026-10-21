@@ -1,5 +1,9 @@
 name: Release
 
+# Both modes otherwise list identically as "Release" with a green check, so
+# put the mode in the run name.
+run-name: "${{ inputs.dry_run && 'Release (dry run)' || 'Release (publish)' }}"
+
 on:
   workflow_dispatch:
     inputs:
@@ -79,7 +83,9 @@ jobs:
           if LC_ALL=C grep -n '[^ -~]' "$NOTES"; then echo "release notes contain non-ASCII text"; exit 1; fi
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          { echo "## $TAG"; echo; cat "$NOTES"; } >> "$GITHUB_STEP_SUMMARY"
+          HEADING="## $TAG"
+          [ "$DRY_RUN" = true ] && HEADING="## $TAG (dry run: nothing tagged, released or pushed)"
+          { echo "$HEADING"; echo; cat "$NOTES"; } >> "$GITHUB_STEP_SUMMARY"
 
       # GoReleaser's real release path needs a tag on HEAD (checked locally,
       # not against the remote); pushing it only after GoReleaser succeeds
