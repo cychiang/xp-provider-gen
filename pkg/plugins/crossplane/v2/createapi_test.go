@@ -18,7 +18,6 @@ package v2
 
 import (
 	"io"
-	"slices"
 	"strings"
 	"testing"
 
@@ -69,7 +68,7 @@ var (
 // createAPIRun runs create api for fl's kind against dst, as the CLI does up to
 // PostScaffold, and returns what it printed. A fresh config each call stands
 // for a fresh process reading PROJECT.
-func createAPIRun(t *testing.T, fl createAPIFlavor, dst afero.Fs, args ...string) string {
+func createAPIRun(t *testing.T, fl createAPIFlavor, dst afero.Fs) string {
 	t.Helper()
 	cfg, err := config.New(cfgv3.Version)
 	if err != nil {
@@ -101,6 +100,7 @@ func createAPIRun(t *testing.T, fl createAPIFlavor, dst afero.Fs, args ...string
 	fs := pflag.NewFlagSet("create api", pflag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	p.BindFlags(fs)
+	var args []string
 	if fl.flavor == core.FlavorUpjet {
 		args = append(args, "--terraform-resource="+createAPIUpjetTF)
 	}
@@ -208,48 +208,33 @@ func TestCreateAPIKeepsHeaderlessRegistration(t *testing.T) {
 	}
 }
 
-// TestCreateAPIForceIsDeprecatedNoOp pins that --force is accepted, marked
-// deprecated, and changes nothing: the same stale tree ends up the same with
-// and without it.
-func TestCreateAPIForceIsDeprecatedNoOp(t *testing.T) {
+// TestCreateAPIHasNoForceFlag pins that --force is gone: create api always
+// refreshes tool-owned files, so the flag is rejected like any unknown one.
+func TestCreateAPIHasNoForceFlag(t *testing.T) {
 	fs := pflag.NewFlagSet("create api", pflag.ContinueOnError)
+	fs.SetOutput(io.Discard)
 	(&createAPISubcommand{}).BindFlags(fs)
-	if f := fs.Lookup("force"); f == nil || f.Deprecated == "" {
-		t.Fatalf("--force is not marked deprecated: %+v", f)
+	if f := fs.Lookup("force"); f != nil {
+		t.Fatalf("--force is still defined: %+v", f)
 	}
-
-	run := func(args ...string) []string {
-		dst := scaffoldedKind(t, createAPINative)
-		writeFile(t, dst, createAPINative.toolOwned, core.GeneratedHeader+"\n// "+createAPIMarker+"\n")
-		writeFile(t, dst, createAPINative.userOwned, "package x // "+createAPIMarker+"\n")
-		out := createAPIRun(t, createAPINative, dst, args...)
-		return []string{
-			readFile(t, dst, createAPINative.toolOwned), readFile(t, dst, createAPINative.userOwned), out,
-		}
-	}
-	if got, forced := run(), run("--force"); !slices.Equal(got, forced) {
-		t.Errorf("--force changed the outcome:\nwithout: %q\nwith:    %q", got, forced)
+	if err := fs.Parse([]string{"--force"}); err == nil || !strings.Contains(err.Error(), "unknown flag: --force") {
+		t.Errorf("Parse(--force) error = %v, want unknown flag: --force", err)
 	}
 }
 
-// TestCreateAPIForceKeepsAuthorOwnedFile pins that a tool-owned file whose
-// header the author removed stays theirs even with --force, which used to
-// overwrite it.
-func TestCreateAPIForceKeepsAuthorOwnedFile(t *testing.T) {
-	for _, args := range [][]string{nil, {"--force"}} {
-		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			dst := scaffoldedKind(t, createAPINative)
-			own := "package bucket // " + createAPIMarker + "\n"
-			writeFile(t, dst, createAPINative.toolOwned, own)
+// TestCreateAPIKeepsAuthorOwnedFile pins that a tool-owned file whose header
+// the author removed stays theirs; --force used to overwrite it in v0.1.0.
+func TestCreateAPIKeepsAuthorOwnedFile(t *testing.T) {
+	dst := scaffoldedKind(t, createAPINative)
+	own := "package bucket // " + createAPIMarker + "\n"
+	writeFile(t, dst, createAPINative.toolOwned, own)
 
-			out := createAPIRun(t, createAPINative, dst, args...)
+	out := createAPIRun(t, createAPINative, dst)
 
-			if got := readFile(t, dst, createAPINative.toolOwned); got != own {
-				t.Errorf("%s was overwritten", createAPINative.toolOwned)
-			}
-			if !strings.Contains(out, "\n  "+createAPINative.toolOwned+"\n") {
-				t.Errorf("stdout does not list %s as kept:\n%s", createAPINative.toolOwned, out)
-			}
-		})
+	if got := readFile(t, dst, createAPINative.toolOwned); got != own {
+		t.Errorf("%s was overwritten", createAPINative.toolOwned)
+	}
+	if !strings.Contains(out, "\n  "+createAPINative.toolOwned+"\n") {
+		t.Errorf("stdout does not list %s as kept:\n%s", createAPINative.toolOwned, out)
 	}
 }

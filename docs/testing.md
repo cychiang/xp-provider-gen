@@ -88,9 +88,9 @@ in order from `main`; `--help` lists the same steps:
    of the scaffold at `/tmp/xpg-e2e-native-lifecycle` (`LIFECYCLE_DIR`), so the pristine
    `/tmp/xpg-e2e-native` keeps its single `Initial commit`.
 8. **`create api` refresh:** mark a tool-owned file (`wiring.go`) and a user-owned one
-   (`external.go`), commit, then re-run `create api` for the same kind with the deprecated
-   `--force` and again without it, and assert each time (a) it exits 0, (b) the tool-owned
-   marker is gone (regenerated), (c) the user-owned marker survives.
+   (`external.go`), commit, then re-run `create api` for the same kind and assert (a) it exits 0,
+   (b) the tool-owned marker is gone (regenerated), (c) the user-owned marker survives. Also
+   assert that `create api --force` fails with `unknown flag: --force` and leaves the tree clean.
 9. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
    run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
 10. **create-test:** scaffold a chainsaw behavior test non-interactively and assert the file
@@ -187,9 +187,9 @@ or that upjet previously lacked (`--adopt`, the dirty-tree refusal), none of
 which need Docker:
 
 - **`create api` refresh:** mark a tool-owned file (`config/zz_resources.go`) and a user-owned one
-  (`config/secret/config.go`), commit, then re-run `create api --force` and again without
-  `--force` (with `--terraform-resource`, required on every upjet `create api` call) and assert
-  each time that the tool-owned marker is regenerated while the user-owned one survives.
+  (`config/secret/config.go`), commit, then re-run `create api` (with
+  `--terraform-resource`, required on every upjet `create api` call) and assert that the
+  tool-owned marker is regenerated while the user-owned one survives.
 - **`create api` with nothing to change:** run it again and assert it still exits 0, reports
   the no-change skip, and adds no commit (git.go's `stageAndCheck` skips the commit when
   nothing is staged).

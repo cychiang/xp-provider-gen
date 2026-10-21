@@ -310,8 +310,7 @@ commit).
 
 **`create api`** → inject & validate resource and PROJECT → version check → `AddResource` to the config →
 render the kind's templates + **regenerate register files** from all resources in memory → write through
-`core.Apply` (tool-owned files refreshed, files without the header kept and listed; `--force` is a
-deprecated no-op) → save PROJECT → API-commit pipeline (generate, commit).
+`core.Apply` (tool-owned files refreshed, files without the header kept and listed) → save PROJECT → API-commit pipeline (generate, commit).
 While the history is still just the tool's scaffold (the `Initial commit` carries the
 `xp-provider-gen-scaffold` trailer and the user hasn't committed yet), the commit **folds into
 that `Initial commit`** via `--amend`, so a freshly scaffolded provider has a single commit;

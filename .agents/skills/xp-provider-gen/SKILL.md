@@ -84,7 +84,7 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   overwrites files without the generated header (`external.go`, `*_types.go`); they are
   listed as `Kept`. A registration file (`apis/register.go`, `internal/controller/register.go`,
   or upjet's `config/zz_resources.go`) whose header you removed is also kept, with a warning
-  that the new kind must be registered by hand. `--force` is deprecated and has no effect.
+  that the new kind must be registered by hand. `--force` was removed after v0.2.0, the release that deprecated it.
 
 ### `create api` — upjet
 

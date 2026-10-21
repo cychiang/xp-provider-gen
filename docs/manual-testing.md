@@ -213,8 +213,7 @@ cd / && rm -rf /tmp/xpg-manual-c-native /tmp/xpg-manual-c-upjet
 ## Scenario D — re-running `create api` and `--adopt`
 
 No Docker needed. Re-running `create api` for a kind that already exists wins back the
-tool-owned file (even if you broke it) without touching your logic. `--force` is deprecated:
-it is still accepted, prints a notice and changes nothing, so the commands below leave it out.
+tool-owned file (even if you broke it) without touching your logic.
 Pollute both files **before** re-running, so the assertion is not vacuous.
 
 ### D.1 — native re-run
@@ -223,13 +222,13 @@ Pollute both files **before** re-running, so the assertion is not vacuous.
 mkdir -p /tmp/xpg-manual-d-native && cd /tmp/xpg-manual-d-native
 "$BIN" init --domain=example.com --repo=github.com/example/provider-manual-d-native
 "$BIN" create api --group=mygroup --version=v1alpha1 --kind=MyType
-printf '\n// force-test: tool-owned marker\n' >> internal/controller/mytype/wiring.go
-printf '\n// force-test: user-owned marker\n' >> internal/controller/mytype/external.go
+printf '\n// refresh-test: tool-owned marker\n' >> internal/controller/mytype/wiring.go
+printf '\n// refresh-test: user-owned marker\n' >> internal/controller/mytype/external.go
 git add -A && git commit -m "simulate drift before re-running create api"
 "$BIN" create api --group=mygroup --version=v1alpha1 --kind=MyType
 echo "exit: $?"
-grep -c 'force-test: tool-owned marker' internal/controller/mytype/wiring.go || true
-grep -c 'force-test: user-owned marker' internal/controller/mytype/external.go
+grep -c 'refresh-test: tool-owned marker' internal/controller/mytype/wiring.go || true
+grep -c 'refresh-test: user-owned marker' internal/controller/mytype/external.go
 ```
 
 **Expected result:**
@@ -244,14 +243,14 @@ mkdir -p /tmp/xpg-manual-d-upjet && cd /tmp/xpg-manual-d-upjet
 "$BIN" init --domain=example.com --repo=github.com/example/provider-manual-d-upjet \
   --upjet --terraform-provider=hashicorp/kubernetes --terraform-provider-version=2.38.0
 "$BIN" create api --group=core --version=v1alpha1 --kind=Secret --terraform-resource=kubernetes_secret
-printf '\n// force-test: tool-owned marker\n' >> config/zz_resources.go
-printf '\n// force-test: user-owned marker\n' >> config/secret/config.go
+printf '\n// refresh-test: tool-owned marker\n' >> config/zz_resources.go
+printf '\n// refresh-test: user-owned marker\n' >> config/secret/config.go
 git add -A && git commit -m "simulate drift before re-running create api"
 "$BIN" create api --group=core --version=v1alpha1 --kind=Secret \
   --terraform-resource=kubernetes_secret
 echo "exit: $?"
-grep -c 'force-test: tool-owned marker' config/zz_resources.go || true
-grep -c 'force-test: user-owned marker' config/secret/config.go
+grep -c 'refresh-test: tool-owned marker' config/zz_resources.go || true
+grep -c 'refresh-test: user-owned marker' config/secret/config.go
 ```
 
 `--terraform-resource` is required on every upjet `create api` — without it
