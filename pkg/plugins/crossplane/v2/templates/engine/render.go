@@ -19,7 +19,6 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
@@ -50,10 +49,10 @@ const (
 // native). resources is the project's full resource list; ScopeInit ignores it,
 // since init has no kinds yet. target is the kind ScopeKind renders, chosen by
 // the caller rather than by position in resources; the other scopes ignore it.
-// opts reach the per-kind templates only (for example WithForce); ScopeProject
-// always forces them, as update decides per file what to write.
+// ScopeProject forces the per-kind templates, as update decides per file what
+// to write.
 func Render(dst machinery.Filesystem, cfg config.Config, flavor core.Flavor, upjet *core.UpjetSettings,
-	resources []resource.Resource, scope Scope, target *resource.Resource, opts ...Option,
+	resources []resource.Resource, scope Scope, target *resource.Resource,
 ) error {
 	if scope == ScopeKind && target == nil {
 		return errors.New("rendering kind scope: target resource is nil")
@@ -73,7 +72,7 @@ func Render(dst machinery.Filesystem, cfg config.Config, flavor core.Flavor, upj
 	case ScopeInit:
 		return renderInit(dst, cfg, factory, flavor, upjet, generators)
 	case ScopeKind:
-		return renderKind(dst, cfg, factory, upjet, generators, target, opts)
+		return renderKind(dst, cfg, factory, upjet, generators, target)
 	case ScopeProject:
 		return renderProjectScope(dst, cfg, factory, upjet, generators, resources)
 	default:
@@ -102,9 +101,9 @@ func initBuilders(factory *CrossplaneTemplateFactory, upjet *core.UpjetSettings,
 
 // kindTemplates returns the per-kind templates of one resource.
 func kindTemplates(factory *CrossplaneTemplateFactory, upjet *core.UpjetSettings, res *resource.Resource,
-	opts []Option,
+	force bool,
 ) ([]machinery.Builder, error) {
-	templates, err := factory.GetAPITemplates(slices.Concat(opts, []Option{WithResource(res), WithUpjet(upjet)})...)
+	templates, err := factory.GetAPITemplates(WithForce(force), WithResource(res), WithUpjet(upjet))
 	if err != nil {
 		return nil, fmt.Errorf("getting api templates for %s: %w", res.Kind, err)
 	}
@@ -126,9 +125,9 @@ func renderInit(dst machinery.Filesystem, cfg config.Config, factory *Crossplane
 }
 
 func renderKind(dst machinery.Filesystem, cfg config.Config, factory *CrossplaneTemplateFactory,
-	upjet *core.UpjetSettings, generators []machinery.Builder, target *resource.Resource, opts []Option,
+	upjet *core.UpjetSettings, generators []machinery.Builder, target *resource.Resource,
 ) error {
-	builders, err := kindTemplates(factory, upjet, target, opts)
+	builders, err := kindTemplates(factory, upjet, target, false)
 	if err != nil {
 		return err
 	}
@@ -154,7 +153,7 @@ func renderProjectScope(dst machinery.Filesystem, cfg config.Config, factory *Cr
 
 	for i := range resources {
 		res := &resources[i]
-		builders, err := kindTemplates(factory, upjet, res, []Option{WithForce(true)})
+		builders, err := kindTemplates(factory, upjet, res, true)
 		if err != nil {
 			return err
 		}
