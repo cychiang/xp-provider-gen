@@ -3,8 +3,9 @@
 ## Requirements
 
 - **Go** — the version in [`pkg/versions/dependencies.yaml`](../pkg/versions/dependencies.yaml)'s
-  `go_version`; `make check-go-version` (`.github/workflows/go-version.yml`) fails CI if go.mod
-  or the Dockerfile fall out of step with it.
+  `go_version`; `make check-go-version` (`.github/workflows/go-version.yml`) fails CI if either
+  go.mod (the generator's or `hack/envtest-provider-check`'s) or the Dockerfile falls out of
+  step with it. Renovate bumps all four together in one PR.
 - **Git**
 - **golangci-lint** — installed automatically by `make lint` if missing, at the version
   pinned in `GOLANGCILINT_VERSION`. The same version is pinned in four places:
