@@ -52,7 +52,7 @@ xpkg.build.{{ .ProviderName }}: do.build.images $(CROSSPLANE_CLI)
 # ====================================================================================
 # Setup Uptest
 
-CROSSPLANE_VERSION ?= 2.3.4
+CROSSPLANE_VERSION ?= 2.4.3
 # A dedicated cluster name so e2e's controlplane.down can never delete an
 # unrelated kind cluster. Must be set BEFORE the local.xpkg.mk and
 # controlplane.mk includes: both default it to "local-dev" with ?=, and the
