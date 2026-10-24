@@ -170,6 +170,12 @@
       "enabled": false
     },
     {
+      "description": "lint.yml's golangci-lint `version:` input is one of four pins of the same version. The built-in github-actions manager would bump it alone; disable that so the golangci-lint customManager below bumps all four together in one PR.",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["golangci/golangci-lint"],
+      "enabled": false
+    },
+    {
       "description": "Generated-provider framework deps (pkg/versions/dependencies.yaml) - bump together so crossplane-runtime, crossplane/apis, controller-runtime, and k8s.io/* stay mutually compatible (individual bumps break the e2e)",
       "matchFileNames": ["pkg/versions/dependencies.yaml"],
       "groupName": "provider framework dependencies",
