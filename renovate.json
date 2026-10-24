@@ -206,6 +206,24 @@
     },
     {
       "customType": "regex",
+      "description": "Track golangci-lint as ONE dependency across the four places that pin it - this repo's Makefile, lint.yml's golangci-lint-action `version:` input, and both flavors' generated make fragment - so a bump proposes all four in a single PR. hack/check-consistency.sh (C10) fails CI if they ever disagree.",
+      "managerFilePatterns": [
+        "Makefile",
+        ".github/workflows/lint.yml",
+        "pkg/templates/files/hack/xp-provider-gen.mk.tmpl",
+        "pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl"
+      ],
+      "matchStrings": [
+        "GOLANGCILINT_VERSION\\s*\\??=\\s*(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "version:\\s*v(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "golangci/golangci-lint",
+      "packageNameTemplate": "golangci/golangci-lint",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
       "description": "Track the git-cliff release version release.yml installs from GitHub releases as a pinned binary (deliberately not orhun/git-cliff-action, see release.yml's comment). The action's own `uses:` SHA is tracked separately by helpers:pinGitHubActionDigests.",
       "managerFilePatterns": [".github/workflows/release.yml"],
       "matchStrings": ["GIT_CLIFF_VERSION:\\s*(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*#\\s*Renovate customManager tracks this line"],
