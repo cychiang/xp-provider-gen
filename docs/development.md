@@ -7,10 +7,10 @@
   or the Dockerfile fall out of step with it.
 - **Git**
 - **golangci-lint** — installed automatically by `make lint` if missing, at the version
-  pinned in `GOLANGCILINT_VERSION`. The same version must be set by hand in four places:
+  pinned in `GOLANGCILINT_VERSION`. The same version is pinned in four places:
   `Makefile`, `.github/workflows/lint.yml`, `pkg/templates/files/hack/xp-provider-gen.mk.tmpl`
-  and `pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl`. Renovate currently bumps only `lint.yml`; align
-  the other three in the same PR.
+  and `pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl`. One Renovate customManager bumps all
+  four in a single PR, and `make check-consistency` (C10) fails if they disagree.
 - **gosec** — security scanner
 - **Docker** — without it, both `make e2e-native` and `make e2e-upjet` skip their
   Docker-dependent stage rather than failing; `make e2e-upjet` also needs network access
@@ -36,11 +36,11 @@ Run `make help` for the full target list. A few aren't obvious from their name a
 
 ## Consistency gate
 
-`make check-consistency` runs `hack/check-consistency.sh`, nine checks that stop drift from
+`make check-consistency` runs `hack/check-consistency.sh`, ten checks that stop drift from
 growing back: stale script names, a `Makefile` whose `.PHONY` or `make help` disagrees with its
 targets, e2e scripts that diverge from one skeleton or `/tmp` prefix, retired terminology,
-non-gerund error strings, workflow `paths:` filters, and markdown links/anchors that no longer
-resolve. To add a check, append a `report Cn "<title>" "<violations>"` block to the script; CI
+non-gerund error strings, workflow `paths:` filters, markdown links/anchors that no longer
+resolve, and golangci-lint pins that disagree. To add a check, append a `report Cn "<title>" "<violations>"` block to the script; CI
 and `make reviewable` both run it.
 
 ## Typical workflow

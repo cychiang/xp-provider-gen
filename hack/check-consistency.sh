@@ -159,4 +159,22 @@ else
     report C9 "markdown links and anchors resolve" "${out:-hack/check-links.py failed}"
 fi
 
+# golangci-lint is pinned in four places. Renovate bumps them together (one
+# customManager), but a hand edit to one would leave CI, `make lint` and
+# generated providers linting with different rules. A file with no pin at all is
+# a violation too, so a renamed variable cannot pass by matching nothing.
+golangci_pins=$(
+    for f in Makefile pkg/templates/files/hack/xp-provider-gen.mk.tmpl pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl; do
+        v=$(sed -nE 's/^GOLANGCILINT_VERSION[[:space:]]*\??=[[:space:]]*([0-9.]+).*/\1/p' "$f")
+        echo "$f: ${v:-<no pin>}"
+    done
+    v=$(sed -nE 's/^[[:space:]]*version:[[:space:]]*v([0-9.]+).*/\1/p' .github/workflows/lint.yml)
+    echo ".github/workflows/lint.yml: ${v:-<no pin>}"
+)
+golangci_drift=""
+if [ "$(printf '%s\n' "$golangci_pins" | sed 's/.*: //' | sort -u | wc -l)" -ne 1 ] || grep -q '<no pin>' <<<"$golangci_pins"; then
+    golangci_drift=$golangci_pins
+fi
+report C10 "golangci-lint is pinned to one version in all four places" "$golangci_drift"
+
 exit "$FAILED"

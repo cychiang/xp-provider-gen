@@ -57,7 +57,7 @@ reconsider.
 - **Match the surrounding code.** Idiomatic Go: small files, explicit error wrapping
   (`fmt.Errorf("...: %w", err)`), table-driven tests, formatted by `gofumpt`/`gci`
   (`make lint-fix` fixes both).
-- **Templates are data.** Provider scaffolding lives in `pkg/templates/files/**` (native) and `pkg/templates/upjet/**` (upjet), both auto-discovered (see [docs/templates.md](docs/templates.md)) — add a template file, don't wire it in by hand. Two "fix one place, forget another" traps: golangci-lint's version is pinned by hand in four places (Renovate bumps only `lint.yml`), and five templates are byte-identical across the two flavors.
+- **Templates are data.** Provider scaffolding lives in `pkg/templates/files/**` (native) and `pkg/templates/upjet/**` (upjet), both auto-discovered (see [docs/templates.md](docs/templates.md)) — add a template file, don't wire it in by hand. One "fix one place, forget another" trap: five templates are byte-identical across the two flavors. (golangci-lint's four pins are bumped together by Renovate and checked by `make check-consistency`.)
 
 ## Security
 
@@ -82,7 +82,7 @@ reconsider.
   `check-go-version`); see [docs/testing.md](docs/testing.md)
 - `hack/envtest-provider-check/` — its own Go module; proves an upjet-generated provider's
   controllers actually start, used by `e2e-upjet.sh`
-- `hack/check-consistency.sh` — the gate behind `make check-consistency`, nine checks including
+- `hack/check-consistency.sh` — the gate behind `make check-consistency`, ten checks including
   `hack/check-workflow-paths.py` and `hack/check-links.py` (markdown links and anchors)
 - `hack/cliff-golden.sh` — golden test for `cliff.toml`'s git-cliff rules (version bump, note
   grouping, ASCII normalization); runs as a step of every `release.yml` run
