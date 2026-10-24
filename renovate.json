@@ -164,8 +164,25 @@
       "enabled": false
     },
     {
+      "description": "The `go` directive of this repo's go.mod files is not an independent dependency either: the go-version customManager below bumps it with go_version and the Dockerfile. Disable the gomod manager's own proposal for it (it would bump go.mod alone).",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["golang"],
+      "enabled": false
+    },
+    {
+      "description": "The Go version's four pins share one rule, so they get one release-age wait and land in one PR. Without it the provider-framework rule (matched by file name) took go_version into its group with a 7-day wait while the Dockerfile tag went alone with none, splitting one version into two PRs at two different versions (#154, #157). Patches get their own PR (separateMinorPatch), so declining a Go minor bump can never also block a security patch on the current minor.",
+      "matchDepNames": ["generated-provider-go-version"],
+      "separateMinorPatch": true,
+      "branchTopic": "{{{depNameSanitized}}}-{{{newMajor}}}.{{{newMinor}}}.x",
+      "addLabels": ["go", "dependencies"],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": "go",
+      "minimumReleaseAge": "7 days"
+    },
+    {
       "description": "Generated-provider framework deps (pkg/versions/dependencies.yaml) - bump together so crossplane-runtime, crossplane/apis, controller-runtime, and k8s.io/* stay mutually compatible (individual bumps break the e2e)",
       "matchFileNames": ["pkg/versions/dependencies.yaml"],
+      "matchDepNames": ["!generated-provider-go-version"],
       "groupName": "provider framework dependencies",
       "addLabels": ["dependencies", "provider-framework"],
       "semanticCommitType": "deps",
@@ -189,11 +206,12 @@
     },
     {
       "customType": "regex",
-      "description": "Track the Go version as ONE dependency across pkg/versions/dependencies.yaml's go_version and the Dockerfile's golang base image tag, so a bump only ever proposes both together in a single PR - never the Dockerfile alone (that drift is what broke five times this week). go.mod's own `go` directive is not tracked here: this repo's config does not otherwise enable Renovate on go.mod's go directive, so there is nothing to converge with; scripts/check-go-version still enforces it against go_version in CI regardless of who edits it.",
-      "managerFilePatterns": ["pkg/versions/dependencies.yaml", "Dockerfile"],
+      "description": "Track the Go version as ONE dependency across pkg/versions/dependencies.yaml's go_version, the Dockerfile's golang base image tag and the `go` directive of this repo's two go.mod files, so a bump proposes all four together in a single PR - never one alone (that drift is what broke five times in September). scripts/check-go-version fails CI if any of them disagree.",
+      "managerFilePatterns": ["pkg/versions/dependencies.yaml", "Dockerfile", "go.mod", "hack/envtest-provider-check/go.mod"],
       "matchStrings": [
         "go_version:\\s*[\"'](?<currentValue>\\d+\\.\\d+\\.\\d+)[\"']",
-        "FROM golang:(?<currentValue>\\d+\\.\\d+\\.\\d+)-alpine"
+        "FROM golang:(?<currentValue>\\d+\\.\\d+\\.\\d+)-alpine",
+        "\\ngo (?<currentValue>\\d+\\.\\d+\\.\\d+)\\n"
       ],
       "depNameTemplate": "generated-provider-go-version",
       "datasourceTemplate": "golang-version"
