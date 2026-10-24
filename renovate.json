@@ -22,24 +22,20 @@
   "semanticCommitType": "deps",
   "branchPrefix": "renovate/",
   "branchTopic": "{{{depNameSanitized}}}-{{{newMajor}}}x",
-  "prTitle": "{{semanticCommitType}}{{#if semanticCommitScope}}({{semanticCommitScope}}){{/if}}: {{commitMessageAction}} {{commitMessageTopic}} {{commitMessageExtra}}",
   "postUpdateOptions": ["gomodTidy"],
+  "vulnerabilityAlerts": {
+    "description": "Security updates - immediate, high priority. This must be the top-level vulnerabilityAlerts object, which applies only to updates that fix a known vulnerability: as a packageRule matching every package it labelled every update security/urgent, titled it fix(security) and dropped its schedule and release-age wait (PR #154 was a plain Go minor bump).",
+    "automerge": false,
+    "labels": ["dependencies", "security", "urgent"],
+    "semanticCommitType": "fix",
+    "semanticCommitScope": "security",
+    "schedule": ["at any time"],
+    "minimumReleaseAge": "0 days"
+  },
   "packageRules": [
     {
-      "description": "Security updates - immediate, high priority",
-      "matchPackagePatterns": ["*"],
-      "vulnerabilityAlerts": true,
-      "automerge": false,
-      "addLabels": ["security", "dependencies", "urgent"],
-      "prPriority": 25,
-      "semanticCommitType": "fix",
-      "semanticCommitScope": "security",
-      "schedule": ["at any time"],
-      "minimumReleaseAge": "0 days"
-    },
-    {
       "description": "Critical infrastructure - Kubebuilder",
-      "matchPackagePatterns": ["sigs.k8s.io/kubebuilder"],
+      "matchPackageNames": ["/sigs.k8s.io/kubebuilder/"],
       "addLabels": ["kubebuilder", "dependencies", "infrastructure"],
       "semanticCommitType": "deps",
       "semanticCommitScope": "kubebuilder",
@@ -71,11 +67,7 @@
     {
       "description": "Go development tools - safe automerge",
       "matchManagers": ["gomod"],
-      "matchPackagePatterns": [
-        "mvdan.cc/gofumpt",
-        "github.com/golangci/golangci-lint",
-        "golang.org/x/tools"
-      ],
+      "matchPackageNames": ["/mvdan.cc/gofumpt/", "/github.com/golangci/golangci-lint/", "/golang.org/x/tools/"],
       "matchUpdateTypes": ["patch", "minor"],
       "automerge": true,
       "automergeType": "pr",
@@ -87,11 +79,7 @@
     },
     {
       "description": "Testing libraries - safe automerge for patches",
-      "matchPackagePatterns": [
-        "github.com/stretchr/testify",
-        "github.com/onsi/ginkgo",
-        "github.com/onsi/gomega"
-      ],
+      "matchPackageNames": ["/github.com/stretchr/testify/", "/github.com/onsi/ginkgo/", "/github.com/onsi/gomega/"],
       "matchUpdateTypes": ["patch"],
       "automerge": true,
       "automergeType": "pr",
@@ -102,7 +90,7 @@
     },
     {
       "description": "Kubernetes API packages",
-      "matchPackagePatterns": ["k8s.io/api", "k8s.io/client-go", "k8s.io/apimachinery"],
+      "matchPackageNames": ["/k8s.io/api/", "/k8s.io/client-go/", "/k8s.io/apimachinery/"],
       "groupName": "kubernetes-api",
       "addLabels": ["kubernetes", "api", "dependencies"],
       "semanticCommitType": "deps",
@@ -112,7 +100,7 @@
     },
     {
       "description": "Kubernetes tooling",
-      "matchPackagePatterns": ["k8s.io/code-generator", "k8s.io/controller-tools", "sigs.k8s.io/controller-runtime"],
+      "matchPackageNames": ["/k8s.io/code-generator/", "/k8s.io/controller-tools/", "/sigs.k8s.io/controller-runtime/"],
       "groupName": "kubernetes-tooling",
       "addLabels": ["kubernetes", "tooling", "dependencies"],
       "semanticCommitType": "deps",
@@ -122,7 +110,7 @@
     },
     {
       "description": "Crossplane ecosystem",
-      "matchPackagePatterns": ["github.com/crossplane"],
+      "matchPackageNames": ["/github.com/crossplane/"],
       "groupName": "crossplane packages",
       "addLabels": ["crossplane", "dependencies"],
       "semanticCommitType": "deps",
