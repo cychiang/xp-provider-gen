@@ -16,8 +16,9 @@ limitations under the License.
 
 // Command check-go-version enforces the two facts about this repo's Go
 // version that pkg/versions/dependencies.yaml's go_version cannot compute
-// for itself: go.mod's own `go` directive (Go requires a literal — there is
-// no "read it from a YAML file" directive syntax) and the Dockerfile's
+// for itself: the `go` directive of this repo's go.mod files — the
+// generator's and the envtest helper's (Go requires a literal — there is
+// no "read it from a YAML file" directive syntax) — and the Dockerfile's
 // golang base image tag (Docker's FROM requires a literal tag). It also
 // checks that go_version is new enough for every dependency generated
 // providers pin, fetching each dependency's own go.mod from
@@ -47,14 +48,17 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("OK: go.mod, Dockerfile, and every pinned dependency agree with go_version %s.\n", versions.GoVersion)
+	fmt.Printf("OK: both go.mod files, Dockerfile, and every pinned dependency agree with go_version %s.\n",
+		versions.GoVersion)
 }
 
 func run() error {
 	goVersion := versions.GoVersion
 
-	if err := checkGoModDirective(goVersion); err != nil {
-		return err
+	for _, path := range goModFiles {
+		if err := checkGoModDirective(path, goVersion); err != nil {
+			return err
+		}
 	}
 	if err := checkDockerfileTag(goVersion); err != nil {
 		return err
@@ -62,16 +66,20 @@ func run() error {
 	return checkDependencyFloors(goVersion)
 }
 
-// checkGoModDirective fails if go.mod's own `go` directive (this repo's, not
-// a generated provider's) disagrees with goVersion.
-func checkGoModDirective(goVersion string) error {
-	content, err := os.ReadFile("go.mod")
+// goModFiles are this repo's own go.mod files (not a generated provider's):
+// the generator's, and the envtest helper module e2e-upjet.sh runs.
+var goModFiles = []string{"go.mod", "hack/envtest-provider-check/go.mod"}
+
+// checkGoModDirective fails if the `go` directive of the go.mod at path
+// disagrees with goVersion.
+func checkGoModDirective(path, goVersion string) error {
+	content, err := os.ReadFile(path) // #nosec G304 -- path is one of goModFiles, a fixed list
 	if err != nil {
-		return fmt.Errorf("reading go.mod: %w", err)
+		return fmt.Errorf("reading %s: %w", path, err)
 	}
 	modVersion, err := extractGoDirective(string(content))
 	if err != nil {
-		return fmt.Errorf("go.mod: %w", err)
+		return fmt.Errorf("%s: %w", path, err)
 	}
 	cmp, err := compareGoVersions(modVersion, goVersion)
 	if err != nil {
@@ -79,8 +87,8 @@ func checkGoModDirective(goVersion string) error {
 	}
 	if cmp != 0 {
 		return fmt.Errorf(
-			"go.mod's `go` directive is %s but pkg/versions/dependencies.yaml's go_version is %s — "+
-				"update go.mod's go directive to match", modVersion, goVersion)
+			"%s's `go` directive is %s but pkg/versions/dependencies.yaml's go_version is %s — "+
+				"update its go directive to match", path, modVersion, goVersion)
 	}
 	return nil
 }
