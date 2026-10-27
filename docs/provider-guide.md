@@ -240,8 +240,9 @@ commit it, then run `update` again.
 3. **Skips every user-owned file**, whether or not it has changed.
 4. Removes any tracked, tool-owned file this version no longer produces — a
    template this generator retired since you last updated.
-5. Bumps the framework dependency versions in `go.mod` via `go get`, leaving your
-   own requires alone.
+5. Raises `go.mod`'s `go` directive to the generator's Go version if yours is lower
+   (a higher one you set is kept), then bumps the framework dependency versions via
+   `go get`, leaving your own requires alone.
 6. Runs `go mod tidy`, `make generate` and `make reviewable`, and refuses if any of
    them fail — this is why the diff also contains regenerated `zz_generated.*` and CRDs.
 
