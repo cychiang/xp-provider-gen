@@ -51,6 +51,8 @@ dependencies:
 upjet_dependencies:
   - module: github.com/crossplane/upjet/v2
     version: v2.5.1
+  # No upstream tags, so Renovate can't track this pseudo-version: bump it by
+  # hand (renovate.json's crossplane-tools rule says how, and the floor).
   - module: github.com/crossplane/crossplane-tools
     version: v0.0.0-20260715161912-60e57f817ad1
   - module: github.com/pkg/errors

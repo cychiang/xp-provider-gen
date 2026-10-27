@@ -194,6 +194,13 @@
       "description": "Never propose upjet/v2 v2.4.0 or older: released v2.4.0 imports crossplane-runtime/v2/apis/common/v1, which crossplane-runtime removed in its own v2.4.0, so make generate fails in a scaffolded upjet provider. upjet was once pinned to a post-v2.4.0 pseudo-version for this, and with rollbackPrs enabled Renovate proposed v2.4.0 as a 'rollback' (PRs #134, #152). The pin is a release (v2.5.1) now; the floor stays so a rollback can never be proposed again.",
       "matchPackageNames": ["github.com/crossplane/upjet/v2"],
       "allowedVersions": ">v2.4.0"
+    },
+    {
+      "description": "Don't track crossplane-tools in pkg/versions/dependencies.yaml: the repo has no tags, so its pin can only be a pseudo-version, and the go datasource behind the regex manager has no releases to match it against ('Can't find version matching ...' on the dashboard). Tracking the commit digest instead would not work either - Renovate would swap the 12-character hash but not the timestamp in front of it, and Go rejects a pseudo-version whose timestamp does not match the commit. Bump it by hand: `go list -m github.com/crossplane/crossplane-tools@<commit>` prints the right pseudo-version. Never go below the 2026-07-15 build - older angryjet silently generates no methodsets for the core/v2 types, and the scaffolded provider then fails go build.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["pkg/versions/dependencies.yaml"],
+      "matchPackageNames": ["github.com/crossplane/crossplane-tools"],
+      "enabled": false
     }
   ],
   "customManagers": [
