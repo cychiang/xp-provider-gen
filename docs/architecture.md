@@ -66,10 +66,11 @@ the project's flavor from PROJECT and renders, validates and finalizes with that
   validates the resource; adds it to the config; renders the resource's API templates and
   **regenerates the register files deterministically** from `GetResources()`; runs the
   API-commit pipeline.
-- **`update.go`**, **`reconcile.go`**, **`adopt.go`**, **`tfversion.go`** — the `update` /
-  `update --adopt` command, split by responsibility: `update.go` (the cobra command and the
-  prepare/run orchestration), `reconcile.go` (orphan removal and the summary),
-  `adopt.go` (`--adopt`), and `tfversion.go` (`--terraform-provider-version`). See §7.
+- **`update.go`**, **`reconcile.go`**, **`adopt.go`**, **`tfversion.go`**, **`godirective.go`** —
+  the `update` / `update --adopt` command, split by responsibility: `update.go` (the cobra
+  command and the prepare/run orchestration), `reconcile.go` (orphan removal and the summary),
+  `adopt.go` (`--adopt`), `tfversion.go` (`--terraform-provider-version`), and
+  `godirective.go` (raising go.mod's `go` directive to `go_version`). See §7.
 - **`createtest.go`** — the `create-test` command: resolves kind and test name (flag,
   sole kind, or interactive prompt) and renders the chainsaw skeleton.
 - **`config.go`** — `NewPluginConfig()` wraps `core.NewPluginConfig()` to seed defaults.
@@ -195,10 +196,10 @@ ownership decision. Without it, forgetting the header on a new tool-owned templa
 would silently make it user-owned and `update` would never refresh it.
 
 `core.DecideWrite` enforces this: seed if absent, overwrite if the on-disk file is tool-owned,
-otherwise skip. `go.mod` is seed-once; its framework versions are bumped via `go get`, never by
-overwrite.
+otherwise skip. `go.mod` is seed-once; its `go` directive is raised to `go_version` (never lowered,
+`godirective.go`) and its framework versions are bumped via `go get`, never by overwrite.
 
-## 7. The `update` command (`update.go`, `reconcile.go`, `adopt.go`, `tfversion.go`, `downgrade.go`)
+## 7. The `update` command (`update.go`, `reconcile.go`, `adopt.go`, `tfversion.go`, `godirective.go`, `downgrade.go`)
 
 `update` refreshes an existing provider's tool-owned core to the current generator:
 
@@ -224,8 +225,9 @@ overwrite.
    Terraform settings PROJECT does not keep, so none are recreated — and is listed instead. Then **remove orphans**: `trackedFiles` lists what git
    tracks (`git ls-files -z`, so a gitignored file is never a candidate) and `removeOrphans`
    deletes the tracked, tool-owned ones this render no longer produces.
-4. **Bump dependencies** from the flavor's manifest set via `go get` (go.mod's own requires
-   preserved); with `--terraform-provider-version` (upjet only — refused by flavor on a native
+4. **Bump dependencies** — raise go.mod's `go` directive to `go_version` if it is lower
+   (`godirective.go`; a higher one is the author's and is kept), then the flavor's manifest set
+   via `go get` (go.mod's own requires preserved); with `--terraform-provider-version` (upjet only — refused by flavor on a native
    provider, `tfversion.go`), also rewrites the pinned Terraform provider version.
 5. **Finalize** — native: `go mod tidy` / `make generate` / `make reviewable`; upjet: `make
    generate` first, since tidy cannot resolve the packages generation produces. Then stamp the
@@ -322,8 +324,8 @@ and test name (flag or prompt) → render the chainsaw skeleton to
 
 **`update`** → require clean tree → load & validate PROJECT (flavor) → render the flavor's templates
 to memfs → reconcile via the ownership gate (upjet: missing user-owned files are not seeded) →
-remove orphaned tool-owned files this render no longer produces → bump the flavor's deps via
-`go get` (plus `--terraform-provider-version`, upjet only) → finalize (native:
+remove orphaned tool-owned files this render no longer produces → raise go.mod's `go`
+directive to `go_version` → bump the flavor's deps via `go get` (plus `--terraform-provider-version`, upjet only) → finalize (native:
 tidy/generate/reviewable; upjet: generate/tidy/reviewable) → stamp provenance (no commit; review
 the diff).
 
