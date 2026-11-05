@@ -112,4 +112,5 @@ reconsider.
   [2026-09-19-consistency.md](docs/plans/2026-09-19-consistency.md),
   [2026-09-21-phase-b.md](docs/plans/2026-09-21-phase-b.md),
   [2026-09-24-release-and-docs.md](docs/plans/2026-09-24-release-and-docs.md),
-  [2026-10-03-render-apply.md](docs/plans/2026-10-03-render-apply.md).
+  [2026-10-03-render-apply.md](docs/plans/2026-10-03-render-apply.md),
+  [2026-11-05-maintainability.md](docs/plans/2026-11-05-maintainability.md).

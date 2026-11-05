@@ -29,6 +29,19 @@ into that commit until you make one of your own.
 Both leave a clean working tree. If yours is dirty afterwards, that is a bug worth
 reporting.
 
+### The Go toolchain
+
+`hack/xp-provider-gen.mk` exports `GOTOOLCHAIN ?= go<go_version>+auto` above the Go
+build includes, where `<go_version>` is the release in `pkg/versions/dependencies.yaml`.
+It caps `make` at that release, so a newer Go on your
+host, which the pinned golangci-lint cannot type-check, does not break `make lint` or `make reviewable` with `could not import`. The `go.mod`
+`go` directive stays free of a `toolchain` line.
+
+Because of `?=`, any `GOTOOLCHAIN` already in your environment wins over that line,
+including `auto`, which brings the failure back on a host whose Go is newer than the
+linter. An offline host sets `GOTOOLCHAIN=local` and needs an installed Go that matches
+the pin.
+
 ## 2. What you actually write
 
 Two files per kind, plus two provider-wide files. That is the whole surface.
