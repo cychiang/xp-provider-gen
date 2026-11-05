@@ -1,10 +1,9 @@
 # Maintainability and full e2e: what the evidence supports
 
-A plan, not a record of shipped work. Nothing here is implemented yet. It says which
-architecture changes make `xp-provider-gen` cheaper to maintain and extend for both
-flavors, which areas should stay as they are, and which decisions belong to the
-maintainer. The box-by-box execution checklist lives outside the repository, in
-`~/.claude/orchestrate/xpg-maintainability/docs/plan.md`.
+A plan, written before its first unit shipped. Its units land as separate PRs, so the git
+log says which are done. It says which architecture changes make `xp-provider-gen` cheaper
+to maintain and extend for both flavors, which areas should stay as they are, and what the
+maintainer decided. The box-by-box execution checklist lives outside the repository.
 
 Baseline is `main` at `28ecb40`. Measurements were taken on 2026-11-04 and 2026-11-05.
 "Measured" means run or read from a real artifact. "Predicted" means inferred from a
@@ -26,7 +25,7 @@ action bumps, not human work, and no CI run has failed since 2026-09-24.
 
 ## Three defects found on the way
 
-All three are reproducible on today's `main`.
+All three were reproducible on `main` at `28ecb40`.
 
 | Defect | Evidence |
 |---|---|
@@ -177,10 +176,9 @@ migration path for that reason alone. The ten live lanes per PR stay.
    lasting fix and P5 to P7 shrink.
 6. **The on-hold `xp-provider-kit` rename.** Recommendation: it does not affect this work.
 7. **How much ships, and in what order.** Recommendation: release P1 and P2 at once as a
-   patch, since the first defect stops `init` on a current Go. Treat P9 and P13 as optional. P9 reverses #191, which deliberately made the Go pins bump
-   together, so taking it means accepting that reversal.
-   The execution playbook also asks for ten live lanes per PR, which across thirteen PRs
-   is a large agent bill. Say whether to keep that, or cut it for small PRs.
+   patch, since the first defect stops `init` on a current Go. Treat P9 and P13 as optional.
+   P9 reverses #191, which deliberately made the Go pins bump together, so taking it means
+   accepting that reversal.
 
 ## Done means
 
