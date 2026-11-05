@@ -16,36 +16,50 @@ limitations under the License.
 
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-// TestFirstPositionalArg pins the arg-parsing refuseAlpha relies on to block
-// "alpha" before cli.New(...) ever runs (cli.New itself corrupts PROJECT for
-// any "alpha generate" invocation — see refuseAlpha's doc comment). Getting
-// this wrong either fails to block a real "alpha ..." invocation, or
-// misfires on an unrelated command that merely takes a flag before its first
-// positional argument.
-func TestFirstPositionalArg(t *testing.T) {
+// TestInertCommand pins which invocations refuseInert stops before
+// cli.New(...) runs: "alpha" (cli.New itself corrupts PROJECT for "alpha
+// generate", see refuseInert), "edit" and "create webhook" (the plugin has no
+// such subcommand, so Kubebuilder panics), each with and without --help. Real
+// commands, including "create api", must pass, as must a flag value that
+// merely spells a refused name.
+func TestInertCommand(t *testing.T) {
+	const createWebhook = createCommand + " " + webhookCommand
 	tests := []struct {
 		name string
-		args []string
+		args string
 		want string
 	}{
-		{name: "no args", args: nil, want: ""},
-		{name: "bare alpha", args: []string{alphaCommand}, want: alphaCommand},
-		{name: "alpha generate", args: []string{alphaCommand, "generate"}, want: alphaCommand},
-		{name: "alpha generate --help", args: []string{alphaCommand, "generate", "--help"}, want: alphaCommand},
-		{name: "alpha update with flags", args: []string{alphaCommand, "update", "--from-version=v1", "--to-version=v2"}, want: alphaCommand},
-		{name: "global flag before command", args: []string{"--plugins=go/v4", alphaCommand}, want: alphaCommand},
-		{name: "global flag with separate value before command", args: []string{"--plugins", "go/v4", alphaCommand}, want: alphaCommand},
-		{name: "unrelated command", args: []string{"create", "api", "--group=g"}, want: "create"},
-		{name: "only a boolean flag, no positional", args: []string{"--help"}, want: ""},
-		{name: "init with domain", args: []string{"init", "--domain=example.com"}, want: "init"},
+		{name: "no args", args: "", want: ""},
+		{name: "only a boolean flag, no positional", args: "--help", want: ""},
+		{name: "bare alpha", args: "alpha", want: alphaCommand},
+		{name: "alpha generate --help", args: "alpha generate --help", want: alphaCommand},
+		{name: "global flag before alpha", args: "--plugins=go/v4 alpha", want: alphaCommand},
+		{name: "global flag with separate value before alpha", args: "--plugins go/v4 alpha", want: alphaCommand},
+		{name: "edit", args: "edit", want: editCommand},
+		{name: "edit --help", args: "edit --help", want: editCommand},
+		{name: "edit with flag", args: "edit --multigroup", want: editCommand},
+		{name: "create webhook", args: "create webhook", want: createWebhook},
+		{name: "create webhook --help", args: "create webhook --help", want: createWebhook},
+		{name: "create webhook with flags", args: "create webhook --group=g --kind K", want: createWebhook},
+		{name: "create api", args: "create api --group=g", want: ""},
+		{name: "create api --help", args: "create api --help", want: ""},
+		{name: "create alone", args: "create", want: ""},
+		{name: "init with domain", args: "init --domain=example.com", want: ""},
+		{name: "flag value spells edit", args: "init --domain edit", want: ""},
+		{name: "flag value spells webhook", args: "create api --kind webhook", want: ""},
+		{name: "create-test", args: "create-test --kind=K", want: ""},
+		{name: "update", args: "update", want: ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := firstPositionalArg(tt.args); got != tt.want {
-				t.Errorf("firstPositionalArg(%v) = %q, want %q", tt.args, got, tt.want)
+			if got := inertCommand(strings.Fields(tt.args)); got != tt.want {
+				t.Errorf("inertCommand(%q) = %q, want %q", tt.args, got, tt.want)
 			}
 		})
 	}

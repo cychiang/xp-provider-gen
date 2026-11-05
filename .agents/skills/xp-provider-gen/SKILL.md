@@ -189,9 +189,13 @@ header and is overwritten by `update`; everything else is yours forever — see 
 
 ### Ignore these
 
-`alpha` (refuses outright — not supported), `edit`, `create webhook`, and the
-`--plugins`/`--project-version` flags are Kubebuilder-framework leftovers, not part of this
-tool's supported surface.
+`alpha`, `edit` and `create webhook` refuse outright (exit 1, "not supported"), even with
+`--help`. The `--plugins`/`--project-version` flags are Kubebuilder-framework leftovers, not part
+of this tool's supported surface.
+
+`create api` also refuses in a git repository with no commit: `init` makes the scaffold commit
+last, so that repository means `init` did not finish. Fix what stopped it and run `init` again in
+an empty directory.
 
 ### The generated provider's own loop — native
 

@@ -1,8 +1,12 @@
 package v2
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/afero"
@@ -83,6 +87,10 @@ func (p *createAPISubcommand) InjectResource(res *resource.Resource) error {
 }
 
 func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
+	if err := requireInitCommit(context.Background(), ""); err != nil {
+		return validation.CreateAPIError("init check", err)
+	}
+
 	meta, err := validateProject(p.config)
 	if err != nil {
 		return validation.CreateAPIError("configuration check", err)
@@ -113,6 +121,23 @@ func (p *createAPISubcommand) PreScaffold(machinery.Filesystem) error {
 		}
 	}
 
+	return nil
+}
+
+// requireInitCommit refuses a git repository that has no commit in dir ("" is
+// the working directory). init makes the scaffold commit last, so a repository
+// without one means init stopped midway; going on would let create api's commit
+// step sweep the half-made tree into a commit titled for the new kind. A
+// directory with no .git passes, as before.
+func requireInitCommit(ctx context.Context, dir string) error {
+	if _, err := os.Stat(filepath.Join(dir, ".git")); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	git := core.NewGitCommandRunner(dir)
+	if _, err := git.RunCommandWithOutput(ctx, "rev-parse", "--verify", "--quiet", "HEAD"); err != nil {
+		return errors.New("this repository has no commit, so init did not finish; " +
+			"fix what stopped it and run init again in an empty directory")
+	}
 	return nil
 }
 
