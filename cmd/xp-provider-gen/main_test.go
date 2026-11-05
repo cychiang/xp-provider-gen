@@ -53,6 +53,11 @@ func TestInertCommand(t *testing.T) {
 		{name: "flag value spells edit", args: "init --domain edit", want: ""},
 		{name: "flag value spells webhook", args: "create api --kind webhook", want: ""},
 		{name: "create-test", args: "create-test --kind=K", want: ""},
+		{name: "bare help", args: "help", want: ""},
+		{name: "help init", args: "help init", want: ""},
+		{name: "help edit", args: "help edit", want: editCommand},
+		{name: "help create webhook", args: "help create webhook", want: createWebhook},
+		{name: "help alpha", args: "help alpha", want: alphaCommand},
 		{name: "update", args: "update", want: ""},
 	}
 

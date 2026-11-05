@@ -29,8 +29,9 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
-// Names of the Kubebuilder commands this generator blocks (refuseInert) and
-// hides (hideInertCommands) — see both for why.
+// Names of the Kubebuilder commands this generator refuses (refuseInert) and
+// hides from --help (hideInertCommands): "alpha", "edit" and "create webhook".
+// "create" is only the parent of "webhook" and is neither refused nor hidden.
 const (
 	alphaCommand   = "alpha"
 	editCommand    = "edit"
@@ -71,6 +72,10 @@ func refuseInert(args []string) {
 // if args invoke a supported one.
 func inertCommand(args []string) string {
 	pos := positionalArgs(args)
+	// "help X" prints X's help, which lists this plugin as supporting it.
+	if len(pos) > 0 && pos[0] == "help" {
+		pos = pos[1:]
+	}
 	switch {
 	case len(pos) == 0:
 		return ""
@@ -132,20 +137,10 @@ func main() {
 	}
 }
 
-// hideInertCommands hides Kubebuilder-provided subcommands that our plugin
-// does not implement. Kubebuilder's CLI always wires "edit", "create webhook"
-// and "alpha" into the command tree regardless of what the plugin supports:
-// our Plugin declares GetEditSubcommand/GetCreateWebhookSubcommand returning
-// nil (this plugin offers no edit or webhook flow), which the CLI dereferences
-// unconditionally and panics rather than reporting a clean error; "alpha
-// generate"/"alpha update" hardcode a lookup for the standard
-// "go.kubebuilder.io/v4" plugin key, which this project never registers, so
-// they always fail with "no plugin could be resolved" regardless of project
-// state. Hidden commands still run if invoked by name — Cobra has no runtime
-// "disabled" concept — but they no longer clutter --help with functionality
-// this generator does not offer. All three are additionally blocked from
-// running at all by refuseInert above; they stay in this list too so a bare
-// `--help` doesn't list them.
+// hideInertCommands keeps the commands refuseInert stops ("edit", "create
+// webhook" and "alpha") out of --help, so it does not advertise functionality
+// this generator does not offer. Kubebuilder wires them into the command tree
+// regardless of what the plugin supports.
 func hideInertCommands(root *cobra.Command) {
 	hide(root, editCommand)
 	hide(root, createCommand, webhookCommand)
