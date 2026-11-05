@@ -42,6 +42,9 @@ including `auto`, which brings the failure back on a host whose Go is newer than
 linter. An offline host sets `GOTOOLCHAIN=local` and needs an installed Go that matches
 the pin.
 
+`actions/setup-go` exports `GOTOOLCHAIN=local`, so a CI job needs its installed Go to match
+the pin. Install it with `go-version-file: go.mod`, or clear the variable before `make`.
+
 ## 2. What you actually write
 
 Two files per kind, plus two provider-wide files. That is the whole surface.

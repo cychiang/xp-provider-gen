@@ -248,10 +248,6 @@ func TestRenderUpjetPinsTerraformVersion(t *testing.T) {
 	}
 }
 
-// TestRenderPinsGoToolchain checks, on real rendered output of both flavors,
-// that the make fragment exports the GOTOOLCHAIN cap before golang.mk is
-// included, so a host Go newer than the pinned golangci-lint can type-check
-// never reaches the build.
 func TestRenderPinsGoToolchain(t *testing.T) {
 	want := "export GOTOOLCHAIN ?= go" + versions.GoVersion + "+auto\n"
 
