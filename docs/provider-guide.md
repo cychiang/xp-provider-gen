@@ -33,9 +33,9 @@ reporting.
 
 `hack/xp-provider-gen.mk` exports `GOTOOLCHAIN ?= go<go_version>+auto` above the Go
 build includes, where `<go_version>` is the release in `pkg/versions/dependencies.yaml`.
-It caps `make` at that release, so a newer Go on your
-host, which the pinned golangci-lint cannot type-check, does not break `make lint` or `make reviewable` with `could not import`. The `go.mod`
-`go` directive stays free of a `toolchain` line.
+It caps `make` at that release, so a newer Go on your host, which the pinned
+golangci-lint cannot type-check, does not break `make lint` or `make reviewable` with
+`could not import`. The `go.mod` `go` directive stays free of a `toolchain` line.
 
 Because of `?=`, any `GOTOOLCHAIN` already in your environment wins over that line,
 including `auto`, which brings the failure back on a host whose Go is newer than the
