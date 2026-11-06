@@ -10,7 +10,7 @@ permissions:
 # fails the day a scaffold stops working on a current host.
 on:
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '0 5 * * 1'
   workflow_dispatch: {}
   pull_request:
     branches: [ main, develop ]
