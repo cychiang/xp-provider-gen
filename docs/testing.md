@@ -59,7 +59,7 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 provider scaffolded by `bin/xp-provider-gen`. `go run ./test/e2e --list --flavor=native` prints
 the list. A stage returns an error or it passed; there is no skip result, and the run stops at
 the first failure. The runner is `plan.go`, the stages are `stages.go`, and `plan_test.go`
-tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mode verdict and the first-failure stop (`go test ./test/e2e/`).
+tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mode verdict, the exact set of stages fast mode runs, the first-failure stop and the chainsaw-report check (`go test ./test/e2e/`).
 
 | Stage | Proves |
 |---|---|
@@ -70,8 +70,8 @@ tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mo
 | `update-noop` | A same-generator `update` reports `removed 0`, `Refreshed 0` and a non-zero `Unchanged N`, leaves the seam files byte-identical and the tree clean, refuses a dirty tree, and rejects `--terraform-provider-version` naming the flavor. |
 | `create-api-refresh` | Re-running `create api` regenerates a tool-owned file, keeps a user edit, commits nothing the second time, and rejects `--force`. |
 | `adopt` | Plants a sentinel PROJECT `version:` and strips a header, then asserts `update --adopt` restores both. |
-| `stock-e2e` | The scaffold exactly as generated, in a clone of its first commit, passes its own `make e2e`, with the head's `create-test` lifecycle test added first, so the one run covers uptest, the pause tests and the test `create-test` wrote. Uptest skips its update step on the stock scaffold: it updates only a resource annotated `meta.upbound.io/example-id`, and allows one such root per run, while `make e2e` runs every kind's example in one run. |
-| `build-xpkg`, `install-in-kind`, `provider-config` | The overlay provider's package builds, installs into a new kind cluster and is Healthy, (deployed with `--poll=10s` through a harness-only DeploymentRuntimeConfig, so drift shows in seconds), and a ProviderConfig holds the cluster's own kubeconfig as credentials. |
+| `stock-e2e` | The scaffold exactly as generated, in a clone of its first commit, passes its own `make e2e`, with the head's `create-test` lifecycle test added first, so the one run covers uptest, the pause tests and the test `create-test` wrote; the stage then fails unless `junit.xml` names that test. Uptest skips its update step on the stock scaffold: it updates only a resource annotated `meta.upbound.io/example-id`, and allows one such root per run, while `make e2e` runs every kind's example in one run. |
+| `build-xpkg`, `install-in-kind`, `provider-config` | The overlay provider's package builds, installs into a new kind cluster and is Healthy, (deployed with `--poll=10s` through a harness-only DeploymentRuntimeConfig, so drift shows in seconds; the stage fails unless the provider's deployment carries that argument), and a ProviderConfig holds the cluster's own kubeconfig as credentials. |
 | `mr-ready-synced` | The `Widget` example is `Ready` and `Synced`, and a ConfigMap, the external object, holds its value. |
 | `mr-update`, `drift-corrected` | The external value follows a spec patch, and a hand edit of the external object is restored. |
 | `mr-delete`, `external-gone` | The managed resource is deleted, then the external object is gone. |
@@ -188,8 +188,8 @@ which need Docker:
 
 It also configures a `kubernetes_config_map` resource, writes its
 `docs/upjet-provider.md` worked example (with `uptest.upbound.io/*` annotations), and runs
-`xp-provider-gen create-test` — mirroring the native e2e's own `create-test` coverage, which
-upjet previously lacked. With a Docker daemon available (skipped with a warning otherwise, or
+`xp-provider-gen create-test` — the scaffolding half of the native e2e's `create-test` coverage
+(it does not re-run to check the refusal to overwrite). With a Docker daemon available (skipped with a warning otherwise, or
 with `E2E_SKIP_DOCKER` set; `E2E_REQUIRE_DOCKER=1` fails the run instead), it then:
 
 - runs the **generated provider's own `make e2e`**: the uptest lifecycle (create →

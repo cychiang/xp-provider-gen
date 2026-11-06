@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -10,7 +11,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -27,6 +30,9 @@ const (
 	externalCM    = "widget-example"
 	managed       = "widget.sample.example.com/example"
 	lifecycleTest = "lifecycle"
+	killGrace     = 5 * time.Second
+	pollArg       = "--poll=10s"
+	providerLabel = "pkg.crossplane.io/provider"
 	widgetDir     = "internal/controller/widget"
 	pollEvery     = 3 * time.Second
 	pollTimeout   = 3 * time.Minute
@@ -72,6 +78,11 @@ func (e *Env) runStage(s Stage) error {
 func (e *Env) exec(dir, stdin, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(e.Ctx, name, args...) // #nosec G204 -- the harness runs its own fixed commands, no shell
 	cmd.Dir = dir
+	// A canceled run kills make's whole group, or Run would wait for the
+	// grandchildren that still hold the output pipes.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = killGrace
 	cmd.Env = append(os.Environ(), "KUBECONFIG="+e.Kubeconfig, "KIND_CLUSTER_NAME="+e.Cluster)
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
@@ -606,8 +617,23 @@ func stageStockE2E(e *Env) error {
 	if _, err := e.exec(stock, "", e.Head, "create-test", "--kind="+widgetKind, "--name="+lifecycleTest); err != nil {
 		return err
 	}
-	_, err = e.makeIn(stock, "e2e")
-	return err
+	if _, err := e.makeIn(stock, "e2e"); err != nil {
+		return err
+	}
+	return assertChainsawRan(filepath.Join(stock, "junit.xml"))
+}
+
+// assertChainsawRan fails unless the chainsaw report names the lifecycle test:
+// make e2e's exit alone is the same whether or not chainsaw ran.
+func assertChainsawRan(report string) error {
+	b, err := os.ReadFile(report) // #nosec G304 -- a fixed path inside the private work directory
+	if err != nil {
+		return fmt.Errorf("reading the chainsaw report: %w", err)
+	}
+	if !strings.Contains(string(b), lifecycleTest) {
+		return fmt.Errorf("%s does not show the %s test having run", report, lifecycleTest)
+	}
+	return nil
 }
 
 // pollRuntimeConfig is the DeploymentRuntimeConfig the harness deploys the
@@ -626,7 +652,7 @@ spec:
         spec:
           containers:
             - name: package-runtime
-              args: ["--debug", "--poll=10s"]
+              args: ["--debug", "` + pollArg + `"]
 `
 
 func stageInstallInKind(e *Env) error {
@@ -638,8 +664,52 @@ func stageInstallInKind(e *Env) error {
 	if err := e.make("DRC_FILE="+drc, "controlplane.down", "controlplane.up", deploy); err != nil {
 		return err
 	}
-	_, err := e.kubectl("", "wait", "provider.pkg", provider, "--for=condition=Healthy", "--timeout=300s")
-	return err
+	if _, err := e.kubectl("", "wait", "provider.pkg", provider, "--for=condition=Healthy", "--timeout=300s"); err != nil {
+		return err
+	}
+	// The build falls back to its own runtime config when DRC_FILE is missing,
+	// so a pass above does not show the short poll was applied.
+	out, err := e.kubectl("", "get", "deployment", "-A", "-o", "json")
+	if err != nil {
+		return err
+	}
+	return assertProviderPolls(out)
+}
+
+// assertProviderPolls fails unless the provider's deployment, found by its
+// selector, runs a container with pollArg.
+func assertProviderPolls(deployments string) error {
+	var list struct {
+		Items []struct {
+			Spec struct {
+				Selector struct {
+					MatchLabels map[string]string `json:"matchLabels"` //nolint:tagliatelle // Kubernetes API field name
+				} `json:"selector"`
+				Template struct {
+					Spec struct {
+						Containers []struct {
+							Args []string `json:"args"`
+						} `json:"containers"`
+					} `json:"spec"`
+				} `json:"template"`
+			} `json:"spec"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(deployments), &list); err != nil {
+		return fmt.Errorf("reading the deployments: %w", err)
+	}
+	for _, d := range list.Items {
+		if d.Spec.Selector.MatchLabels[providerLabel] != provider {
+			continue
+		}
+		for _, c := range d.Spec.Template.Spec.Containers {
+			if slices.Contains(c.Args, pollArg) {
+				return nil
+			}
+		}
+		return fmt.Errorf("provider deployment args lack %s", pollArg)
+	}
+	return fmt.Errorf("no deployment carries %s=%s", providerLabel, provider)
 }
 
 func stageProviderConfig(e *Env) error {
