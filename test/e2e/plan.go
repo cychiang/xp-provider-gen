@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 )
@@ -25,15 +27,78 @@ type Capability string
 const CapDocker Capability = "docker"
 
 // Case is one cell of the matrix: a flavor and the binary that scaffolds it.
-// From is "head" for the binary under test, or the path of a released binary.
+// From is "head" for the binary under test, or the tag of a published release.
 type Case struct {
 	Flavor string
 	From   string
+	// Toolchain is the GOTOOLCHAIN a released binary's init and create api run
+	// under. Empty for head.
+	Toolchain string
 }
 
 const fromHead = "head"
 
 func (c Case) Release() bool { return c.From != fromHead }
+
+// Release is what the harness knows about one published release.
+type Release struct {
+	// Toolchain is the GOTOOLCHAIN the release's init and create api run
+	// under: its own go_version, so the scaffold is the one the release
+	// produced whatever Go the host has.
+	Toolchain string
+	// NotApplicable maps a flavor to the reason this release cannot run it.
+	NotApplicable map[string]string
+}
+
+// Releases lists every published release. A new release fails the preflight
+// until it is added here.
+var Releases = map[string]Release{
+	"v0.1.0": {Toolchain: "go1.26.8"},
+	"v0.2.0": {Toolchain: "go1.26.8"},
+	"v0.3.0": {Toolchain: "go1.26.8"},
+}
+
+var (
+	ErrUnknownRelease = errors.New("unknown release")
+	ErrNotApplicable  = errors.New("not applicable")
+	ErrNoReleases     = errors.New("release list is empty")
+)
+
+// NewCase resolves a --from value. A release pair marked NotApplicable returns
+// ErrNotApplicable with the declared reason, so the caller can say why nothing ran.
+func NewCase(flavor, from string) (Case, error) {
+	c := Case{Flavor: flavor, From: from}
+	if !c.Release() {
+		return c, nil
+	}
+	r, ok := Releases[from]
+	if !ok {
+		return c, fmt.Errorf("%w %q: declared releases are %s", ErrUnknownRelease, from, strings.Join(releaseTags(), ", "))
+	}
+	if reason, na := r.NotApplicable[flavor]; na {
+		return c, fmt.Errorf("%w: %s from %s: %s", ErrNotApplicable, flavor, from, reason)
+	}
+	c.Toolchain = r.Toolchain
+	return c, nil
+}
+
+func releaseTags() []string {
+	tags := slices.Collect(maps.Keys(Releases))
+	slices.Sort(tags)
+	return tags
+}
+
+// Preflight fails when the newest published release, first in listed, has no
+// entry in Releases: a release the harness never ran must not pass unnoticed.
+func Preflight(listed []string) error {
+	if len(listed) == 0 {
+		return ErrNoReleases
+	}
+	if _, ok := Releases[listed[0]]; !ok {
+		return fmt.Errorf("newest release %s is missing from Releases in test/e2e/plan.go: add it, with its toolchain", listed[0])
+	}
+	return nil
+}
 
 // Stage is one declared step. It returns an error or it passed: there is no
 // skip result, so a required stage cannot pass without running.

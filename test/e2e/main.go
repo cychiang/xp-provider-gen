@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -22,14 +23,21 @@ func run() int {
 	flavor := flag.String("flavor", "native", "flavor to test")
 	mode := flag.String("mode", string(ModeFull),
 		"full runs every stage and fails without Docker; fast runs the stages that need none and reports PARTIAL")
-	from := flag.String("from", fromHead, "binary that scaffolds: head, or the path of a released binary")
+	from := flag.String("from", fromHead, "binary that scaffolds: head, or the tag of a published release such as v0.3.0")
 	list := flag.Bool("list", false, "print the declared stages and exit")
 	bin := flag.String("bin", "bin/xp-provider-gen", "binary under test")
 	overlay := flag.String("overlay", "test/e2e/testdata/native", "overlay tree, laid over the scaffold at the same paths")
 	logs := flag.String("logs", "", "directory for per-stage logs (default: a new temporary directory)")
 	flag.Parse()
 
-	c := Case{Flavor: *flavor, From: *from}
+	c, err := NewCase(*flavor, *from)
+	if errors.Is(err, ErrNotApplicable) {
+		fmt.Printf("VERDICT NOT-APPLICABLE, nothing ran: %v\n", err)
+		return 0
+	}
+	if err != nil {
+		return fail(err)
+	}
 	stages, err := stagesFor(c.Flavor)
 	if err != nil {
 		return fail(err)
@@ -43,6 +51,15 @@ func run() int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if c.Release() {
+		listed, err := newestReleases(ctx)
+		if err == nil {
+			err = Preflight(listed)
+		}
+		if err != nil {
+			return fail(err)
+		}
+	}
 	have := map[Capability]bool{CapDocker: dockerUp(ctx)}
 	plan, err := NewPlan(c, stages, Mode(*mode), have)
 	if err != nil {
@@ -53,7 +70,10 @@ func run() int {
 	if err != nil {
 		return fail(err)
 	}
-	fmt.Printf("work %s\nlogs %s\ncluster %s\n", env.Work, env.Logs, env.Cluster)
+	fmt.Printf("work %s\nlogs %s\ncluster %s\ngenerator %s\n", env.Work, env.Logs, env.Cluster, env.Gen)
+	if c.Toolchain != "" {
+		fmt.Printf("GOTOOLCHAIN=%s on the released binary's init and create api only\n", c.Toolchain)
+	}
 
 	verdict := Execute(plan, env, os.Stdout)
 	env.cleanup(plan.Mode == ModeFull, verdict != VerdictFailed)
@@ -106,14 +126,15 @@ func newEnv(ctx context.Context, c Case, bin, overlay, logs string) (*Env, error
 		Logs:       absolute(repoRoot, logs),
 		Kubeconfig: filepath.Join(work, "kubeconfig"),
 		Cluster:    "e2e-" + strings.TrimPrefix(filepath.Base(work), "xpg-e2e-"),
+		Toolchain:  c.Toolchain,
 	}
 	if c.Release() {
-		e.Gen = absolute(repoRoot, c.From)
-	}
-	for _, p := range []string{e.Head, e.Gen} {
-		if _, err := os.Stat(p); err != nil {
-			return nil, fmt.Errorf("finding generator binary (run make build): %w", err)
+		if e.Gen, err = fetchRelease(ctx, c.From, work); err != nil {
+			return nil, err
 		}
+	}
+	if _, err := os.Stat(e.Head); err != nil {
+		return nil, fmt.Errorf("finding generator binary (run make build): %w", err)
 	}
 	if err := os.MkdirAll(e.Dir, 0o750); err != nil {
 		return nil, err

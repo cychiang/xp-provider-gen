@@ -1,7 +1,7 @@
 # Testing
 
 This page covers the **automated** suites: fast Go unit tests, a full end-to-end scaffold
-test, an upgrade e2e, and an upjet-flavor e2e — four layers, all run by `make`
+test, an upgrade from each published release, and an upjet-flavor e2e — four layers, all run by `make`
 targets and wired into CI — plus a golden test for the release pipeline's git-cliff rules.
 For a **manual** walkthrough of the same surfaces — reproducing a bug report,
 sanity-checking a change by hand, or seeing what a provider author actually experiences —
@@ -66,7 +66,8 @@ tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mo
 | `init`, `create-api` | The binary scaffolds a provider with two kinds (`Widget`, `Gadget`) and `scripts/assert-layout.sh` finds every expected file. `init` stamps PROJECT with the generator `version:`, and leaves a clean tree, so `create api` cannot commit an `init` leftover. |
 | `generate` | `make submodules generate reviewable` pass on the pristine scaffold. CRDs and examples exist, the ownership contract holds (tool-owned files carry the `DO NOT EDIT` header, user-owned files do not), the tree is clean, and `init` plus `create api` folded into one `Initial commit`. |
 | `user-logic` | The overlay replaces the user-owned `client.go`, `external.go` and `options.go`, then `go mod tidy`, `make lint` and a commit. |
-| `update-to-head` | Release cases only (`--from=<released binary>`). `update` by the binary under test leaves user-owned bytes alone and moves the PROJECT stamp. |
+| `update-to-head` | Release cases only (`--from=<tag>`). `update` by the binary under test leaves user-owned bytes alone, moves the go directive and the PROJECT stamp, and keeps the ownership contract. |
+| `orphan-removal` | `update` removes and names a tracked file that carries the generated header but that no template renders, and leaves a gitignored one alone. |
 | `update-noop` | A same-generator `update` reports `removed 0`, `Refreshed 0` and a non-zero `Unchanged N`, leaves the seam files byte-identical and the tree clean, refuses a dirty tree, and rejects `--terraform-provider-version` naming the flavor. |
 | `create-api-refresh` | Re-running `create api` regenerates a tool-owned file, keeps a user edit, commits nothing the second time, and rejects `--force`. |
 | `adopt` | Plants a sentinel PROJECT `version:` and strips a header, then asserts `update --adopt` restores both. |
@@ -85,8 +86,8 @@ other files, which is how the break tests below were made.
 **Modes.** `make e2e-native` runs full mode: it checks that Docker answers before the first stage and
 exits 1 if not. `make e2e-native E2E_ARGS=--mode=fast` runs only the stages that need no Docker and
 ends in `VERDICT PARTIAL`, naming each stage it did not run. An unknown `--mode`, or a plan with no stage to run, exits 1 before anything starts. Only a full run ends in
-`VERDICT COMPLETE`. Other flags: `--logs=<dir>` keeps per-stage logs there, `--from=<binary>`
-scaffolds with a released binary and adds `update-to-head`.
+`VERDICT COMPLETE`. Other flags: `--logs=<dir>` keeps per-stage logs there, `--from=<tag>`
+scaffolds with that published release and adds `update-to-head`.
 
 **Isolation.** Each run makes its own work directory, log directory and kind cluster name, and
 sets a private `KUBECONFIG` on every subprocess, so it never reads or writes `~/.kube/config` and
@@ -105,48 +106,41 @@ go run ./test/e2e --list --flavor=native         # the declared stages
 Run the e2e test whenever you change templates, the template engine, or the automation
 pipeline: unit tests alone do not catch broken generated output.
 
-## Upgrade e2e (`make e2e-upgrade`)
+## Upgrade from a released binary (`--from=<tag>`)
 
-`scripts/e2e-upgrade.sh` covers a gap the e2e cannot: the `update-noop` stage of the native e2e runs `update` with
-the **same** generator, so tool-owned files come out byte-identical and it can only
-prove that user-owned files survive — never that tool-owned files actually receive a new
-generator's changes.
+`make e2e-native E2E_ARGS=--from=v0.3.0` runs the native stages with the published release's own
+binary doing `init` and `create api`, and the binary under test doing everything after. That is
+the one run in which tool-owned files receive a real generator's changes, which the
+same-generator `update-noop` cannot show. The `update-to-head` stage is added; the rest are the
+stages above.
 
-The upgrade e2e scaffolds a provider, writes **real** logic into every user-owned seam
-(an HTTP client reading a user-added `ProviderConfigSpec` field, a `--region` flag
-with validation, custom `ReconcilerOptions` and observe logic) plus unit tests that
-pin that behavior, commits it, then
-mutates the tool-owned templates to stand in for a new generator version, rebuilds,
-and runs `update`. It asserts:
+`Releases` in `test/e2e/plan.go` is the list of tags the harness knows, each with its
+`GOTOOLCHAIN`. A run first asks `gh release list` for the newest release and fails if
+`Releases` lacks it, so a new release needs a line there before any run passes. The archive and
+checksum file are downloaded with `gh` into new directories under the run's work directory;
+the checksum is verified before the binary is unpacked, and the binary runs only after.
 
-- no user-owned file appears in the update diff,
-- all three tool-owned files (`internal/provider/connector.go`,
-  `internal/controller/instance/wiring.go`, `hack/xp-provider-gen.mk`) received the
-  simulated change,
-- every piece of user logic is still present,
-- the upgraded provider still generates, lints and builds (`make generate`, `make lint`,
-  `make build`),
-- the behavioral tests pass before **and after** the upgrade — same tests, same
-  results, so the upgrade changed plumbing, not semantics,
-- the user's `--region` flag still appears in the rebuilt binary's `--help`.
+A released binary's `init` and `create api`, and only those, run under the release's declared
+`GOTOOLCHAIN` (`go1.26.8`, that release's `go_version`), printed at the start of each run, so the
+scaffold is the one the release produced whatever Go the host has. Every other command runs with
+`GOTOOLCHAIN` unset, even when the caller exports one, as `actions/setup-go` does with `local`.
+A flavor and release pair that cannot run is declared `NotApplicable` in `Releases` with a
+reason; the run prints `VERDICT NOT-APPLICABLE` and the reason, and exits 0.
 
-Three more steps run after that upgrade:
+`update-to-head` plants a stale go directive, then runs the binary under test's `update`
+and asserts the user-owned seams are byte-identical, the go directive is the `go_version` in
+`pkg/versions/dependencies.yaml`, the PROJECT stamp is the binary's own `version`, and the
+ownership contract holds. The stages after it build, deploy and reconcile the updated provider,
+so one that does not come up `Ready` fails there. `orphan-removal` tracks a file that carries
+the generated header but that no template renders, and asserts `update` removes and names it,
+leaves a gitignored file with the same header alone, and changes nothing else.
 
-- **Orphan removal:** a tool-owned template (`cluster/local/integration_tests.sh`) is removed
-  from the simulated new generator version; `update` deletes the now-orphaned tracked file on
-  disk and its log reports `removed 1` and names the removed path.
-- **Downgrade refusal:** with the project stamped by a simulated newer generator version,
-  running an older one is refused on both `update` and `update --adopt` — the error says the
-  running generator **is older than** the one that last updated the project, names both
-  versions, and changes nothing.
-- **create api refusal:** on the same v0.2.0-stamped project, `create api` is refused by an older
-  (v0.1.0) and by a newer (v0.3.0) generator — the older one is told to run the recorded
-  generator, the newer one to run `update` first — and neither changes anything.
+The `E2E (upgrade from <tag>)` jobs in `e2e-native-full.yml` run one release each, with a
+15-minute limit. **Run it before shipping a generator bump.**
 
-It restores the templates it mutated. **Run it before shipping a generator bump.**
-
-`/tmp/xpg-e2e-upgrade`, its temp project, is left in place after each run, whether it succeeded or
-failed, for inspection; the next run removes and recreates it before scaffolding.
+Refusals of an older generator (`update`, `update --adopt`, `create api`) are covered by
+`TestCheckNotDowngrade` and `TestCheckSameGenerator` in `pkg/plugins/crossplane/v2/downgrade_test.go`,
+not by an e2e stage.
 
 ## Upjet-flavor e2e (`make e2e-upjet`)
 

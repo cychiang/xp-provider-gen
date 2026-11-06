@@ -32,7 +32,7 @@ Run `make help` for the full target list. A few aren't obvious from their name a
 |---------|---------|
 | `make reviewable` | `mod-tidy` + `check` (fmt/vet/lint/gosec/test) + `check-consistency` — run this before pushing; mirrors what CI enforces |
 | `make coverage` | Coverage report at `coverage/coverage.html` |
-| `make e2e-upgrade` | Runs a generator version bump against real user logic (native flavor only) — see [testing.md](testing.md) |
+| `make e2e-native E2E_ARGS=--from=<tag>` | Upgrades a provider scaffolded by a published release to this build (native flavor only) — see [testing.md](testing.md) |
 | `make check-go-version` | Verifies go.mod/Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version` (network) |
 
 ## Consistency gate

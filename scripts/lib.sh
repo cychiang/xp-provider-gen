@@ -1,4 +1,4 @@
-# Shared helpers for scripts/e2e-upjet.sh and scripts/e2e-upgrade.sh.
+# Shared helpers for scripts/e2e-upjet.sh.
 # Source it, do not execute it.
 
 RED='\033[0;31m'

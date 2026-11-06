@@ -26,8 +26,8 @@ pkg/plugins/crossplane/v2/
 pkg/templates/                  Embedded template filesystem (go:embed) + loader
 pkg/versions/                   Dependency manifest (single source of truth for generated go.mod)
 pkg/version/                    The CLI's own version (distinct from pkg/versions/)
-scripts/                        e2e-upjet.sh, e2e-upgrade.sh, assert-layout.sh, lib.sh, check-go-version
-test/e2e/                       Native e2e stage harness (plan.go, stages.go) and its overlay testdata
+scripts/                        e2e-upjet.sh, assert-layout.sh, lib.sh, check-go-version
+test/e2e/                       Native e2e stage harness (plan.go, stages.go, release.go) and its overlay testdata
 ```
 
 ## 1. Entry point & command flow
