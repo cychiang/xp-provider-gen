@@ -39,6 +39,18 @@ docker_skip_requested() {
     esac
 }
 
+# docker_e2e_available reports whether the Docker-dependent step should run.
+# Under E2E_REQUIRE_DOCKER=1 (set by the full workflows) it never reports
+# "no": a missing daemon, or an E2E_SKIP_DOCKER request, fails the script.
+docker_e2e_available() {
+    if [[ ${E2E_REQUIRE_DOCKER:-0} == 1 ]]; then
+        docker_skip_requested && fail "E2E_REQUIRE_DOCKER=1 forbids E2E_SKIP_DOCKER=${E2E_SKIP_DOCKER}"
+        docker info >/dev/null 2>&1 || fail "E2E_REQUIRE_DOCKER=1 but no Docker daemon is reachable"
+        return 0
+    fi
+    ! docker_skip_requested && docker info >/dev/null 2>&1
+}
+
 # assert_create_api_refreshes <tool_file> <user_file> -- <command...>
 #
 # Marks <tool_file> (tool-owned) and <user_file> (user-owned) with distinct
