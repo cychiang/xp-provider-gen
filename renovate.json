@@ -190,13 +190,12 @@
       "allowedVersions": ">v2.4.0"
     },
     {
-      "description": "The build submodule pin moves on its own: build has no releases, and a new pin changes what every new scaffold gets, so it lands alone and after a soak, not inside the crossplane packages group.",
+      "description": "The build submodule pin moves on its own: build has no releases, and a new pin changes what every new scaffold gets, so it lands alone, not inside the crossplane packages group.",
       "matchDepNames": ["crossplane/build"],
       "groupName": "crossplane build submodule",
       "addLabels": ["crossplane", "dependencies", "build-submodule"],
       "semanticCommitType": "deps",
-      "semanticCommitScope": "build",
-      "minimumReleaseAge": "7 days"
+      "semanticCommitScope": "build"
     },
     {
       "description": "Don't track crossplane-tools in pkg/versions/dependencies.yaml: the repo has no tags, so its pin can only be a pseudo-version, and the go datasource behind the regex manager has no releases to match it against ('Can't find version matching ...' on the dashboard). Tracking the commit digest instead would not work either - Renovate would swap the 12-character hash but not the timestamp in front of it, and Go rejects a pseudo-version whose timestamp does not match the commit. Bump it by hand: `go list -m github.com/crossplane/crossplane-tools@<commit>` prints the right pseudo-version. Never go below the 2026-07-15 build - older angryjet silently generates no methodsets for the core/v2 types, and the scaffolded provider then fails go build.",

@@ -154,20 +154,35 @@ func (g *GitOperations) stageAndCheck(ctx context.Context) (bool, error) {
 // would move the checkout straight back. It converges from any interrupted
 // state, and a ref the submodule does not have fails naming the ref.
 func (g *GitOperations) AddSubmodule(ctx context.Context, url, path, ref string) error {
-	if _, err := os.Stat(path + "/.git"); err != nil {
-		if _, err := os.Stat(path); err != nil {
-			if err := g.runner.AddSubmodule(ctx, url, path); err != nil {
-				return err
-			}
-		}
-		if err := g.runner.RunCommand(ctx, "submodule", "update", "--init", "--recursive"); err != nil {
-			return err
-		}
+	if err := g.ensureSubmoduleCheckout(ctx, url, path); err != nil {
+		return err
 	}
 	if err := g.runner.RunCommand(ctx, "-C", path, "checkout", "--detach", ref); err != nil {
 		return fmt.Errorf("checking out %s at build_ref %s: %w", path, ref, err)
 	}
 	return g.runner.Add(ctx, path)
+}
+
+// ensureSubmoduleCheckout leaves a submodule checkout at path, adding the
+// submodule when path is absent and initializing it when only registered. A
+// path that exists but cannot become a checkout fails, since running git
+// there would act on the parent repository.
+func (g *GitOperations) ensureSubmoduleCheckout(ctx context.Context, url, path string) error {
+	if _, err := os.Stat(path + "/.git"); err == nil {
+		return nil
+	}
+	if _, err := os.Stat(path); err != nil {
+		if err := g.runner.AddSubmodule(ctx, url, path); err != nil {
+			return err
+		}
+	}
+	if err := g.runner.RunCommand(ctx, "submodule", "update", "--init", "--recursive"); err != nil {
+		return err
+	}
+	if _, err := os.Stat(path + "/.git"); err != nil {
+		return fmt.Errorf("%s exists but is not a git submodule checkout; remove or move it and rerun", path)
+	}
+	return nil
 }
 
 // BuildDrift reports how the build submodule's recorded commit differs from
@@ -188,6 +203,6 @@ func (g *GitOperations) BuildDrift(ctx context.Context, path, ref string) (strin
 		return "", nil
 	}
 	return fmt.Sprintf("%s is at %s; this generator pins %s. update does not move it: "+
-		"git -C %s fetch && git -C %s checkout %s && git add %s",
-		path, sha, ref, path, path, ref, path), nil
+		"git -C %s fetch origin %s && git -C %s checkout %s && git add %s",
+		path, sha, ref, path, ref, path, ref, path), nil
 }

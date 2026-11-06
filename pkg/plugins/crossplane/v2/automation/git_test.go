@@ -19,6 +19,7 @@ package automation
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -292,5 +293,51 @@ func TestBuildDrift_GitlinkWithNoLocalObject(t *testing.T) {
 	got, err := git.BuildDrift(context.Background(), "build", strings.Repeat("ab", 20))
 	if err != nil || !strings.Contains(got, unknown) {
 		t.Errorf("BuildDrift = %q, %v; want a drift line naming the unfetched %s", got, err, unknown)
+	}
+}
+
+func TestAddSubmodule_PathThatIsNotARepoFailsWithoutTouchingParent(t *testing.T) {
+	allowFileSubmodules(t)
+	upstream, older, _ := buildUpstream(t)
+	git := initTestRepo(t)
+	if err := os.Mkdir("build", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join("build", "keep"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	head := gitOut(t, ".", "rev-parse", "HEAD")
+
+	err := git.AddSubmodule(context.Background(), upstream, "build", older)
+	if err == nil || !strings.Contains(err.Error(), "not a git submodule checkout") {
+		t.Fatalf("AddSubmodule error = %v, want one saying build is not a git submodule checkout", err)
+	}
+	if got := gitOut(t, ".", "rev-parse", "HEAD"); got != head {
+		t.Errorf("parent HEAD moved to %s, want %s", got, head)
+	}
+}
+
+func TestBuildDrift_PrintedCommandMovesAShallowCloneToThePin(t *testing.T) {
+	upstream, older, newer := buildUpstream(t)
+	git := initTestRepo(t)
+	gitOut(t, ".", "clone", "--depth", "1", "file://"+upstream, "build")
+	gitOut(t, ".", "add", "build")
+	if got := gitlink(t); got != newer {
+		t.Fatalf("fixture: gitlink = %s, want upstream HEAD %s", got, newer)
+	}
+
+	line, err := git.BuildDrift(context.Background(), "build", older)
+	if err != nil || line == "" {
+		t.Fatalf("BuildDrift = %q, %v; want a drift line", line, err)
+	}
+	_, command, ok := strings.Cut(line, "update does not move it: ")
+	if !ok {
+		t.Fatalf("drift line %q has no command", line)
+	}
+	if out, err := exec.CommandContext(t.Context(), "sh", "-c", command).CombinedOutput(); err != nil {
+		t.Fatalf("running %q: %v\n%s", command, err, out)
+	}
+	if got := gitlink(t); got != older {
+		t.Errorf("gitlink after the printed command = %s, want pin %s", got, older)
 	}
 }

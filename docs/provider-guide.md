@@ -23,7 +23,7 @@ xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
 ```
 
 `init` creates the project, wires the crossplane build submodule pinned at the commit
-in `pkg/versions/dependencies.yaml`'s `build_ref`, runs code generation, and leaves a
+this generator version records as its `build_ref`, runs code generation, and leaves a
 single clean commit. `create api` adds a kind and folds
 into that commit until you make one of your own.
 
