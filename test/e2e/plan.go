@@ -50,8 +50,9 @@ type Plan struct {
 	NotRun []Stage
 }
 
-// NewPlan rejects an unknown mode and a plan with nothing to run. It fails in full mode when a stage needs a capability the host lacks,
-// so the run stops before the first stage. Fast mode sets those stages aside.
+// NewPlan rejects an unknown mode and a plan with nothing to run. It fails in
+// full mode when a stage needs a capability the host lacks, so the run stops
+// before the first stage. Fast mode sets those stages aside.
 func NewPlan(c Case, stages []Stage, mode Mode, have map[Capability]bool) (Plan, error) {
 	if mode != ModeFull && mode != ModeFast {
 		return Plan{}, fmt.Errorf("%w %q: want %q or %q", ErrUnknownMode, mode, ModeFull, ModeFast)
@@ -62,12 +63,7 @@ func NewPlan(c Case, stages []Stage, mode Mode, have map[Capability]bool) (Plan,
 		if s.When != nil && !s.When(c) {
 			continue
 		}
-		var lacking []Capability
-		for _, need := range s.Needs {
-			if !have[need] {
-				lacking = append(lacking, need)
-			}
-		}
+		lacking := lacks(s.Needs, have)
 		switch {
 		case mode == ModeFast && len(s.Needs) > 0:
 			p.NotRun = append(p.NotRun, s)
@@ -84,6 +80,16 @@ func NewPlan(c Case, stages []Stage, mode Mode, have map[Capability]bool) (Plan,
 		return Plan{}, fmt.Errorf("%s mode has no stage to run, so a pass would prove nothing", mode)
 	}
 	return p, nil
+}
+
+func lacks(needs []Capability, have map[Capability]bool) []Capability {
+	var lacking []Capability
+	for _, need := range needs {
+		if !have[need] {
+			lacking = append(lacking, need)
+		}
+	}
+	return lacking
 }
 
 type Verdict string

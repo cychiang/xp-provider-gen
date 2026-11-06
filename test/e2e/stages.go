@@ -252,7 +252,11 @@ func (e *Env) eventually(what string, read func() (string, error), want string) 
 			return e.Ctx.Err()
 		}
 	}
-	return fmt.Errorf("%s: want %q, last saw %q, last error: %v", what, want, last, lastErr)
+	err := fmt.Errorf("%s: want %q, last saw %q", what, want, last)
+	if lastErr != nil {
+		err = fmt.Errorf("%w; last error: %w", err, lastErr)
+	}
+	return err
 }
 
 func (e *Env) externalValue() (string, error) {
@@ -685,8 +689,5 @@ func stageCreateTest(e *Env) error {
 		return fmt.Errorf("finding the test create-test wrote: %w", err)
 	}
 	out, err := e.head(create...)
-	if err := refused(out, err, "already exist", "create-test over an existing test"); err != nil {
-		return err
-	}
-	return nil
+	return refused(out, err, "already exist", "create-test over an existing test")
 }
