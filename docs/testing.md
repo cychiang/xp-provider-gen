@@ -70,13 +70,12 @@ tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mo
 | `update-noop` | A same-generator `update` reports `removed 0`, `Refreshed 0` and a non-zero `Unchanged N`, leaves the seam files byte-identical and the tree clean, refuses a dirty tree, and rejects `--terraform-provider-version` naming the flavor. |
 | `create-api-refresh` | Re-running `create api` regenerates a tool-owned file, keeps a user edit, commits nothing the second time, and rejects `--force`. |
 | `adopt` | Plants a sentinel PROJECT `version:` and strips a header, then asserts `update --adopt` restores both. |
-| `stock-e2e` | The scaffold exactly as generated, in a clone of its first commit, passes its own `make e2e`. Uptest skips its update step on the stock scaffold: it updates only a resource annotated `meta.upbound.io/example-id`, and allows one such root per run, while `make e2e` runs every kind's example in one run. |
-| `build-xpkg`, `install-in-kind`, `provider-config` | The overlay provider's package builds, installs into a new kind cluster and is Healthy, and a ProviderConfig holds the cluster's own kubeconfig as credentials. |
+| `stock-e2e` | The scaffold exactly as generated, in a clone of its first commit, passes its own `make e2e`, with the head's `create-test` lifecycle test added first, so the one run covers uptest, the pause tests and the test `create-test` wrote. Uptest skips its update step on the stock scaffold: it updates only a resource annotated `meta.upbound.io/example-id`, and allows one such root per run, while `make e2e` runs every kind's example in one run. |
+| `build-xpkg`, `install-in-kind`, `provider-config` | The overlay provider's package builds, installs into a new kind cluster and is Healthy, (deployed with `--poll=10s` through a harness-only DeploymentRuntimeConfig, so drift shows in seconds), and a ProviderConfig holds the cluster's own kubeconfig as credentials. |
 | `mr-ready-synced` | The `Widget` example is `Ready` and `Synced`, and a ConfigMap, the external object, holds its value. |
 | `mr-update`, `drift-corrected` | The external value follows a spec patch, and a hand edit of the external object is restored. |
 | `mr-delete`, `external-gone` | The managed resource is deleted, then the external object is gone. |
 | `create-test` | `create-test` writes a chainsaw test and refuses to overwrite it. Needs no Docker, so fast mode runs it. |
-| `test-behavior` | The chainsaw test `create-test` wrote passes against the live provider. |
 
 The overlay in `test/e2e/testdata/native/` gives the scaffold an honest external system: a
 ConfigMap client built from `ClientConfig.Credentials`. It lives in the harness, not in the

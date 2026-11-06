@@ -126,7 +126,7 @@ func TestReleaseOnlyStagesRunForReleaseCasesOnly(t *testing.T) {
 func TestNativeStagesAreDeclaredInPlanOrder(t *testing.T) {
 	want := "init create-api generate user-logic update-to-head update-noop create-api-refresh adopt create-test " +
 		"stock-e2e build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected " +
-		"mr-delete external-gone test-behavior"
+		"mr-delete external-gone"
 	var got []string
 	for _, s := range nativeStages() {
 		got = append(got, s.Name)

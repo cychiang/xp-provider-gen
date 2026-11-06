@@ -15,20 +15,21 @@ import (
 )
 
 const (
-	domain      = "example.com"
-	repo        = "github.com/xpg-e2e/provider-acme"
-	provider    = "provider-acme"
-	group       = "sample"
-	apiVersion  = "v1alpha1"
-	widgetKind  = "Widget"
-	gadgetKind  = "Gadget"
-	headerMark  = "DO NOT EDIT"
-	externalNS  = "default"
-	externalCM  = "widget-example"
-	managed     = "widget.sample.example.com/example"
-	widgetDir   = "internal/controller/widget"
-	pollEvery   = 3 * time.Second
-	pollTimeout = 3 * time.Minute
+	domain        = "example.com"
+	repo          = "github.com/xpg-e2e/provider-acme"
+	provider      = "provider-acme"
+	group         = "sample"
+	apiVersion    = "v1alpha1"
+	widgetKind    = "Widget"
+	gadgetKind    = "Gadget"
+	headerMark    = "DO NOT EDIT"
+	externalNS    = "default"
+	externalCM    = "widget-example"
+	managed       = "widget.sample.example.com/example"
+	lifecycleTest = "lifecycle"
+	widgetDir     = "internal/controller/widget"
+	pollEvery     = 3 * time.Second
+	pollTimeout   = 3 * time.Minute
 )
 
 var (
@@ -316,7 +317,6 @@ func nativeStages() []Stage {
 		{Name: "drift-corrected", Needs: docker, Run: stageDriftCorrected},
 		{Name: "mr-delete", Needs: docker, Run: stageMRDelete},
 		{Name: "external-gone", Needs: docker, Run: stageExternalGone},
-		{Name: "test-behavior", Needs: docker, Run: func(e *Env) error { return e.make("test-behavior") }},
 	}
 }
 
@@ -584,7 +584,9 @@ func stripHeader(s string) (string, error) {
 }
 
 // stageStockE2E runs the author's entry point, make e2e, on the scaffold as
-// the generator wrote it: a clone of its first commit, before user logic.
+// the generator wrote it: a clone of its first commit, before user logic. The
+// head's create-test adds a lifecycle test first, so the one run covers uptest,
+// the pause tests and the test create-test wrote, all on the unmodified stub.
 func stageStockE2E(e *Env) error {
 	stock := filepath.Join(e.Work, "stock")
 	root, err := e.git("rev-list", "--max-parents=0", "HEAD")
@@ -601,12 +603,39 @@ func stageStockE2E(e *Env) error {
 	if _, err := e.makeIn(stock, "submodules"); err != nil {
 		return err
 	}
+	if _, err := e.exec(stock, "", e.Head, "create-test", "--kind="+widgetKind, "--name="+lifecycleTest); err != nil {
+		return err
+	}
 	_, err = e.makeIn(stock, "e2e")
 	return err
 }
 
+// pollRuntimeConfig is the DeploymentRuntimeConfig the harness deploys the
+// provider with: the build's default plus a short --poll, so drift-corrected
+// waits seconds instead of the shipped one-minute poll interval. The build
+// swaps in the image, so none is set here.
+const pollRuntimeConfig = `apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: runtimeconfig-` + provider + `
+spec:
+  deploymentTemplate:
+    spec:
+      selector: {}
+      template:
+        spec:
+          containers:
+            - name: package-runtime
+              args: ["--debug", "--poll=10s"]
+`
+
 func stageInstallInKind(e *Env) error {
-	if err := e.make("controlplane.down", "controlplane.up", "local.xpkg.deploy.provider."+provider); err != nil {
+	drc := filepath.Join(e.Work, "runtimeconfig.yaml")
+	if err := os.WriteFile(drc, []byte(pollRuntimeConfig), 0o600); err != nil {
+		return err
+	}
+	deploy := "local.xpkg.deploy.provider." + provider
+	if err := e.make("DRC_FILE="+drc, "controlplane.down", "controlplane.up", deploy); err != nil {
 		return err
 	}
 	_, err := e.kubectl("", "wait", "provider.pkg", provider, "--for=condition=Healthy", "--timeout=300s")
@@ -680,12 +709,11 @@ func stageExternalGone(e *Env) error {
 }
 
 func stageCreateTest(e *Env) error {
-	const name = "lifecycle"
-	create := []string{"create-test", "--kind=" + widgetKind, "--name=" + name}
+	create := []string{"create-test", "--kind=" + widgetKind, "--name=" + lifecycleTest}
 	if _, err := e.head(create...); err != nil {
 		return err
 	}
-	if _, err := os.Stat(e.path("test/behavior/" + name + "/chainsaw-test.yaml")); err != nil {
+	if _, err := os.Stat(e.path("test/behavior/" + lifecycleTest + "/chainsaw-test.yaml")); err != nil {
 		return fmt.Errorf("finding the test create-test wrote: %w", err)
 	}
 	out, err := e.head(create...)
