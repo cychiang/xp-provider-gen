@@ -18,6 +18,7 @@ package v2
 
 import (
 	"io"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -66,9 +67,25 @@ var (
 )
 
 // createAPIRun runs create api for fl's kind against dst, as the CLI does up to
-// PostScaffold, and returns what it printed. A fresh config each call stands
-// for a fresh process reading PROJECT.
+// PostScaffold, and returns what it printed.
 func createAPIRun(t *testing.T, fl createAPIFlavor, dst afero.Fs) string {
+	t.Helper()
+	p := createAPIPrepared(t, fl)
+	machineryFS := machinery.Filesystem{FS: dst}
+	if err := p.PreScaffold(machineryFS); err != nil {
+		t.Fatalf("PreScaffold: %v", err)
+	}
+	return captureStdout(t, func() {
+		if err := p.Scaffold(machineryFS); err != nil {
+			t.Fatalf("Scaffold: %v", err)
+		}
+	})
+}
+
+// createAPIPrepared returns create api for fl's kind with its flags, config and
+// resource injected, ready for PreScaffold. A fresh config each call stands for
+// a fresh process reading PROJECT.
+func createAPIPrepared(t *testing.T, fl createAPIFlavor) *createAPISubcommand {
 	t.Helper()
 	cfg, err := config.New(cfgv3.Version)
 	if err != nil {
@@ -114,15 +131,7 @@ func createAPIRun(t *testing.T, fl createAPIFlavor, dst afero.Fs) string {
 	if err := p.InjectResource(res); err != nil {
 		t.Fatalf("InjectResource: %v", err)
 	}
-	machineryFS := machinery.Filesystem{FS: dst}
-	if err := p.PreScaffold(machineryFS); err != nil {
-		t.Fatalf("PreScaffold: %v", err)
-	}
-	return captureStdout(t, func() {
-		if err := p.Scaffold(machineryFS); err != nil {
-			t.Fatalf("Scaffold: %v", err)
-		}
-	})
+	return p
 }
 
 func readFile(t *testing.T, fs afero.Fs, path string) string {
@@ -152,6 +161,54 @@ func scaffoldedKind(t *testing.T, fl createAPIFlavor) afero.Fs {
 		}
 	}
 	return dst
+}
+
+// TestCreateAPIRefusesRepoWithoutCommit pins that create api stops before it
+// writes anything when the repository has no commit, which is how a failed init
+// leaves it, and that the refusal says init did not finish. A repository with a
+// commit and a directory that is no repository both go on.
+func TestCreateAPIRefusesRepoWithoutCommit(t *testing.T) {
+	t.Run("no commit", func(t *testing.T) {
+		dir := t.TempDir()
+		gitInDir(t, dir, "init", "--quiet")
+		t.Chdir(dir)
+
+		dst := afero.NewMemMapFs()
+		err := createAPIPrepared(t, createAPINative).PreScaffold(machinery.Filesystem{FS: dst})
+		if err == nil || !strings.Contains(err.Error(), "init did not finish") {
+			t.Fatalf("PreScaffold = %v, want a refusal saying init did not finish", err)
+		}
+		if files, _ := afero.Glob(dst, "*"); len(files) != 0 {
+			t.Errorf("a refused create api wrote %v", files)
+		}
+	})
+	t.Run("with a commit", func(t *testing.T) {
+		dir := t.TempDir()
+		gitInDir(t, dir, "init", "--quiet")
+		gitInDir(t, dir, "-c", "user.name=t", "-c", "user.email=t@example.com",
+			"commit", "--quiet", "--allow-empty", "-m", "scaffold")
+		t.Chdir(dir)
+
+		if err := createAPIPrepared(t, createAPINative).PreScaffold(machinery.Filesystem{FS: afero.NewMemMapFs()}); err != nil {
+			t.Errorf("PreScaffold = %v, want nil", err)
+		}
+	})
+	t.Run("not a repository", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+
+		if err := createAPIPrepared(t, createAPINative).PreScaffold(machinery.Filesystem{FS: afero.NewMemMapFs()}); err != nil {
+			t.Errorf("PreScaffold = %v, want nil", err)
+		}
+	})
+}
+
+func gitInDir(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), "git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
 }
 
 // TestCreateAPIRefreshesStaleToolOwned pins that re-running create api for an

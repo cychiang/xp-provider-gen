@@ -29,15 +29,20 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
-// alphaCommand is the name of Kubebuilder's "alpha" command tree, which this
-// generator blocks (refuseAlpha) and hides (hideInertCommands) — see both for
-// why.
-const alphaCommand = "alpha"
+// Names of the Kubebuilder commands this generator refuses (refuseInert) and
+// hides from --help (hideInertCommands): "alpha", "edit" and "create webhook".
+// "create" is only the parent of "webhook" and is neither refused nor hidden.
+const (
+	alphaCommand   = "alpha"
+	editCommand    = "edit"
+	createCommand  = "create"
+	webhookCommand = "webhook"
+)
 
-// refuseAlpha exits before cli.New(...) is ever called if the invocation's
-// first positional argument is "alpha". This must run before construction,
-// not after: Kubebuilder v4.15.0's cli.New itself (pkg/cli/cli.go,
-// getInfoFromConfigFile -> isAlphaGenerateCommand ->
+// refuseInert exits before cli.New(...) is ever called if the invocation is
+// one of the Kubebuilder commands this generator cannot run. This must run
+// before construction, not after, for "alpha": Kubebuilder v4.15.0's cli.New
+// itself (pkg/cli/cli.go, getInfoFromConfigFile -> isAlphaGenerateCommand ->
 // patchProjectFileInMemoryIfNeeded) rewrites PROJECT on disk for any
 // invocation whose positional args are "alpha generate" (including "alpha
 // generate --help") — it does a blind strings.ReplaceAll of
@@ -51,20 +56,44 @@ const alphaCommand = "alpha"
 // every alpha subcommand is inert for this plugin anyway (they hardcode a
 // lookup for the standard "go.kubebuilder.io/v4" plugin key, which this
 // generator never registers).
-func refuseAlpha(args []string) {
-	if firstPositionalArg(args) != alphaCommand {
-		return
+//
+// "edit" and "create webhook" are refused for a different reason: the plugin
+// has no such subcommand, and Kubebuilder dereferences the nil one inside a
+// project (cmd_helpers.go), crashing with a goroutine trace. Their --help
+// is refused too, since it would list this plugin as supporting them.
+func refuseInert(args []string) {
+	if cmd := inertCommand(args); cmd != "" {
+		fmt.Fprintf(os.Stderr, "Error: %s is not supported by %s\n", cmd, version.CommandName)
+		os.Exit(1)
 	}
-	fmt.Fprintln(os.Stderr, "Error: alpha commands are not supported by "+version.CommandName)
-	os.Exit(1)
 }
 
-// firstPositionalArg returns the first non-flag argument in args, skipping
+// inertCommand returns the name of the unsupported command args invoke, or ""
+// if args invoke a supported one.
+func inertCommand(args []string) string {
+	pos := positionalArgs(args)
+	// "help X" prints X's help, which lists this plugin as supporting it.
+	if len(pos) > 0 && pos[0] == "help" {
+		pos = pos[1:]
+	}
+	switch {
+	case len(pos) == 0:
+		return ""
+	case pos[0] == alphaCommand || pos[0] == editCommand:
+		return pos[0]
+	case pos[0] == createCommand && len(pos) > 1 && pos[1] == webhookCommand:
+		return createCommand + " " + webhookCommand
+	}
+	return ""
+}
+
+// positionalArgs returns the non-flag arguments in args, skipping
 // "--flag value" pairs the same way Kubebuilder's own isAlphaGenerateCommand
 // does (a "--flag=value" or a boolean "--flag" consumes only itself; a
 // "--flag value" pair consumes both tokens, recognized by the next token not
 // itself looking like a flag).
-func firstPositionalArg(args []string) string {
+func positionalArgs(args []string) []string {
+	var pos []string
 	skipNext := false
 	for i, arg := range args {
 		if skipNext {
@@ -77,13 +106,13 @@ func firstPositionalArg(args []string) string {
 			}
 			continue
 		}
-		return arg
+		pos = append(pos, arg)
 	}
-	return ""
+	return pos
 }
 
 func main() {
-	refuseAlpha(os.Args[1:])
+	refuseInert(os.Args[1:])
 
 	versionInfo := version.Get()
 
@@ -108,23 +137,13 @@ func main() {
 	}
 }
 
-// hideInertCommands hides Kubebuilder-provided subcommands that our plugin
-// does not implement. Kubebuilder's CLI always wires "edit", "create webhook"
-// and "alpha" into the command tree regardless of what the plugin supports:
-// our Plugin declares GetEditSubcommand/GetCreateWebhookSubcommand returning
-// nil (this plugin offers no edit or webhook flow), which the CLI dereferences
-// unconditionally and panics rather than reporting a clean error; "alpha
-// generate"/"alpha update" hardcode a lookup for the standard
-// "go.kubebuilder.io/v4" plugin key, which this project never registers, so
-// they always fail with "no plugin could be resolved" regardless of project
-// state. Hidden commands still run if invoked by name — Cobra has no runtime
-// "disabled" concept — but they no longer clutter --help with functionality
-// this generator does not offer. "alpha" is additionally blocked from running
-// at all by refuseAlpha above (Hidden alone cannot stop its PROJECT-corrupting
-// side effect); it stays in this list too so a bare `--help` doesn't list it.
+// hideInertCommands keeps the commands refuseInert stops ("edit", "create
+// webhook" and "alpha") out of --help, so it does not advertise functionality
+// this generator does not offer. Kubebuilder wires them into the command tree
+// regardless of what the plugin supports.
 func hideInertCommands(root *cobra.Command) {
-	hide(root, "edit")
-	hide(root, "create", "webhook")
+	hide(root, editCommand)
+	hide(root, createCommand, webhookCommand)
 	hide(root, alphaCommand)
 }
 
