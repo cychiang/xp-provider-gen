@@ -158,12 +158,6 @@
       "enabled": false
     },
     {
-      "description": "lint.yml's golangci-lint `version:` input is one of four pins of the same version. The built-in github-actions manager would bump it alone; disable that so the golangci-lint customManager below bumps all four together in one PR.",
-      "matchManagers": ["github-actions"],
-      "matchDepNames": ["golangci/golangci-lint"],
-      "enabled": false
-    },
-    {
       "description": "The `go` directive of this repo's go.mod files is not an independent dependency either: the go-version customManager below bumps it with go_version and the Dockerfile. Disable the gomod manager's own proposal for it (it would bump go.mod alone).",
       "matchManagers": ["gomod"],
       "matchDepTypes": ["golang"],
@@ -182,7 +176,7 @@
     {
       "description": "Generated-provider framework deps (pkg/versions/dependencies.yaml) - bump together so crossplane-runtime, crossplane/apis, controller-runtime, and k8s.io/* stay mutually compatible (individual bumps break the e2e)",
       "matchFileNames": ["pkg/versions/dependencies.yaml"],
-      "matchDepNames": ["!generated-provider-go-version"],
+      "matchDepNames": ["!generated-provider-go-version", "!golangci/golangci-lint"],
       "groupName": "provider framework dependencies",
       "addLabels": ["dependencies", "provider-framework"],
       "semanticCommitType": "deps",
@@ -225,17 +219,9 @@
     },
     {
       "customType": "regex",
-      "description": "Track golangci-lint as ONE dependency across the four places that pin it - this repo's Makefile, lint.yml's golangci-lint-action `version:` input, and both flavors' generated make fragment - so a bump proposes all four in a single PR. hack/check-consistency.sh (C10) fails CI if they ever disagree.",
-      "managerFilePatterns": [
-        "Makefile",
-        ".github/workflows/lint.yml",
-        "pkg/templates/files/hack/xp-provider-gen.mk.tmpl",
-        "pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl"
-      ],
-      "matchStrings": [
-        "GOLANGCILINT_VERSION\\s*\\??=\\s*(?<currentValue>\\d+\\.\\d+\\.\\d+)",
-        "version:\\s*v(?<currentValue>\\d+\\.\\d+\\.\\d+)"
-      ],
+      "description": "Track golangci-lint through pkg/versions/dependencies.yaml's golangci_lint_version, the one place it is pinned: this repo's Makefile and lint.yml read it, and both flavors' generated make fragment render it.",
+      "managerFilePatterns": ["pkg/versions/dependencies.yaml"],
+      "matchStrings": ["golangci_lint_version:\\s*[\"'](?<currentValue>\\d+\\.\\d+\\.\\d+)[\"']"],
       "depNameTemplate": "golangci/golangci-lint",
       "packageNameTemplate": "golangci/golangci-lint",
       "datasourceTemplate": "github-releases",

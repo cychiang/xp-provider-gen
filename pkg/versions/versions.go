@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 
 	"sigs.k8s.io/yaml"
 )
@@ -51,16 +52,28 @@ func mustParse(raw []byte) manifest {
 type Dependency struct {
 	Module  string `json:"module"`
 	Version string `json:"version"`
+	// Package, when set, is the package `go get` fetches instead of the module.
+	Package string `json:"package,omitempty"`
+}
+
+// GetArg is the argument `go get` takes to put this dependency at its version.
+func (d Dependency) GetArg() string {
+	target := d.Module
+	if d.Package != "" {
+		target = d.Package
+	}
+	return target + "@" + d.Version
 }
 
 // manifest is the shape of dependencies.yaml: the single source of truth for
 // the framework/Kubernetes dependency versions, the Go version, and the
 // Terraform CLI version a generated provider targets.
 type manifest struct {
-	GoVersion         string       `json:"go_version"`
-	TerraformVersion  string       `json:"terraform_version"`
-	Dependencies      []Dependency `json:"dependencies"`
-	UpjetDependencies []Dependency `json:"upjet_dependencies"`
+	GoVersion           string       `json:"go_version"`
+	TerraformVersion    string       `json:"terraform_version"`
+	GolangciLintVersion string       `json:"golangci_lint_version"`
+	Dependencies        []Dependency `json:"dependencies"`
+	UpjetDependencies   []Dependency `json:"upjet_dependencies"`
 }
 
 // parseManifest decodes raw dependencies.yaml content. Taking raw bytes
@@ -90,6 +103,24 @@ var GoVersion = requireField(embedded.GoVersion, "go_version")
 // compatibility one, but not the author's call either way — there is
 // deliberately no CLI flag for it.
 var TerraformVersion = requireField(embedded.TerraformVersion, "terraform_version")
+
+// GolangciLintVersion is the golangci-lint release generated providers lint
+// with, read from the embedded manifest's golangci_lint_version key.
+var GolangciLintVersion = requireField(embedded.GolangciLintVersion, "golangci_lint_version")
+
+const crossplaneAPIsModule = "github.com/crossplane/crossplane/apis/v2"
+
+// CrossplaneVersion is the Crossplane release a generated provider's e2e
+// installs, derived from the crossplane/apis/v2 entry so the two cannot
+// drift. It panics if the entry is missing, a build defect like requireField.
+func CrossplaneVersion() string {
+	for _, d := range embedded.Dependencies {
+		if d.Module == crossplaneAPIsModule {
+			return strings.TrimPrefix(d.Version, "v")
+		}
+	}
+	panic("pkg/versions/dependencies.yaml: " + crossplaneAPIsModule + " is required")
+}
 
 // requireField panics if a required manifest key is missing — a build
 // defect, since the manifest is repo-controlled, not runtime input.

@@ -7,11 +7,10 @@
   go.mod (the generator's or `hack/envtest-provider-check`'s) or the Dockerfile falls out of
   step with it. Renovate bumps all four together in one PR.
 - **Git**
-- **golangci-lint** — installed automatically by `make lint` if missing, at the version
-  pinned in `GOLANGCILINT_VERSION`. The same version is pinned in four places:
-  `Makefile`, `.github/workflows/lint.yml`, `pkg/templates/files/hack/xp-provider-gen.mk.tmpl`
-  and `pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl`. One Renovate customManager bumps all
-  four in a single PR, and `make check-consistency` (C10) fails if they disagree.
+- **golangci-lint** — installed automatically by `make lint` if missing, at the version in
+  [`pkg/versions/dependencies.yaml`](../pkg/versions/dependencies.yaml)'s `golangci_lint_version`.
+  That key is its only pin: the `Makefile` and `.github/workflows/lint.yml` read it, and both
+  flavors' `hack/xp-provider-gen.mk.tmpl` render it. Renovate bumps that one line.
 - **gosec** — security scanner
 - **Docker** — without it, both `make e2e-native` and `make e2e-upjet` skip their
   Docker-dependent stage rather than failing; `make e2e-upjet` also needs network access
@@ -37,11 +36,11 @@ Run `make help` for the full target list. A few aren't obvious from their name a
 
 ## Consistency gate
 
-`make check-consistency` runs `hack/check-consistency.sh`, ten checks that stop drift from
+`make check-consistency` runs `hack/check-consistency.sh`, nine checks that stop drift from
 growing back: stale script names, a `Makefile` whose `.PHONY` or `make help` disagrees with its
 targets, e2e scripts that diverge from one skeleton or `/tmp` prefix, retired terminology,
 non-gerund error strings, workflow `paths:` filters, markdown links/anchors that no longer
-resolve, and golangci-lint pins that disagree. To add a check, append a `report Cn "<title>" "<violations>"` block to the script; CI
+resolve. To add a check, append a `report Cn "<title>" "<violations>"` block to the script; CI
 and `make reviewable` both run it.
 
 ## Typical workflow
@@ -78,7 +77,7 @@ never hardcode versions in a template.
 
 Generated providers target the Go version in `pkg/versions/dependencies.yaml`'s `go_version`
 (`pkg/versions.GoVersion`, rendered into `go.mod`) and lint with the pinned golangci-lint
-(`hack/xp-provider-gen.mk.tmpl`). Keep the generated `go` directive at that language version with
+(`golangci_lint_version` in the same manifest). Keep the generated `go` directive at that language version with
 no `toolchain` pin — golangci-lint reads the GOROOT of the Go that runs it, so a Go above
 golangci-lint's build version breaks `make reviewable` in generated projects. The generated
 `hack/xp-provider-gen.mk` caps that Go by exporting `GOTOOLCHAIN`, which also covers a newer host.

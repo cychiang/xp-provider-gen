@@ -285,8 +285,8 @@ func applyDependencies(ctx context.Context, flavor core.Flavor) error {
 	fmt.Printf("Applying %d framework dependency version(s)...\n", len(deps))
 	runner := core.NewCommandRunner("")
 	for _, d := range deps {
-		if err := runner.RunStreaming(ctx, os.Stdout, os.Stderr, "go", "get", d.Module+"@"+d.Version); err != nil {
-			return fmt.Errorf("go get %s@%s: %w", d.Module, d.Version, err)
+		if err := runner.RunStreaming(ctx, os.Stdout, os.Stderr, "go", "get", d.GetArg()); err != nil {
+			return fmt.Errorf("go get %s: %w", d.GetArg(), err)
 		}
 	}
 	return nil

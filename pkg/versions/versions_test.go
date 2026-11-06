@@ -177,3 +177,52 @@ func TestTerraformVersion_MatchesManifestFile(t *testing.T) {
 			TerraformVersion, doc.TerraformVersion)
 	}
 }
+
+func TestCrossplaneVersion_DerivedFromAPIsEntry(t *testing.T) {
+	saved := embedded
+	t.Cleanup(func() { embedded = saved })
+
+	embedded = manifest{Dependencies: []Dependency{
+		{Module: "github.com/crossplane/crossplane-runtime/v2", Version: "v9.9.9"},
+		{Module: "github.com/crossplane/crossplane/apis/v2", Version: "v1.2.3"},
+	}}
+	if got := CrossplaneVersion(); got != "1.2.3" {
+		t.Errorf("CrossplaneVersion() = %q, want %q", got, "1.2.3")
+	}
+}
+
+func TestParseManifest_GolangciLintVersion(t *testing.T) {
+	m, err := parseManifest([]byte("golangci_lint_version: \"8.8.8\"\ndependencies: []\n"))
+	if err != nil {
+		t.Fatalf("parseManifest() error: %v", err)
+	}
+	if m.GolangciLintVersion != "8.8.8" {
+		t.Errorf("GolangciLintVersion = %q, want %q", m.GolangciLintVersion, "8.8.8")
+	}
+}
+
+func TestDependency_GetArg(t *testing.T) {
+	const getArgVersion = "v1.2.3"
+	plain := Dependency{Module: "example.com/m", Version: getArgVersion}
+	if got, want := plain.GetArg(), "example.com/m@"+getArgVersion; got != want {
+		t.Errorf("GetArg() = %q, want %q", got, want)
+	}
+	pkg := Dependency{Module: "example.com/m", Version: getArgVersion, Package: "example.com/m/pkg/x"}
+	if got, want := pkg.GetArg(), "example.com/m/pkg/x@"+getArgVersion; got != want {
+		t.Errorf("GetArg() = %q, want %q", got, want)
+	}
+}
+
+// TestAPIExtensionsGetsAPackage pins that update asks `go get` for a package,
+// not the module, which has none at its root.
+func TestAPIExtensionsGetsAPackage(t *testing.T) {
+	for _, d := range GoModDependencies() {
+		if d.Module == "k8s.io/apiextensions-apiserver" {
+			if d.Package == "" || !strings.HasPrefix(d.GetArg(), d.Module+"/") {
+				t.Errorf("GetArg() = %q, want a package path under the module", d.GetArg())
+			}
+			return
+		}
+	}
+	t.Fatal("manifest must include apiextensions-apiserver")
+}

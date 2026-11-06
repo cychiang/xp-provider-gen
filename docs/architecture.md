@@ -250,7 +250,7 @@ provenance. User-owned files are never adopted.
   do not. The golden ownership test enforces this — see §6.
 - **Dependency manifest** (`pkg/versions/`) — `dependencies.yaml` is the single source of truth
   for the generated provider's direct dependency versions, plus the `GoVersion` constant; an
-  `upjet_dependencies` block adds the upjet-flavor-only set (upjet, crossplane-tools, …),
+  `upjet_dependencies` block adds the upjet-flavor-only set (upjet, controller-tools, …),
   rendered on top of the shared set by `init --upjet`. It is rendered into `go.mod`, tracked by
   a Renovate custom manager, and applied to existing providers by `update`.
 

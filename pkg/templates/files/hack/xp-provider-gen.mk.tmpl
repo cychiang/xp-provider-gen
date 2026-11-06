@@ -21,7 +21,7 @@ GO_STATIC_PACKAGES = $(GO_PROJECT)/cmd/provider
 GO_LDFLAGS += -X $(GO_PROJECT)/internal/version.Version=$(VERSION)
 GO_SUBDIRS += cmd internal apis
 GO111MODULE = on
-GOLANGCILINT_VERSION = 2.13.2
+GOLANGCILINT_VERSION = {{ .GolangciLintVersion }}
 export GOTOOLCHAIN ?= go{{ .GoVersion }}+auto
 -include build/makelib/golang.mk
 
@@ -53,7 +53,7 @@ xpkg.build.{{ .ProviderName }}: do.build.images $(CROSSPLANE_CLI)
 # ====================================================================================
 # Setup Uptest
 
-CROSSPLANE_VERSION ?= 2.4.3
+CROSSPLANE_VERSION ?= {{ .CrossplaneVersion }}
 # A dedicated cluster name so e2e's controlplane.down can never delete an
 # unrelated kind cluster. Must be set BEFORE the local.xpkg.mk and
 # controlplane.mk includes: both default it to "local-dev" with ?=, and the
