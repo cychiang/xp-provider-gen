@@ -28,6 +28,11 @@ go_version: "1.26.10"
 # flag, on purpose (an author who could set it could set a BSL version).
 terraform_version: "1.5.7"
 
+# The golangci-lint release generated providers lint with, and this repository
+# too: the Makefile and lint.yml read this key, and both flavors' make fragments
+# render it. Renovate bumps it on its own (renovate.json).
+golangci_lint_version: "2.13.2"
+
 dependencies:
   - module: github.com/alecthomas/kingpin/v2
     version: v2.4.0
@@ -35,6 +40,10 @@ dependencies:
     version: v2.4.3
   - module: github.com/crossplane/crossplane/apis/v2
     version: v2.4.3
+  # No upstream tags, so Renovate can't track this pseudo-version: bump it by
+  # hand (renovate.json's crossplane-tools rule says how, and the floor).
+  - module: github.com/crossplane/crossplane-tools
+    version: v0.0.0-20260715161912-60e57f817ad1
   - module: github.com/google/go-cmp
     version: v0.7.0
   - module: google.golang.org/grpc
@@ -51,10 +60,6 @@ dependencies:
 upjet_dependencies:
   - module: github.com/crossplane/upjet/v2
     version: v2.5.1
-  # No upstream tags, so Renovate can't track this pseudo-version: bump it by
-  # hand (renovate.json's crossplane-tools rule says how, and the floor).
-  - module: github.com/crossplane/crossplane-tools
-    version: v0.0.0-20260715161912-60e57f817ad1
   - module: github.com/pkg/errors
     version: v0.9.1
   - module: dario.cat/mergo

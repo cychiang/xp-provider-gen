@@ -28,10 +28,9 @@ COVERAGE_DIR=coverage
 # Binary names
 BINARY=xp-provider-gen
 
-# Pinned so local runs and CI enforce the same rules. Renovate bumps this with
-# lint.yml and both flavors' hack/xp-provider-gen.mk.tmpl in one PR;
-# `make check-consistency` (C10) fails if the four disagree.
-GOLANGCILINT_VERSION = 2.13.2
+# Read from the manifest, so local runs, CI and generated providers lint with
+# the same golangci-lint.
+GOLANGCILINT_VERSION := $(shell sed -n 's/^golangci_lint_version: *"\(.*\)"/\1/p' pkg/versions/dependencies.yaml)
 
 .PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-native e2e-upjet e2e-upgrade check-go-version check-consistency
 

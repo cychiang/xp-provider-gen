@@ -19,6 +19,8 @@ package engine
 import (
 	"fmt"
 	"io/fs"
+	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -26,6 +28,7 @@ import (
 	"github.com/spf13/afero"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
+	"sigs.k8s.io/yaml"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
@@ -262,6 +265,61 @@ func TestRenderPinsGoToolchain(t *testing.T) {
 			include := strings.Index(got, "-include build/makelib/golang.mk")
 			if pin < 0 || include < 0 || pin > include {
 				t.Errorf("%s must contain %q above golang.mk's include:\n%s", makeFragmentPath, want, got)
+			}
+		})
+	}
+}
+
+// TestRenderPinsMatchDependenciesManifest reads dependencies.yaml directly
+// and requires every version the make fragments pin to equal it, so a literal
+// left in a template fails here.
+func TestRenderPinsMatchDependenciesManifest(t *testing.T) {
+	raw, err := os.ReadFile("../../../../../versions/dependencies.yaml")
+	if err != nil {
+		t.Fatalf("reading dependencies.yaml: %v", err)
+	}
+	var manifest struct {
+		GolangciLintVersion string `json:"golangci_lint_version"`
+		Dependencies        []struct {
+			Module  string `json:"module"`
+			Version string `json:"version"`
+		} `json:"dependencies"`
+	}
+	if err := yaml.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("parsing dependencies.yaml: %v", err)
+	}
+	var crossplane string
+	for _, d := range manifest.Dependencies {
+		if d.Module == "github.com/crossplane/crossplane/apis/v2" {
+			crossplane = strings.TrimPrefix(d.Version, "v")
+		}
+	}
+	if manifest.GolangciLintVersion == "" || crossplane == "" {
+		t.Fatalf("dependencies.yaml lacks golangci_lint_version or the crossplane/apis/v2 entry")
+	}
+
+	golangci := regexp.MustCompile(`(?m)^GOLANGCILINT_VERSION \??= (\S+)$`)
+	crossplaneVersion := regexp.MustCompile(`(?m)^CROSSPLANE_VERSION \?= (\S+)$`)
+	for _, flavor := range []core.Flavor{core.FlavorNative, core.FlavorUpjet} {
+		t.Run(string(flavor), func(t *testing.T) {
+			body, err := afero.ReadFile(renderProject(t, flavor), makeFragmentPath)
+			if err != nil {
+				t.Fatalf("reading %s: %v", makeFragmentPath, err)
+			}
+			for name, c := range map[string]struct {
+				re   *regexp.Regexp
+				want string
+			}{
+				"GOLANGCILINT_VERSION": {golangci, manifest.GolangciLintVersion},
+				"CROSSPLANE_VERSION":   {crossplaneVersion, crossplane},
+			} {
+				var got string
+				if m := c.re.FindSubmatch(body); m != nil {
+					got = string(m[1])
+				}
+				if got != c.want {
+					t.Errorf("%s in %s = %q, want %q", name, makeFragmentPath, got, c.want)
+				}
 			}
 		})
 	}
