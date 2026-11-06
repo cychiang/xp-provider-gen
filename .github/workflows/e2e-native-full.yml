@@ -8,13 +8,13 @@ permissions:
 # That Docker leg — a generated native provider actually deploying to a real
 # cluster and reconciling — and `make e2e-upgrade` (the check that protects
 # provider authors from a breaking generator bump) are both expensive and
-# both valuable, so they run here instead: on a daily schedule, on demand,
+# both valuable, so they run here instead: on a weekly schedule, on demand,
 # and on PRs that touch the generator surfaces these checks actually exercise
 # (so a PR that changes that surface is verified before merge, not just
 # after, without slowing down unrelated PRs).
 on:
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '0 5 * * 1'
   workflow_dispatch: {}
   pull_request:
     branches: [ main, develop ]
