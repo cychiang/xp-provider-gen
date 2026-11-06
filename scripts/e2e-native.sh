@@ -486,8 +486,6 @@ main() {
     fi
     log_success "Binary found at $BINARY_PATH"
 
-    docker_require_preflight
-
     step_prepare_dir
     step_init
     step_build_initial
@@ -546,6 +544,9 @@ on_exit() {
         rm -rf "$TEST_DIR"
     fi
 }
+
+# Before the trap: a failed preflight must not run on_exit, which deletes TEST_DIR.
+docker_require_preflight
 
 trap on_exit EXIT
 
