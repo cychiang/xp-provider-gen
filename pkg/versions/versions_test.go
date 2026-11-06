@@ -202,12 +202,13 @@ func TestParseManifest_GolangciLintVersion(t *testing.T) {
 }
 
 func TestDependency_GetArg(t *testing.T) {
-	plain := Dependency{Module: "example.com/m", Version: "v1.2.3"}
-	if got, want := plain.GetArg(), "example.com/m@v1.2.3"; got != want {
+	const getArgVersion = "v1.2.3"
+	plain := Dependency{Module: "example.com/m", Version: getArgVersion}
+	if got, want := plain.GetArg(), "example.com/m@"+getArgVersion; got != want {
 		t.Errorf("GetArg() = %q, want %q", got, want)
 	}
-	pkg := Dependency{Module: "example.com/m", Version: "v1.2.3", Package: "example.com/m/pkg/x"}
-	if got, want := pkg.GetArg(), "example.com/m/pkg/x@v1.2.3"; got != want {
+	pkg := Dependency{Module: "example.com/m", Version: getArgVersion, Package: "example.com/m/pkg/x"}
+	if got, want := pkg.GetArg(), "example.com/m/pkg/x@"+getArgVersion; got != want {
 		t.Errorf("GetArg() = %q, want %q", got, want)
 	}
 }
