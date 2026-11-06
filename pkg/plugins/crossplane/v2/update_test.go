@@ -22,12 +22,15 @@ package v2
 
 import (
 	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/spf13/afero"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
+	"sigs.k8s.io/kubebuilder/v4/pkg/config/store/yaml"
 	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
@@ -50,6 +53,12 @@ func newUpdateTestConfig(t *testing.T, meta projectMeta, kinds ...string) config
 	if err != nil {
 		t.Fatalf("config.New: %v", err)
 	}
+	fillUpdateTestConfig(t, cfg, meta, kinds...)
+	return cfg
+}
+
+func fillUpdateTestConfig(t *testing.T, cfg config.Config, meta projectMeta, kinds ...string) {
+	t.Helper()
 	if err := cfg.SetDomain(testDomain); err != nil {
 		t.Fatalf("SetDomain: %v", err)
 	}
@@ -70,7 +79,6 @@ func newUpdateTestConfig(t *testing.T, meta projectMeta, kinds ...string) config
 			t.Fatalf("AddResource: %v", err)
 		}
 	}
-	return cfg
 }
 
 // upjetTestMeta is the plugin block `init --upjet` persists: only the
@@ -283,5 +291,231 @@ func assertContains(t *testing.T, label string, list []string, want string) {
 	t.Helper()
 	if !slices.Contains(list, want) {
 		t.Errorf("%s = %v, want to contain %q", label, list, want)
+	}
+}
+
+const (
+	staleGoDirective = "1.20"
+	orphanPath       = "internal/retired.go"
+	ignoredOrphan    = "_output/retired.go"
+	shimLogName      = "calls.log"
+)
+
+// updateFixture is a committed native provider in a temp directory that is also
+// the working directory, with make and go replaced by shims that log their
+// arguments. runUpdate and runAdopt read and write the project through fs but
+// run git, make and go in the working directory, so both must name one tree.
+type updateFixture struct {
+	dir string
+	fs  afero.Fs
+	log string
+}
+
+// newUpdateFixture renders a native project with one kind, commits it, and
+// moves the process into it. Shims go on PATH so no test reaches the network
+// or runs a real provider build.
+func newUpdateFixture(t *testing.T) *updateFixture {
+	t.Helper()
+	dir := t.TempDir()
+	fx := &updateFixture{dir: dir, fs: afero.NewBasePathFs(afero.NewOsFs(), dir)}
+
+	meta := projectMeta{Flavor: core.FlavorNative}
+	st := yaml.New(machinery.Filesystem{FS: fx.fs})
+	if err := st.New(cfgv3.Version); err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	fillUpdateTestConfig(t, st.Config(), meta, "Widget")
+	if err := st.Save(); err != nil {
+		t.Fatalf("saving PROJECT: %v", err)
+	}
+	mem := afero.NewMemMapFs()
+	if err := renderToMemFS(st.Config(), meta, machinery.Filesystem{FS: mem}); err != nil {
+		t.Fatalf("renderToMemFS: %v", err)
+	}
+	if _, err := core.Apply(mem, fx.fs, true); err != nil {
+		t.Fatalf("seeding project: %v", err)
+	}
+	fx.write(t, "go.mod", "module github.com/example/provider-test\n\ngo "+staleGoDirective+"\n")
+	fx.write(t, ".gitignore", "_output/\n")
+
+	shims := t.TempDir()
+	fx.log = filepath.Join(shims, shimLogName)
+	for _, tool := range []string{"make", "go"} {
+		script := "#!/bin/sh\necho \"" + tool + " $*\" >> '" + fx.log + "'\n"
+		if err := os.WriteFile(filepath.Join(shims, tool), []byte(script), 0o700); err != nil { //nolint:gosec // an executable shim
+			t.Fatalf("writing %s shim: %v", tool, err)
+		}
+	}
+	t.Setenv("PATH", shims+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Chdir(dir)
+
+	fx.git(t, "init", "-q")
+	fx.commit(t)
+	return fx
+}
+
+func (fx *updateFixture) write(t *testing.T, rel, content string) {
+	t.Helper()
+	if err := fx.fs.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
+		t.Fatalf("creating directory for %s: %v", rel, err)
+	}
+	if err := afero.WriteFile(fx.fs, rel, []byte(content), 0o600); err != nil {
+		t.Fatalf("writing %s: %v", rel, err)
+	}
+}
+
+func (fx *updateFixture) read(t *testing.T, rel string) string {
+	t.Helper()
+	b, err := afero.ReadFile(fx.fs, rel)
+	if err != nil {
+		t.Fatalf("reading %s: %v", rel, err)
+	}
+	return string(b)
+}
+
+func (fx *updateFixture) git(t *testing.T, args ...string) string {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), "git", args...)
+	cmd.Dir = fx.dir
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=xp-provider-gen-test", "GIT_AUTHOR_EMAIL=test@example.com",
+		"GIT_COMMITTER_NAME=xp-provider-gen-test", "GIT_COMMITTER_EMAIL=test@example.com")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return string(out)
+}
+
+func (fx *updateFixture) commit(t *testing.T) {
+	t.Helper()
+	fx.git(t, "add", "-A")
+	fx.git(t, "commit", "-q", "-m", "fixture")
+}
+
+func (fx *updateFixture) shimCalls(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile(fx.log)
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatalf("reading shim log: %v", err)
+	}
+	return string(b)
+}
+
+func (fx *updateFixture) goDirective(t *testing.T) string {
+	t.Helper()
+	for _, line := range strings.Split(fx.read(t, "go.mod"), "\n") {
+		if v, ok := strings.CutPrefix(line, "go "); ok {
+			return v
+		}
+	}
+	t.Fatal("go.mod has no go directive")
+	return ""
+}
+
+func TestRunUpdate_RaisesGoDirective(t *testing.T) {
+	fx := newUpdateFixture(t)
+
+	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
+		t.Fatalf("runUpdate: %v", err)
+	}
+	if got := fx.goDirective(t); got != versions.GoVersion {
+		t.Errorf("go directive = %q, want %q", got, versions.GoVersion)
+	}
+}
+
+func TestRunUpdate_RemovesOrphans(t *testing.T) {
+	fx := newUpdateFixture(t)
+	fx.write(t, orphanPath, core.GeneratedHeader+"\npackage internal\n")
+	fx.write(t, ignoredOrphan, core.GeneratedHeader+"\npackage internal\n")
+	fx.commit(t)
+
+	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
+		t.Fatalf("runUpdate: %v", err)
+	}
+	if ok, _ := afero.Exists(fx.fs, orphanPath); ok {
+		t.Errorf("%s still exists, want a tracked file this generator no longer produces removed", orphanPath)
+	}
+	if ok, _ := afero.Exists(fx.fs, ignoredOrphan); !ok {
+		t.Errorf("%s was removed, want a gitignored file left alone", ignoredOrphan)
+	}
+}
+
+func TestRunUpdate_RefusesDirtyTree(t *testing.T) {
+	fx := newUpdateFixture(t)
+	fx.write(t, "external.go", "package provider // edited\n")
+
+	err := runUpdate(t.Context(), fx.fs, "", false)
+	if err == nil || !strings.Contains(err.Error(), "working tree is not clean") {
+		t.Fatalf("runUpdate error = %v, want it to name the dirty tree", err)
+	}
+	if got := fx.goDirective(t); got != staleGoDirective {
+		t.Errorf("go directive = %q after a refused update, want it unchanged at %q", got, staleGoDirective)
+	}
+}
+
+func TestRunUpdate_SecondRunChangesNothingButProvenance(t *testing.T) {
+	fx := newUpdateFixture(t)
+	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
+		t.Fatalf("first runUpdate: %v", err)
+	}
+	fx.commit(t)
+
+	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
+		t.Fatalf("second runUpdate: %v", err)
+	}
+	if status := fx.git(t, "status", "--porcelain"); strings.TrimSpace(status) != "" {
+		t.Errorf("git status after a second update = %q, want it empty", status)
+	}
+}
+
+func TestRunUpdate_RunsFinalizeThroughShims(t *testing.T) {
+	fx := newUpdateFixture(t)
+	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
+		t.Fatalf("runUpdate: %v", err)
+	}
+	calls := fx.shimCalls(t)
+	for _, want := range []string{"make generate", "make reviewable", "go mod tidy"} {
+		if !strings.Contains(calls, want) {
+			t.Errorf("shim calls = %q, want %q", calls, want)
+		}
+	}
+}
+
+func TestRunAdopt_RestoresStrippedHeader(t *testing.T) {
+	fx := newUpdateFixture(t)
+	const registerPath = apisRegisterPath
+	stripped := strings.Replace(fx.read(t, registerPath), core.GeneratedHeader+"\n", "", 1)
+	fx.write(t, registerPath, stripped)
+	fx.write(t, "external.go", "package provider // user code\n")
+	fx.commit(t)
+
+	if err := runAdopt(t.Context(), fx.fs, false); err != nil {
+		t.Fatalf("runAdopt: %v", err)
+	}
+	if !strings.Contains(fx.read(t, registerPath), core.GeneratedHeader) {
+		t.Errorf("%s has no generated header after adopt", registerPath)
+	}
+	if got := fx.read(t, "external.go"); got != "package provider // user code\n" {
+		t.Errorf("external.go = %q, want user-owned file untouched", got)
+	}
+}
+
+func TestRunCreateTest_ScaffoldsOnceThenRefuses(t *testing.T) {
+	fx := newUpdateFixture(t)
+	const testPath = "test/behavior/drift/chainsaw-test.yaml"
+	var out strings.Builder
+
+	if err := runCreateTest(fx.fs, "drift", "Widget", strings.NewReader(""), &out); err != nil {
+		t.Fatalf("runCreateTest: %v", err)
+	}
+	first := fx.read(t, testPath)
+	fx.write(t, testPath, first+"# edited\n")
+
+	if err := runCreateTest(fx.fs, "drift", "Widget", strings.NewReader(""), &out); err == nil {
+		t.Fatal("second runCreateTest = nil, want a refusal")
+	}
+	if got := fx.read(t, testPath); got != first+"# edited\n" {
+		t.Errorf("%s changed by the refused rerun", testPath)
 	}
 }

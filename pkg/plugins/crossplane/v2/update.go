@@ -82,14 +82,14 @@ there is no way to bump only the version, since the generator refresh and framew
 dependency bump ride along in the same diff.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if adopt {
-				return runAdopt(context.Background(), verbose)
+				return runAdopt(context.Background(), afero.NewOsFs(), verbose)
 			}
 			if terraformProviderVersion != "" {
 				if err := checkTerraformVersionFlag(terraformProviderVersion); err != nil {
 					return err
 				}
 			}
-			return runUpdate(context.Background(), terraformProviderVersion, verbose)
+			return runUpdate(context.Background(), afero.NewOsFs(), terraformProviderVersion, verbose)
 		},
 	}
 	cmd.Flags().BoolVar(&adopt, "adopt", false,
@@ -108,11 +108,11 @@ dependency bump ride along in the same diff.`,
 // renders the current template set of its flavor into an in-memory FS. Both update
 // and adopt start here; it also returns the project's plugin block so later steps
 // choose the same flavor's sets.
-func prepare(ctx context.Context) (store.Store, afero.Fs, projectMeta, error) {
+func prepare(ctx context.Context, dst afero.Fs) (store.Store, afero.Fs, projectMeta, error) {
 	if err := requireCleanTree(ctx); err != nil {
 		return nil, nil, projectMeta{}, err
 	}
-	st, err := loadProjectStore()
+	st, err := loadProjectStore(dst)
 	if err != nil {
 		return nil, nil, projectMeta{}, err
 	}
@@ -137,8 +137,10 @@ func stampProvenance(st store.Store) error {
 	return st.Save()
 }
 
-func runUpdate(ctx context.Context, terraformProviderVersion string, verbose bool) error {
-	st, mem, meta, err := prepare(ctx)
+// runUpdate refreshes the project in dst. dst must be the tree rooted at the
+// working directory: git, make and go run there, not through dst.
+func runUpdate(ctx context.Context, dst afero.Fs, terraformProviderVersion string, verbose bool) error {
+	st, mem, meta, err := prepare(ctx, dst)
 	if err != nil {
 		return fmt.Errorf("%w\n  "+noChangesToRevert, err)
 	}
@@ -146,11 +148,11 @@ func runUpdate(ctx context.Context, terraformProviderVersion string, verbose boo
 		return err
 	}
 
-	if err := applyTerraformVersionFlagIfSet(meta.Flavor, terraformProviderVersion); err != nil {
+	if err := applyTerraformVersionFlagIfSet(dst, meta.Flavor, terraformProviderVersion); err != nil {
 		return err
 	}
 
-	applied, err := core.Apply(mem, afero.NewOsFs(), meta.Flavor != core.FlavorUpjet)
+	applied, err := core.Apply(mem, dst, meta.Flavor != core.FlavorUpjet)
 	result := updateResult{ApplyResult: applied}
 	if err != nil {
 		return fmt.Errorf("reconciling generated files: %w\n%s", err, revertAdvice(result.Seeded))
@@ -160,13 +162,13 @@ func runUpdate(ctx context.Context, terraformProviderVersion string, verbose boo
 	if err != nil {
 		return fmt.Errorf("listing tracked files: %w\n%s", err, revertAdvice(result.Seeded))
 	}
-	result.removed, err = removeOrphans(tracked, mem, afero.NewOsFs())
+	result.removed, err = removeOrphans(tracked, mem, dst)
 	if err != nil {
 		return fmt.Errorf("removing files this generator no longer produces: %w\n%s", err, revertAdvice(result.Seeded))
 	}
 	result.print(os.Stdout, meta.Version, version.Get().Version, verbose)
 
-	if err := applyGoDirective(afero.NewOsFs(), versions.GoVersion); err != nil {
+	if err := applyGoDirective(dst, versions.GoVersion); err != nil {
 		return fmt.Errorf("%w\n%s", err, revertAdvice(result.Seeded))
 	}
 	if err := applyDependencies(ctx, meta.Flavor); err != nil {
@@ -242,9 +244,9 @@ func projectNotUsable(err error) error {
 	return fmt.Errorf("PROJECT is not usable: %w", err)
 }
 
-// loadProjectStore loads the PROJECT config store from the working directory.
-func loadProjectStore() (store.Store, error) {
-	st := yaml.New(machinery.Filesystem{FS: afero.NewOsFs()})
+// loadProjectStore loads the PROJECT config store from dst.
+func loadProjectStore(dst afero.Fs) (store.Store, error) {
+	st := yaml.New(machinery.Filesystem{FS: dst})
 	if err := st.Load(); err != nil {
 		return nil, fmt.Errorf("not a provider project (cannot load PROJECT): %w", err)
 	}
