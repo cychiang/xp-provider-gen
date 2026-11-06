@@ -94,12 +94,9 @@ var GoVersion = requireField(embedded.GoVersion, "go_version")
 var TerraformVersion = requireField(embedded.TerraformVersion, "terraform_version")
 
 // GolangciLintVersion is the golangci-lint release generated providers lint
-// with, read from the embedded manifest's golangci_lint_version key. This
-// repository's Makefile and lint.yml read the same key.
+// with, read from the embedded manifest's golangci_lint_version key.
 var GolangciLintVersion = requireField(embedded.GolangciLintVersion, "golangci_lint_version")
 
-// crossplaneAPIsModule is the dependency whose version is the Crossplane
-// release generated providers' e2e installs.
 const crossplaneAPIsModule = "github.com/crossplane/crossplane/apis/v2"
 
 // CrossplaneVersion is the Crossplane release a generated provider's e2e

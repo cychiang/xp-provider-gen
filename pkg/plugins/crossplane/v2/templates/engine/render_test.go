@@ -270,9 +270,9 @@ func TestRenderPinsGoToolchain(t *testing.T) {
 	}
 }
 
-// TestRenderPinsMatchDependenciesManifest reads dependencies.yaml directly
-// and requires every version the make fragments pin to equal it, so a literal
-// left in a template fails here.
+// TestRenderPinsMatchDependenciesManifest compares the make fragments' pins
+// with dependencies.yaml parsed independently of pkg/versions. A literal that
+// happens to equal the current value passes until the next bump.
 func TestRenderPinsMatchDependenciesManifest(t *testing.T) {
 	raw, err := os.ReadFile("../../../../../versions/dependencies.yaml")
 	if err != nil {

@@ -28,9 +28,8 @@ COVERAGE_DIR=coverage
 # Binary names
 BINARY=xp-provider-gen
 
-# Read from the manifest, so local runs, CI and generated providers lint with
-# the same golangci-lint.
-GOLANGCILINT_VERSION := $(shell sed -n 's/^golangci_lint_version: *"\(.*\)"/\1/p' pkg/versions/dependencies.yaml)
+GOLANGCILINT_VERSION := $(shell sed -n 's/^golangci_lint_version: *"\([^"]*\)".*/\1/p' pkg/versions/dependencies.yaml)
+$(if $(GOLANGCILINT_VERSION),,$(error golangci_lint_version not read from pkg/versions/dependencies.yaml; it must be double-quoted))
 
 .PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-native e2e-upjet e2e-upgrade check-go-version check-consistency
 

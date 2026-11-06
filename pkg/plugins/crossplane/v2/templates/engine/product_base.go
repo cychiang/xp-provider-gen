@@ -35,8 +35,6 @@ type BaseTemplateProduct struct {
 
 	ProviderName string
 
-	// GoVersion, GolangciLintVersion and CrossplaneVersion are the pins the
-	// generated make fragment renders, set from pkg/versions in Configure.
 	GoVersion           string
 	GolangciLintVersion string
 	CrossplaneVersion   string
