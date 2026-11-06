@@ -15,6 +15,8 @@ import (
 	"testing"
 )
 
+const binaryBody = "binary"
+
 func tarball(t *testing.T, entries map[string]string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -38,7 +40,7 @@ func tarball(t *testing.T, entries map[string]string) []byte {
 }
 
 func TestVerifyChecksumRejectsWhatTheChecksumFileDoesNotVouchFor(t *testing.T) {
-	archive := tarball(t, map[string]string{releaseBin: "binary"})
+	archive := tarball(t, map[string]string{releaseBin: binaryBody})
 	sum := sha256.Sum256(archive)
 	good := hex.EncodeToString(sum[:])
 	for name, c := range map[string]struct {
@@ -69,7 +71,7 @@ func TestVerifyChecksumRejectsWhatTheChecksumFileDoesNotVouchFor(t *testing.T) {
 func TestUnpackBinaryWritesOnlyTheNamedEntryToAFixedPath(t *testing.T) {
 	src, dst := t.TempDir(), t.TempDir()
 	archive := filepath.Join(src, "a.tar.gz")
-	body := tarball(t, map[string]string{"../evil": "x", "README.md": "docs", "dir/" + releaseBin: "binary"})
+	body := tarball(t, map[string]string{"../evil": "x", "README.md": "docs", "dir/" + releaseBin: binaryBody})
 	if err := os.WriteFile(archive, body, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +82,7 @@ func TestUnpackBinaryWritesOnlyTheNamedEntryToAFixedPath(t *testing.T) {
 	if path != filepath.Join(dst, releaseBin) {
 		t.Errorf("binary at %s", path)
 	}
-	if b, _ := os.ReadFile(path); string(b) != "binary" {
+	if b, _ := os.ReadFile(path); string(b) != binaryBody {
 		t.Errorf("binary holds %q", b)
 	}
 	if entries, _ := os.ReadDir(dst); len(entries) != 1 {

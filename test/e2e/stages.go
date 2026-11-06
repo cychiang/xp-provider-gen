@@ -100,7 +100,8 @@ func (e *Env) execEnv(extra []string, dir, stdin, name string, args ...string) (
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = killGrace
-	cmd.Env = append(slices.DeleteFunc(os.Environ(), func(kv string) bool { return strings.HasPrefix(kv, toolchainVar+"=") }),
+	unsetToolchain := func(kv string) bool { return strings.HasPrefix(kv, toolchainVar+"=") }
+	cmd.Env = append(slices.DeleteFunc(os.Environ(), unsetToolchain),
 		"KUBECONFIG="+e.Kubeconfig, "KIND_CLUSTER_NAME="+e.Cluster)
 	cmd.Env = append(cmd.Env, extra...)
 	if stdin != "" {
@@ -466,8 +467,12 @@ func stageUpdateToHead(e *Env) error {
 	if err := e.assertStamp(wantStamp); err != nil {
 		return err
 	}
-	if got, err := e.goDirective(); err != nil || got != wantGo {
-		return fmt.Errorf("go directive is %q after update, want head's %q (err %v)", got, wantGo, err)
+	got, err := e.goDirective()
+	if err != nil {
+		return err
+	}
+	if got != wantGo {
+		return fmt.Errorf("go directive is %q after update, want head's %q", got, wantGo)
 	}
 	if err := e.assertOwnership(); err != nil {
 		return err
@@ -541,6 +546,13 @@ func stageOrphanRemoval(e *Env) error {
 	if _, err := os.Stat(e.path(ignoredPath)); err != nil {
 		return fmt.Errorf("update deleted the gitignored %s: %w", ignoredPath, err)
 	}
+	if err := e.assertOnlyOrphanChanged(); err != nil {
+		return err
+	}
+	return e.commit("orphan removed")
+}
+
+func (e *Env) assertOnlyOrphanChanged() error {
 	status, err := e.git("status", "--porcelain")
 	if err != nil {
 		return err
@@ -550,7 +562,7 @@ func stageOrphanRemoval(e *Env) error {
 			return fmt.Errorf("update touched more than the orphan and docs/ownership.md:\n%s", status)
 		}
 	}
-	return e.commit("orphan removed")
+	return nil
 }
 
 func stageUpdateNoop(e *Env) error {

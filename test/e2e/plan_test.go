@@ -9,6 +9,11 @@ import (
 	"testing"
 )
 
+const (
+	newestTag     = "v0.3.0"
+	fakeToolchain = "go1.2.3"
+)
+
 func counting(name string, ran *[]string, err error, needs ...Capability) Stage {
 	return Stage{Name: name, Needs: needs, Run: func(*Env) error {
 		*ran = append(*ran, name)
@@ -112,7 +117,7 @@ func TestReleaseOnlyStagesRunForReleaseCasesOnly(t *testing.T) {
 	release := counting("update-to-head", &ran, nil)
 	release.When = Case.Release
 	stages := []Stage{counting("init", &ran, nil), release}
-	for from, want := range map[string]string{fromHead: "init", "v0.3.0": "init,update-to-head"} {
+	for from, want := range map[string]string{fromHead: "init", newestTag: "init,update-to-head"} {
 		ran = nil
 		plan, err := NewPlan(Case{From: from}, stages, ModeFull, nil)
 		if err != nil {
@@ -178,9 +183,9 @@ func TestPreflightFailsWhenTheNewestReleaseIsNotDeclared(t *testing.T) {
 		listed  []string
 		wantErr string
 	}{
-		"newest declared":          {listed: []string{"v0.3.0", "v0.2.0"}},
-		"newest missing":           {listed: []string{"v9.9.9", "v0.3.0"}, wantErr: "v9.9.9"},
-		"only an older is missing": {listed: []string{"v0.3.0", "v0.0.1"}},
+		"newest declared":          {listed: []string{newestTag, "v0.2.0"}},
+		"newest missing":           {listed: []string{"v9.9.9", newestTag}, wantErr: "v9.9.9"},
+		"only an older is missing": {listed: []string{newestTag, "v0.0.1"}},
 		"no releases":              {wantErr: ErrNoReleases.Error()},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -207,13 +212,13 @@ func TestNewCaseResolvesHeadAReleaseAndRefusesTheRest(t *testing.T) {
 	saved := Releases
 	t.Cleanup(func() { Releases = saved })
 	Releases = map[string]Release{
-		"v1.0.0": {Toolchain: "go1.2.3"},
-		"v0.9.0": {Toolchain: "go1.2.3", NotApplicable: map[string]string{"native": "predates the flavor"}},
+		"v1.0.0": {Toolchain: fakeToolchain},
+		"v0.9.0": {Toolchain: fakeToolchain, NotApplicable: map[string]string{"native": "predates the flavor"}},
 	}
 	if c, err := NewCase("native", fromHead); err != nil || c.Release() || c.Toolchain != "" {
 		t.Errorf("head resolved to %+v, %v", c, err)
 	}
-	if c, err := NewCase("native", "v1.0.0"); err != nil || !c.Release() || c.Toolchain != "go1.2.3" {
+	if c, err := NewCase("native", "v1.0.0"); err != nil || !c.Release() || c.Toolchain != fakeToolchain {
 		t.Errorf("v1.0.0 resolved to %+v, %v", c, err)
 	}
 	if _, err := NewCase("native", "v2.0.0"); !errors.Is(err, ErrUnknownRelease) || !strings.Contains(err.Error(), "v0.9.0, v1.0.0") {

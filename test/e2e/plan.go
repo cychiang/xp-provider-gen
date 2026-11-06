@@ -53,10 +53,12 @@ type Release struct {
 // Releases lists every published release. A new release fails the preflight
 // until it is added here.
 var Releases = map[string]Release{
-	"v0.1.0": {Toolchain: "go1.26.8"},
-	"v0.2.0": {Toolchain: "go1.26.8"},
-	"v0.3.0": {Toolchain: "go1.26.8"},
+	"v0.1.0": {Toolchain: toolchain1268},
+	"v0.2.0": {Toolchain: toolchain1268},
+	"v0.3.0": {Toolchain: toolchain1268},
 }
+
+const toolchain1268 = "go1.26.8"
 
 var (
 	ErrUnknownRelease = errors.New("unknown release")
@@ -95,7 +97,8 @@ func Preflight(listed []string) error {
 		return ErrNoReleases
 	}
 	if _, ok := Releases[listed[0]]; !ok {
-		return fmt.Errorf("newest release %s is missing from Releases in test/e2e/plan.go: add it, with its toolchain", listed[0])
+		return fmt.Errorf("newest release %s is missing from Releases in test/e2e/plan.go: add it with its toolchain",
+			listed[0])
 	}
 	return nil
 }

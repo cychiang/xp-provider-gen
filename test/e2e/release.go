@@ -49,8 +49,10 @@ func fetchRelease(ctx context.Context, tag, dest string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if out, err := exec.CommandContext(ctx, "gh", "release", "download", tag, "-R", releaseRepo,
-		"-p", archive, "-p", sums, "-D", download).CombinedOutput(); err != nil { // #nosec G204 -- fixed command, no shell
+	// #nosec G204 -- the arguments are the declared tag and fixed names, no shell
+	cmd := exec.CommandContext(ctx, "gh", "release", "download", tag, "-R", releaseRepo,
+		"-p", archive, "-p", sums, "-D", download)
+	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("downloading %s: %w\n%s", tag, err, out)
 	}
 	if err := verifyChecksum(filepath.Join(download, archive), filepath.Join(download, sums)); err != nil {
@@ -111,21 +113,24 @@ func unpackBinary(archive, dir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if h.Typeflag != tar.TypeReg || filepath.Base(h.Name) != releaseBin {
-			continue
+		if h.Typeflag == tar.TypeReg && filepath.Base(h.Name) == releaseBin {
+			return writeBinary(tr, filepath.Join(dir, releaseBin))
 		}
-		path := filepath.Join(dir, releaseBin)
-		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o700) // #nosec G302 G304 -- an executable at a fixed path in the private work directory
-		if err != nil {
-			return "", err
-		}
-		n, err := io.Copy(f, io.LimitReader(tr, maxBinaryLen+1))
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-		if err == nil && n > maxBinaryLen {
-			err = fmt.Errorf("%s is larger than %d bytes", releaseBin, maxBinaryLen)
-		}
-		return path, err
 	}
+}
+
+func writeBinary(r io.Reader, path string) (string, error) {
+	// #nosec G302 G304 -- an executable at a fixed path in the private work directory
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o700)
+	if err != nil {
+		return "", err
+	}
+	n, err := io.Copy(f, io.LimitReader(r, maxBinaryLen+1))
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil && n > maxBinaryLen {
+		err = fmt.Errorf("%s is larger than %d bytes", releaseBin, maxBinaryLen)
+	}
+	return path, err
 }
