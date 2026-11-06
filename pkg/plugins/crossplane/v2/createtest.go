@@ -56,7 +56,7 @@ part of 'make e2e'.
 
 Missing --name or --kind are prompted for when running interactively.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runCreateTest(name, kind, os.Stdin, os.Stdout)
+			return runCreateTest(afero.NewOsFs(), name, kind, os.Stdin, os.Stdout)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "test name (directory under test/behavior/)")
@@ -64,8 +64,8 @@ Missing --name or --kind are prompted for when running interactively.`,
 	return cmd
 }
 
-func runCreateTest(name, kind string, in io.Reader, out io.Writer) error {
-	st, err := loadProjectStore()
+func runCreateTest(dst afero.Fs, name, kind string, in io.Reader, out io.Writer) error {
+	st, err := loadProjectStore(dst)
 	if err != nil {
 		return err
 	}
@@ -87,13 +87,12 @@ func runCreateTest(name, kind string, in io.Reader, out io.Writer) error {
 		return err
 	}
 
-	osFs := afero.NewOsFs()
-	apiVersion, namespace, specYAML, err := loadExampleManifest(osFs, res)
+	apiVersion, namespace, specYAML, err := loadExampleManifest(dst, res)
 	if err != nil {
 		return err
 	}
 
-	scaffold := machinery.NewScaffold(machinery.Filesystem{FS: osFs}, machinery.WithConfig(cfg))
+	scaffold := machinery.NewScaffold(machinery.Filesystem{FS: dst}, machinery.WithConfig(cfg))
 	gen := engine.NewChainsawTestGenerator(name, res, apiVersion, namespace, specYAML)
 	if err := scaffold.Execute(gen); err != nil {
 		return fmt.Errorf("scaffolding chainsaw test (does it already exist?): %w", err)

@@ -155,14 +155,14 @@ func applyTerraformVersionBump(dst afero.Fs, newVersion string) (string, error) 
 // no-op otherwise. runUpdate calls it after checkNotDowngrade and before any
 // other write, so every error path here still reports "no changes were made"
 // except the write failure itself.
-func applyTerraformVersionFlagIfSet(flavor core.Flavor, terraformProviderVersion string) error {
+func applyTerraformVersionFlagIfSet(dst afero.Fs, flavor core.Flavor, terraformProviderVersion string) error {
 	if terraformProviderVersion == "" {
 		return nil
 	}
 	if err := checkTerraformVersionFlavor(flavor); err != nil {
 		return fmt.Errorf("%w\n  "+noChangesToRevert, err)
 	}
-	oldVersion, err := applyTerraformVersionBump(afero.NewOsFs(), terraformProviderVersion)
+	oldVersion, err := applyTerraformVersionBump(dst, terraformProviderVersion)
 	if err != nil {
 		if errors.Is(err, errMakefileWriteFailed) {
 			// The write itself failed: afero.WriteFile truncates before

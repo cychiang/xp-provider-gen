@@ -32,8 +32,10 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
-func runAdopt(ctx context.Context, verbose bool) error {
-	st, mem, meta, err := prepare(ctx)
+// runAdopt adopts the project in dst. dst must be the tree rooted at the
+// working directory: git, make and go run there, not through dst.
+func runAdopt(ctx context.Context, dst afero.Fs, verbose bool) error {
+	st, mem, meta, err := prepare(ctx, dst)
 	if err != nil {
 		return err
 	}
@@ -41,7 +43,7 @@ func runAdopt(ctx context.Context, verbose bool) error {
 		return err
 	}
 
-	adopted, err := adoptHeaders(mem, afero.NewOsFs())
+	adopted, err := adoptHeaders(mem, dst)
 	if err != nil {
 		return fmt.Errorf("adopting tool-owned files: %w\n%s", err, revertAdvice(nil))
 	}
