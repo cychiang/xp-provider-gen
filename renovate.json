@@ -176,7 +176,7 @@
     {
       "description": "Generated-provider framework deps (pkg/versions/dependencies.yaml) - bump together so crossplane-runtime, crossplane/apis, controller-runtime, and k8s.io/* stay mutually compatible (individual bumps break the e2e)",
       "matchFileNames": ["pkg/versions/dependencies.yaml"],
-      "matchDepNames": ["!generated-provider-go-version", "!golangci/golangci-lint"],
+      "matchDepNames": ["!generated-provider-go-version", "!golangci/golangci-lint", "!crossplane/build"],
       "groupName": "provider framework dependencies",
       "addLabels": ["dependencies", "provider-framework"],
       "semanticCommitType": "deps",
@@ -188,6 +188,15 @@
       "description": "Never propose upjet/v2 v2.4.0 or older: released v2.4.0 imports crossplane-runtime/v2/apis/common/v1, which crossplane-runtime removed in its own v2.4.0, so make generate fails in a scaffolded upjet provider. upjet was once pinned to a post-v2.4.0 pseudo-version for this, and with rollbackPrs enabled Renovate proposed v2.4.0 as a 'rollback' (PRs #134, #152). The pin is a release (v2.5.1) now; the floor stays so a rollback can never be proposed again.",
       "matchPackageNames": ["github.com/crossplane/upjet/v2"],
       "allowedVersions": ">v2.4.0"
+    },
+    {
+      "description": "The build submodule pin moves on its own: build has no releases, and a new pin changes what every new scaffold gets, so it lands alone and after a soak, not inside the crossplane packages group.",
+      "matchDepNames": ["crossplane/build"],
+      "groupName": "crossplane build submodule",
+      "addLabels": ["crossplane", "dependencies", "build-submodule"],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": "build",
+      "minimumReleaseAge": "7 days"
     },
     {
       "description": "Don't track crossplane-tools in pkg/versions/dependencies.yaml: the repo has no tags, so its pin can only be a pseudo-version, and the go datasource behind the regex manager has no releases to match it against ('Can't find version matching ...' on the dashboard). Tracking the commit digest instead would not work either - Renovate would swap the 12-character hash but not the timestamp in front of it, and Go rejects a pseudo-version whose timestamp does not match the commit. Bump it by hand: `go list -m github.com/crossplane/crossplane-tools@<commit>` prints the right pseudo-version. Never go below the 2026-07-15 build - older angryjet silently generates no methodsets for the core/v2 types, and the scaffolded provider then fails go build.",
@@ -226,6 +235,16 @@
       "packageNameTemplate": "golangci/golangci-lint",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the crossplane/build commit generated providers pin their build submodule at, through pkg/versions/dependencies.yaml's build_ref, as a digest of build's main branch.",
+      "managerFilePatterns": ["pkg/versions/dependencies.yaml"],
+      "matchStrings": ["build_ref:\\s*[\"'](?<currentDigest>[a-f0-9]{40})[\"']"],
+      "depNameTemplate": "crossplane/build",
+      "packageNameTemplate": "https://github.com/crossplane/build",
+      "currentValueTemplate": "main",
+      "datasourceTemplate": "git-refs"
     },
     {
       "customType": "regex",

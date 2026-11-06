@@ -22,8 +22,9 @@ xp-provider-gen init --domain=example.com --repo=github.com/you/provider-acme
 xp-provider-gen create api --group=compute --version=v1alpha1 --kind=Instance
 ```
 
-`init` creates the project, wires the crossplane build submodule, runs code
-generation, and leaves a single clean commit. `create api` adds a kind and folds
+`init` creates the project, wires the crossplane build submodule pinned at the commit
+in `pkg/versions/dependencies.yaml`'s `build_ref`, runs code generation, and leaves a
+single clean commit. `create api` adds a kind and folds
 into that commit until you make one of your own.
 
 Both leave a clean working tree. If yours is dirty afterwards, that is a bug worth
@@ -265,6 +266,10 @@ commit it, then run `update` again.
 `update` prints counts by default; `update --verbose` also lists each file under
 `Refreshed`, `Unchanged`, `Added` and `Kept` (user-owned) headings. Combined with `--adopt`,
 it lists the files that were adopted.
+
+`update` never moves the `build` submodule. When yours is at a different commit than
+`build_ref`, it prints one line naming both commits and the commands that move it; the
+commit is yours to take or not.
 
 It stops there deliberately — no commit — so `git diff` is your review surface.
 

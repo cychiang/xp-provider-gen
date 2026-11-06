@@ -33,6 +33,11 @@ terraform_version: "1.5.7"
 # render it. Renovate bumps it on its own (renovate.json).
 golangci_lint_version: "2.13.2"
 
+# The crossplane/build commit new providers pin their build submodule at; init checks
+# it out and commits the gitlink, and update only reports a provider that sits elsewhere.
+# Renovate bumps it as a digest of build's main branch (renovate.json).
+build_ref: "6a16dad359dfc2a2509e61d1c2a604b837363f33"
+
 # A dependency's optional `package` is what `update` hands to `go get` in place of
 # the module, for a module with no package at its root: `go get <module>` would
 # add its whole package closure, which `go mod tidy` keeps.

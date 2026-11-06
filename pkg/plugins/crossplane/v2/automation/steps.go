@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 // Step is a single unit of post-scaffold automation. Every step is required:
@@ -98,7 +99,7 @@ func NewGitSubmoduleStep(config *core.PluginConfig) *GitSubmoduleStep {
 	return &GitSubmoduleStep{
 		git:  NewGitOperations(config),
 		url:  config.Git.BuildSubmoduleURL,
-		path: "build",
+		path: BuildSubmodulePath,
 	}
 }
 
@@ -107,7 +108,7 @@ func (s *GitSubmoduleStep) Name() string {
 }
 
 func (s *GitSubmoduleStep) Execute() error {
-	return s.git.AddSubmodule(context.Background(), s.url, s.path)
+	return s.git.AddSubmodule(context.Background(), s.url, s.path, versions.BuildRef)
 }
 
 type MakeStep struct {

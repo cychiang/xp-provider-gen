@@ -31,6 +31,12 @@ import (
 // single "Initial commit".
 const ScaffoldCommitTrailer = "xp-provider-gen-scaffold: true"
 
+// BuildSubmodulePath is where a provider keeps the crossplane/build submodule.
+const BuildSubmodulePath = "build"
+
+// gitlinkMode is the index mode of a submodule entry.
+const gitlinkMode = "160000"
+
 // noChangesMessage is printed when a commit step finds nothing staged, e.g.
 // `create api` rerun against an already up-to-date scaffold. Skipping
 // avoids git's "nothing to commit" failure and an empty commit in history.
@@ -141,16 +147,47 @@ func (g *GitOperations) stageAndCheck(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (g *GitOperations) AddSubmodule(ctx context.Context, url, path string) error {
-	if _, err := os.Stat(path); err == nil {
-		if _, err := os.Stat(path + "/.git"); err == nil {
-			return nil // Already initialized
+// AddSubmodule puts the submodule at path in place and pins it at ref, staging
+// the gitlink there. The pin is staged, not left to the commit step, because
+// `git submodule update` (what `make submodules` runs next) checks the
+// submodule out at the index's recorded commit: left at the clone's HEAD, it
+// would move the checkout straight back. It converges from any interrupted
+// state, and a ref the submodule does not have fails naming the ref.
+func (g *GitOperations) AddSubmodule(ctx context.Context, url, path, ref string) error {
+	if _, err := os.Stat(path + "/.git"); err != nil {
+		if _, err := os.Stat(path); err != nil {
+			if err := g.runner.AddSubmodule(ctx, url, path); err != nil {
+				return err
+			}
 		}
-		return g.runner.RunCommand(ctx, "submodule", "update", "--init", "--recursive")
+		if err := g.runner.RunCommand(ctx, "submodule", "update", "--init", "--recursive"); err != nil {
+			return err
+		}
 	}
+	if err := g.runner.RunCommand(ctx, "-C", path, "checkout", "--detach", ref); err != nil {
+		return fmt.Errorf("checking out %s at build_ref %s: %w", path, ref, err)
+	}
+	return g.runner.Add(ctx, path)
+}
 
-	if err := g.runner.AddSubmodule(ctx, url, path); err != nil {
-		return err
+// BuildDrift reports how the build submodule's recorded commit differs from
+// ref, or "" when it matches or the project has no such submodule. It compares
+// the index's gitlink with ref and touches neither the submodule nor the
+// network, so the commit need not exist locally.
+func (g *GitOperations) BuildDrift(ctx context.Context, path, ref string) (string, error) {
+	out, err := g.runner.RunCommandWithOutput(ctx, "ls-files", "--stage", "--", path)
+	if err != nil {
+		return "", err
 	}
-	return g.runner.RunCommand(ctx, "submodule", "update", "--init", "--recursive")
+	mode, sha, ok := strings.Cut(out, " ")
+	if !ok || mode != gitlinkMode {
+		return "", nil
+	}
+	sha, _, _ = strings.Cut(sha, " ")
+	if sha == ref {
+		return "", nil
+	}
+	return fmt.Sprintf("%s is at %s; this generator pins %s. update does not move it: "+
+		"git -C %s fetch && git -C %s checkout %s && git add %s",
+		path, sha, ref, path, path, ref, path), nil
 }
