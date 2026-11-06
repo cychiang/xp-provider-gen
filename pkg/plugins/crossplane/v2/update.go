@@ -30,6 +30,7 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
+	"golang.org/x/mod/modfile"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config/store"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config/store/yaml"
@@ -280,7 +281,14 @@ func renderToMemFS(cfg config.Config, meta projectMeta, memFS machinery.Filesyst
 // applyDependencies bumps the flavor's framework dependency versions from the
 // manifest via `go get`, leaving the rest of go.mod (the user's own requires) alone.
 func applyDependencies(ctx context.Context, flavor core.Flavor) error {
-	deps := engine.DependenciesFor(flavor)
+	goMod, err := os.ReadFile("go.mod")
+	if err != nil {
+		return fmt.Errorf("reading go.mod: %w", err)
+	}
+	deps, err := dependenciesToGet(goMod, engine.DependenciesFor(flavor))
+	if err != nil {
+		return err
+	}
 	fmt.Printf("Applying %d framework dependency version(s)...\n", len(deps))
 	runner := core.NewCommandRunner("")
 	for _, d := range deps {
@@ -289,4 +297,27 @@ func applyDependencies(ctx context.Context, flavor core.Flavor) error {
 		}
 	}
 	return nil
+}
+
+// dependenciesToGet drops the dependencies go.mod already requires at the
+// pinned version. `go get` is not a no-op there: for a module that is not a
+// package (k8s.io/apiextensions-apiserver) it adds the module's whole package
+// closure, which `go mod tidy` then keeps, so a freshly initialized provider
+// would not be a fixed point of update.
+func dependenciesToGet(goMod []byte, deps []versions.Dependency) ([]versions.Dependency, error) {
+	f, err := modfile.ParseLax("go.mod", goMod, nil)
+	if err != nil {
+		return nil, fmt.Errorf("parsing go.mod: %w", err)
+	}
+	have := make(map[string]string, len(f.Require))
+	for _, r := range f.Require {
+		have[r.Mod.Path] = r.Mod.Version
+	}
+	var todo []versions.Dependency
+	for _, d := range deps {
+		if have[d.Module] != d.Version {
+			todo = append(todo, d)
+		}
+	}
+	return todo, nil
 }
