@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -13,6 +14,8 @@ const (
 	ModeFull Mode = "full"
 	ModeFast Mode = "fast"
 )
+
+var ErrUnknownMode = errors.New("unknown mode")
 
 // Capability is a host prerequisite a stage cannot run without.
 type Capability string
@@ -47,9 +50,12 @@ type Plan struct {
 	NotRun []Stage
 }
 
-// NewPlan fails in full mode when a stage needs a capability the host lacks,
+// NewPlan rejects an unknown mode and a plan with nothing to run. It fails in full mode when a stage needs a capability the host lacks,
 // so the run stops before the first stage. Fast mode sets those stages aside.
 func NewPlan(c Case, stages []Stage, mode Mode, have map[Capability]bool) (Plan, error) {
+	if mode != ModeFull && mode != ModeFast {
+		return Plan{}, fmt.Errorf("%w %q: want %q or %q", ErrUnknownMode, mode, ModeFull, ModeFast)
+	}
 	p := Plan{Mode: mode}
 	var missing []string
 	for _, s := range stages {
@@ -73,6 +79,9 @@ func NewPlan(c Case, stages []Stage, mode Mode, have map[Capability]bool) (Plan,
 	}
 	if len(missing) > 0 {
 		return Plan{}, fmt.Errorf("full mode cannot run, nothing was started: %s", strings.Join(missing, "; "))
+	}
+	if len(p.Run) == 0 {
+		return Plan{}, fmt.Errorf("%s mode has no stage to run, so a pass would prove nothing", mode)
 	}
 	return p, nil
 }

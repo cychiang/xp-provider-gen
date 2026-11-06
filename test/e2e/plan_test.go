@@ -124,14 +124,49 @@ func TestReleaseOnlyStagesRunForReleaseCasesOnly(t *testing.T) {
 }
 
 func TestNativeStagesAreDeclaredInPlanOrder(t *testing.T) {
-	want := "init create-api generate user-logic update-to-head update-noop create-api-refresh adopt " +
+	want := "init create-api generate user-logic update-to-head update-noop create-api-refresh adopt create-test " +
 		"stock-e2e build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected " +
-		"mr-delete external-gone create-test"
+		"mr-delete external-gone test-behavior"
 	var got []string
 	for _, s := range nativeStages() {
 		got = append(got, s.Name)
 	}
 	if strings.Join(got, " ") != want {
 		t.Errorf("stages\n got %v\nwant %s", got, want)
+	}
+}
+
+func TestNativeFastModeRunsExactlyTheDockerFreeStages(t *testing.T) {
+	plan, err := NewPlan(Case{From: fromHead}, nativeStages(), ModeFast, map[Capability]bool{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, s := range plan.Run {
+		got = append(got, s.Name)
+	}
+	want := "init create-api generate user-logic update-noop create-api-refresh adopt create-test"
+	if strings.Join(got, " ") != want {
+		t.Errorf("fast mode runs\n got %v\nwant %s", got, want)
+	}
+}
+
+func TestUnknownModeIsRejectedBeforeAnythingRuns(t *testing.T) {
+	var ran []string
+	stages := []Stage{counting("init", &ran, nil)}
+	_, err := NewPlan(Case{From: fromHead}, stages, Mode("ful"), map[Capability]bool{CapDocker: true})
+	if !errors.Is(err, ErrUnknownMode) {
+		t.Fatalf("error %v, want ErrUnknownMode", err)
+	}
+	if len(ran) != 0 {
+		t.Errorf("stages ran: %v", ran)
+	}
+}
+
+func TestAPlanWithNothingToRunIsRejected(t *testing.T) {
+	var ran []string
+	stages := []Stage{counting("install", &ran, nil, CapDocker)}
+	if _, err := NewPlan(Case{From: fromHead}, stages, ModeFast, nil); err == nil {
+		t.Fatal("fast mode accepted a plan with no stage to run")
 	}
 }

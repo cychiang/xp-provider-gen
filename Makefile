@@ -70,7 +70,7 @@ coverage: ## Generate test coverage report
 
 E2E_ARGS ?=
 
-e2e-native: build ## Run the native-flavor end-to-end stages (E2E_ARGS=--mode=fast skips the Docker ones)
+e2e-native: build ## Run the native-flavor end-to-end stages (E2E_ARGS=--mode=fast does not run the Docker ones)
 	@$(GOCMD) run ./test/e2e --flavor=native $(E2E_ARGS)
 
 e2e-upjet: build ## Run the upjet-flavor end-to-end test (network, several minutes)

@@ -239,20 +239,20 @@ func (e *Env) assertOwnership() error {
 func (e *Env) eventually(what string, read func() (string, error), want string) error {
 	deadline := time.Now().Add(pollTimeout)
 	last := ""
+	var lastErr error
 	for time.Now().Before(deadline) {
-		if got, err := read(); err == nil {
-			if got == want {
-				return nil
-			}
-			last = got
+		got, err := read()
+		if err == nil && got == want {
+			return nil
 		}
+		last, lastErr = got, err
 		select {
 		case <-time.After(pollEvery):
 		case <-e.Ctx.Done():
 			return e.Ctx.Err()
 		}
 	}
-	return fmt.Errorf("%s: want %q, last saw %q", what, want, last)
+	return fmt.Errorf("%s: want %q, last saw %q, last error: %v", what, want, last, lastErr)
 }
 
 func (e *Env) externalValue() (string, error) {
@@ -302,6 +302,7 @@ func nativeStages() []Stage {
 		{Name: "update-noop", Run: stageUpdateNoop},
 		{Name: "create-api-refresh", Run: stageCreateAPIRefresh},
 		{Name: "adopt", Run: stageAdopt},
+		{Name: "create-test", Run: stageCreateTest},
 		{Name: "stock-e2e", Needs: docker, Run: stageStockE2E},
 		{Name: "build-xpkg", Needs: docker, Run: func(e *Env) error { return e.make("build") }},
 		{Name: "install-in-kind", Needs: docker, Run: stageInstallInKind},
@@ -311,7 +312,7 @@ func nativeStages() []Stage {
 		{Name: "drift-corrected", Needs: docker, Run: stageDriftCorrected},
 		{Name: "mr-delete", Needs: docker, Run: stageMRDelete},
 		{Name: "external-gone", Needs: docker, Run: stageExternalGone},
-		{Name: "create-test", Needs: docker, Run: stageCreateTest},
+		{Name: "test-behavior", Needs: docker, Run: func(e *Env) error { return e.make("test-behavior") }},
 	}
 }
 
@@ -323,8 +324,10 @@ func stageInit(e *Env) error {
 	if _, err := e.stamp(); err != nil {
 		return fmt.Errorf("reading the stamp init wrote: %w", err)
 	}
-	_, err := e.exec(e.Repo, "", filepath.Join(e.Repo, "scripts/assert-layout.sh"), e.Dir)
-	return err
+	if _, err := e.exec(e.Repo, "", filepath.Join(e.Repo, "scripts/assert-layout.sh"), e.Dir); err != nil {
+		return err
+	}
+	return e.assertCleanTree("init")
 }
 
 func stageCreateAPI(e *Env) error {
@@ -685,5 +688,5 @@ func stageCreateTest(e *Env) error {
 	if err := refused(out, err, "already exist", "create-test over an existing test"); err != nil {
 		return err
 	}
-	return e.make("test-behavior")
+	return nil
 }

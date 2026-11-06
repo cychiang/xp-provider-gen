@@ -59,11 +59,11 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 provider scaffolded by `bin/xp-provider-gen`. `go run ./test/e2e --list --flavor=native` prints
 the list. A stage returns an error or it passed; there is no skip result, and the run stops at
 the first failure. The runner is `plan.go`, the stages are `stages.go`, and `plan_test.go`
-tests the full-mode rule, the fast-mode verdict and the first-failure stop (`go test ./test/e2e/`).
+tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mode verdict and the first-failure stop (`go test ./test/e2e/`).
 
 | Stage | Proves |
 |---|---|
-| `init`, `create-api` | The binary scaffolds a provider with two kinds (`Widget`, `Gadget`) and `scripts/assert-layout.sh` finds every expected file. `init` stamps PROJECT with the generator `version:`. |
+| `init`, `create-api` | The binary scaffolds a provider with two kinds (`Widget`, `Gadget`) and `scripts/assert-layout.sh` finds every expected file. `init` stamps PROJECT with the generator `version:`, and leaves a clean tree, so `create api` cannot commit an `init` leftover. |
 | `generate` | `make submodules generate reviewable` pass on the pristine scaffold. CRDs and examples exist, the ownership contract holds (tool-owned files carry the `DO NOT EDIT` header, user-owned files do not), the tree is clean, and `init` plus `create api` folded into one `Initial commit`. |
 | `user-logic` | The overlay replaces the user-owned `client.go`, `external.go` and `options.go`, then `go mod tidy`, `make lint` and a commit. |
 | `update-to-head` | Release cases only (`--from=<released binary>`). `update` by the binary under test leaves user-owned bytes alone and moves the PROJECT stamp. |
@@ -75,7 +75,8 @@ tests the full-mode rule, the fast-mode verdict and the first-failure stop (`go 
 | `mr-ready-synced` | The `Widget` example is `Ready` and `Synced`, and a ConfigMap, the external object, holds its value. |
 | `mr-update`, `drift-corrected` | The external value follows a spec patch, and a hand edit of the external object is restored. |
 | `mr-delete`, `external-gone` | The managed resource is deleted, then the external object is gone. |
-| `create-test` | `create-test` writes a chainsaw test, refuses to overwrite it, and the test passes against the live provider. |
+| `create-test` | `create-test` writes a chainsaw test and refuses to overwrite it. Needs no Docker, so fast mode runs it. |
+| `test-behavior` | The chainsaw test `create-test` wrote passes against the live provider. |
 
 The overlay in `test/e2e/testdata/native/` gives the scaffold an honest external system: a
 ConfigMap client built from `ClientConfig.Credentials`. It lives in the harness, not in the
@@ -84,7 +85,7 @@ other files, which is how the break tests below were made.
 
 **Modes.** `make e2e-native` runs full mode: it checks that Docker answers before the first stage and
 exits 1 if not. `make e2e-native E2E_ARGS=--mode=fast` runs only the stages that need no Docker and
-ends in `VERDICT PARTIAL`, naming each stage it did not run. Only a full run ends in
+ends in `VERDICT PARTIAL`, naming each stage it did not run. An unknown `--mode`, or a plan with no stage to run, exits 1 before anything starts. Only a full run ends in
 `VERDICT COMPLETE`. Other flags: `--logs=<dir>` keeps per-stage logs there, `--from=<binary>`
 scaffolds with a released binary and adds `update-to-head`.
 
@@ -107,7 +108,7 @@ pipeline: unit tests alone do not catch broken generated output.
 
 ## Upgrade e2e (`make e2e-upgrade`)
 
-`scripts/e2e-upgrade.sh` covers a gap the e2e cannot: e2e step 7 runs `update` with
+`scripts/e2e-upgrade.sh` covers a gap the e2e cannot: the `update-noop` stage of the native e2e runs `update` with
 the **same** generator, so tool-owned files come out byte-identical and it can only
 prove that user-owned files survive — never that tool-owned files actually receive a new
 generator's changes.

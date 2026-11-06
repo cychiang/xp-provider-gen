@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 func main() { os.Exit(run()) }
@@ -38,7 +39,7 @@ func run() int {
 		return 0
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	have := map[Capability]bool{CapDocker: dockerUp(ctx)}
 	plan, err := NewPlan(c, stages, Mode(*mode), have)
