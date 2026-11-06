@@ -292,7 +292,13 @@ EOF
 } > internal/controller/instance/external_test.go
 
 # generate+lint here; the baseline behavioral step below is the single test run
-make generate >/dev/null 2>&1 && make lint >/dev/null 2>&1 && log_success "user logic compiles and lints"
+for target in generate lint; do
+    make "$target" >"$AUX/$target.log" 2>&1 || {
+        tail -30 "$AUX/$target.log"
+        fail "make $target failed on the user logic"
+    }
+done
+log_success "user logic compiles and lints"
 git add -A && git commit -q -m "feat: real ACME provider logic"
 BEFORE=$(git rev-parse HEAD)
 log_success "committed user logic at $BEFORE"

@@ -103,7 +103,8 @@ in order from `main`; `--help` lists the same steps:
     uptest lifecycle (create → Ready/Synced → delete), then the chainsaw behavior suite
     (the seeded pause tests), then scaffold a fresh chainsaw test with `create-test` and
     assert it also passes against the live provider. Skipped with a warning when no Docker
-    daemon is available.
+    daemon is available; with `E2E_REQUIRE_DOCKER=1` (the full workflows set it) a missing
+    daemon, or `E2E_SKIP_DOCKER` set, fails the run before step 1 instead.
 
 The create-api-refresh/`--adopt`/dirty-tree assertions (steps 8, 9, and the dirty-tree check inside
 step 7) and `docker_skip_requested` live in `scripts/lib.sh`, shared with `e2e-upjet.sh` and
@@ -205,7 +206,7 @@ It also configures a `kubernetes_config_map` resource, writes its
 `docs/upjet-provider.md` worked example (with `uptest.upbound.io/*` annotations), and runs
 `xp-provider-gen create-test` — mirroring the native e2e's own `create-test` coverage, which
 upjet previously lacked. With a Docker daemon available (skipped with a warning otherwise, or
-with `E2E_SKIP_DOCKER` set, same as the native e2e's step 12), it then:
+with `E2E_SKIP_DOCKER` set, same as the native e2e's step 12; `E2E_REQUIRE_DOCKER=1` fails the run instead), it then:
 
 - runs the **generated provider's own `make e2e`**: the uptest lifecycle (create →
   Ready/Synced → import → delete) plus the `test-behavior` chainsaw hook running the suite

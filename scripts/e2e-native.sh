@@ -23,15 +23,6 @@ BINARY_PATH="$PROJECT_ROOT/bin/xp-provider-gen"
 # shellcheck source=scripts/lib.sh
 source "$SCRIPT_DIR/lib.sh"
 
-# Step 12 (the generated provider's own uptest + chainsaw e2e) needs a running
-# Docker daemon. Most CI runners (including GitHub's ubuntu-latest) already
-# have one, so relying on "docker info" failing to skip it there would be
-# accidental, not intentional — set E2E_SKIP_DOCKER=1 to skip it explicitly
-# regardless of daemon availability.
-docker_e2e_available() {
-    ! docker_skip_requested && docker info >/dev/null 2>&1
-}
-
 run_make_target() {
     local target=$1
     log_info "Running 'make $target'..."
@@ -360,15 +351,15 @@ step_refresh() {
 step_adopt() {
     step_header "9" "Test update --adopt"
     log_info "Simulating a pre-contract provider: stripping the header from $WIRING..."
+    local stamp_line
+    stamp_line="$(grep -E '^    version: ' PROJECT)" || fail "PROJECT has no generator version before the adopt simulation"
+    sed 's/^    version: .*/    version: pre-contract/' PROJECT >PROJECT.tmp && mv PROJECT.tmp PROJECT
     assert_adopt_restores "$WIRING" -- "$BINARY_PATH" update --adopt
     rm -f "$ASSERT_LOG"
 
-    if grep -q "plugins:" PROJECT; then
-        log_success "✓ generator provenance stamped in PROJECT"
-    else
-        log_error "✗ adopt did not stamp provenance in PROJECT"
-        exit 1
-    fi
+    [[ "$(grep -E '^    version: ' PROJECT)" == "$stamp_line" ]] ||
+        fail "adopt did not restamp PROJECT: want '$stamp_line', got '$(grep -E '^    version: ' PROJECT)'"
+    log_success "✓ adopt restamped the generator version in PROJECT"
 }
 
 step_create_test() {
@@ -534,6 +525,8 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "                   even if a docker daemon is available. Treated as a real"
     echo "                   boolean: unset, empty, 0, false, or no means run it;"
     echo "                   anything else (e.g. 1, true) means skip it."
+    echo "  E2E_REQUIRE_DOCKER  Set to 1 to fail, not skip, when the Docker step cannot run"
+    echo "                   (no daemon, or E2E_SKIP_DOCKER set). The full workflows set it."
     exit 0
 fi
 
@@ -551,6 +544,9 @@ on_exit() {
         rm -rf "$TEST_DIR"
     fi
 }
+
+# Before the trap: a failed preflight must not run on_exit, which deletes TEST_DIR.
+docker_require_preflight
 
 trap on_exit EXIT
 

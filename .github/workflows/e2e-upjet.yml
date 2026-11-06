@@ -45,6 +45,7 @@ jobs:
     # been burned by before).
     env:
       E2E_SKIP_DOCKER: "0"
+      E2E_REQUIRE_DOCKER: "1"
 
     steps:
     - name: Checkout code

@@ -30,10 +30,13 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "Env vars:"
     echo "  E2E_SKIP_DOCKER  Skip step 10 (the Docker-dependent live-cluster e2e),"
     echo "                   even if a docker daemon is available."
+    echo "  E2E_REQUIRE_DOCKER  Set to 1 to fail, not skip, when the Docker step cannot run"
+    echo "                   (no daemon, or E2E_SKIP_DOCKER set). The full workflows set it."
     exit 0
 fi
 
 [ -x "$BIN" ] || fail "binary not found at $BIN — run 'make build' first"
+docker_require_preflight
 
 step_header 1 "Scaffold an upjet provider for hashicorp/kubernetes"
 rm -rf "$DIR" && mkdir -p "$DIR"
@@ -318,7 +321,7 @@ log_success "  ✓ wrote examples/core/configmap.yaml (uptest lifecycle input)"
 log_success "  ✓ create-test scaffolded test/behavior/configmap-basic/chainsaw-test.yaml"
 
 step_header 10 "The generated provider's own e2e (uptest + chainsaw) against a live cluster"
-if ! docker_skip_requested && docker info >/dev/null 2>&1; then
+if docker_e2e_available; then
   LIVE_TEARDOWN_DONE=0
   cleanup_live_cluster() {
     if [ "$LIVE_TEARDOWN_DONE" -eq 0 ]; then
