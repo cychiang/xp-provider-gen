@@ -21,6 +21,7 @@ func TestAssertChainsawRanNeedsTheLifecycleTestInTheReport(t *testing.T) {
 		{"passed", suite(`<testcase name="` + lifecycleTest + `"/>`), false},
 		{"skipped", suite(`<testcase name="` + lifecycleTest + `"><skipped/></testcase>`), true},
 		{"failure", suite(`<testcase name="` + lifecycleTest + `"><failure message="x"/></testcase>`), true},
+		{"error", suite(`<testcase name="` + lifecycleTest + `"><error message="x"/></testcase>`), true},
 		{"absent", suite(`<testcase name="other"/>`), true},
 		{"report without the test", `<testsuites><testsuite name="uptest"/></testsuites>`, true},
 	}
