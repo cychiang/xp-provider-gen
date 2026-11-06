@@ -4,7 +4,7 @@ import re, subprocess, sys, yaml
 from fnmatch import fnmatch
 
 ENTRY = {   # workflow -> the scripts it runs, directly or via make
-    ".github/workflows/e2e-native-full.yml": ["scripts/e2e-native.sh", "scripts/e2e-upgrade.sh"],
+    ".github/workflows/e2e-native-full.yml": ["test/e2e", "scripts/e2e-upgrade.sh"],
     ".github/workflows/e2e-upjet.yml": ["scripts/e2e-upjet.sh"],
 }
 COMMON = ["pkg/templates/generators", "pkg/templates/loader.go",
@@ -24,8 +24,10 @@ for wf, entries in ENTRY.items():
     for p in pats:                                   # forward: every pattern hits at least one file
         if not any(match(p, f) for f in tracked):
             print(f"DEAD   {wf}: {p}"); bad = 1
-    need = set(entries) | {wf}
-    for s in entries:                                # reverse 1: scripts/, hack/ referenced by the script
+    # An entry is a script, or a directory whose files all run (test/e2e).
+    files = {f for e in entries for f in tracked if f == e or f.startswith(e + "/")}
+    need = files | {wf}
+    for s in sorted(files):                          # reverse 1: scripts/, hack/ referenced by the entry
         for m in re.findall(r"(?:scripts|hack)/[A-Za-z0-9_./-]+", open(s).read()):
             m = m.rstrip("./")
             need |= {f for f in tracked if f == m or f.startswith(m + "/")}

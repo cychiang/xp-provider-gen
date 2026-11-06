@@ -9,8 +9,8 @@ is the map, not a transcript of them.
 | Workflow | Triggers | What it does |
 |---|---|---|
 | 🧹 `lint.yml` — Lint | push/PR to `main`, `develop` | golangci-lint at the version pinned here (Renovate bumps it together with the three other places that pin it, and `make check-consistency` fails if they disagree, see [docs/development.md](../docs/development.md#requirements)), a `gofmt` check, a `go mod tidy` check, and `make check-consistency` |
-| 🧪 `test.yml` — Test | push/PR to `main`, `develop` | Unit tests with coverage (Codecov + artifact); when source files changed, the native-flavor e2e (`scripts/e2e-native.sh`) with its Docker-dependent step 12 skipped (`E2E_SKIP_DOCKER=1`) — step 12 itself runs in `e2e-native-full.yml` |
-| 🧭 `e2e-native-full.yml` — E2E Native (full) & Upgrade | weekly; `workflow_dispatch`; PRs touching the generator/template/version surfaces this exercises | The same native e2e with step 12 included (no `E2E_SKIP_DOCKER`; `E2E_REQUIRE_DOCKER=1` fails the run if Docker is missing) — the generated provider's own uptest+chainsaw suite against a real kind cluster — plus `make e2e-upgrade` |
+| 🧪 `test.yml` — Test | push/PR to `main`, `develop` | Unit tests with coverage (Codecov + artifact); when source files changed, the native-flavor e2e (`test/e2e`) in fast mode, which ends in `VERDICT PARTIAL` naming the cluster stages it did not run — those run in `e2e-native-full.yml`; per-stage logs upload as an artifact |
+| 🧭 `e2e-native-full.yml` — E2E Native (full) & Upgrade | weekly; `workflow_dispatch`; PRs touching the generator/template/version surfaces this exercises | The same native e2e in full mode (every stage; it exits 1 before the first stage if Docker is missing) — the generated provider's own uptest+chainsaw suite and a real external object created, changed and deleted on a kind cluster, ending in `VERDICT COMPLETE`; per-stage logs upload as an artifact — plus `make e2e-upgrade` |
 | 🧱 `e2e-upjet.yml` — E2E Upjet | weekly; `workflow_dispatch`; PRs touching the upjet flavor's templates/plugin/version surfaces | `scripts/e2e-upjet.sh`: the real upjet generation pipeline (Terraform download, schema read, docs scrape), build, and — with Docker (`E2E_SKIP_DOCKER=0`, explicit; `E2E_REQUIRE_DOCKER=1` fails the run if Docker is missing) — the generated provider's own e2e |
 | ⚙️ `go-version.yml` — Go version alignment | push/PR to `main`, `develop` | `make check-go-version`: asserts both go.mod files (the generator's and `hack/envtest-provider-check`'s) and the Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version`, and that it's new enough for every pinned dependency |
 | 🧰 `init-stable-go.yml` — Scaffold on stable Go | weekly; `workflow_dispatch`; PRs touching the templates, plugin or version surfaces | Installs the newest stable Go, builds the generator, runs native `init` and `create api`, then an upjet `init`, `create api`, `make generate` and `make reviewable`. Fails when a generated provider's `GOTOOLCHAIN` cap in `hack/xp-provider-gen.mk` stops working, which every job on the pinned Go would miss |
@@ -66,7 +66,7 @@ run — dry-run and real alike — and can also be run locally once `git-cliff` 
 
 ### Manual Workflow Triggers
 ```bash
-# Re-run the native e2e (full, with step 12) + upgrade E2E test on demand
+# Re-run the native e2e (full mode) + upgrade E2E test on demand
 gh workflow run e2e-native-full.yml
 
 # Re-run the upjet e2e on a specific branch

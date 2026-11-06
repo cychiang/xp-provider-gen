@@ -7,7 +7,7 @@
 # 2. Simulate v2 of the generator by changing tool-owned templates
 # 3. Run `update` and inspect exactly which files the diff touches
 #
-# This covers a gap in scripts/e2e-native.sh: that script runs `update` with the
+# This covers a gap in the native e2e (test/e2e): its update-noop stage runs `update` with the
 # SAME generator, so tool-owned files come out byte-identical and it can only
 # prove user-owned files survive. This proves the other direction too — that tool-owned
 # files actually receive a new generator's changes.

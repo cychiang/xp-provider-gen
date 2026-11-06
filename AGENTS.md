@@ -38,10 +38,11 @@ Prerequisites (Go version, gosec, Docker for e2e) are in
 | `make e2e-native` / `make e2e-upjet` / `make e2e-upgrade` | The three e2e surfaces |
 | `make help` | List all targets |
 
-`e2e-native.sh` and `e2e-upjet.sh` skip their Docker-dependent step — not fail — when
-Docker is unavailable or `E2E_SKIP_DOCKER=1` is set. See [docs/testing.md](docs/testing.md)
-for what each script covers, and [docs/manual-testing.md](docs/manual-testing.md) for a
-step-by-step guide to reproducing the same surfaces by hand.
+`make e2e-native` runs the Go stage harness in `test/e2e`: full mode fails before its first stage
+when Docker is missing, and `E2E_ARGS=--mode=fast` ends in `VERDICT PARTIAL`, naming each stage it did
+not run. `e2e-upjet.sh` skips its Docker-dependent step — not fails — when Docker is unavailable or
+`E2E_SKIP_DOCKER=1` is set. See [docs/testing.md](docs/testing.md) for what each covers, and
+[docs/manual-testing.md](docs/manual-testing.md) for a step-by-step guide to reproducing the same surfaces by hand.
 
 ## Code style
 
