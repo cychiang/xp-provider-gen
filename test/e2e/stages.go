@@ -1,9 +1,12 @@
+//go:build !windows
+
 package main
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"io/fs"
@@ -623,17 +626,40 @@ func stageStockE2E(e *Env) error {
 	return assertChainsawRan(filepath.Join(stock, "junit.xml"))
 }
 
-// assertChainsawRan fails unless the chainsaw report names the lifecycle test:
-// make e2e's exit alone is the same whether or not chainsaw ran.
+// junitReport is the part of chainsaw's JUnit report assertChainsawRan reads:
+// testsuites > testsuite > testcase, with a skipped, failure or error child on
+// a test that did not pass.
+type junitReport struct {
+	Cases []struct {
+		Name    string    `xml:"name,attr"`
+		Skipped *struct{} `xml:"skipped"`
+		Failure *struct{} `xml:"failure"`
+		Error   *struct{} `xml:"error"`
+	} `xml:"testsuite>testcase"`
+}
+
+// assertChainsawRan fails unless the chainsaw report holds a passed lifecycle
+// testcase: make e2e's exit alone is the same whether or not chainsaw ran, and
+// a skipped test still names itself in the report.
 func assertChainsawRan(report string) error {
 	b, err := os.ReadFile(report) // #nosec G304 -- a fixed path inside the private work directory
 	if err != nil {
 		return fmt.Errorf("reading the chainsaw report: %w", err)
 	}
-	if !strings.Contains(string(b), lifecycleTest) {
-		return fmt.Errorf("%s does not show the %s test having run", report, lifecycleTest)
+	var r junitReport
+	if err := xml.Unmarshal(b, &r); err != nil {
+		return fmt.Errorf("parsing %s: %w", report, err)
 	}
-	return nil
+	for _, c := range r.Cases {
+		if c.Name != lifecycleTest {
+			continue
+		}
+		if c.Skipped != nil || c.Failure != nil || c.Error != nil {
+			return fmt.Errorf("%s shows the %s test skipped or failed", report, lifecycleTest)
+		}
+		return nil
+	}
+	return fmt.Errorf("%s does not show the %s test having run", report, lifecycleTest)
 }
 
 // pollRuntimeConfig is the DeploymentRuntimeConfig the harness deploys the

@@ -59,7 +59,7 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 provider scaffolded by `bin/xp-provider-gen`. `go run ./test/e2e --list --flavor=native` prints
 the list. A stage returns an error or it passed; there is no skip result, and the run stops at
 the first failure. The runner is `plan.go`, the stages are `stages.go`, and `plan_test.go`
-tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mode verdict, the exact set of stages fast mode runs, the first-failure stop and the chainsaw-report check (`go test ./test/e2e/`).
+tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mode verdict, the exact set of stages fast mode runs and the first-failure stop. `stages_test.go` tests the chainsaw-report check, which needs a passed `lifecycle` testcase (`go test ./test/e2e/`).
 
 | Stage | Proves |
 |---|---|

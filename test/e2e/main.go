@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Command e2e runs the declared end-to-end stages for one flavor against a
 // scaffold built by the binary under test. See docs/testing.md.
 package main

@@ -1,3 +1,5 @@
+//go:build !windows
+
 package main
 
 import (
@@ -6,13 +8,20 @@ import (
 	"testing"
 )
 
+func suite(cases string) string {
+	return `<testsuites name="chainsaw-report"><testsuite name="` + lifecycleTest + `">` + cases + `</testsuite></testsuites>`
+}
+
 func TestAssertChainsawRanNeedsTheLifecycleTestInTheReport(t *testing.T) {
 	cases := []struct {
 		name    string
 		report  string
 		wantErr bool
 	}{
-		{"names the test", `<testcase name="` + lifecycleTest + `"/>`, false},
+		{"passed", suite(`<testcase name="` + lifecycleTest + `"/>`), false},
+		{"skipped", suite(`<testcase name="` + lifecycleTest + `"><skipped/></testcase>`), true},
+		{"failure", suite(`<testcase name="` + lifecycleTest + `"><failure message="x"/></testcase>`), true},
+		{"absent", suite(`<testcase name="other"/>`), true},
 		{"report without the test", `<testsuites><testsuite name="uptest"/></testsuites>`, true},
 	}
 	for _, c := range cases {
