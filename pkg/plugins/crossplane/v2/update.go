@@ -244,7 +244,6 @@ func projectNotUsable(err error) error {
 	return fmt.Errorf("PROJECT is not usable: %w", err)
 }
 
-// loadProjectStore loads the PROJECT config store from dst.
 func loadProjectStore(dst afero.Fs) (store.Store, error) {
 	st := yaml.New(machinery.Filesystem{FS: dst})
 	if err := st.Load(); err != nil {

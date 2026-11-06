@@ -32,6 +32,8 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
+// runAdopt adopts the project in dst. dst must be the tree rooted at the
+// working directory: git, make and go run there, not through dst.
 func runAdopt(ctx context.Context, dst afero.Fs, verbose bool) error {
 	st, mem, meta, err := prepare(ctx, dst)
 	if err != nil {

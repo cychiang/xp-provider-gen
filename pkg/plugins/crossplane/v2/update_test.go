@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
+	"github.com/cychiang/xp-provider-gen/pkg/version"
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
@@ -301,19 +302,12 @@ const (
 	shimLogName      = "calls.log"
 )
 
-// updateFixture is a committed native provider in a temp directory that is also
-// the working directory, with make and go replaced by shims that log their
-// arguments. runUpdate and runAdopt read and write the project through fs but
-// run git, make and go in the working directory, so both must name one tree.
 type updateFixture struct {
 	dir string
 	fs  afero.Fs
 	log string
 }
 
-// newUpdateFixture renders a native project with one kind, commits it, and
-// moves the process into it. Shims go on PATH so no test reaches the network
-// or runs a real provider build.
 func newUpdateFixture(t *testing.T) *updateFixture {
 	t.Helper()
 	dir := t.TempDir()
@@ -402,6 +396,19 @@ func (fx *updateFixture) shimCalls(t *testing.T) string {
 	return string(b)
 }
 
+func (fx *updateFixture) projectVersion(t *testing.T) string {
+	t.Helper()
+	st := yaml.New(machinery.Filesystem{FS: fx.fs})
+	if err := st.Load(); err != nil {
+		t.Fatalf("loading PROJECT: %v", err)
+	}
+	meta, err := loadProjectMeta(st.Config())
+	if err != nil {
+		t.Fatalf("loadProjectMeta: %v", err)
+	}
+	return meta.Version
+}
+
 func (fx *updateFixture) goDirective(t *testing.T) string {
 	t.Helper()
 	for _, line := range strings.Split(fx.read(t, "go.mod"), "\n") {
@@ -474,30 +481,40 @@ func TestRunUpdate_RunsFinalizeThroughShims(t *testing.T) {
 	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
 		t.Fatalf("runUpdate: %v", err)
 	}
-	calls := fx.shimCalls(t)
-	for _, want := range []string{"make generate", "make reviewable", "go mod tidy"} {
-		if !strings.Contains(calls, want) {
+	calls := strings.Split(strings.TrimSpace(fx.shimCalls(t)), "\n")
+	goGet := slices.IndexFunc(calls, func(c string) bool { return strings.HasPrefix(c, "go get ") })
+	tidy := slices.Index(calls, "go mod tidy")
+	if goGet < 0 || tidy < 0 || goGet > tidy {
+		t.Errorf("shim calls = %q, want a go get before go mod tidy", calls)
+	}
+	for _, want := range []string{"make generate", "make reviewable"} {
+		if !slices.Contains(calls, want) {
 			t.Errorf("shim calls = %q, want %q", calls, want)
 		}
+	}
+	if got := fx.projectVersion(t); got != version.Get().Version {
+		t.Errorf("PROJECT version = %q, want %q stamped", got, version.Get().Version)
 	}
 }
 
 func TestRunAdopt_RestoresStrippedHeader(t *testing.T) {
 	fx := newUpdateFixture(t)
-	const registerPath = apisRegisterPath
-	stripped := strings.Replace(fx.read(t, registerPath), core.GeneratedHeader+"\n", "", 1)
-	fx.write(t, registerPath, stripped)
+	stripped := strings.Replace(fx.read(t, apisRegisterPath), core.GeneratedHeader+"\n", "", 1)
+	fx.write(t, apisRegisterPath, stripped)
 	fx.write(t, "external.go", "package provider // user code\n")
 	fx.commit(t)
 
 	if err := runAdopt(t.Context(), fx.fs, false); err != nil {
 		t.Fatalf("runAdopt: %v", err)
 	}
-	if !strings.Contains(fx.read(t, registerPath), core.GeneratedHeader) {
-		t.Errorf("%s has no generated header after adopt", registerPath)
+	if !strings.Contains(fx.read(t, apisRegisterPath), core.GeneratedHeader) {
+		t.Errorf("%s has no generated header after adopt", apisRegisterPath)
 	}
 	if got := fx.read(t, "external.go"); got != "package provider // user code\n" {
 		t.Errorf("external.go = %q, want user-owned file untouched", got)
+	}
+	if got := fx.projectVersion(t); got != version.Get().Version {
+		t.Errorf("PROJECT version = %q, want %q stamped", got, version.Get().Version)
 	}
 }
 
