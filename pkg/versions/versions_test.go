@@ -200,3 +200,28 @@ func TestParseManifest_GolangciLintVersion(t *testing.T) {
 		t.Errorf("GolangciLintVersion = %q, want %q", m.GolangciLintVersion, "8.8.8")
 	}
 }
+
+func TestDependency_GetArg(t *testing.T) {
+	plain := Dependency{Module: "example.com/m", Version: "v1.2.3"}
+	if got, want := plain.GetArg(), "example.com/m@v1.2.3"; got != want {
+		t.Errorf("GetArg() = %q, want %q", got, want)
+	}
+	pkg := Dependency{Module: "example.com/m", Version: "v1.2.3", Package: "example.com/m/pkg/x"}
+	if got, want := pkg.GetArg(), "example.com/m/pkg/x@v1.2.3"; got != want {
+		t.Errorf("GetArg() = %q, want %q", got, want)
+	}
+}
+
+// TestAPIExtensionsGetsAPackage pins that update asks `go get` for a package,
+// not the module, which has none at its root.
+func TestAPIExtensionsGetsAPackage(t *testing.T) {
+	for _, d := range GoModDependencies() {
+		if d.Module == "k8s.io/apiextensions-apiserver" {
+			if d.Package == "" || !strings.HasPrefix(d.GetArg(), d.Module+"/") {
+				t.Errorf("GetArg() = %q, want a package path under the module", d.GetArg())
+			}
+			return
+		}
+	}
+	t.Fatal("manifest must include apiextensions-apiserver")
+}

@@ -52,6 +52,17 @@ func mustParse(raw []byte) manifest {
 type Dependency struct {
 	Module  string `json:"module"`
 	Version string `json:"version"`
+	// Package, when set, is the package `go get` fetches instead of the module.
+	Package string `json:"package,omitempty"`
+}
+
+// GetArg is the argument `go get` takes to put this dependency at its version.
+func (d Dependency) GetArg() string {
+	target := d.Module
+	if d.Package != "" {
+		target = d.Package
+	}
+	return target + "@" + d.Version
 }
 
 // manifest is the shape of dependencies.yaml: the single source of truth for
