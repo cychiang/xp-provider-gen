@@ -35,6 +35,10 @@ type BaseTemplateProduct struct {
 
 	ProviderName string
 
+	// GoVersion is the Go release the generated make fragment exports as
+	// GOTOOLCHAIN, set from pkg/versions in Configure.
+	GoVersion string
+
 	// Upjet carries the Terraform coordinates an upjet-flavored provider is
 	// generated from. Empty for native providers, whose templates never
 	// reference it.
@@ -64,6 +68,8 @@ func (t *BaseTemplateProduct) Configure(cfg config.Config) error {
 	if t.TerraformVersion == "" {
 		t.TerraformVersion = versions.TerraformVersion
 	}
+
+	t.GoVersion = versions.GoVersion
 
 	t.BoilerplateMixin = machinery.BoilerplateMixin{Boilerplate: DefaultBoilerplate()}
 

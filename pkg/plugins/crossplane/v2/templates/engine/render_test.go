@@ -248,6 +248,25 @@ func TestRenderUpjetPinsTerraformVersion(t *testing.T) {
 	}
 }
 
+func TestRenderPinsGoToolchain(t *testing.T) {
+	want := "export GOTOOLCHAIN ?= go" + versions.GoVersion + "+auto\n"
+
+	for _, flavor := range []core.Flavor{core.FlavorNative, core.FlavorUpjet} {
+		t.Run(string(flavor), func(t *testing.T) {
+			body, err := afero.ReadFile(renderProject(t, flavor), makeFragmentPath)
+			if err != nil {
+				t.Fatalf("reading %s: %v", makeFragmentPath, err)
+			}
+			got := string(body)
+			pin := strings.Index(got, want)
+			include := strings.Index(got, "-include build/makelib/golang.mk")
+			if pin < 0 || include < 0 || pin > include {
+				t.Errorf("%s must contain %q above golang.mk's include:\n%s", makeFragmentPath, want, got)
+			}
+		})
+	}
+}
+
 // TestRenderUpjetGeneratorsWithoutResources renders the generators the way
 // init does, before any kind exists: a fresh upjet provider ships the
 // zero-resource config/zz_resources.go.

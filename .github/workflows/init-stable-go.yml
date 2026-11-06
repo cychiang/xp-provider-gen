@@ -1,0 +1,65 @@
+name: Scaffold on stable Go
+
+permissions:
+  contents: read
+
+# Generated providers cap the toolchain with GOTOOLCHAIN in hack/xp-provider-gen.mk,
+# because the pinned golangci-lint cannot type-check a standard library newer than
+# the Go it was built with. Every other job installs the pinned Go, so none of them
+# would notice that cap going missing. This one installs the newest stable Go, so it
+# fails the day a scaffold stops working on a current host.
+on:
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch: {}
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'pkg/templates/**'
+      - 'pkg/versions/**'
+      - 'pkg/plugins/crossplane/v2/**'
+      - 'Makefile'
+      - '.github/workflows/init-stable-go.yml'
+
+jobs:
+  init-stable-go:
+    name: Scaffold (stable Go)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: stable
+
+    - name: Configure git identity for generated commits
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Build the generator
+      run: make build
+
+    # setup-go exports GOTOOLCHAIN=local, which would win over the generated line.
+    # A developer's host has no such value, so both scaffold steps clear it.
+    - name: Scaffold a native provider
+      run: |
+        unset GOTOOLCHAIN
+        mkdir "$RUNNER_TEMP/native" && cd "$RUNNER_TEMP/native"
+        "$GITHUB_WORKSPACE/bin/xp-provider-gen" init --domain=example.com --repo=github.com/example/provider-native
+        "$GITHUB_WORKSPACE/bin/xp-provider-gen" create api --group=core --version=v1alpha1 --kind=Widget
+
+    - name: Scaffold an upjet provider and run its checks
+      run: |
+        unset GOTOOLCHAIN
+        mkdir "$RUNNER_TEMP/upjet" && cd "$RUNNER_TEMP/upjet"
+        "$GITHUB_WORKSPACE/bin/xp-provider-gen" init --domain=example.com --repo=github.com/example/provider-k8s \
+          --upjet --terraform-provider=hashicorp/kubernetes --terraform-provider-version=2.37.1
+        "$GITHUB_WORKSPACE/bin/xp-provider-gen" create api --group=core --version=v1alpha1 --kind=Secret \
+          --terraform-resource=kubernetes_secret
+        make generate
+        go mod tidy
+        make reviewable

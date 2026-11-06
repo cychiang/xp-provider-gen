@@ -5,11 +5,11 @@ permissions:
 
 # `make e2e-upjet` (`scripts/e2e-upjet.sh`) needs network (Terraform download, Terraform Registry
 # schema read, provider docs scrape) and takes several minutes, so it does not
-# run on every PR. It runs on a daily schedule, on PRs that touch the upjet
+# run on every PR. It runs on a weekly schedule, on PRs that touch the upjet
 # flavor's templates or the script/helper that exercise it, and on demand.
 on:
   schedule:
-    - cron: '0 4 * * *'
+    - cron: '0 4 * * 1'
   workflow_dispatch: {}
   pull_request:
     branches: [ main, develop ]

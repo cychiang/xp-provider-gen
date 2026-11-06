@@ -79,8 +79,9 @@ never hardcode versions in a template.
 Generated providers target the Go version in `pkg/versions/dependencies.yaml`'s `go_version`
 (`pkg/versions.GoVersion`, rendered into `go.mod`) and lint with the pinned golangci-lint
 (`hack/xp-provider-gen.mk.tmpl`). Keep the generated `go` directive at that language version with
-no `toolchain` pin — golangci-lint reads the system GOROOT, so pinning a toolchain patch above
-golangci-lint's build version breaks `make reviewable` in generated projects.
+no `toolchain` pin — golangci-lint reads the GOROOT of the Go that runs it, so a Go above
+golangci-lint's build version breaks `make reviewable` in generated projects. The generated
+`hack/xp-provider-gen.mk` caps that Go by exporting `GOTOOLCHAIN`, which also covers a newer host.
 
 ## CI/CD
 
