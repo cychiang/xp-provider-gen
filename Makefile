@@ -29,7 +29,6 @@ COVERAGE_DIR=coverage
 BINARY=xp-provider-gen
 
 GOLANGCILINT_VERSION := $(shell sed -n 's/^golangci_lint_version: *"\([^"]*\)".*/\1/p' pkg/versions/dependencies.yaml)
-$(if $(GOLANGCILINT_VERSION),,$(error golangci_lint_version not read from pkg/versions/dependencies.yaml; it must be double-quoted))
 
 .PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-native e2e-upjet e2e-upgrade check-go-version check-consistency
 
@@ -89,6 +88,7 @@ vet: ## Run go vet
 # Ensure golangci-lint is installed. The v2 module path is required: .golangci.yml
 # is a version: "2" config, which a v1 binary cannot parse.
 lint-install: # Install golangci-lint if not present (internal)
+	@test -n "$(GOLANGCILINT_VERSION)" || { echo "golangci_lint_version not read from pkg/versions/dependencies.yaml; it must be double-quoted" >&2; exit 1; }
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "Installing golangci-lint v$(GOLANGCILINT_VERSION)..."; \
 		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCILINT_VERSION); \
