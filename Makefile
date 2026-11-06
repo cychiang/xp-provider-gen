@@ -68,9 +68,11 @@ coverage: ## Generate test coverage report
 	$(GOCMD) tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
 	@echo "Coverage report generated: $(COVERAGE_DIR)/coverage.html"
 
-e2e-native: build ## Run the native-flavor end-to-end test
-	@echo "Running native-flavor E2E test..."
-	@./scripts/e2e-native.sh
+E2E_ARGS ?=
+
+e2e-native: build ## Run the native-flavor end-to-end stages (E2E_ARGS=--mode=fast does not run the Docker ones)
+	@$(GOCMD) build -o $(BUILD_DIR)/e2e ./test/e2e
+	@exec $(BUILD_DIR)/e2e --flavor=native $(E2E_ARGS)
 
 e2e-upjet: build ## Run the upjet-flavor end-to-end test (network, several minutes)
 	@./scripts/e2e-upjet.sh
@@ -100,7 +102,7 @@ lint: lint-install ## Run golangci-lint with configuration
 
 gosec: ## Run gosec security scanner
 	@echo "Running gosec security scanner..."
-	gosec -fmt=text -out=gosec-report.txt -stdout -verbose=text -severity=medium -confidence=medium ./...
+	gosec -fmt=text -out=gosec-report.txt -stdout -verbose=text -severity=medium -confidence=medium -exclude-dir=test/e2e/testdata ./...
 
 mod-tidy: ## Run go mod tidy
 	$(GOMOD) tidy

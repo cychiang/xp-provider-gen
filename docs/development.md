@@ -12,9 +12,10 @@
   That key is its only pin: the `Makefile` and `.github/workflows/lint.yml` read it, and both
   flavors' `hack/xp-provider-gen.mk.tmpl` render it. Renovate bumps that one line.
 - **gosec** — security scanner
-- **Docker** — without it, both `make e2e-native` and `make e2e-upjet` skip their
-  Docker-dependent stage rather than failing; `make e2e-upjet` also needs network access
-  for its non-Docker stages (downloading Terraform and a provider schema)
+- **Docker** — without it, `make e2e-native` fails before its first stage (use
+  `E2E_ARGS=--mode=fast` to run only the stages that need none, ending in `VERDICT PARTIAL`),
+  while `make e2e-upjet` skips its Docker-dependent stage rather than failing; `make e2e-upjet`
+  also needs network access for its non-Docker stages (downloading Terraform and a provider schema)
 
 ```bash
 # gosec (macOS)

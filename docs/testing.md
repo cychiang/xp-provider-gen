@@ -55,75 +55,59 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 
 ## Native-flavor e2e (`make e2e-native`)
 
-`scripts/e2e-native.sh` (run via `make e2e-native`) exercises the real generator workflow against
-a throwaway project in `/tmp/xpg-e2e-native`. The expected file layout lives in
-`scripts/assert-layout.sh`, called by `e2e-native.sh` at each scaffolding stage (and by
-`e2e-upjet.sh --upjet` after init) — edit that when the scaffold gains or loses a file:
+`test/e2e` is a Go program that runs a declared list of stages, in order, against a native
+provider scaffolded by `bin/xp-provider-gen`. `go run ./test/e2e --list --flavor=native` prints
+the list. A stage returns an error or it passed; there is no skip result, and the run stops at
+the first failure. The runner is `plan.go`, the stages are `stages.go`, and `plan_test.go`
+tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mode verdict, the exact set of stages fast mode runs and the first-failure stop. `stages_test.go` tests the chainsaw-report check, which needs a passed `lifecycle` testcase (`go test ./test/e2e/`).
 
-The script is one function per numbered step (`step_prepare_dir`, `step_init`, ...), called
-in order from `main`; `--help` lists the same steps:
+| Stage | Proves |
+|---|---|
+| `init`, `create-api` | The binary scaffolds a provider with two kinds (`Widget`, `Gadget`) and `scripts/assert-layout.sh` finds every expected file. `init` stamps PROJECT with the generator `version:`, and leaves a clean tree, so `create api` cannot commit an `init` leftover. |
+| `generate` | `make submodules generate reviewable` pass on the pristine scaffold. CRDs and examples exist, the ownership contract holds (tool-owned files carry the `DO NOT EDIT` header, user-owned files do not), the tree is clean, and `init` plus `create api` folded into one `Initial commit`. |
+| `user-logic` | The overlay replaces the user-owned `client.go`, `external.go` and `options.go`, then `go mod tidy`, `make lint` and a commit. |
+| `update-to-head` | Release cases only (`--from=<released binary>`). `update` by the binary under test leaves user-owned bytes alone and moves the PROJECT stamp. |
+| `update-noop` | A same-generator `update` reports `removed 0`, `Refreshed 0` and a non-zero `Unchanged N`, leaves the seam files byte-identical and the tree clean, refuses a dirty tree, and rejects `--terraform-provider-version` naming the flavor. |
+| `create-api-refresh` | Re-running `create api` regenerates a tool-owned file, keeps a user edit, commits nothing the second time, and rejects `--force`. |
+| `adopt` | Plants a sentinel PROJECT `version:` and strips a header, then asserts `update --adopt` restores both. |
+| `stock-e2e` | The scaffold exactly as generated, in a clone of its first commit, passes its own `make e2e`, with the head's `create-test` lifecycle test added first, so the one run covers uptest, the pause tests and the test `create-test` wrote; the stage then fails unless `junit.xml` names that test. Uptest skips its update step on the stock scaffold: it updates only a resource annotated `meta.upbound.io/example-id`, and allows one such root per run, while `make e2e` runs every kind's example in one run. |
+| `build-xpkg`, `install-in-kind`, `provider-config` | The overlay provider's package builds, installs into a new kind cluster and is Healthy, (deployed with `--poll=10s` through a harness-only DeploymentRuntimeConfig, so drift shows in seconds; the stage fails unless the provider's deployment carries that argument), and a ProviderConfig holds the cluster's own kubeconfig as credentials. |
+| `mr-ready-synced` | The `Widget` example is `Ready` and `Synced`, and a ConfigMap, the external object, holds its value. |
+| `mr-update`, `drift-corrected` | The external value follows a spec patch, and a hand edit of the external object is restored. |
+| `mr-delete`, `external-gone` | The managed resource is deleted, then the external object is gone. |
+| `create-test` | `create-test` writes a chainsaw test and refuses to overwrite it. Needs no Docker, so fast mode runs it. |
 
-1. Build the binary and prepare a clean temp directory.
-2. `init` a provider project; verify the base structure and that it stamped PROJECT's plugin
-   block with the generator `version:` that ran it.
-3. Initial build targets; **assert the working tree is clean** (generate-then-commit leaves
-   nothing uncommitted).
-4. `create api` for the first kind; verify the generated types and controller.
-5. `create api` for the second kind (same group/version, different kind); verify its files too.
-6. Build targets after both APIs; verify the generated CRDs and examples; **Ownership
-   contract:** assert tool-owned files (`register.go`, `wiring.go`,
-   `internal/provider/connector.go`, `main.go`, `config.go`, `docs/ownership.md`) carry the
-   `DO NOT EDIT` header, and that user-owned files (`external.go`, `internal/provider/client.go`,
-   `internal/provider/options.go`, `*_types.go`, `apis/v1alpha1/types.go`, `AGENTS.md`) do not;
-   **assert the tree is clean again** and that init + create api folded into a single
-   `Initial commit`.
-7. **`update` (the upgrade guarantee):** append a marker to **all three** user-owned seam
-   files and commit, run `update`, then assert (a) every marker survives, (b) `wiring.go`,
-   `connector.go` and `docs/ownership.md` still carry their headers, (c) seed-once
-   `AGENTS.md` is untouched, (d) the same-generator update log reports `removed 0` (nothing is
-   orphaned when the templates haven't changed), `Refreshed 0 tool-owned file(s)` and a
-   non-zero `Unchanged N` (every tool-owned file is byte-identical, so none is rewritten), (e) `update --terraform-provider-version=1.0.0`
-   is rejected on a native provider, naming the flavor in the error — that flag is upjet-only,
-   (f) `update` refuses a dirty tree. Steps 7–10 run against a copy
-   of the scaffold at `/tmp/xpg-e2e-native-lifecycle` (`LIFECYCLE_DIR`), so the pristine
-   `/tmp/xpg-e2e-native` keeps its single `Initial commit`.
-8. **`create api` refresh:** mark a tool-owned file (`wiring.go`) and a user-owned one
-   (`external.go`), commit, then re-run `create api` for the same kind and assert (a) it exits 0,
-   (b) the tool-owned marker is gone (regenerated), (c) the user-owned marker survives. Also
-   assert that `create api --force` fails with `unknown flag: --force` and leaves the tree clean.
-9. **`update --adopt`:** strip the header from `wiring.go` (simulate a pre-contract provider),
-   run `update --adopt`, then assert the header is restored and PROJECT gains the provenance stamp.
-10. **create-test:** scaffold a chainsaw behavior test non-interactively and assert the file
-    lands — and that an existing test is never overwritten.
-11. Verify the provider builds — only when Docker is unavailable; otherwise `make e2e`
-    (next step) builds it as part of the flow.
-12. **The generated provider's own e2e:** run `make e2e` inside the scaffold — the full
-    uptest + chainsaw flow: build the xpkg, stand up a dedicated kind control plane with
-    Crossplane installed, deploy the provider from the local package, run every kind's
-    uptest lifecycle (create → Ready/Synced → delete), then the chainsaw behavior suite
-    (the seeded pause tests), then scaffold a fresh chainsaw test with `create-test` and
-    assert it also passes against the live provider. Skipped with a warning when no Docker
-    daemon is available; with `E2E_REQUIRE_DOCKER=1` (the full workflows set it) a missing
-    daemon, or `E2E_SKIP_DOCKER` set, fails the run before step 1 instead.
+The overlay in `test/e2e/testdata/native/` gives the scaffold an honest external system: a
+ConfigMap client built from `ClientConfig.Credentials`. It lives in the harness, not in the
+shipped template, so the stub authors receive stays a stub. `--overlay=<dir>` points the run at
+other files, which is how the break tests below were made.
 
-The create-api-refresh/`--adopt`/dirty-tree assertions (steps 8, 9, and the dirty-tree check inside
-step 7) and `docker_skip_requested` live in `scripts/lib.sh`, shared with `e2e-upjet.sh` and
-`e2e-upgrade.sh` — see that file for the shared helpers.
+**Modes.** `make e2e-native` runs full mode: it checks that Docker answers before the first stage and
+exits 1 if not. `make e2e-native E2E_ARGS=--mode=fast` runs only the stages that need no Docker and
+ends in `VERDICT PARTIAL`, naming each stage it did not run. An unknown `--mode`, or a plan with no stage to run, exits 1 before anything starts. Only a full run ends in
+`VERDICT COMPLETE`. Other flags: `--logs=<dir>` keeps per-stage logs there, `--from=<binary>`
+scaffolds with a released binary and adds `update-to-head`.
 
-`/tmp/xpg-e2e-native`, the scaffold this leaves behind, is kept only when the run succeeds
-(a failure removes it so the next run starts clean) — the next run recreates it either way:
+**Isolation.** Each run makes its own work directory, log directory and kind cluster name, and
+sets a private `KUBECONFIG` on every subprocess, so it never reads or writes `~/.kube/config` and
+parallel runs cannot collide. It deletes its cluster on exit, including on failure. A failed run
+keeps its work directory and prints the path.
+
+The shell helpers `assert_create_api_refreshes`, `assert_adopt_restores` and
+`assert_update_refuses_dirty` live in `scripts/lib.sh`, still shared with `e2e-upjet.sh`.
 
 ```bash
-make e2e-native            # build + run
-./scripts/e2e-native.sh -h # usage
+make e2e-native                                  # build + full run
+make e2e-native E2E_ARGS=--mode=fast             # no Docker needed
+go run ./test/e2e --list --flavor=native         # the declared stages
 ```
 
 Run the e2e test whenever you change templates, the template engine, or the automation
-pipeline — unit tests alone do not catch broken generated output.
+pipeline: unit tests alone do not catch broken generated output.
 
 ## Upgrade e2e (`make e2e-upgrade`)
 
-`scripts/e2e-upgrade.sh` covers a gap the e2e cannot: e2e step 7 runs `update` with
+`scripts/e2e-upgrade.sh` covers a gap the e2e cannot: the `update-noop` stage of the native e2e runs `update` with
 the **same** generator, so tool-owned files come out byte-identical and it can only
 prove that user-owned files survive — never that tool-owned files actually receive a new
 generator's changes.
@@ -204,9 +188,9 @@ which need Docker:
 
 It also configures a `kubernetes_config_map` resource, writes its
 `docs/upjet-provider.md` worked example (with `uptest.upbound.io/*` annotations), and runs
-`xp-provider-gen create-test` — mirroring the native e2e's own `create-test` coverage, which
-upjet previously lacked. With a Docker daemon available (skipped with a warning otherwise, or
-with `E2E_SKIP_DOCKER` set, same as the native e2e's step 12; `E2E_REQUIRE_DOCKER=1` fails the run instead), it then:
+`xp-provider-gen create-test` — the scaffolding half of the native e2e's `create-test` coverage
+(it does not re-run to check the refusal to overwrite). With a Docker daemon available (skipped with a warning otherwise, or
+with `E2E_SKIP_DOCKER` set; `E2E_REQUIRE_DOCKER=1` fails the run instead), it then:
 
 - runs the **generated provider's own `make e2e`**: the uptest lifecycle (create →
   Ready/Synced → import → delete) plus the `test-behavior` chainsaw hook running the suite
