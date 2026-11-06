@@ -28,26 +28,32 @@ section_header() {
 # the shared step-output format for all three e2e scripts.
 step_header() { section_header "Step $1: $2"; }
 
-# E2E_SKIP_DOCKER is a real boolean, not a "set means yes" flag: unset, empty,
-# 0/false/no means "do not skip"; anything else (1, true, yes, ...) means
-# "skip". Centralized here so the truthiness test isn't repeated (and doesn't
-# drift) across every call site.
-docker_skip_requested() {
-    case "${E2E_SKIP_DOCKER:-0}" in
+# env_enabled <value> is the one boolean rule for E2E_* flags: unset, empty,
+# 0/false/no means off; anything else (1, true, yes, ...) means on. Centralized
+# so the truthiness test isn't repeated (and doesn't drift) across call sites.
+env_enabled() {
+    case "${1:-0}" in
         0 | false | False | FALSE | no | No | NO) return 1 ;;
         *) return 0 ;;
     esac
 }
 
+docker_skip_requested() { env_enabled "${E2E_SKIP_DOCKER:-}"; }
+
+# docker_require_preflight fails the script when E2E_REQUIRE_DOCKER is on and
+# the Docker step could not run: an E2E_SKIP_DOCKER request, or no daemon.
+# With E2E_REQUIRE_DOCKER off it does nothing.
+docker_require_preflight() {
+    env_enabled "${E2E_REQUIRE_DOCKER:-}" || return 0
+    docker_skip_requested && fail "E2E_REQUIRE_DOCKER forbids E2E_SKIP_DOCKER=${E2E_SKIP_DOCKER}"
+    docker info >/dev/null 2>&1 || fail "E2E_REQUIRE_DOCKER is set but no Docker daemon is reachable"
+    return 0
+}
+
 # docker_e2e_available reports whether the Docker-dependent step should run.
-# Under E2E_REQUIRE_DOCKER=1 (set by the full workflows) it never reports
-# "no": a missing daemon, or an E2E_SKIP_DOCKER request, fails the script.
+# Under E2E_REQUIRE_DOCKER it never reports "no": it fails the script instead.
 docker_e2e_available() {
-    if [[ ${E2E_REQUIRE_DOCKER:-0} == 1 ]]; then
-        docker_skip_requested && fail "E2E_REQUIRE_DOCKER=1 forbids E2E_SKIP_DOCKER=${E2E_SKIP_DOCKER}"
-        docker info >/dev/null 2>&1 || fail "E2E_REQUIRE_DOCKER=1 but no Docker daemon is reachable"
-        return 0
-    fi
+    docker_require_preflight
     ! docker_skip_requested && docker info >/dev/null 2>&1
 }
 

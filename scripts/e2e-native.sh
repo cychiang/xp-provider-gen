@@ -352,13 +352,13 @@ step_adopt() {
     step_header "9" "Test update --adopt"
     log_info "Simulating a pre-contract provider: stripping the header from $WIRING..."
     local stamp_line
-    stamp_line="$(/usr/bin/grep -E '^    version: ' PROJECT)" || fail "PROJECT has no generator version before the adopt simulation"
+    stamp_line="$(grep -E '^    version: ' PROJECT)" || fail "PROJECT has no generator version before the adopt simulation"
     sed 's/^    version: .*/    version: pre-contract/' PROJECT >PROJECT.tmp && mv PROJECT.tmp PROJECT
     assert_adopt_restores "$WIRING" -- "$BINARY_PATH" update --adopt
     rm -f "$ASSERT_LOG"
 
-    [[ "$(/usr/bin/grep -E '^    version: ' PROJECT)" == "$stamp_line" ]] ||
-        fail "adopt did not restamp PROJECT: want '$stamp_line', got '$(/usr/bin/grep -E '^    version: ' PROJECT)'"
+    [[ "$(grep -E '^    version: ' PROJECT)" == "$stamp_line" ]] ||
+        fail "adopt did not restamp PROJECT: want '$stamp_line', got '$(grep -E '^    version: ' PROJECT)'"
     log_success "✓ adopt restamped the generator version in PROJECT"
 }
 
@@ -485,6 +485,8 @@ main() {
         exit 1
     fi
     log_success "Binary found at $BINARY_PATH"
+
+    docker_require_preflight
 
     step_prepare_dir
     step_init

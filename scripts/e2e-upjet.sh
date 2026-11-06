@@ -36,6 +36,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 fi
 
 [ -x "$BIN" ] || fail "binary not found at $BIN — run 'make build' first"
+docker_require_preflight
 
 step_header 1 "Scaffold an upjet provider for hashicorp/kubernetes"
 rm -rf "$DIR" && mkdir -p "$DIR"
