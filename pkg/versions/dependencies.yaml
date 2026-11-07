@@ -9,13 +9,10 @@
 # entries individually would leave crossplane-runtime, crossplane/apis, controller-runtime
 # and k8s.io/* mutually incompatible.
 
-# The go.mod `go` directive generated providers declare. go.mod's own `go`
-# directive (this repo's, not a generated provider's) and the Dockerfile's
-# golang base image tag both have to match this literally — neither can be
-# computed, so `scripts/check-go-version` enforces the match in CI instead
-# (see .github/workflows/go-version.yml). Bump this, then bump those two to
-# match; the check fails with a clear message if you forget either one, or if
-# this value falls below what a pinned dependency below requires.
+# The go.mod `go` directive generated providers declare. It is independent of
+# the Go this repo is built with (go.mod and the Dockerfile), so a provider Go
+# bump is this one line. `scripts/check-go-version` fails CI if this value
+# falls below what a pinned dependency below requires.
 go_version: "1.26.10"
 
 # The Terraform CLI version an upjet-flavored provider uses to read its wrapped

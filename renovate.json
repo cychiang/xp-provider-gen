@@ -152,20 +152,20 @@
       "minimumReleaseAge": "10 days"
     },
     {
-      "description": "Dockerfile's golang base image tag is not an independent dependency: it must equal pkg/versions/dependencies.yaml's go_version (enforced in CI by scripts/check-go-version, see .github/workflows/go-version.yml). Disable the built-in dockerfile manager for it so Renovate stops proposing it on its own datasource/schedule (e.g. PR #151) - the customManager below tracks it together with go_version instead, in one PR.",
+      "description": "Dockerfile's golang base image tag moves with this repo's go.mod, not on its own datasource/schedule (e.g. PR #151). Disable the built-in dockerfile manager for it - the xp-provider-gen-go-version customManager below tracks it together with go.mod, in one PR.",
       "matchManagers": ["dockerfile"],
       "matchPackageNames": ["golang"],
       "enabled": false
     },
     {
-      "description": "The `go` directive of this repo's go.mod is not an independent dependency either: the go-version customManager below bumps it with go_version and the Dockerfile. Disable the gomod manager's own proposal for it (it would bump go.mod alone).",
+      "description": "The `go` directive of this repo's go.mod moves with the Dockerfile's golang tag: the xp-provider-gen-go-version customManager below bumps both. Disable the gomod manager's own proposal for it (it would bump go.mod alone).",
       "matchManagers": ["gomod"],
       "matchDepTypes": ["golang"],
       "enabled": false
     },
     {
-      "description": "The Go version's three pins share one rule, so they get one release-age wait and land in one PR. Without it the provider-framework rule (matched by file name) took go_version into its group with a 7-day wait while the Dockerfile tag went alone with none, splitting one version into two PRs at two different versions (#154, #157). Patches get their own PR (separateMinorPatch), so declining a Go minor bump can never also block a security patch on the current minor.",
-      "matchDepNames": ["generated-provider-go-version"],
+      "description": "Both Go versions share one rule, so each gets one release-age wait: the generator's (go.mod and the Dockerfile tag, one PR) and the generated providers' (go_version alone). Without it the provider-framework rule (matched by file name) took go_version into its group with a 7-day wait while the Dockerfile tag went alone with none (#154, #157). Patches get their own PR (separateMinorPatch), so declining a Go minor bump can never also block a security patch on the current minor.",
+      "matchDepNames": ["xp-provider-gen-go-version", "generated-provider-go-version"],
       "separateMinorPatch": true,
       "branchTopic": "{{{depNameSanitized}}}-{{{newMajor}}}.{{{newMinor}}}.x",
       "addLabels": ["go", "dependencies"],
@@ -215,13 +215,20 @@
     },
     {
       "customType": "regex",
-      "description": "Track the Go version as ONE dependency across pkg/versions/dependencies.yaml's go_version, the Dockerfile's golang base image tag and the `go` directive of this repo's go.mod, so a bump proposes all three together in a single PR - never one alone (that drift is what broke five times in September). scripts/check-go-version fails CI if any of them disagree.",
-      "managerFilePatterns": ["pkg/versions/dependencies.yaml", "Dockerfile", "go.mod"],
+      "description": "Track the Go this repo is built with as ONE dependency across the Dockerfile's golang base image tag and the `go` directive of go.mod, so a bump proposes both together in a single PR - never one alone (that drift broke the image build five times in September). It is independent of the Go generated providers declare, tracked next.",
+      "managerFilePatterns": ["Dockerfile", "go.mod"],
       "matchStrings": [
-        "go_version:\\s*[\"'](?<currentValue>\\d+\\.\\d+\\.\\d+)[\"']",
         "FROM golang:(?<currentValue>\\d+\\.\\d+\\.\\d+)-alpine",
         "\\ngo (?<currentValue>\\d+\\.\\d+\\.\\d+)\\n"
       ],
+      "depNameTemplate": "xp-provider-gen-go-version",
+      "datasourceTemplate": "golang-version"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the Go language version generated providers declare, pkg/versions/dependencies.yaml's go_version, alone. scripts/check-go-version fails CI if it falls below what a pinned dependency requires.",
+      "managerFilePatterns": ["pkg/versions/dependencies.yaml"],
+      "matchStrings": ["go_version:\\s*[\"'](?<currentValue>\\d+\\.\\d+\\.\\d+)[\"']"],
       "depNameTemplate": "generated-provider-go-version",
       "datasourceTemplate": "golang-version"
     },
