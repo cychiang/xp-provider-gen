@@ -105,10 +105,25 @@ func TestUnpackBinaryFailsOnAnArchiveWithoutTheBinary(t *testing.T) {
 	}
 }
 
-func TestListReleasesSkipsPreReleasesAndDrafts(t *testing.T) {
+func TestNewestReleasesAsksGhForPublishedReleasesOnly(t *testing.T) {
+	bin := t.TempDir()
+	argsFile := filepath.Join(t.TempDir(), "args")
+	stub := "#!/bin/sh\necho \"$@\" > '" + argsFile + "'\necho v0.3.0\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(stub), 0o700); err != nil { // #nosec G306 -- a test stub
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	tags, err := newestReleases(context.Background())
+	if err != nil || !slices.Equal(tags, []string{"v0.3.0"}) {
+		t.Fatalf("newestReleases = %v, %v, want [v0.3.0]", tags, err)
+	}
+	got, err := os.ReadFile(argsFile) // #nosec G304 -- a file this test wrote
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, flag := range []string{"--exclude-pre-releases", "--exclude-drafts"} {
-		if !slices.Contains(listReleasesArgs, flag) {
-			t.Errorf("gh release list lacks %s: a prerelease would fail every cell at the preflight", flag)
+		if !strings.Contains(string(got), flag) {
+			t.Errorf("gh ran as %q, lacking %s: a prerelease would fail every cell at the preflight", got, flag)
 		}
 	}
 }

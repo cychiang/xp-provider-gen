@@ -133,3 +133,41 @@ func TestMakeSkippingGenerateSkipsOnlyGenerateAndReviewable(t *testing.T) {
 		}
 	}
 }
+
+func TestCompareUserOwnedIgnoresGeneratedOutputAndFlagsAuthorFiles(t *testing.T) {
+	const crd = "package/crds/acme.example_providerconfigs.yaml"
+	const deepcopy = "apis/v1alpha1/zz_generated.deepcopy.go"
+	const author = "internal/provider/options.go"
+	const mine, oldGen, newGen = "mine", "old", "new"
+	filter := func(m map[string]string) map[string][]byte {
+		out := map[string][]byte{}
+		for rel, b := range m {
+			out[rel] = []byte(b)
+		}
+		return keepUserOwned(out)
+	}
+	before := map[string]string{author: mine, crd: oldGen, deepcopy: oldGen}
+	cases := []struct {
+		name    string
+		now     map[string]string
+		wantErr string
+	}{
+		{"a controller-gen bump", map[string]string{author: mine, crd: newGen, deepcopy: newGen}, ""},
+		{"a generated file update adds", map[string]string{author: mine, crd: oldGen, deepcopy: oldGen, "apis/v1alpha1/zz_generated.managed.go": newGen}, ""},
+		{"an author file changes", map[string]string{author: "theirs", crd: oldGen, deepcopy: oldGen}, "changed by update: " + author},
+		{"an author file goes", map[string]string{crd: oldGen, deepcopy: oldGen}, "gone after update: " + author},
+		{"update adds an author file", map[string]string{author: mine, crd: oldGen, deepcopy: oldGen, "internal/provider/extra.go": "x"}, "added by update: internal/provider/extra.go"},
+		{"a name that only resembles generated output", map[string]string{author: mine, "my_zz_generated.go": "x", "docs/package/crds/a.yaml": "x"}, "added by update: docs/package/crds/a.yaml\nadded by update: my_zz_generated.go"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := compareUserOwned(filter(before), filter(c.now))
+			if c.wantErr == "" && err != nil {
+				t.Fatalf("compareUserOwned = %v, want nil", err)
+			}
+			if c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)) {
+				t.Fatalf("compareUserOwned = %v, want %q", err, c.wantErr)
+			}
+		})
+	}
+}

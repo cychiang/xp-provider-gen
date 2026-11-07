@@ -316,18 +316,30 @@ func rewrittenByUpdate(rel string) (string, bool) {
 	return "", false
 }
 
+// isGeneratedOutput names make generate's output, which carries no header and
+// which a controller-gen or angryjet bump legitimately rewrites: the
+// zz_generated.* files and the CRDs under package/crds/. No template renders
+// into either, so no author file can match.
+func isGeneratedOutput(rel string) bool {
+	return strings.HasPrefix(filepath.Base(rel), "zz_generated.") || strings.HasPrefix(rel, "package/crds/")
+}
+
 // userOwned reads the files of a scaffold that carry no generator header and
-// that update does not rewrite.
+// that update neither rewrites nor generates.
 func (e *Env) userOwned() (map[string][]byte, error) {
 	all, err := e.files(e.Dir)
 	if err != nil {
 		return nil, err
 	}
+	return keepUserOwned(all), nil
+}
+
+func keepUserOwned(all map[string][]byte) map[string][]byte {
 	maps.DeleteFunc(all, func(rel string, b []byte) bool {
 		_, rewritten := rewrittenByUpdate(rel)
-		return hasGeneratedHeader(b) || rewritten
+		return hasGeneratedHeader(b) || rewritten || isGeneratedOutput(rel)
 	})
-	return all, nil
+	return all
 }
 
 func (e *Env) assertUserOwnedUnchanged(before map[string][]byte) error {
@@ -335,6 +347,12 @@ func (e *Env) assertUserOwnedUnchanged(before map[string][]byte) error {
 	if err != nil {
 		return err
 	}
+	return compareUserOwned(before, now)
+}
+
+// compareUserOwned fails on a user-owned file that update removed, changed or
+// added.
+func compareUserOwned(before, now map[string][]byte) error {
 	var problems []string
 	for rel, b := range before {
 		got, ok := now[rel]
@@ -343,6 +361,11 @@ func (e *Env) assertUserOwnedUnchanged(before map[string][]byte) error {
 			problems = append(problems, "gone after update: "+rel)
 		case !bytes.Equal(got, b):
 			problems = append(problems, "changed by update: "+rel)
+		}
+	}
+	for rel := range now {
+		if _, ok := before[rel]; !ok {
+			problems = append(problems, "added by update: "+rel)
 		}
 	}
 	if len(problems) > 0 {

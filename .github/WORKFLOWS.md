@@ -81,7 +81,7 @@ gh workflow run e2e-upjet.yml --ref feature-branch
 3. **Cut a release** — run `release.yml` from the Actions tab (see "Creating a Release" above)
    then add the new tag to `Releases` in `test/e2e/plan.go` (with its toolchain) and to
    `matrix.from` in `e2e-native-full.yml`. Until you do, every PR on the `e2e-native-full` paths
-   fails its preflight with `newest release <tag> is missing from Releases in test/e2e/plan.go`,
+   fails its preflight with `newest release <tag> is missing from Releases in test/e2e/plan.go: add it with its toolchain`,
    and `TestWorkflowMatrixListsEveryRelease` fails if only one of the two lists has it. Pre-releases
    and drafts are ignored.
 4. **Security monitoring** — Renovate keeps dependencies updated (see above)
