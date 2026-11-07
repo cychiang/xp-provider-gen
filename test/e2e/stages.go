@@ -18,6 +18,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
 const (
@@ -345,7 +347,23 @@ func stageInit(e *Env) error {
 	if _, err := e.exec(e.Repo, "", filepath.Join(e.Repo, "scripts/assert-layout.sh"), e.Dir); err != nil {
 		return err
 	}
+	if e.Gen == e.Head {
+		if err := e.assertBuildPinned(); err != nil {
+			return err
+		}
+	}
 	return e.assertCleanTree("init")
+}
+
+func (e *Env) assertBuildPinned() error {
+	out, err := e.git("ls-tree", "HEAD", "build")
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(out, "160000 commit "+versions.BuildRef+"\t") {
+		return fmt.Errorf("checking the build gitlink: got %q, want a commit at build_ref %s", out, versions.BuildRef)
+	}
+	return nil
 }
 
 func stageCreateAPI(e *Env) error {

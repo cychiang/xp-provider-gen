@@ -47,6 +47,9 @@ cd "$DIR"
 log_success "  ✓ scaffolded"
 
 "$SCRIPT_DIR/assert-layout.sh" --upjet "$DIR"
+BUILD_REF=$(awk -F'"' '/^build_ref:/ {print $2}' "$SCRIPT_DIR/../pkg/versions/dependencies.yaml")
+git ls-tree HEAD build | grep -q "^160000 commit $BUILD_REF[[:space:]]" || fail "build submodule is not pinned at build_ref $BUILD_REF"
+log_success "  ✓ build submodule pinned at build_ref"
 grep -q 'hashicorp/kubernetes' Makefile || fail "Terraform provider not wired into the Makefile"
 log_success "  ✓ upjet config surface present and wired"
 

@@ -72,6 +72,7 @@ type manifest struct {
 	GoVersion           string       `json:"go_version"`
 	TerraformVersion    string       `json:"terraform_version"`
 	GolangciLintVersion string       `json:"golangci_lint_version"`
+	BuildRef            string       `json:"build_ref"`
 	Dependencies        []Dependency `json:"dependencies"`
 	UpjetDependencies   []Dependency `json:"upjet_dependencies"`
 }
@@ -107,6 +108,10 @@ var TerraformVersion = requireField(embedded.TerraformVersion, "terraform_versio
 // GolangciLintVersion is the golangci-lint release generated providers lint
 // with, read from the embedded manifest's golangci_lint_version key.
 var GolangciLintVersion = requireField(embedded.GolangciLintVersion, "golangci_lint_version")
+
+// BuildRef is the crossplane/build commit a new provider's build submodule is
+// pinned at, read from the embedded manifest's build_ref key.
+var BuildRef = requireField(embedded.BuildRef, "build_ref")
 
 const crossplaneAPIsModule = "github.com/crossplane/crossplane/apis/v2"
 

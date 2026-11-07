@@ -167,6 +167,11 @@ func runUpdate(ctx context.Context, dst afero.Fs, terraformProviderVersion strin
 		return fmt.Errorf("removing files this generator no longer produces: %w\n%s", err, revertAdvice(result.Seeded))
 	}
 	result.print(os.Stdout, meta.Version, version.Get().Version, verbose)
+	drift, err := automation.NewGitOperations(core.NewPluginConfig()).
+		BuildDrift(ctx, automation.BuildSubmodulePath, versions.BuildRef)
+	if err != nil {
+		return fmt.Errorf("comparing the build submodule with build_ref: %w\n%s", err, revertAdvice(result.Seeded))
+	}
 
 	if err := applyGoDirective(dst, versions.GoVersion); err != nil {
 		return fmt.Errorf("%w\n%s", err, revertAdvice(result.Seeded))
@@ -185,6 +190,9 @@ func runUpdate(ctx context.Context, dst afero.Fs, terraformProviderVersion strin
 	}
 
 	fmt.Println("\nUpdate complete. Review the changes with 'git diff' and commit when ready.")
+	if drift != "" {
+		fmt.Println(drift)
+	}
 	return nil
 }
 
