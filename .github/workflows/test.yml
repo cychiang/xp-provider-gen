@@ -102,7 +102,7 @@ jobs:
     # generate, user logic, update, create api refresh, adopt) and ends in
     # VERDICT PARTIAL naming each stage it did not run. The cluster stages are
     # minutes of Docker time that does not belong on every PR; they run weekly,
-    # and on relevant PRs, in e2e-native-full.yml.
+    # and on every PR that changes a non-doc file, in e2e-native-full.yml.
     - name: Run native E2E stages (fast mode, cluster stages not run)
       run: make e2e-native E2E_ARGS="--mode=fast --logs=${{ runner.temp }}/e2e-logs"
 
