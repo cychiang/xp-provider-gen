@@ -117,7 +117,9 @@ func (e *Env) execEnv(extra []string, dir, stdin, name string, args ...string) (
 	w := io.MultiWriter(&buf, e.log)
 	cmd.Stdout, cmd.Stderr = w, w
 	fmt.Fprintf(e.log, "$ %s %s %s\n", strings.Join(extra, " "), name, strings.Join(args, " "))
+	start := time.Now()
 	err := cmd.Run()
+	fmt.Fprintf(e.log, "# took %s\n", time.Since(start).Round(time.Second))
 	out := strings.TrimSpace(buf.String())
 	if err != nil {
 		return out, fmt.Errorf("running %s %s: %w", name, strings.Join(args, " "), err)
