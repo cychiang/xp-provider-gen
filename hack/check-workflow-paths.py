@@ -4,7 +4,7 @@ import re, subprocess, sys, yaml
 from fnmatch import fnmatch
 
 ENTRY = {   # workflow -> the scripts it runs, directly or via make
-    ".github/workflows/e2e-native-full.yml": ["test/e2e", "scripts/e2e-upgrade.sh"],
+    ".github/workflows/e2e-native-full.yml": ["test/e2e"],
     ".github/workflows/e2e-upjet.yml": ["scripts/e2e-upjet.sh"],
 }
 COMMON = ["pkg/templates/generators", "pkg/templates/loader.go",

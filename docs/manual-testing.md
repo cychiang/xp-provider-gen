@@ -1,6 +1,6 @@
 # Manual testing guide
 
-The automated suites (`make test`, `make e2e-native`, `make e2e-upjet`, `make e2e-upgrade`) cover
+The automated suites (`make test`, `make e2e-native`, `make e2e-upjet`) cover
 regressions in CI. This guide is for the opposite case: a human walking through the same
 surfaces by hand — to sanity-check a change before it ships, to reproduce a bug report, or to
 see what a provider author actually experiences. Each scenario below is copy-pasteable except
@@ -19,9 +19,8 @@ run alongside CI or another `make e2e-native`/`make e2e-upjet` run on the same m
 | Network access (upjet scenarios download Terraform and a provider schema; native `init`/`create api` fetch Go modules) | `curl -sI https://proxy.golang.org >/dev/null && echo ok` |
 
 **Cluster names.** Every scaffolded provider's `make e2e` creates a kind cluster named
-`<PROJECT_NAME>-e2e`, where `PROJECT_NAME` is derived from `--repo`. The automated scripts use
-fixed repos (`github.com/example/provider-k8s` for `e2e-upjet.sh`,
-`github.com/example/provider-acme` for `e2e-upgrade.sh`), so picking any other `--repo` for these
+`<PROJECT_NAME>-e2e`, where `PROJECT_NAME` is derived from `--repo`. `e2e-upjet.sh` uses
+a fixed repo (`github.com/example/provider-k8s`), so picking any other `--repo` for these
 manual runs — as this guide does — already avoids a name collision. `make e2e-native` names its
 cluster per run. Nothing further to configure.
 

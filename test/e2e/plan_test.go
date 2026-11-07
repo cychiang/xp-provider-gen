@@ -5,8 +5,17 @@ package main
 import (
 	"bytes"
 	"errors"
+	"os"
+	"slices"
 	"strings"
 	"testing"
+
+	"sigs.k8s.io/yaml"
+)
+
+const (
+	newestTag     = "v0.3.0"
+	fakeToolchain = "go1.2.3"
 )
 
 func counting(name string, ran *[]string, err error, needs ...Capability) Stage {
@@ -112,7 +121,7 @@ func TestReleaseOnlyStagesRunForReleaseCasesOnly(t *testing.T) {
 	release := counting("update-to-head", &ran, nil)
 	release.When = Case.Release
 	stages := []Stage{counting("init", &ran, nil), release}
-	for from, want := range map[string]string{fromHead: "init", "/bin/v0.3.0": "init,update-to-head"} {
+	for from, want := range map[string]string{fromHead: "init", newestTag: "init,update-to-head"} {
 		ran = nil
 		plan, err := NewPlan(Case{From: from}, stages, ModeFull, nil)
 		if err != nil {
@@ -125,8 +134,24 @@ func TestReleaseOnlyStagesRunForReleaseCasesOnly(t *testing.T) {
 	}
 }
 
+func TestStockE2ERunsForHeadOnly(t *testing.T) {
+	for from, want := range map[string]bool{fromHead: true, newestTag: false} {
+		plan, err := NewPlan(Case{From: from}, nativeStages(), ModeFull, map[Capability]bool{CapDocker: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ran := false
+		for _, s := range plan.Run {
+			ran = ran || s.Name == "stock-e2e"
+		}
+		if ran != want {
+			t.Errorf("from %s: stock-e2e ran %t, want %t", from, ran, want)
+		}
+	}
+}
+
 func TestNativeStagesAreDeclaredInPlanOrder(t *testing.T) {
-	want := "init create-api generate user-logic update-to-head update-noop create-api-refresh adopt create-test " +
+	want := "init create-api generate user-logic update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh adopt create-test " +
 		"stock-e2e build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected " +
 		"mr-delete external-gone"
 	var got []string
@@ -147,7 +172,7 @@ func TestNativeFastModeRunsExactlyTheDockerFreeStages(t *testing.T) {
 	for _, s := range plan.Run {
 		got = append(got, s.Name)
 	}
-	want := "init create-api generate user-logic update-noop create-api-refresh adopt create-test"
+	want := "init create-api generate user-logic update-noop orphan-removal create-api-refresh adopt create-test"
 	if strings.Join(got, " ") != want {
 		t.Errorf("fast mode runs\n got %v\nwant %s", got, want)
 	}
@@ -170,5 +195,83 @@ func TestAPlanWithNothingToRunIsRejected(t *testing.T) {
 	stages := []Stage{counting("install", &ran, nil, CapDocker)}
 	if _, err := NewPlan(Case{From: fromHead}, stages, ModeFast, nil); err == nil {
 		t.Fatal("fast mode accepted a plan with no stage to run")
+	}
+}
+
+func TestPreflightFailsWhenTheNewestReleaseIsNotDeclared(t *testing.T) {
+	for name, c := range map[string]struct {
+		listed  []string
+		wantErr string
+	}{
+		"newest declared":          {listed: []string{newestTag, "v0.2.0"}},
+		"newest missing":           {listed: []string{"v9.9.9", newestTag}, wantErr: "v9.9.9"},
+		"only an older is missing": {listed: []string{newestTag, "v0.0.1"}},
+		"no releases":              {wantErr: ErrNoReleases.Error()},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := Preflight(c.listed)
+			switch {
+			case c.wantErr == "" && err != nil:
+				t.Errorf("unexpected error %v", err)
+			case c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)):
+				t.Errorf("error %v, want one naming %q", err, c.wantErr)
+			}
+		})
+	}
+}
+
+func TestEveryDeclaredReleaseCarriesAToolchain(t *testing.T) {
+	for tag, r := range Releases {
+		if r.Toolchain == "" {
+			t.Errorf("%s declares no toolchain", tag)
+		}
+	}
+}
+
+func TestNewCaseResolvesHeadAReleaseAndRefusesTheRest(t *testing.T) {
+	saved := Releases
+	t.Cleanup(func() { Releases = saved })
+	Releases = map[string]Release{
+		"v1.0.0": {Toolchain: fakeToolchain},
+		"v0.9.0": {Toolchain: fakeToolchain, NotApplicable: map[string]string{"native": "predates the flavor"}},
+	}
+	if c, err := NewCase("native", fromHead); err != nil || c.Release() || c.Toolchain != "" {
+		t.Errorf("head resolved to %+v, %v", c, err)
+	}
+	if c, err := NewCase("native", "v1.0.0"); err != nil || !c.Release() || c.Toolchain != fakeToolchain || c.CreateAPIGuard {
+		t.Errorf("v1.0.0 resolved to %+v, %v", c, err)
+	}
+	if _, err := NewCase("native", "v2.0.0"); !errors.Is(err, ErrUnknownRelease) || !strings.Contains(err.Error(), "v0.9.0, v1.0.0") {
+		t.Errorf("unknown tag error %v", err)
+	}
+	if _, err := NewCase("native", "v0.9.0"); !errors.Is(err, ErrNotApplicable) || !strings.Contains(err.Error(), "predates the flavor") {
+		t.Errorf("not applicable error %v", err)
+	}
+}
+
+// TestWorkflowMatrixListsEveryRelease keeps the upgrade job's hand-kept
+// matrix.from equal to Releases: a release in only one runs in neither place
+// it should.
+func TestWorkflowMatrixListsEveryRelease(t *testing.T) {
+	b, err := os.ReadFile("../../.github/workflows/e2e-native-full.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wf struct {
+		Jobs map[string]struct {
+			Strategy struct {
+				Matrix struct {
+					From []string `json:"from"`
+				} `json:"matrix"`
+			} `json:"strategy"`
+		} `json:"jobs"`
+	}
+	if err := yaml.Unmarshal(b, &wf); err != nil {
+		t.Fatal(err)
+	}
+	got := slices.Clone(wf.Jobs["e2e-upgrade"].Strategy.Matrix.From)
+	slices.Sort(got)
+	if want := releaseTags(); !slices.Equal(got, want) {
+		t.Fatalf("e2e-native-full.yml e2e-upgrade matrix.from is %v, Releases in plan.go is %v: keep them equal", got, want)
 	}
 }

@@ -30,7 +30,7 @@ BINARY=xp-provider-gen
 
 GOLANGCILINT_VERSION := $(shell sed -n 's/^golangci_lint_version: *"\([^"]*\)".*/\1/p' pkg/versions/dependencies.yaml)
 
-.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-native e2e-upjet e2e-upgrade check-go-version check-consistency
+.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-native e2e-upjet check-go-version check-consistency
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -39,7 +39,7 @@ help: ## Show this help message
 	@grep -E '^(build|clean):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Testing:"
-	@grep -E '^(test|coverage|e2e-native|e2e-upjet|e2e-upgrade):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@grep -E '^(test|coverage|e2e-native|e2e-upjet):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Code Quality:"
 	@grep -E '^(fmt|vet|lint|lint-fix|gosec|check|check-consistency|reviewable):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -70,16 +70,12 @@ coverage: ## Generate test coverage report
 
 E2E_ARGS ?=
 
-e2e-native: build ## Run the native-flavor end-to-end stages (E2E_ARGS=--mode=fast does not run the Docker ones)
+e2e-native: build ## Run the native-flavor end-to-end stages (E2E_ARGS=--mode=fast skips the Docker ones, --from=<tag> scaffolds with a release)
 	@$(GOCMD) build -o $(BUILD_DIR)/e2e ./test/e2e
 	@exec $(BUILD_DIR)/e2e --flavor=native $(E2E_ARGS)
 
 e2e-upjet: build ## Run the upjet-flavor end-to-end test (network, several minutes)
 	@./scripts/e2e-upjet.sh
-
-e2e-upgrade: build ## Run a generator version bump against a provider with real user logic (native flavor)
-	@echo "Running upgrade-path E2E test..."
-	@./scripts/e2e-upgrade.sh
 
 fmt: ## Format Go code
 	$(GOCMD) fmt ./...
