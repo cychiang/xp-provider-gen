@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/afero"
@@ -161,7 +160,7 @@ func newResource(cfg config.Config, o createAPIOptions) (*resource.Resource, err
 func checkCreateAPI(
 	ctx context.Context, cfg config.Config, res *resource.Resource, o createAPIOptions,
 ) (projectMeta, error) {
-	if err := requireInitCommit(ctx, ""); err != nil {
+	if err := requireInitCommit(ctx); err != nil {
 		return projectMeta{}, validation.CreateAPIError("init check", err)
 	}
 
@@ -197,16 +196,16 @@ func checkCreateAPI(
 	return meta, nil
 }
 
-// requireInitCommit refuses a git repository that has no commit in dir ("" is
-// the working directory). init makes the scaffold commit last, so a repository
+// requireInitCommit refuses a git repository that has no commit in the working
+// directory. init makes the scaffold commit last, so a repository
 // without one means init stopped midway; going on would let create api's commit
 // step sweep the half-made tree into a commit titled for the new kind. A
 // directory with no .git passes, as before.
-func requireInitCommit(ctx context.Context, dir string) error {
-	if _, err := os.Stat(filepath.Join(dir, ".git")); errors.Is(err, fs.ErrNotExist) {
+func requireInitCommit(ctx context.Context) error {
+	if _, err := os.Stat(".git"); errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
-	git := core.NewGitCommandRunner(dir)
+	git := core.NewGitCommandRunner("")
 	if _, err := git.RunCommandWithOutput(ctx, "rev-parse", "--verify", "--quiet", "HEAD"); err != nil {
 		return errors.New("this repository has no commit, so init did not finish; " +
 			"fix what stopped it and run init again in an empty directory")

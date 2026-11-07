@@ -21,6 +21,7 @@ limitations under the License.
 package v2
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -386,7 +387,7 @@ func (fx *updateFixture) goDirective(t *testing.T) string {
 func TestRunUpdate_RaisesGoDirective(t *testing.T) {
 	fx := newUpdateFixture(t)
 
-	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
+	if err := runUpdate(t.Context(), fx.fs, updateOptions{}); err != nil {
 		t.Fatalf("runUpdate: %v", err)
 	}
 	if got := fx.goDirective(t); got != versions.GoVersion {
@@ -400,7 +401,7 @@ func TestRunUpdate_RemovesOrphans(t *testing.T) {
 	fx.write(t, ignoredOrphan, core.GeneratedHeader+"\npackage internal\n")
 	fx.commit(t)
 
-	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
+	if err := runUpdate(t.Context(), fx.fs, updateOptions{}); err != nil {
 		t.Fatalf("runUpdate: %v", err)
 	}
 	if ok, _ := afero.Exists(fx.fs, orphanPath); ok {
@@ -415,13 +416,18 @@ func TestRunUpdate_RefusesDirtyTree(t *testing.T) {
 	fx := newUpdateFixture(t)
 	fx.write(t, "external.go", "package provider // edited\n")
 
-	err := runUpdate(t.Context(), fx.fs, "", false)
+	err := runUpdate(t.Context(), fx.fs, updateOptions{})
 	if err == nil || !strings.Contains(err.Error(), "working tree is not clean") {
 		t.Fatalf("runUpdate error = %v, want it to name the dirty tree", err)
 	}
 	if got := fx.goDirective(t); got != staleGoDirective {
 		t.Errorf("go directive = %q after a refused update, want it unchanged at %q", got, staleGoDirective)
 	}
+}
+
+// driftTestOptions are create-test's options for the "drift" test of kind Widget.
+func driftTestOptions(out io.Writer) createTestOptions {
+	return createTestOptions{name: "drift", kind: "Widget", in: strings.NewReader(""), out: out}
 }
 
 // TestCommandsRefuseForeignLayoutFirst pins that a PROJECT of another tool is
@@ -434,11 +440,11 @@ func TestCommandsRefuseForeignLayoutFirst(t *testing.T) {
 	fx.write(t, "PROJECT", foreign)
 	const want = "layout [go.kubebuilder.io/v4]"
 
-	if err := runUpdate(t.Context(), fx.fs, "", false); err == nil || !strings.Contains(err.Error(), want) {
+	if err := runUpdate(t.Context(), fx.fs, updateOptions{}); err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("runUpdate error = %v, want it to name the layout", err)
 	}
 	var out strings.Builder
-	if err := runCreateTest(fx.fs, "drift", "Widget", strings.NewReader(""), &out); err == nil || !strings.Contains(err.Error(), want) {
+	if err := runCreateTest(t.Context(), fx.fs, driftTestOptions(&out)); err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("runCreateTest error = %v, want it to name the layout", err)
 	}
 	if err := runCreateAPI(t.Context(), fx.fs, createAPIOptions{group: "g", version: "v1", kind: "Gadget"}); err == nil || !strings.Contains(err.Error(), want) {
@@ -448,12 +454,12 @@ func TestCommandsRefuseForeignLayoutFirst(t *testing.T) {
 
 func TestRunUpdate_SecondRunChangesNothingButProvenance(t *testing.T) {
 	fx := newUpdateFixture(t)
-	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
+	if err := runUpdate(t.Context(), fx.fs, updateOptions{}); err != nil {
 		t.Fatalf("first runUpdate: %v", err)
 	}
 	fx.commit(t)
 
-	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
+	if err := runUpdate(t.Context(), fx.fs, updateOptions{}); err != nil {
 		t.Fatalf("second runUpdate: %v", err)
 	}
 	if status := fx.git(t, "status", "--porcelain"); strings.TrimSpace(status) != "" {
@@ -463,7 +469,7 @@ func TestRunUpdate_SecondRunChangesNothingButProvenance(t *testing.T) {
 
 func TestRunUpdate_RunsFinalizeThroughShims(t *testing.T) {
 	fx := newUpdateFixture(t)
-	if err := runUpdate(t.Context(), fx.fs, "", false); err != nil {
+	if err := runUpdate(t.Context(), fx.fs, updateOptions{}); err != nil {
 		t.Fatalf("runUpdate: %v", err)
 	}
 	calls := strings.Split(strings.TrimSpace(fx.shimCalls(t)), "\n")
@@ -487,13 +493,13 @@ func TestRunCreateTest_ScaffoldsOnceThenRefuses(t *testing.T) {
 	const testPath = "test/behavior/drift/chainsaw-test.yaml"
 	var out strings.Builder
 
-	if err := runCreateTest(fx.fs, "drift", "Widget", strings.NewReader(""), &out); err != nil {
+	if err := runCreateTest(t.Context(), fx.fs, driftTestOptions(&out)); err != nil {
 		t.Fatalf("runCreateTest: %v", err)
 	}
 	first := fx.read(t, testPath)
 	fx.write(t, testPath, first+"# edited\n")
 
-	if err := runCreateTest(fx.fs, "drift", "Widget", strings.NewReader(""), &out); err == nil {
+	if err := runCreateTest(t.Context(), fx.fs, driftTestOptions(&out)); err == nil {
 		t.Fatal("second runCreateTest = nil, want a refusal")
 	}
 	if got := fx.read(t, testPath); got != first+"# edited\n" {

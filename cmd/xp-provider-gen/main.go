@@ -103,7 +103,26 @@ func newHelpCommand() *cobra.Command {
 			}
 			return target.Help()
 		},
+		ValidArgsFunction: completeHelpArgs,
 	}
+}
+
+// completeHelpArgs offers the subcommands of the command named so far, as
+// cobra's own help command does.
+func completeHelpArgs(
+	cmd *cobra.Command, args []string, toComplete string,
+) ([]cobra.Completion, cobra.ShellCompDirective) {
+	parent, _, err := cmd.Root().Find(args)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	var completions []cobra.Completion
+	for _, sub := range parent.Commands() {
+		if (sub.IsAvailableCommand() || sub.Name() == "help") && strings.HasPrefix(sub.Name(), toComplete) {
+			completions = append(completions, cobra.CompletionWithDesc(sub.Name(), sub.Short))
+		}
+	}
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
 func unknownCommand(parent *cobra.Command, name string) error {

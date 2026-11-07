@@ -141,3 +141,31 @@ func captureStreams(t *testing.T, fn func()) (string, string) {
 	}
 	return read(outR), read(errR)
 }
+
+// TestHelpCompletionListsCommands pins that `help <TAB>` offers the commands,
+// and the subcommands of a command already named.
+const helpCmd = "help"
+
+func TestHelpCompletionListsCommands(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"__complete", helpCmd, ""}, []string{"init", "create", "create-test", "update", "version", helpCmd}},
+		{[]string{"__complete", helpCmd, "create", ""}, []string{"api"}},
+	} {
+		var out bytes.Buffer
+		root := newRootCommand()
+		root.SetOut(&out)
+		root.SetErr(&out)
+		root.SetArgs(tc.args)
+		if err := root.Execute(); err != nil {
+			t.Fatalf("%q: %v", tc.args, err)
+		}
+		for _, name := range tc.want {
+			if !strings.Contains(out.String(), name+"\t") {
+				t.Errorf("%q: missing %q in:\n%s", tc.args, name, out.String())
+			}
+		}
+	}
+}
