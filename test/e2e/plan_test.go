@@ -66,7 +66,7 @@ func TestFastModeSetsDockerStagesAsideAndReportsPartial(t *testing.T) {
 			if v := Execute(plan, &Env{}, &out); v != VerdictPartial {
 				t.Fatalf("verdict %s, want PARTIAL", v)
 			}
-			if strings.Join(ran, ",") != "init" {
+			if strings.Join(ran, ",") != cmdInit {
 				t.Errorf("ran %v, want only init", ran)
 			}
 			for _, want := range []string{"VERDICT PARTIAL", "NOT-RUN install", "NOT-RUN delete", "not run: install, delete"} {
