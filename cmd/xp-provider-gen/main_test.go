@@ -17,55 +17,155 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
+	"io"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
-// TestInertCommand pins which invocations refuseInert stops before
-// cli.New(...) runs: "alpha" (cli.New itself corrupts PROJECT for "alpha
-// generate", see refuseInert), "edit" and "create webhook" (the plugin has no
-// such subcommand, so Kubebuilder panics), each with and without --help. Real
-// commands, including "create api", must pass, as must a flag value that
-// merely spells a refused name.
-func TestInertCommand(t *testing.T) {
-	const createWebhook = createCommand + " " + webhookCommand
-	tests := []struct {
-		name string
-		args string
-		want string
-	}{
-		{name: "no args", args: "", want: ""},
-		{name: "only a boolean flag, no positional", args: "--help", want: ""},
-		{name: "bare alpha", args: "alpha", want: alphaCommand},
-		{name: "alpha generate --help", args: "alpha generate --help", want: alphaCommand},
-		{name: "global flag before alpha", args: "--plugins=go/v4 alpha", want: alphaCommand},
-		{name: "global flag with separate value before alpha", args: "--plugins go/v4 alpha", want: alphaCommand},
-		{name: "edit", args: "edit", want: editCommand},
-		{name: "edit --help", args: "edit --help", want: editCommand},
-		{name: "edit with flag", args: "edit --multigroup", want: editCommand},
-		{name: "create webhook", args: "create webhook", want: createWebhook},
-		{name: "create webhook --help", args: "create webhook --help", want: createWebhook},
-		{name: "create webhook with flags", args: "create webhook --group=g --kind K", want: createWebhook},
-		{name: "create api", args: "create api --group=g", want: ""},
-		{name: "create api --help", args: "create api --help", want: ""},
-		{name: "create alone", args: "create", want: ""},
-		{name: "init with domain", args: "init --domain=example.com", want: ""},
-		{name: "flag value spells edit", args: "init --domain edit", want: ""},
-		{name: "flag value spells webhook", args: "create api --kind webhook", want: ""},
-		{name: "create-test", args: "create-test --kind=K", want: ""},
-		{name: "bare help", args: "help", want: ""},
-		{name: "help init", args: "help init", want: ""},
-		{name: "help edit", args: "help edit", want: editCommand},
-		{name: "help create webhook", args: "help create webhook", want: createWebhook},
-		{name: "help alpha", args: "help alpha", want: alphaCommand},
-		{name: "update", args: "update", want: ""},
-	}
+// runRoot executes the root command with the given command line and returns
+// what it wrote to its output.
+func runRoot(cmdline string) (string, error) {
+	var out bytes.Buffer
+	root := newRootCommand()
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs(strings.Fields(cmdline))
+	err := root.Execute()
+	return out.String(), err
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := inertCommand(strings.Fields(tt.args)); got != tt.want {
-				t.Errorf("inertCommand(%q) = %q, want %q", tt.args, got, tt.want)
+// TestUnknownCommandsFail pins that the Kubebuilder commands this generator
+// never had are unknown commands, each with and without --help and through
+// `help`, never a help page that succeeds.
+func TestUnknownCommandsFail(t *testing.T) {
+	for _, cmdline := range []string{
+		"edit", "edit --help", "help edit",
+		"alpha generate", "alpha generate --help", "help alpha generate",
+		"create webhook", "create webhook --help", "help create webhook",
+	} {
+		t.Run(cmdline, func(t *testing.T) {
+			out, err := runRoot(cmdline)
+			if err == nil || !strings.Contains(err.Error(), "unknown command") {
+				t.Fatalf("Execute = %v, want an unknown command error", err)
+			}
+			if strings.Contains(out, "Usage:") {
+				t.Errorf("printed help:\n%s", out)
 			}
 		})
+	}
+}
+
+// TestKeptCommandsHaveHelp pins that the commands still offered answer --help.
+func TestKeptCommandsHaveHelp(t *testing.T) {
+	for _, cmdline := range []string{
+		"--help", "init --help", "create --help", "create api --help",
+		"create-test --help", "update --help", "help create api",
+	} {
+		t.Run(cmdline, func(t *testing.T) {
+			out, err := runRoot(cmdline)
+			if err != nil || !strings.Contains(out, "Usage:") {
+				t.Fatalf("Execute = %v, output %q, want usage and no error", err, out)
+			}
+		})
+	}
+}
+
+// TestCreateRejectsUnknownFlag pins that a flag create does not have is named
+// as a flag, not as an unknown command.
+func TestCreateRejectsUnknownFlag(t *testing.T) {
+	if _, err := runRoot("create --bogus"); err == nil || !strings.Contains(err.Error(), "unknown flag: --bogus") {
+		t.Errorf("Execute = %v, want an unknown flag error", err)
+	}
+}
+
+// TestRemovedFlagsFail pins that the Kubebuilder plugin-selection flags are gone.
+func TestRemovedFlagsFail(t *testing.T) {
+	for _, flag := range []string{"--plugins=go/v4", "--project-version=3"} {
+		if _, err := runRoot("init " + flag); err == nil || !strings.Contains(err.Error(), "unknown flag") {
+			t.Errorf("init %s: %v, want an unknown flag error", flag, err)
+		}
+	}
+}
+
+// TestVersionPrintsToStdout pins that version writes to the process's stdout,
+// where test/e2e's versionOf reads it. It leaves the command's writers unset
+// and redirects the real streams: cobra's cmd.Println falls back to stderr,
+// which a SetOut buffer would hide.
+func TestVersionPrintsToStdout(t *testing.T) {
+	stdout, stderr := captureStreams(t, func() {
+		root := newRootCommand()
+		root.SetArgs([]string{"version"})
+		if err := root.Execute(); err != nil {
+			t.Errorf("Execute: %v", err)
+		}
+	})
+	if want := version.Get().Short() + "\n"; stdout != want {
+		t.Errorf("stdout = %q, want %q", stdout, want)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+// captureStreams runs fn with os.Stdout and os.Stderr redirected to pipes and
+// returns what it wrote to each.
+func captureStreams(t *testing.T, fn func()) (string, string) {
+	t.Helper()
+	origOut, origErr := os.Stdout, os.Stderr
+	defer func() { os.Stdout, os.Stderr = origOut, origErr }()
+
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	errR, errW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout, os.Stderr = outW, errW
+	fn()
+	os.Stdout, os.Stderr = origOut, origErr
+	_ = outW.Close()
+	_ = errW.Close()
+
+	read := func(r *os.File) string {
+		b, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	return read(outR), read(errR)
+}
+
+// TestHelpCompletionListsCommands pins that `help <TAB>` offers the commands,
+// and the subcommands of a command already named.
+const helpCmd = "help"
+
+func TestHelpCompletionListsCommands(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"__complete", helpCmd, ""}, []string{"init", "create", "create-test", "update", "version", helpCmd}},
+		{[]string{"__complete", helpCmd, "create", ""}, []string{"api"}},
+	} {
+		var out bytes.Buffer
+		root := newRootCommand()
+		root.SetOut(&out)
+		root.SetErr(&out)
+		root.SetArgs(tc.args)
+		if err := root.Execute(); err != nil {
+			t.Fatalf("%q: %v", tc.args, err)
+		}
+		for _, name := range tc.want {
+			if !strings.Contains(out.String(), name+"\t") {
+				t.Errorf("%q: missing %q in:\n%s", tc.args, name, out.String())
+			}
+		}
 	}
 }

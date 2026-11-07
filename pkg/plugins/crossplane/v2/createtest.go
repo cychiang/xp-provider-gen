@@ -18,6 +18,7 @@ package v2
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -55,8 +56,10 @@ drift, pause). Run it with 'make test-behavior' against a live cluster, or as
 part of 'make e2e'.
 
 Missing --name or --kind are prompted for when running interactively.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return runCreateTest(afero.NewOsFs(), name, kind, os.Stdin, os.Stdout)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runCreateTest(cmd.Context(), afero.NewOsFs(), createTestOptions{
+				name: name, kind: kind, in: os.Stdin, out: os.Stdout,
+			})
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "test name (directory under test/behavior/)")
@@ -64,7 +67,15 @@ Missing --name or --kind are prompted for when running interactively.`,
 	return cmd
 }
 
-func runCreateTest(dst afero.Fs, name, kind string, in io.Reader, out io.Writer) error {
+// createTestOptions are create-test's flags plus the reader and writer it prompts through.
+type createTestOptions struct {
+	name, kind string
+	in         io.Reader
+	out        io.Writer
+}
+
+func runCreateTest(_ context.Context, dst afero.Fs, o createTestOptions) error {
+	name, kind, in, out := o.name, o.kind, o.in, o.out
 	st, err := loadProjectStore(dst)
 	if err != nil {
 		return err

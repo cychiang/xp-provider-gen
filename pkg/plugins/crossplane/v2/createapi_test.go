@@ -17,16 +17,13 @@ limitations under the License.
 package v2
 
 import (
-	"io"
 	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
-	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 	"sigs.k8s.io/kubebuilder/v4/pkg/model/resource"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
@@ -53,39 +50,39 @@ type createAPIFlavor struct {
 
 var (
 	createAPINative = createAPIFlavor{
-		flavor: core.FlavorNative, group: createAPIGroup, kind: "Bucket",
+		flavor: core.FlavorNative, group: createAPIGroup, kind: kindBucket,
 		toolOwned:    "internal/controller/bucket/wiring.go",
 		userOwned:    "internal/controller/bucket/external.go",
 		registration: "apis/register.go",
 	}
 	createAPIUpjet = createAPIFlavor{
-		flavor: core.FlavorUpjet, group: updateTestGroup, kind: "Secret",
+		flavor: core.FlavorUpjet, group: updateTestGroup, kind: testKindSecret,
 		toolOwned:    createAPIResFile,
 		userOwned:    "config/secret/config.go",
 		registration: createAPIResFile,
 	}
 )
 
-// createAPIRun runs create api for fl's kind against dst, as the CLI does up to
-// PostScaffold, and returns what it printed.
+// createAPIRun runs create api for fl's kind against dst, as runCreateAPI does
+// up to the PROJECT save and the automation pipeline, and returns what it printed.
 func createAPIRun(t *testing.T, fl createAPIFlavor, dst afero.Fs) string {
 	t.Helper()
-	p := createAPIPrepared(t, fl)
-	machineryFS := machinery.Filesystem{FS: dst}
-	if err := p.PreScaffold(machineryFS); err != nil {
-		t.Fatalf("PreScaffold: %v", err)
+	cfg, res, o := createAPIPrepared(t, fl)
+	meta, err := checkCreateAPI(t.Context(), cfg, res, o)
+	if err != nil {
+		t.Fatalf("checkCreateAPI: %v", err)
 	}
 	return captureStdout(t, func() {
-		if err := p.Scaffold(machineryFS); err != nil {
-			t.Fatalf("Scaffold: %v", err)
+		if err := writeCreateAPI(dst, cfg, meta, res, o); err != nil {
+			t.Fatalf("writeCreateAPI: %v", err)
 		}
 	})
 }
 
-// createAPIPrepared returns create api for fl's kind with its flags, config and
-// resource injected, ready for PreScaffold. A fresh config each call stands for
-// a fresh process reading PROJECT.
-func createAPIPrepared(t *testing.T, fl createAPIFlavor) *createAPISubcommand {
+// createAPIPrepared returns the config, resource and options of create api for
+// fl's kind, ready for checkCreateAPI. A fresh config each call stands for a
+// fresh process reading PROJECT.
+func createAPIPrepared(t *testing.T, fl createAPIFlavor) (config.Config, *resource.Resource, createAPIOptions) {
 	t.Helper()
 	cfg, err := config.New(cfgv3.Version)
 	if err != nil {
@@ -98,6 +95,7 @@ func createAPIPrepared(t *testing.T, fl createAPIFlavor) *createAPISubcommand {
 		t.Fatalf("SetRepository: %v", err)
 	}
 	meta := projectMeta{Flavor: fl.flavor}
+	o := createAPIOptions{group: fl.group, version: updateTestVersion, kind: fl.kind}
 	if fl.flavor == core.FlavorUpjet {
 		meta.Upjet = &core.UpjetSettings{
 			TerraformProvider:        createAPIUpjetSrc,
@@ -107,30 +105,24 @@ func createAPIPrepared(t *testing.T, fl createAPIFlavor) *createAPISubcommand {
 			TerraformDocsPath:        core.DefaultTerraformDocsPath,
 			TerraformResourcePrefix:  createAPITFName,
 		}
+		o.terraformResource = createAPIUpjetTF
 	}
 	if err := cfg.EncodePluginConfig(pluginName, meta); err != nil {
 		t.Fatalf("EncodePluginConfig: %v", err)
 	}
+	res, err := newResource(cfg, o)
+	if err != nil {
+		t.Fatalf("newResource: %v", err)
+	}
+	return cfg, res, o
+}
 
-	p := &createAPISubcommand{}
-	fs := pflag.NewFlagSet("create api", pflag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	p.BindFlags(fs)
-	var args []string
-	if fl.flavor == core.FlavorUpjet {
-		args = append(args, "--terraform-resource="+createAPIUpjetTF)
-	}
-	if err := fs.Parse(args); err != nil {
-		t.Fatalf("parsing flags: %v", err)
-	}
-	if err := p.InjectConfig(cfg); err != nil {
-		t.Fatalf("InjectConfig: %v", err)
-	}
-	res := &resource.Resource{GVK: resource.GVK{Group: fl.group, Version: "v1alpha1", Kind: fl.kind}}
-	if err := p.InjectResource(res); err != nil {
-		t.Fatalf("InjectResource: %v", err)
-	}
-	return p
+// createAPICheck runs checkCreateAPI on fl's kind and returns its error.
+func createAPICheck(t *testing.T, fl createAPIFlavor) error {
+	t.Helper()
+	cfg, res, o := createAPIPrepared(t, fl)
+	_, err := checkCreateAPI(t.Context(), cfg, res, o)
+	return err
 }
 
 func readFile(t *testing.T, fs afero.Fs, path string) string {
@@ -172,13 +164,9 @@ func TestCreateAPIRefusesRepoWithoutCommit(t *testing.T) {
 		gitInDir(t, dir, "init", "--quiet")
 		t.Chdir(dir)
 
-		dst := afero.NewMemMapFs()
-		err := createAPIPrepared(t, createAPINative).PreScaffold(machinery.Filesystem{FS: dst})
+		err := createAPICheck(t, createAPINative)
 		if err == nil || !strings.Contains(err.Error(), "init did not finish") {
-			t.Fatalf("PreScaffold = %v, want a refusal saying init did not finish", err)
-		}
-		if files, _ := afero.Glob(dst, "*"); len(files) != 0 {
-			t.Errorf("a refused create api wrote %v", files)
+			t.Fatalf("checkCreateAPI = %v, want a refusal saying init did not finish", err)
 		}
 	})
 	t.Run("with a commit", func(t *testing.T) {
@@ -188,15 +176,15 @@ func TestCreateAPIRefusesRepoWithoutCommit(t *testing.T) {
 			"commit", "--quiet", "--allow-empty", "-m", "scaffold")
 		t.Chdir(dir)
 
-		if err := createAPIPrepared(t, createAPINative).PreScaffold(machinery.Filesystem{FS: afero.NewMemMapFs()}); err != nil {
-			t.Errorf("PreScaffold = %v, want nil", err)
+		if err := createAPICheck(t, createAPINative); err != nil {
+			t.Errorf("checkCreateAPI = %v, want nil", err)
 		}
 	})
 	t.Run("not a repository", func(t *testing.T) {
 		t.Chdir(t.TempDir())
 
-		if err := createAPIPrepared(t, createAPINative).PreScaffold(machinery.Filesystem{FS: afero.NewMemMapFs()}); err != nil {
-			t.Errorf("PreScaffold = %v, want nil", err)
+		if err := createAPICheck(t, createAPINative); err != nil {
+			t.Errorf("checkCreateAPI = %v, want nil", err)
 		}
 	})
 }
@@ -267,14 +255,52 @@ func TestCreateAPIKeepsHeaderlessRegistration(t *testing.T) {
 // TestCreateAPIHasNoForceFlag pins that --force is gone: create api always
 // refreshes tool-owned files, so the flag is rejected like any unknown one.
 func TestCreateAPIHasNoForceFlag(t *testing.T) {
-	fs := pflag.NewFlagSet("create api", pflag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	(&createAPISubcommand{}).BindFlags(fs)
-	if f := fs.Lookup("force"); f != nil {
+	cmd := NewCreateAPICommand()
+	if f := cmd.Flags().Lookup("force"); f != nil {
 		t.Fatalf("--force is still defined: %+v", f)
 	}
-	if err := fs.Parse([]string{"--force"}); err == nil || !strings.Contains(err.Error(), "unknown flag: --force") {
-		t.Errorf("Parse(--force) error = %v, want unknown flag: --force", err)
+	if err := cmd.ParseFlags([]string{"--force"}); err == nil || !strings.Contains(err.Error(), "unknown flag: --force") {
+		t.Errorf("ParseFlags(--force) error = %v, want unknown flag: --force", err)
+	}
+}
+
+// TestNewResource pins how create api turns its flags into a resource: the
+// value that starts with "-" is blamed on its own flag, however many are bad;
+// GVK values are trimmed, an empty one is rejected, and the resource carries
+// the project's domain and an API of the shape init projects record.
+func TestNewResource(t *testing.T) {
+	cfg, _, _ := createAPIPrepared(t, createAPINative)
+	padded := createAPIOptions{group: " " + createAPIGroup + " ", version: " " + updateTestVersion + " ", kind: kindBucket}
+	tests := []struct {
+		name    string
+		o       createAPIOptions
+		wantErr string
+	}{
+		{"kind swallowed the next flag", createAPIOptions{group: "x", kind: "--version=v1"}, "kind flag present but empty"},
+		{"group swallowed the next flag", createAPIOptions{group: "--kind=K", version: "v1", kind: kindBucket}, "group flag present but empty"},
+		{"version missing", createAPIOptions{group: createAPIGroup, kind: kindBucket}, "version"},
+		{"kind is not PascalCase", createAPIOptions{group: createAPIGroup, version: "v1", kind: "bucket"}, "invalid Kind"},
+		{"valid, group and version padded with spaces", padded, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := newResource(cfg, tt.o)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("newResource = %v, want error containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("newResource: %v", err)
+			}
+			if res.Group != createAPIGroup || res.Version != updateTestVersion || res.Kind != kindBucket || res.Domain != testDomain {
+				t.Errorf("resource = %+v, want %s/%s %s in %s", res.GVK, createAPIGroup, updateTestVersion, kindBucket, testDomain)
+			}
+			if res.Plural != "buckets" || !res.Controller || res.API == nil || !res.API.Namespaced || res.API.CRDVersion != "v1" {
+				t.Errorf("resource = %+v, want plural buckets, a controller and a namespaced v1 API", res)
+			}
+		})
 	}
 }
 

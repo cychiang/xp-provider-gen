@@ -31,7 +31,6 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config/store"
-	"sigs.k8s.io/kubebuilder/v4/pkg/config/store/yaml"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/automation"
@@ -42,8 +41,7 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
-// NewUpdateCommand returns the `update` command, registered on the CLI via
-// cli.WithExtraCommands (kubebuilder's plugin interface has no update hook).
+// NewUpdateCommand returns the `update` command.
 func NewUpdateCommand() *cobra.Command {
 	var verbose bool
 	var terraformProviderVersion string
@@ -76,13 +74,13 @@ Use --terraform-provider-version on an upjet provider to bump the wrapped Terraf
 provider: it rewrites the version in your Makefile, then runs the rest of update as usual —
 there is no way to bump only the version, since the generator refresh and framework
 dependency bump ride along in the same diff.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if terraformProviderVersion != "" {
 				if err := checkTerraformVersionFlag(terraformProviderVersion); err != nil {
 					return err
 				}
 			}
-			return runUpdate(context.Background(), afero.NewOsFs(), terraformProviderVersion, verbose)
+			return runUpdate(cmd.Context(), afero.NewOsFs(), updateOptions{terraformProviderVersion, verbose})
 		},
 	}
 	cmd.Flags().StringVar(&terraformProviderVersion, "terraform-provider-version", "",
@@ -93,15 +91,15 @@ dependency bump ride along in the same diff.`,
 	return cmd
 }
 
-// prepare enforces the clean-tree precondition, loads and validates the project,
+// prepare loads and validates the project, enforces the clean-tree precondition,
 // and renders the current template set of its flavor into an in-memory FS. It also
 // returns the project's plugin block so later steps choose the same flavor's sets.
 func prepare(ctx context.Context, dst afero.Fs) (store.Store, afero.Fs, projectMeta, error) {
-	if err := requireCleanTree(ctx); err != nil {
-		return nil, nil, projectMeta{}, err
-	}
 	st, err := loadProjectStore(dst)
 	if err != nil {
+		return nil, nil, projectMeta{}, err
+	}
+	if err := requireCleanTree(ctx); err != nil {
 		return nil, nil, projectMeta{}, err
 	}
 	meta, err := validateProject(st.Config())
@@ -125,9 +123,15 @@ func stampProvenance(st store.Store) error {
 	return st.Save()
 }
 
+// updateOptions are update's flags.
+type updateOptions struct {
+	terraformProviderVersion string
+	verbose                  bool
+}
+
 // runUpdate refreshes the project in dst. dst must be the tree rooted at the
 // working directory: git, make and go run there, not through dst.
-func runUpdate(ctx context.Context, dst afero.Fs, terraformProviderVersion string, verbose bool) error {
+func runUpdate(ctx context.Context, dst afero.Fs, o updateOptions) error {
 	st, mem, meta, err := prepare(ctx, dst)
 	if err != nil {
 		return fmt.Errorf("%w\n  "+noChangesToRevert, err)
@@ -136,7 +140,7 @@ func runUpdate(ctx context.Context, dst afero.Fs, terraformProviderVersion strin
 		return err
 	}
 
-	if err := applyTerraformVersionFlagIfSet(dst, meta.Flavor, terraformProviderVersion); err != nil {
+	if err := applyTerraformVersionFlagIfSet(dst, meta.Flavor, o.terraformProviderVersion); err != nil {
 		return err
 	}
 
@@ -154,7 +158,7 @@ func runUpdate(ctx context.Context, dst afero.Fs, terraformProviderVersion strin
 	if err != nil {
 		return fmt.Errorf("removing files this generator no longer produces: %w\n%s", err, revertAdvice(result.Seeded))
 	}
-	result.print(os.Stdout, meta.Version, version.Get().Version, verbose)
+	result.print(os.Stdout, meta.Version, version.Get().Version, o.verbose)
 	drift, err := automation.NewGitOperations(core.NewPluginConfig()).
 		BuildDrift(ctx, automation.BuildSubmodulePath, versions.BuildRef)
 	if err != nil {
@@ -238,14 +242,6 @@ func validateProject(cfg config.Config) (projectMeta, error) {
 // that PROJECT failed one of its checks.
 func projectNotUsable(err error) error {
 	return fmt.Errorf("PROJECT is not usable: %w", err)
-}
-
-func loadProjectStore(dst afero.Fs) (store.Store, error) {
-	st := yaml.New(machinery.Filesystem{FS: dst})
-	if err := st.Load(); err != nil {
-		return nil, fmt.Errorf("not a provider project (cannot load PROJECT): %w", err)
-	}
-	return st, nil
 }
 
 // requireCleanTree aborts unless the working tree has no uncommitted changes, so

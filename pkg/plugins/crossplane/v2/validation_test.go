@@ -142,7 +142,7 @@ func TestValidator_ValidateRepository(t *testing.T) {
 
 // TestValidator_ValidateRepository_NeverPrints pins that the validator only
 // ever returns an error for a non-conventional repo name, never prints —
-// see TestInitSubcommand_InjectConfig_WarnsOnUnconventionalRepoName for
+// see TestWriteInit_WarnsOnUnconventionalRepoName for
 // where that warning is printed instead.
 func TestValidator_ValidateRepository_NeverPrints(t *testing.T) {
 	validator := validation.NewValidator()
@@ -179,9 +179,9 @@ func TestValidator_ValidateResource(t *testing.T) {
 			name: "valid beta resource",
 			resource: &resource.Resource{
 				GVK: resource.GVK{
-					Group:   "storage",
+					Group:   createAPIGroup,
 					Version: testVersionBeta,
-					Kind:    "Bucket",
+					Kind:    kindBucket,
 				},
 			},
 			wantErr: false,
@@ -253,7 +253,7 @@ func TestValidator_ValidateResource(t *testing.T) {
 // one may not.
 func TestValidatorFor(t *testing.T) {
 	reserved := &resource.Resource{
-		GVK: resource.GVK{Group: testGroup, Version: testVersion, Kind: "Secret"},
+		GVK: resource.GVK{Group: testGroup, Version: testVersion, Kind: testKindSecret},
 	}
 	tests := []struct {
 		flavor  core.Flavor

@@ -1,6 +1,7 @@
 # Architecture
 
-`xp-provider-gen` is a CLI built on the Kubebuilder v4 plugin system. It scaffolds a Crossplane
+`xp-provider-gen` is a cobra CLI. It keeps Kubebuilder's PROJECT file format and file writer
+(`config`, `machinery`) but not its CLI or plugin system. It scaffolds a Crossplane
 provider from embedded templates, runs a post-scaffold pipeline (git, module tidy, code
 generation), and later refreshes the tool-owned part of that provider with `update`, leaving
 the author's code alone.
@@ -12,8 +13,8 @@ in [section 8](#8-decision-records).
 ## 1. Layers
 
 ```
-cmd/xp-provider-gen/            CLI entry: the Kubebuilder CLI plus the update and create-test commands
-pkg/plugins/crossplane/v2/      Plugin: the init, create api, update and create-test commands
+cmd/xp-provider-gen/            CLI entry: one cobra root over init, create api, update and create-test
+pkg/plugins/crossplane/v2/      The init, create api, update and create-test commands
   core/                         Side-effecting building blocks with no template knowledge
   templates/engine/             Template discovery, the generators, and Render
   automation/                   Post-scaffold pipeline: steps and git operations
@@ -30,20 +31,25 @@ test/e2e/                       The e2e stage harness for both flavors
 
 ## 2. Commands
 
+Every command is a cobra command whose `RunE` collects flags into an options struct and calls
+`run<Command>(ctx, dst afero.Fs, opts)`. Only the run function touches PROJECT: it loads it into
+a `store.Store`, changes the config in memory, and saves it itself. `create` and `help` are
+overridden so that an unknown subcommand, with or without `--help`, is an error.
+
 One rule holds for every command: **a render never writes to the provider directory.** A
 command renders the full result into memory with `engine.Render`, then writes it through
 `core.Apply`, which decides per file from what is already on disk (section 6). A failed render
 leaves the directory untouched.
 
 - **`init`** validates its inputs, renders the init scope, applies it, and runs the init
-  pipeline. Kubebuilder saves PROJECT right after the scaffold step, before the pipeline runs.
+  pipeline. `runInit` saves PROJECT right after the scaffold is written, before the pipeline runs.
+  `create api` saves it at the same point.
 - **`create api`** adds the resource to the config, renders the kind's templates, and
   regenerates the register files from every resource (section 3). While the history is still
   the tool's scaffold, the commit folds into the `Initial commit`, which carries the
   `xp-provider-gen-scaffold` trailer, so a fresh provider has one commit. After the author
   commits, later runs add their own commits.
-- **`update`** is its own cobra command, because Kubebuilder's plugin interface has no update
-  hook. Section 7 is its contract.
+- **`update`**: section 7 is its contract.
 - **`create-test`** renders a chainsaw skeleton to `test/behavior/<name>/chainsaw-test.yaml`
   and never overwrites one.
 
@@ -115,7 +121,7 @@ second are files we decline to manage.
 tool-owned, and skip otherwise. The golden test `templates/engine/ownership_test.go` asserts
 every template's bucket, so a new template fails until someone decides its owner. Without it, a
 tool-owned template that forgot its header would be user-owned, and `update` would never
-refresh it. `go.mod` is seed-once, and `update` changes it only as step 7 of
+refresh it. `go.mod` is seed-once, and `update` changes it only as step 8 of
 [§7](#7-the-update-command) describes.
 
 **Every write and delete passes `core.CheckContained`.** Rendered paths come from PROJECT, so
@@ -133,27 +139,31 @@ pipeline, so a pipeline fix reaches existing providers on `update`.
 `update` brings a provider's tool-owned core to the running generator and leaves the result
 uncommitted for review.
 
-1. **The tree must be clean**, so the whole effect shows as one `git diff`.
-2. **PROJECT is loaded once and gates the rest.** An unrecognized `flavor:`, or `flavor: upjet`
+1. **PROJECT is loaded first, and its `layout:` must be exactly
+   `[crossplane.go.kubebuilder.io/v2]`.** A missing, partial, longer or foreign layout is not a
+   provider this tool scaffolded and is refused before anything else, `create api` and
+   `create-test` included.
+2. **The tree must be clean**, so the whole effect shows as one `git diff`.
+3. **PROJECT gates the rest.** An unrecognized `flavor:`, or `flavor: upjet`
    with no `upjet:` block, is a corrupt PROJECT and is refused, not defaulted to native. Only an
    empty flavor means native. `checkNotDowngrade` refuses a generator older than the clean
    release that last stamped PROJECT, and `checkSameGenerator` applies the same ordering to
    `create api`. Both compare only `vX.Y.Z` strings with `semver.Compare`, so a development
    build is never judged older.
-3. **Render** the flavor's full set into memory.
-4. **Apply `--terraform-provider-version`**, if given, before reconcile. It rewrites the
+4. **Render** the flavor's full set into memory.
+5. **Apply `--terraform-provider-version`**, if given, before reconcile. It rewrites the
    Terraform provider pin, and a native provider refuses it.
-5. **Reconcile** through `core.Apply`. Tool-owned files are overwritten, user-owned files are
+6. **Reconcile** through `core.Apply`. Tool-owned files are overwritten, user-owned files are
    skipped, and a file already equal to the render counts as `Unchanged` and is not written. An
    upjet project never seeds a missing user-owned file, because some need init-time Terraform
    settings that PROJECT does not keep. `update` lists them instead.
-6. **Remove orphans.** A file is a candidate only if git tracks it (`git ls-files`, so an
+7. **Remove orphans.** A file is a candidate only if git tracks it (`git ls-files`, so an
    ignored file is never one), it carries the header, and no template renders it now.
-7. **Raise the go directive, then bump dependencies** from the manifest. The directive moves to
+8. **Raise the go directive, then bump dependencies** from the manifest. The directive moves to
    `go_version` only if it is lower (`godirective.go` parses with `modfile` and keeps
    everything else). A higher one is the author's and stays. Then `go get` runs for each pinned
    dependency. These are the only changes `update` makes to the seed-once `go.mod`.
-8. **Finalize.** Native runs tidy, generate and reviewable. Upjet runs generate first, because
+9. **Finalize.** Native runs tidy, generate and reviewable. Upjet runs generate first, because
    tidy cannot resolve the packages that generation produces. Then `update` stamps the
    generator version into PROJECT.
 

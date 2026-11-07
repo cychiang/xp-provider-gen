@@ -34,7 +34,7 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
-// fixtureResources mirrors what createAPISubcommand.InjectResource fills in.
+// fixtureResources mirrors what newResource fills in.
 // Two kinds in different groups and versions, so per-kind and per-group
 // templates each render more than once.
 func fixtureResources(repo, domain string) []resource.Resource {
