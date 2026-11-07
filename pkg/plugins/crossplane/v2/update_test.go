@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Tests for update.go: the shared test config/meta helpers (also used by
-// reconcile_test.go, adopt_test.go and tfversion_test.go), project loading
+// reconcile_test.go and tfversion_test.go), project loading
 // and validation, template rendering, revert advice, and the flag-wiring
 // test that has to go through cmd.Execute().
 package v2

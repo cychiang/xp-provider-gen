@@ -290,8 +290,10 @@ header line into a file of your own, even in a comment: step 3 and step 4 both k
 one substring, so a file that merely quotes it reads as tool-owned and can be overwritten or
 deleted the same as a real generated file.
 
-If a tool-owned file lost its header by accident, `update` reads it as yours and keeps it.
-Delete the file and run `update`, which seeds a missing tool-owned file again.
+If a tool-owned file lost its header by accident, `update` keeps it as yours, and the lint in
+its closing `make reviewable` covers it like any file you wrote. To get the generated version
+back instead, delete the file and commit the deletion, since `update` refuses a dirty working
+tree. Then run `update`, which seeds the file again with its header.
 
 If a step fails midway, the error message spells out the exact revert steps: `git reset
 --hard` to restore modified tool-owned files, plus `rm -rf` for any file this run seeded (those
