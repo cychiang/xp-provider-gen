@@ -41,6 +41,10 @@ single provider decides — so there is no flag to override it. If you set
 `TERRAFORM_VERSION` in your Makefile by hand, the fragment's
 `check-terraform-version` target still refuses anything `>= 1.6.0`.
 
+The tool-owned fragment also pins the Go toolchain `make` uses, with `export GOTOOLCHAIN ?=`.
+[The provider guide](provider-guide.md#the-go-toolchain) explains it and how to opt out when
+you work offline.
+
 Unlike a native provider, a freshly scaffolded upjet project **does not compile
 yet** — `cmd/provider` imports the API and controller packages that generation
 produces. That is expected; step 3 fixes it.
@@ -189,7 +193,7 @@ The external name is the Terraform ID `kubernetes_config_map` uses —
 Editing `spec.forProvider.data` and re-applying updates the real object in
 place through Terraform's own update path (no delete-and-recreate); deleting
 the MR deletes the ConfigMap. Once this file exists, `make e2e` picks it up by
-wildcard with no further wiring, and `xp-provider-gen create-test --kind=ConfigMap`
+wildcard with no further wiring, and `xp-provider-gen create-test --name=configmap-basic --kind=ConfigMap`
 derives a chainsaw behavior test from the same file.
 
 No credentials are needed for this example: the scaffolded Secret ships

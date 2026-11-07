@@ -913,6 +913,12 @@ func stageStockClone(e *Env) error {
 // Native runs the unmodified stub from its first commit. Upjet has no stub to
 // run: its stock commit holds the generated provider and the author's example.
 //
+// Uptest's update step does not run here, and that is expected. Uptest v2.2.0
+// (internal/tester.go) makes a root of an example with meta.upbound.io/example-id
+// and renders an update step only for a root with uptest.upbound.io/update-parameter.
+// The scaffold ships neither: 01-update.yaml.tmpl emits `try:` inside `if .Root`,
+// so two annotated roots in one run render a duplicate key. mr-update covers updates.
+//
 // It brings up the run's one kind cluster, KIND_CLUSTER_NAME, which install-in-kind
 // brings up again: the stage that joins it, install-in-kind, starts on none
 // because e2e-clean below deletes it.

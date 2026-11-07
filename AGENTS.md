@@ -35,12 +35,15 @@ Prerequisites (Go version, gosec, Docker for e2e) are in
 | Command | Purpose |
 |---------|---------|
 | `make reviewable` | mod-tidy + fmt/vet/lint/gosec/test + check-consistency — the same checks CI enforces |
-| `make e2e-native` / `make e2e-upjet` | The two e2e surfaces; `E2E_ARGS=--from=latest` upgrades a provider scaffolded by the newest published release, and `--report=<file>` writes the run as JSON |
+| `make e2e-native` / `make e2e-upjet` | The two e2e surfaces, each a full run in the Go stage harness in `test/e2e` |
+| `make e2e-native E2E_ARGS=--from=latest` / `make e2e-upjet E2E_ARGS=--from=latest` | Upgrade a provider scaffolded by the newest published release to this build; run both before shipping a change that affects `update` |
 | `make help` | List all targets |
 
-Both run the Go stage harness in `test/e2e`: full mode fails before its first stage when Docker is
-missing, and `E2E_ARGS=--mode=fast` ends in `VERDICT PARTIAL`, naming each stage it did not run. See [docs/testing.md](docs/testing.md) for what each covers, and
-[docs/manual-testing.md](docs/manual-testing.md) for a step-by-step guide to reproducing the same surfaces by hand.
+Full mode fails before its first stage when Docker is missing, and `E2E_ARGS=--mode=fast` ends in
+`VERDICT PARTIAL`, naming each stage it did not run. `go run ./test/e2e --list --flavor=native`
+prints the stages. [docs/testing.md](docs/testing.md) explains the verdicts, the flags and the
+`--report` numbers. To try the tool by hand, follow [docs/tutorial.md](docs/tutorial.md) (native)
+or [docs/upjet-provider.md](docs/upjet-provider.md) (upjet).
 
 ## Code style
 
@@ -96,9 +99,9 @@ reconsider.
 - [docs/provider-guide.md](docs/provider-guide.md) — what provider authors edit, and upgrading
 - [docs/templates.md](docs/templates.md) — add or change generated-provider templates
 - [docs/upjet-provider.md](docs/upjet-provider.md) — build a provider that wraps a Terraform provider
-- [docs/architecture.md](docs/architecture.md) — how the generator is structured
+- [docs/architecture.md](docs/architecture.md) — the generator's contracts and invariants
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow
-- [docs/testing.md](docs/testing.md) — unit and end-to-end testing
+- [docs/testing.md](docs/testing.md) — run the unit tests and the e2e harness, and read its output
 - [.github/WORKFLOWS.md](.github/WORKFLOWS.md) — CI/CD pipelines
 - [docs/design/render-apply.md](docs/design/render-apply.md) — the proposal behind one render path and one write rule; implemented (see its decision record)
 - [.agents/skills/xp-provider-gen/](.agents/skills/xp-provider-gen/) — using this tool to
