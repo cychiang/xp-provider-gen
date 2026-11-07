@@ -64,15 +64,15 @@ tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mo
 | Stage | Proves |
 |---|---|
 | `init`, `create-api` | The binary scaffolds a provider with two kinds (`Widget`, `Gadget`) and `scripts/assert-layout.sh` finds every expected file. `init` stamps PROJECT with the generator `version:`, and leaves a clean tree, so `create api` cannot commit an `init` leftover. |
-| `generate` | `make submodules generate reviewable` pass on the pristine scaffold. CRDs and examples exist, the ownership contract holds (tool-owned files carry the `DO NOT EDIT` header, user-owned files do not), the tree is clean, and `init` plus `create api` folded into one `Initial commit`. |
-| `user-logic` | The overlay replaces the user-owned `client.go`, `external.go` and `options.go`, adds a `--region` flag read by `ReconcilerOptions`, a user field on `ProviderConfigSpec` and two user unit tests, then `go mod tidy`, `make generate lint` and a commit. The ProviderConfig CRD must carry the new field, the user tests must pass, and the provider's `--help` must list `--region`. |
+| `generate` | `make submodules generate reviewable` pass on the pristine scaffold; release cases run `make submodules generate` only, since reviewable of an old scaffold proves nothing about this build. CRDs and examples exist, the ownership contract holds (tool-owned files carry the `DO NOT EDIT` header, user-owned files do not), the tree is clean, and `init` plus `create api` folded into one `Initial commit`. |
+| `user-logic` | The overlay replaces the user-owned `client.go`, `external.go` and `options.go`, adds a `--region` flag read by `ReconcilerOptions`, a user field on `ProviderConfigSpec` and two user unit tests, then `go mod tidy`, `make generate lint` (release cases: `make generate`, because a release's make fragment pins no toolchain and its linter cannot read a newer host Go's export data; `update` writes the pin and its own reviewable lints the overlay) and a commit. The ProviderConfig CRD must carry the new field, the user tests must pass, and the provider's `--help` must list `--region`. |
 | `update-to-head` | Release cases only (`--from=<tag>`). `update` by the binary under test leaves user-owned bytes alone, moves the go directive and the PROJECT stamp, keeps the ownership contract, regenerates the CRD with the user field, keeps the user tests passing and `--region` in `--help`, and leaves every tool-owned file byte-identical to a fresh scaffold from the same binary. |
 | `refuse-old-generator` | Release cases only. The release binary's `update` and `update --adopt` refuse the updated tree, and `create api` refuses it in both directions where the release has that check. |
 | `orphan-removal` | `update` removes and names a tracked file that carries the generated header but that no template renders, and leaves a gitignored one alone. |
 | `update-noop` | A same-generator `update` reports `removed 0`, `Refreshed 0` and a non-zero `Unchanged N`, leaves the seam files byte-identical and the tree clean, refuses a dirty tree, and rejects `--terraform-provider-version` naming the flavor. |
 | `create-api-refresh` | Re-running `create api` regenerates a tool-owned file, keeps a user edit, commits nothing the second time, and rejects `--force`. |
 | `adopt` | Plants a sentinel PROJECT `version:` and strips a header, then asserts `update --adopt` restores both. |
-| `stock-e2e` | The scaffold exactly as generated, in a clone of its first commit, passes its own `make e2e`, with the head's `create-test` lifecycle test added first, so the one run covers uptest, the pause tests and the test `create-test` wrote; the stage then fails unless `junit.xml` names that test. Uptest skips its update step on the stock scaffold: it updates only a resource annotated `meta.upbound.io/example-id`, and allows one such root per run, while `make e2e` runs every kind's example in one run. |
+| `stock-e2e` | Head cases only: in a release case it would test the old release's scaffold, which the head cell already covers for this build, and the upgraded tree is deployed and reconciled by `install-in-kind` and the `mr-` stages. The scaffold exactly as generated, in a clone of its first commit, passes its own `make e2e`, with the head's `create-test` lifecycle test added first, so the one run covers uptest, the pause tests and the test `create-test` wrote; the stage then fails unless `junit.xml` names that test. Uptest skips its update step on the stock scaffold: it updates only a resource annotated `meta.upbound.io/example-id`, and allows one such root per run, while `make e2e` runs every kind's example in one run. |
 | `build-xpkg`, `install-in-kind`, `provider-config` | The overlay provider's package builds, installs into a new kind cluster and is Healthy, (deployed with `--poll=10s` through a harness-only DeploymentRuntimeConfig, so drift shows in seconds; the stage fails unless the provider's deployment carries that argument), and a ProviderConfig holds the cluster's own kubeconfig as credentials and keeps the user-added `endpoint` field instead of pruning it. |
 | `mr-ready-synced` | The `Widget` example is `Ready` and `Synced`, and a ConfigMap, the external object, holds its value. |
 | `mr-update`, `drift-corrected` | The external value follows a spec patch, and a hand edit of the external object is restored. |
@@ -88,7 +88,7 @@ other files, which is how the break tests below were made.
 exits 1 if not. `make e2e-native E2E_ARGS=--mode=fast` runs only the stages that need no Docker and
 ends in `VERDICT PARTIAL`, naming each stage it did not run. An unknown `--mode`, or a plan with no stage to run, exits 1 before anything starts. Only a full run ends in
 `VERDICT COMPLETE`. Other flags: `--logs=<dir>` keeps per-stage logs there, `--from=<tag>`
-scaffolds with that published release and adds `update-to-head`.
+scaffolds with that published release, adds `update-to-head` and `refuse-old-generator`, and drops `stock-e2e`; `--list` with `--from` prints the stages that apply.
 
 **Isolation.** Each run makes its own work directory, log directory and kind cluster name, and
 sets a private `KUBECONFIG` on every subprocess, so it never reads or writes `~/.kube/config` and
@@ -112,7 +112,7 @@ pipeline: unit tests alone do not catch broken generated output.
 `make e2e-native E2E_ARGS=--from=v0.3.0` runs the native stages with the published release's own
 binary doing `init` and `create api`, and the binary under test doing everything after. That is
 the one run in which tool-owned files receive a real generator's changes, which the
-same-generator `update-noop` cannot show. The `update-to-head` stage is added; the rest are the
+same-generator `update-noop` cannot show. The `update-to-head` and `refuse-old-generator` stages are added and `stock-e2e` is dropped; the rest are the
 stages above.
 
 `Releases` in `test/e2e/plan.go` is the list of tags the harness knows, each with its

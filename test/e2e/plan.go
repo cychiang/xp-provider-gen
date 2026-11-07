@@ -43,6 +43,8 @@ const fromHead = "head"
 
 func (c Case) Release() bool { return c.From != fromHead }
 
+func (c Case) Head() bool { return !c.Release() }
+
 // Release is what the harness knows about one published release.
 type Release struct {
 	// Toolchain is the GOTOOLCHAIN the release's init and create api run

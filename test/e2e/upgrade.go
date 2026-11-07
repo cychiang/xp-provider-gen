@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -100,17 +101,23 @@ func (e *Env) assertUserLogicWorks() error {
 
 // assertToolOwnedMatchesFreshScaffold scaffolds the same project with the
 // head binary and requires every tool-owned file of the updated tree to be
-// byte-identical to the fresh one's, and the two sets to be the same.
+// byte-identical to the fresh one's, and the two sets to be the same. Only the
+// scaffold's own files are compared, so the fresh run skips the generate and
+// reviewable that init and create api would otherwise run for minutes.
 func (e *Env) assertToolOwnedMatchesFreshScaffold() error {
 	fresh := filepath.Join(e.Work, "fresh")
 	if err := os.MkdirAll(fresh, 0o750); err != nil {
 		return err
 	}
-	if _, err := e.exec(fresh, "", e.Head, initArgs()...); err != nil {
+	pathEnv, err := e.makeSkippingGenerate()
+	if err != nil {
+		return err
+	}
+	if _, err := e.execEnv(pathEnv, fresh, "", e.Head, initArgs()...); err != nil {
 		return err
 	}
 	for _, kind := range []string{widgetKind, gadgetKind} {
-		if _, err := e.exec(fresh, "", e.Head, createAPIArgs(kind)...); err != nil {
+		if _, err := e.execEnv(pathEnv, fresh, "", e.Head, createAPIArgs(kind)...); err != nil {
 			return err
 		}
 	}
@@ -123,6 +130,31 @@ func (e *Env) assertToolOwnedMatchesFreshScaffold() error {
 		return err
 	}
 	return compareToolOwned(got, want)
+}
+
+const shimScript = `#!/bin/sh
+for t in "$@"; do case "$t" in generate|reviewable) exit 0;; esac; done
+exec '%s' "$@"
+`
+
+// makeSkippingGenerate writes a make that exits 0 for generate and reviewable
+// and runs the real one otherwise, and returns the PATH entry that puts it
+// first.
+func (e *Env) makeSkippingGenerate() ([]string, error) {
+	realMake, err := exec.LookPath("make")
+	if err != nil {
+		return nil, err
+	}
+	dir := filepath.Join(e.Work, "shim")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return nil, err
+	}
+	script := fmt.Sprintf(shimScript, realMake)
+	// #nosec G306 -- an executable script in the private work directory
+	if err := os.WriteFile(filepath.Join(dir, "make"), []byte(script), 0o700); err != nil {
+		return nil, err
+	}
+	return []string{"PATH=" + dir + string(os.PathListSeparator) + os.Getenv("PATH")}, nil
 }
 
 // toolOwned reads the files of a scaffold, tracked or not but not ignored,

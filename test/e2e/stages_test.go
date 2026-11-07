@@ -3,6 +3,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,5 +117,19 @@ func TestCompareToolOwnedNeedsTheFreshScaffoldsFilesWithTheSameBytes(t *testing.
 				t.Fatalf("compareToolOwned = %v, want %q", err, c.wantErr)
 			}
 		})
+	}
+}
+
+func TestMakeSkippingGenerateSkipsOnlyGenerateAndReviewable(t *testing.T) {
+	e := &Env{Ctx: t.Context(), Work: t.TempDir(), log: io.Discard}
+	env, err := e.makeSkippingGenerate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for target, wantRan := range map[string]bool{"generate": false, "reviewable": false, "no-such-target": true} {
+		_, err := e.execEnv(env, e.Work, "", filepath.Join(e.Work, "shim", "make"), target)
+		if ran := err != nil; ran != wantRan {
+			t.Errorf("make %s reached the real make: %t, want %t (%v)", target, ran, wantRan, err)
+		}
 	}
 }

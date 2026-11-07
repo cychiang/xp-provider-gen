@@ -24,7 +24,7 @@ func run() int {
 	mode := flag.String("mode", string(ModeFull),
 		"full runs every stage and fails without Docker; fast runs the stages that need none and reports PARTIAL")
 	from := flag.String("from", fromHead, "binary that scaffolds: head, or the tag of a published release such as v0.3.0")
-	list := flag.Bool("list", false, "print the declared stages and exit")
+	list := flag.Bool("list", false, "print the declared stages and exit; with --from a release, only those that apply")
 	bin := flag.String("bin", "bin/xp-provider-gen", "binary under test")
 	overlay := flag.String("overlay", "test/e2e/testdata/native", "overlay tree, laid over the scaffold at the same paths")
 	logs := flag.String("logs", "", "directory for per-stage logs (default: a new temporary directory)")
@@ -43,9 +43,7 @@ func run() int {
 		return fail(err)
 	}
 	if *list {
-		for _, s := range stages {
-			fmt.Printf("%-20s needs=%v release-only=%t\n", s.Name, s.Needs, s.When != nil)
-		}
+		printStages(c, stages)
 		return 0
 	}
 
@@ -81,6 +79,15 @@ func run() int {
 		return 1
 	}
 	return 0
+}
+
+func printStages(c Case, stages []Stage) {
+	for _, s := range stages {
+		if c.Release() && s.When != nil && !s.When(c) {
+			continue
+		}
+		fmt.Printf("%-20s needs=%v release-only=%t\n", s.Name, s.Needs, s.When != nil && !s.When(Case{From: fromHead}))
+	}
 }
 
 func fail(err error) int {

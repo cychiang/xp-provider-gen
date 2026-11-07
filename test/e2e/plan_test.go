@@ -130,6 +130,22 @@ func TestReleaseOnlyStagesRunForReleaseCasesOnly(t *testing.T) {
 	}
 }
 
+func TestStockE2ERunsForHeadOnly(t *testing.T) {
+	for from, want := range map[string]bool{fromHead: true, newestTag: false} {
+		plan, err := NewPlan(Case{From: from}, nativeStages(), ModeFull, map[Capability]bool{CapDocker: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ran := false
+		for _, s := range plan.Run {
+			ran = ran || s.Name == "stock-e2e"
+		}
+		if ran != want {
+			t.Errorf("from %s: stock-e2e ran %t, want %t", from, ran, want)
+		}
+	}
+}
+
 func TestNativeStagesAreDeclaredInPlanOrder(t *testing.T) {
 	want := "init create-api generate user-logic update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh adopt create-test " +
 		"stock-e2e build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected " +
