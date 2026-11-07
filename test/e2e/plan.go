@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -26,90 +25,33 @@ type Capability string
 
 const CapDocker Capability = "docker"
 
-// Case is one cell of the matrix: a flavor and the binary that scaffolds it.
+// Case is a flavor and the binary that scaffolds it.
 // From is "head" for the binary under test, or the tag of a published release.
 type Case struct {
 	Flavor string
 	From   string
 	// Toolchain is the GOTOOLCHAIN a released binary's init and create api run
-	// under. Empty for head.
+	// under. Empty for head and for any tag toolchains does not list.
 	Toolchain string
-	// CreateAPIGuard is whether the release's create api refuses a project a
-	// different clean release last updated.
-	CreateAPIGuard bool
 }
 
-const fromHead = "head"
+const (
+	fromHead   = "head"
+	fromLatest = "latest"
+)
 
 func (c Case) Release() bool { return c.From != fromHead }
 
 func (c Case) Head() bool { return !c.Release() }
 
-// Release is what the harness knows about one published release.
-type Release struct {
-	// Toolchain is the GOTOOLCHAIN the release's init and create api run
-	// under: its own go_version, so the scaffold is the one the release
-	// produced whatever Go the host has.
-	Toolchain string
-	// NotApplicable maps a flavor to the reason this release cannot run it.
-	NotApplicable map[string]string
-	// CreateAPIGuard is whether create api refuses a project a different clean
-	// release last updated. update and update --adopt refuse a newer project
-	// in every release. v0.1.0 predates the create api check and accepts.
-	CreateAPIGuard bool
-}
+// toolchains lists the releases whose init and create api need the Go they
+// were built with, so the scaffold is the one the release produced whatever Go
+// the host has. A tag not listed runs under the host's own.
+var toolchains = map[string]string{"v0.3.0": "go1.26.8"}
 
-// Releases lists every published release. A new release fails the preflight
-// until it is added here.
-var Releases = map[string]Release{
-	"v0.1.0": {Toolchain: toolchain1268},
-	"v0.2.0": {Toolchain: toolchain1268, CreateAPIGuard: true},
-	"v0.3.0": {Toolchain: toolchain1268, CreateAPIGuard: true},
-}
-
-const toolchain1268 = "go1.26.8"
-
-var (
-	ErrUnknownRelease = errors.New("unknown release")
-	ErrNotApplicable  = errors.New("not applicable")
-	ErrNoReleases     = errors.New("release list is empty")
-)
-
-// NewCase resolves a --from value. A release pair marked NotApplicable returns
-// ErrNotApplicable with the declared reason, so the caller can say why nothing ran.
-func NewCase(flavor, from string) (Case, error) {
-	c := Case{Flavor: flavor, From: from}
-	if !c.Release() {
-		return c, nil
-	}
-	r, ok := Releases[from]
-	if !ok {
-		return c, fmt.Errorf("%w %q: declared releases are %s", ErrUnknownRelease, from, strings.Join(releaseTags(), ", "))
-	}
-	if reason, na := r.NotApplicable[flavor]; na {
-		return c, fmt.Errorf("%w: %s from %s: %s", ErrNotApplicable, flavor, from, reason)
-	}
-	c.Toolchain, c.CreateAPIGuard = r.Toolchain, r.CreateAPIGuard
-	return c, nil
-}
-
-func releaseTags() []string {
-	tags := slices.Collect(maps.Keys(Releases))
-	slices.Sort(tags)
-	return tags
-}
-
-// Preflight fails when the newest published release, first in listed, has no
-// entry in Releases: a release the harness never ran must not pass unnoticed.
-func Preflight(listed []string) error {
-	if len(listed) == 0 {
-		return ErrNoReleases
-	}
-	if _, ok := Releases[listed[0]]; !ok {
-		return fmt.Errorf("newest release %s is missing from Releases in test/e2e/plan.go: add it with its toolchain",
-			listed[0])
-	}
-	return nil
+// NewCase resolves a --from value that is already a tag or "head".
+func NewCase(flavor, from string) Case {
+	return Case{Flavor: flavor, From: from, Toolchain: toolchains[from]}
 }
 
 // Stage is one declared step. It returns an error or it passed: there is no
@@ -120,6 +62,14 @@ type Stage struct {
 	// When limits the stage to some cases. Nil means every case.
 	When func(Case) bool
 	Run  func(*Env) error
+	// Background starts the stage where it is declared and lets the stages
+	// after it run beside it, until one with Join and before the verdict. Such
+	// a stage may share nothing the stages beside it touch, so whatever it reads
+	// is made before it starts. The one exception is a resource only the Join
+	// stage uses beside it, and the Background stage must free that first.
+	Background bool
+	// Join makes the stage wait for every running Background stage first.
+	Join bool
 }
 
 // Plan is what a mode will do with the stages that apply to a case.
@@ -179,38 +129,93 @@ const (
 	VerdictFailed   Verdict = "FAILED"
 )
 
-// Execute runs the plan in order and stops at the first failure. Every stage
-// that did not run is named in the output.
-func Execute(p Plan, env *Env, out io.Writer) Verdict {
-	failed := ""
-	for _, s := range p.Run {
-		if failed != "" {
-			fmt.Fprintf(out, "NOT-RUN %-20s after %s failed\n", s.Name, failed)
-			continue
+// outcome is how one stage ended; i is its place in Plan.Run.
+type outcome struct {
+	i       int
+	err     error
+	elapsed time.Duration
+}
+
+// execution is the state of one Execute: the results in declared order, the
+// first stage that failed, and the background stages still running.
+type execution struct {
+	plan     Plan
+	out      io.Writer
+	results  []StageResult
+	failed   string
+	finished chan outcome
+	running  int
+}
+
+func (x *execution) take(o outcome) {
+	s := x.plan.Run[o.i]
+	status, line := StatusPass, fmt.Sprintf("PASS    %-20s %6s", s.Name, o.elapsed.Round(time.Second))
+	if o.err != nil {
+		status, line = StatusFail, fmt.Sprintf("FAIL    %-20s %6s %v", s.Name, o.elapsed.Round(time.Second), o.err)
+		if x.failed == "" {
+			x.failed = s.Name
 		}
-		start := time.Now()
-		err := env.runStage(s)
-		elapsed := time.Since(start).Round(time.Second)
-		if err != nil {
-			failed = s.Name
-			fmt.Fprintf(out, "FAIL    %-20s %6s %v\n", s.Name, elapsed, err)
-			continue
-		}
-		fmt.Fprintf(out, "PASS    %-20s %6s\n", s.Name, elapsed)
 	}
+	fmt.Fprintln(x.out, line)
+	x.results[o.i] = StageResult{Name: s.Name, Status: status, Seconds: tenths(o.elapsed)}
+}
+
+func (x *execution) join() {
+	for ; x.running > 0; x.running-- {
+		x.take(<-x.finished)
+	}
+}
+
+// start runs stage i on its own copy of env, so its log is its own.
+func (x *execution) start(env *Env, i int) {
+	x.running++
+	own := *env
+	go func() {
+		start := time.Now()
+		err := own.runStage(x.plan.Run[i])
+		x.finished <- outcome{i, err, time.Since(start)}
+	}()
+}
+
+// Execute runs the plan in order and stops at the first failure. A background
+// stage runs beside the stages after it, and its outcome is taken when it is
+// joined. Every stage that did not run is named in the output and in the
+// results, which are in declared order.
+func Execute(p Plan, env *Env, out io.Writer) (Verdict, []StageResult) {
+	x := &execution{plan: p, out: out, results: make([]StageResult, len(p.Run)), finished: make(chan outcome)}
+	for i, s := range p.Run {
+		if s.Join {
+			x.join()
+		}
+		switch {
+		case x.failed != "":
+			fmt.Fprintf(out, "NOT-RUN %-20s after %s failed\n", s.Name, x.failed)
+			x.results[i] = StageResult{Name: s.Name, Status: StatusNotRun}
+		case s.Background:
+			x.start(env, i)
+		default:
+			start := time.Now()
+			err := env.runStage(s)
+			x.take(outcome{i, err, time.Since(start)})
+		}
+	}
+	x.join()
 	var notRun []string
+	var skipped []StageResult
 	for _, s := range p.NotRun {
 		fmt.Fprintf(out, "NOT-RUN %-20s needs %v\n", s.Name, s.Needs)
 		notRun = append(notRun, s.Name)
+		skipped = append(skipped, StageResult{Name: s.Name, Status: StatusNotRun})
 	}
+	results := slices.Concat(x.results, skipped)
 	switch {
-	case failed != "":
-		fmt.Fprintf(out, "VERDICT FAILED at %s\n", failed)
-		return VerdictFailed
+	case x.failed != "":
+		fmt.Fprintf(out, "VERDICT FAILED at %s\n", x.failed)
+		return VerdictFailed, results
 	case len(notRun) > 0:
 		fmt.Fprintf(out, "VERDICT PARTIAL, not run: %s\n", strings.Join(notRun, ", "))
-		return VerdictPartial
+		return VerdictPartial, results
 	}
 	fmt.Fprintf(out, "VERDICT COMPLETE, %d stages passed\n", len(p.Run))
-	return VerdictComplete
+	return VerdictComplete, results
 }

@@ -139,7 +139,9 @@ generate.init: $(TERRAFORM_PROVIDER_SCHEMA) pull-docs
 # ./apis/..., whose go:generate chain produces everything else, so scope it
 # there. `go mod tidy -e` first: the generator tools are behind the "generate"
 # build tag, so their checksums are missing until something asks for them, and
-# -e tolerates the packages that do not exist yet.
+# -e tolerates the packages that do not exist yet. The generated code imports
+# modules the first tidy saw no importer of, so tidy again afterwards, as the
+# submodule's own recipe does; otherwise the next generate rewrites go.mod.
 # Replaces the submodule's go.generate recipe (make warns about the override;
 # that is expected). Overriding generate.run instead would not work: the
 # submodule declares `generate.run: go.generate`, and make merges prerequisites,
@@ -156,6 +158,7 @@ go.generate: goimports.install
 	@$(GOHOST) mod tidy -e || $(FAIL)
 	@CGO_ENABLED=0 PATH="$(GOBIN):$(shell $(GOHOST) env GOPATH)/bin:$$PATH" \
 		$(GOHOST) generate -tags generate ./apis/... || $(FAIL)
+	@$(GOHOST) mod tidy || $(FAIL)
 	@$(OK) go generate ./apis/...
 
 # ====================================================================================

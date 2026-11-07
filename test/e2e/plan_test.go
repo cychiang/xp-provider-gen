@@ -5,21 +5,24 @@ package main
 import (
 	"bytes"
 	"errors"
-	"os"
+	"io"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
-
-	"sigs.k8s.io/yaml"
+	"time"
 )
 
-const (
-	newestTag     = "v0.3.0"
-	fakeToolchain = "go1.2.3"
-)
+const newestTag = "v0.3.0"
+
+// counting records its name in ran, under a lock because a Background stage
+// runs on its own goroutine.
+var ranMu sync.Mutex
 
 func counting(name string, ran *[]string, err error, needs ...Capability) Stage {
 	return Stage{Name: name, Needs: needs, Run: func(*Env) error {
+		ranMu.Lock()
+		defer ranMu.Unlock()
 		*ran = append(*ran, name)
 		return err
 	}}
@@ -63,10 +66,10 @@ func TestFastModeSetsDockerStagesAsideAndReportsPartial(t *testing.T) {
 				t.Fatal(err)
 			}
 			var out bytes.Buffer
-			if v := Execute(plan, &Env{}, &out); v != VerdictPartial {
+			if v, _ := Execute(plan, &Env{}, &out); v != VerdictPartial {
 				t.Fatalf("verdict %s, want PARTIAL", v)
 			}
-			if strings.Join(ran, ",") != "init" {
+			if strings.Join(ran, ",") != cmdInit {
 				t.Errorf("ran %v, want only init", ran)
 			}
 			for _, want := range []string{"VERDICT PARTIAL", "NOT-RUN install", "NOT-RUN delete", "not run: install, delete"} {
@@ -90,7 +93,7 @@ func TestFirstFailureStopsTheRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if v := Execute(plan, &Env{}, &out); v != VerdictFailed {
+	if v, _ := Execute(plan, &Env{}, &out); v != VerdictFailed {
 		t.Fatalf("verdict %s, want FAILED", v)
 	}
 	if strings.Join(ran, ",") != "one,two" {
@@ -111,7 +114,7 @@ func TestFullModeWithEveryStagePassingIsComplete(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if v := Execute(plan, &Env{}, &out); v != VerdictComplete {
+	if v, _ := Execute(plan, &Env{}, &out); v != VerdictComplete {
 		t.Fatalf("verdict %s, want COMPLETE:\n%s", v, out.String())
 	}
 }
@@ -135,46 +138,86 @@ func TestReleaseOnlyStagesRunForReleaseCasesOnly(t *testing.T) {
 }
 
 func TestStockE2ERunsForHeadOnly(t *testing.T) {
-	for from, want := range map[string]bool{fromHead: true, newestTag: false} {
-		plan, err := NewPlan(Case{From: from}, nativeStages(), ModeFull, map[Capability]bool{CapDocker: true})
+	for _, flavor := range []string{nativeName, upjetName} {
+		f, err := flavorFor(flavor)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ran := false
-		for _, s := range plan.Run {
-			ran = ran || s.Name == "stock-e2e"
-		}
-		if ran != want {
-			t.Errorf("from %s: stock-e2e ran %t, want %t", from, ran, want)
+		for from, want := range map[string]bool{fromHead: true, newestTag: false} {
+			plan, err := NewPlan(Case{From: from}, f.Stages(), ModeFull, map[Capability]bool{CapDocker: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ran := slices.Contains(stageNames(plan.Run), "stock-e2e"); ran != want {
+				t.Errorf("%s from %s: stock-e2e ran %t, want %t", flavor, from, ran, want)
+			}
 		}
 	}
 }
 
-func TestNativeStagesAreDeclaredInPlanOrder(t *testing.T) {
-	want := "init create-api generate user-logic update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh adopt create-test " +
-		"stock-e2e build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected " +
-		"mr-delete external-gone"
-	var got []string
-	for _, s := range nativeStages() {
-		got = append(got, s.Name)
+func stageNames(stages []Stage) []string {
+	var names []string
+	for _, s := range stages {
+		names = append(names, s.Name)
 	}
-	if strings.Join(got, " ") != want {
-		t.Errorf("stages\n got %v\nwant %s", got, want)
+	return names
+}
+
+func TestEachFlavorDeclaresItsStagesInPlanOrder(t *testing.T) {
+	const head = "init create-api generate user-logic stock-clone stock-e2e update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh adopt create-test "
+	const tail = "build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected mr-delete external-gone"
+	for flavor, want := range map[string]string{
+		nativeName: head + tail,
+		upjetName:  head + "tf-bump provider-starts " + tail,
+	} {
+		f, err := flavorFor(flavor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Join(stageNames(f.Stages()), " "); got != want {
+			t.Errorf("%s stages\n got %v\nwant %s", flavor, got, want)
+		}
 	}
 }
 
-func TestNativeFastModeRunsExactlyTheDockerFreeStages(t *testing.T) {
-	plan, err := NewPlan(Case{From: fromHead}, nativeStages(), ModeFast, map[Capability]bool{})
-	if err != nil {
-		t.Fatal(err)
+func TestFastModeRunsExactlyTheDockerFreeStages(t *testing.T) {
+	for flavor, want := range map[string]string{
+		nativeName: "init create-api generate user-logic update-noop orphan-removal create-api-refresh adopt create-test",
+		upjetName: "init create-api generate user-logic update-noop orphan-removal create-api-refresh adopt create-test " +
+			"tf-bump provider-starts",
+	} {
+		t.Run(flavor, func(t *testing.T) {
+			f, err := flavorFor(flavor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan, err := NewPlan(Case{From: fromHead}, f.Stages(), ModeFast, map[Capability]bool{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Join(stageNames(plan.Run), " "); got != want {
+				t.Errorf("fast mode runs\n got %v\nwant %s", got, want)
+			}
+		})
 	}
-	var got []string
-	for _, s := range plan.Run {
-		got = append(got, s.Name)
-	}
-	want := "init create-api generate user-logic update-noop orphan-removal create-api-refresh adopt create-test"
-	if strings.Join(got, " ") != want {
-		t.Errorf("fast mode runs\n got %v\nwant %s", got, want)
+}
+
+func TestEveryFlavorsStagesNeedDockerExactlyWhereTheClusterIsUsed(t *testing.T) {
+	for _, flavor := range []string{nativeName, upjetName} {
+		f, err := flavorFor(flavor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var docker []string
+		for _, s := range f.Stages() {
+			if len(s.Needs) > 0 {
+				docker = append(docker, s.Name)
+			}
+		}
+		want := "stock-clone stock-e2e build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected mr-delete external-gone"
+		if got := strings.Join(docker, " "); got != want {
+			t.Errorf("%s stages needing docker\n got %v\nwant %s", flavor, got, want)
+		}
 	}
 }
 
@@ -198,80 +241,122 @@ func TestAPlanWithNothingToRunIsRejected(t *testing.T) {
 	}
 }
 
-func TestPreflightFailsWhenTheNewestReleaseIsNotDeclared(t *testing.T) {
-	for name, c := range map[string]struct {
-		listed  []string
-		wantErr string
-	}{
-		"newest declared":          {listed: []string{newestTag, "v0.2.0"}},
-		"newest missing":           {listed: []string{"v9.9.9", newestTag}, wantErr: "v9.9.9"},
-		"only an older is missing": {listed: []string{newestTag, "v0.0.1"}},
-		"no releases":              {wantErr: ErrNoReleases.Error()},
+func TestNewCaseGivesAToolchainOnlyToTheReleasesListed(t *testing.T) {
+	for _, c := range []struct{ from, want string }{
+		{fromHead, ""},
+		{newestTag, "go1.26.8"},
+		{"v9.9.9", ""},
 	} {
-		t.Run(name, func(t *testing.T) {
-			err := Preflight(c.listed)
-			switch {
-			case c.wantErr == "" && err != nil:
-				t.Errorf("unexpected error %v", err)
-			case c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)):
-				t.Errorf("error %v, want one naming %q", err, c.wantErr)
-			}
-		})
-	}
-}
-
-func TestEveryDeclaredReleaseCarriesAToolchain(t *testing.T) {
-	for tag, r := range Releases {
-		if r.Toolchain == "" {
-			t.Errorf("%s declares no toolchain", tag)
+		if got := NewCase(nativeName, c.from).Toolchain; got != c.want {
+			t.Errorf("%s runs under toolchain %q, want %q", c.from, got, c.want)
 		}
 	}
 }
 
-func TestNewCaseResolvesHeadAReleaseAndRefusesTheRest(t *testing.T) {
-	saved := Releases
-	t.Cleanup(func() { Releases = saved })
-	Releases = map[string]Release{
-		"v1.0.0": {Toolchain: fakeToolchain},
-		"v0.9.0": {Toolchain: fakeToolchain, NotApplicable: map[string]string{"native": "predates the flavor"}},
+func TestABackgroundStageRunsBesideTheStagesAfterItAndIsJoinedAtTheStageThatAsksForIt(t *testing.T) {
+	var mu sync.Mutex
+	var events []string
+	note := func(e string) {
+		mu.Lock()
+		defer mu.Unlock()
+		events = append(events, e)
 	}
-	if c, err := NewCase("native", fromHead); err != nil || c.Release() || c.Toolchain != "" {
-		t.Errorf("head resolved to %+v, %v", c, err)
+	release := make(chan struct{})
+	stages := []Stage{
+		{Name: "bg", Background: true, Needs: []Capability{CapDocker}, Run: func(*Env) error {
+			note("bg start")
+			select {
+			case <-release:
+			case <-time.After(10 * time.Second):
+				return errors.New("never released: the next stage did not run beside it")
+			}
+			note("bg end")
+			return nil
+		}},
+		{Name: "beside", Run: func(*Env) error {
+			note("beside")
+			close(release)
+			return nil
+		}},
+		{Name: "cluster", Join: true, Run: func(*Env) error {
+			note("cluster")
+			return nil
+		}},
 	}
-	if c, err := NewCase("native", "v1.0.0"); err != nil || !c.Release() || c.Toolchain != fakeToolchain || c.CreateAPIGuard {
-		t.Errorf("v1.0.0 resolved to %+v, %v", c, err)
-	}
-	if _, err := NewCase("native", "v2.0.0"); !errors.Is(err, ErrUnknownRelease) || !strings.Contains(err.Error(), "v0.9.0, v1.0.0") {
-		t.Errorf("unknown tag error %v", err)
-	}
-	if _, err := NewCase("native", "v0.9.0"); !errors.Is(err, ErrNotApplicable) || !strings.Contains(err.Error(), "predates the flavor") {
-		t.Errorf("not applicable error %v", err)
-	}
-}
-
-// TestWorkflowMatrixListsEveryRelease keeps the upgrade job's hand-kept
-// matrix.from equal to Releases: a release in only one runs in neither place
-// it should.
-func TestWorkflowMatrixListsEveryRelease(t *testing.T) {
-	b, err := os.ReadFile("../../.github/workflows/e2e-native-full.yml")
+	plan, err := NewPlan(Case{From: fromHead}, stages, ModeFull, map[Capability]bool{CapDocker: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var wf struct {
-		Jobs map[string]struct {
-			Strategy struct {
-				Matrix struct {
-					From []string `json:"from"`
-				} `json:"matrix"`
-			} `json:"strategy"`
-		} `json:"jobs"`
+	var out bytes.Buffer
+	verdict, results := Execute(plan, &Env{}, &out)
+	if verdict != VerdictComplete {
+		t.Fatalf("verdict %s:\n%s", verdict, out.String())
 	}
-	if err := yaml.Unmarshal(b, &wf); err != nil {
+	if got := strings.Join(events, ","); !strings.HasSuffix(got, "bg end,cluster") {
+		t.Errorf("events %s: the stage that joins did not wait for the background one", got)
+	}
+	if got := strings.Join(stageNamesOf(results), " "); got != "bg beside cluster" {
+		t.Errorf("results are in the order %s, want the declared one", got)
+	}
+}
+
+func stageNamesOf(results []StageResult) []string {
+	var names []string
+	for _, r := range results {
+		names = append(names, r.Name)
+	}
+	return names
+}
+
+func TestABackgroundFailureFailsTheRunAndStopsTheStagesAfterTheJoin(t *testing.T) {
+	var ran []string
+	bg := counting("bg", &ran, errors.New("boom"))
+	bg.Background = true
+	join := counting("cluster", &ran, nil)
+	join.Join = true
+	stages := []Stage{bg, counting("beside", &ran, nil), join}
+	plan, err := NewPlan(Case{From: fromHead}, stages, ModeFull, map[Capability]bool{CapDocker: true})
+	if err != nil {
 		t.Fatal(err)
 	}
-	got := slices.Clone(wf.Jobs["e2e-upgrade"].Strategy.Matrix.From)
-	slices.Sort(got)
-	if want := releaseTags(); !slices.Equal(got, want) {
-		t.Fatalf("e2e-native-full.yml e2e-upgrade matrix.from is %v, Releases in plan.go is %v: keep them equal", got, want)
+	var out bytes.Buffer
+	verdict, results := Execute(plan, &Env{}, &out)
+	if verdict != VerdictFailed {
+		t.Fatalf("verdict %s, want FAILED:\n%s", verdict, out.String())
+	}
+	want := []Status{StatusFail, StatusPass, StatusNotRun}
+	for i, r := range results {
+		if r.Status != want[i] {
+			t.Errorf("stage %s is %s, want %s", r.Name, r.Status, want[i])
+		}
+	}
+	if slices.Contains(ran, "cluster") {
+		t.Errorf("the stage after the failed background one ran: %v", ran)
+	}
+	if !strings.Contains(out.String(), "VERDICT FAILED at bg") {
+		t.Errorf("output lacks the failed stage:\n%s", out.String())
+	}
+}
+
+func TestAForegroundFailureStillWaitsForTheBackgroundStageAndReportsIt(t *testing.T) {
+	var ran []string
+	bg := counting("bg", &ran, nil)
+	bg.Background = true
+	join := counting("cluster", &ran, nil)
+	join.Join = true
+	stages := []Stage{bg, counting("beside", &ran, errors.New("boom")), join}
+	plan, err := NewPlan(Case{From: fromHead}, stages, ModeFull, map[Capability]bool{CapDocker: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	verdict, results := Execute(plan, &Env{}, io.Discard)
+	if verdict != VerdictFailed {
+		t.Fatalf("verdict %s, want FAILED", verdict)
+	}
+	want := []Status{StatusPass, StatusFail, StatusNotRun}
+	for i, r := range results {
+		if r.Status != want[i] {
+			t.Errorf("stage %s is %s, want %s", r.Name, r.Status, want[i])
+		}
 	}
 }
