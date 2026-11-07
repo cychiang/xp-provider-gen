@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -71,7 +72,11 @@ func newCreateCommand() *cobra.Command {
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
-				if !slices.Contains([]string{"-h", "--help"}, arg) {
+				switch {
+				case slices.Contains([]string{"-h", "--help"}, arg):
+				case strings.HasPrefix(arg, "-"):
+					return fmt.Errorf("unknown flag: %s", arg)
+				default:
 					return unknownCommand(cmd, arg)
 				}
 			}

@@ -74,6 +74,14 @@ func TestKeptCommandsHaveHelp(t *testing.T) {
 	}
 }
 
+// TestCreateRejectsUnknownFlag pins that a flag create does not have is named
+// as a flag, not as an unknown command.
+func TestCreateRejectsUnknownFlag(t *testing.T) {
+	if _, err := runRoot("create --bogus"); err == nil || !strings.Contains(err.Error(), "unknown flag: --bogus") {
+		t.Errorf("Execute = %v, want an unknown flag error", err)
+	}
+}
+
 // TestRemovedFlagsFail pins that the Kubebuilder plugin-selection flags are gone.
 func TestRemovedFlagsFail(t *testing.T) {
 	for _, flag := range []string{"--plugins=go/v4", "--project-version=3"} {
