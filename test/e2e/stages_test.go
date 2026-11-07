@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -63,6 +64,56 @@ func TestAssertProviderPollsNeedsThePollArgOnTheProviderDeployment(t *testing.T)
 		t.Run(c.name, func(t *testing.T) {
 			if err := assertProviderPolls(c.deployments); (err != nil) != c.wantErr {
 				t.Fatalf("assertProviderPolls = %v, wantErr %t", err, c.wantErr)
+			}
+		})
+	}
+}
+
+func owned(files map[string]string) map[string][]byte {
+	m := map[string][]byte{}
+	for rel, s := range files {
+		m[rel] = []byte(s)
+	}
+	return m
+}
+
+func TestCompareToolOwnedNeedsTheFreshScaffoldsFilesWithTheSameBytes(t *testing.T) {
+	fresh := func() map[string]string {
+		m := map[string]string{}
+		for _, rel := range requiredOwned {
+			m[rel] = "head " + rel
+		}
+		return m
+	}
+	tampered := fresh()
+	tampered[requiredOwned[0]] = "stale"
+	missing := fresh()
+	delete(missing, requiredOwned[1])
+	extra := fresh()
+	extra["internal/old.go"] = "a file head no longer renders"
+	noConnector := fresh()
+	delete(noConnector, requiredOwned[0])
+
+	cases := []struct {
+		name      string
+		got, want map[string]string
+		wantErr   string
+	}{
+		{"identical", fresh(), fresh(), ""},
+		{"a stale file", tampered, fresh(), "differs from a fresh scaffold: " + requiredOwned[0]},
+		{"a file update never wrote", missing, fresh(), "missing after update: " + requiredOwned[1]},
+		{"a file update left behind", extra, fresh(), "not in a fresh scaffold: internal/old.go"},
+		{"an empty fresh set", fresh(), nil, errNoOwned.Error()},
+		{"a fresh set without the connector", noConnector, noConnector, "no tool-owned " + requiredOwned[0]},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := compareToolOwned(owned(c.got), owned(c.want))
+			if c.wantErr == "" && err != nil {
+				t.Fatalf("compareToolOwned = %v, want nil", err)
+			}
+			if c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)) {
+				t.Fatalf("compareToolOwned = %v, want %q", err, c.wantErr)
 			}
 		})
 	}

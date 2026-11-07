@@ -65,14 +65,15 @@ tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mo
 |---|---|
 | `init`, `create-api` | The binary scaffolds a provider with two kinds (`Widget`, `Gadget`) and `scripts/assert-layout.sh` finds every expected file. `init` stamps PROJECT with the generator `version:`, and leaves a clean tree, so `create api` cannot commit an `init` leftover. |
 | `generate` | `make submodules generate reviewable` pass on the pristine scaffold. CRDs and examples exist, the ownership contract holds (tool-owned files carry the `DO NOT EDIT` header, user-owned files do not), the tree is clean, and `init` plus `create api` folded into one `Initial commit`. |
-| `user-logic` | The overlay replaces the user-owned `client.go`, `external.go` and `options.go`, then `go mod tidy`, `make lint` and a commit. |
-| `update-to-head` | Release cases only (`--from=<tag>`). `update` by the binary under test leaves user-owned bytes alone, moves the go directive and the PROJECT stamp, and keeps the ownership contract. |
+| `user-logic` | The overlay replaces the user-owned `client.go`, `external.go` and `options.go`, adds a `--region` flag read by `ReconcilerOptions`, a user field on `ProviderConfigSpec` and two user unit tests, then `go mod tidy`, `make generate lint` and a commit. The ProviderConfig CRD must carry the new field, the user tests must pass, and the provider's `--help` must list `--region`. |
+| `update-to-head` | Release cases only (`--from=<tag>`). `update` by the binary under test leaves user-owned bytes alone, moves the go directive and the PROJECT stamp, keeps the ownership contract, regenerates the CRD with the user field, keeps the user tests passing and `--region` in `--help`, and leaves every tool-owned file byte-identical to a fresh scaffold from the same binary. |
+| `refuse-old-generator` | Release cases only. The release binary's `update` and `update --adopt` refuse the updated tree, and `create api` refuses it in both directions where the release has that check. |
 | `orphan-removal` | `update` removes and names a tracked file that carries the generated header but that no template renders, and leaves a gitignored one alone. |
 | `update-noop` | A same-generator `update` reports `removed 0`, `Refreshed 0` and a non-zero `Unchanged N`, leaves the seam files byte-identical and the tree clean, refuses a dirty tree, and rejects `--terraform-provider-version` naming the flavor. |
 | `create-api-refresh` | Re-running `create api` regenerates a tool-owned file, keeps a user edit, commits nothing the second time, and rejects `--force`. |
 | `adopt` | Plants a sentinel PROJECT `version:` and strips a header, then asserts `update --adopt` restores both. |
 | `stock-e2e` | The scaffold exactly as generated, in a clone of its first commit, passes its own `make e2e`, with the head's `create-test` lifecycle test added first, so the one run covers uptest, the pause tests and the test `create-test` wrote; the stage then fails unless `junit.xml` names that test. Uptest skips its update step on the stock scaffold: it updates only a resource annotated `meta.upbound.io/example-id`, and allows one such root per run, while `make e2e` runs every kind's example in one run. |
-| `build-xpkg`, `install-in-kind`, `provider-config` | The overlay provider's package builds, installs into a new kind cluster and is Healthy, (deployed with `--poll=10s` through a harness-only DeploymentRuntimeConfig, so drift shows in seconds; the stage fails unless the provider's deployment carries that argument), and a ProviderConfig holds the cluster's own kubeconfig as credentials. |
+| `build-xpkg`, `install-in-kind`, `provider-config` | The overlay provider's package builds, installs into a new kind cluster and is Healthy, (deployed with `--poll=10s` through a harness-only DeploymentRuntimeConfig, so drift shows in seconds; the stage fails unless the provider's deployment carries that argument), and a ProviderConfig holds the cluster's own kubeconfig as credentials and keeps the user-added `endpoint` field instead of pruning it. |
 | `mr-ready-synced` | The `Widget` example is `Ready` and `Synced`, and a ConfigMap, the external object, holds its value. |
 | `mr-update`, `drift-corrected` | The external value follows a spec patch, and a hand edit of the external object is restored. |
 | `mr-delete`, `external-gone` | The managed resource is deleted, then the external object is gone. |
@@ -128,19 +129,34 @@ A flavor and release pair that cannot run is declared `NotApplicable` in `Releas
 reason; the run prints `VERDICT NOT-APPLICABLE` and the reason, and exits 0.
 
 `update-to-head` plants a stale go directive, then runs the binary under test's `update`
-and asserts the user-owned seams are byte-identical, the go directive is the `go_version` in
+and asserts the user-owned seams (the overlay files, the `ProviderConfigSpec` field in
+`types.go` and the user unit tests) are byte-identical, the go directive is the `go_version` in
 `pkg/versions/dependencies.yaml`, the PROJECT stamp is the binary's own `version`, and the
-ownership contract holds. The stages after it build, deploy and reconcile the updated provider,
-so one that does not come up `Ready` fails there. `orphan-removal` tracks a file that carries
-the generated header but that no template renders, and asserts `update` removes and names it,
-leaves a gitignored file with the same header alone, and changes nothing else.
+ownership contract holds. It reruns the user tests and the `--region` check that `user-logic`
+ran before the update. It then scaffolds the same project (same flags, `Widget` and `Gadget`)
+with the binary under test in a second directory and requires every file carrying the
+`Code generated by xp-provider-gen` header, in its first 1024 bytes, to exist in both trees with
+the same bytes, and the two sets to be equal. The set must be non-empty and hold `connector.go`,
+a `wiring.go` and the make fragment. No file is excluded: PROJECT and the other user-owned files
+carry no header and are not in the set. The stages after it build, deploy and reconcile the
+updated provider, so one that does not come up `Ready` fails there. `orphan-removal` tracks a
+file that carries the generated header but that no template renders, and asserts `update`
+removes and names it, leaves a gitignored file with the same header alone, and changes nothing
+else.
 
 The `E2E (upgrade from <tag>)` jobs in `e2e-native-full.yml` run one release each, with a
 20-minute limit (a cell takes 12 to 16 minutes on a runner). **Run it before shipping a generator bump.**
 
-Refusals of an older generator (`update`, `update --adopt`, `create api`) are covered by
-`TestCheckNotDowngrade` and `TestCheckSameGenerator` in `pkg/plugins/crossplane/v2/downgrade_test.go`,
-not by an e2e stage.
+`refuse-old-generator` runs the release binary against the updated tree. A released binary
+orders only two clean release versions, and the head build's version is a git-describe string or a
+bare commit hash, so against the real stamp every release accepts `update`, `update --adopt` and
+`create api`. The stage therefore stamps PROJECT by hand with `v9.9.9`, commits, and asserts
+`update` and `update --adopt` refuse with "is older than the one that last updated this project"
+and change nothing. Where `Releases` declares `CreateAPIGuard` (v0.2.0 and v0.3.0), `create api` is
+also refused at `v9.9.9` ("is older than") and at `v0.0.1` ("Run ... update first"). v0.1.0 predates
+the `create api` check and accepts, so the stage does not ask it. The stamp is reset afterwards.
+`TestCheckNotDowngrade` and `TestCheckSameGenerator` in
+`pkg/plugins/crossplane/v2/downgrade_test.go` cover the head generator's side.
 
 ## Upjet-flavor e2e (`make e2e-upjet`)
 

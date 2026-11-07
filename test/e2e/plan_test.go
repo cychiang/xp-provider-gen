@@ -131,7 +131,7 @@ func TestReleaseOnlyStagesRunForReleaseCasesOnly(t *testing.T) {
 }
 
 func TestNativeStagesAreDeclaredInPlanOrder(t *testing.T) {
-	want := "init create-api generate user-logic update-to-head update-noop orphan-removal create-api-refresh adopt create-test " +
+	want := "init create-api generate user-logic update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh adopt create-test " +
 		"stock-e2e build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected " +
 		"mr-delete external-gone"
 	var got []string
@@ -218,7 +218,7 @@ func TestNewCaseResolvesHeadAReleaseAndRefusesTheRest(t *testing.T) {
 	if c, err := NewCase("native", fromHead); err != nil || c.Release() || c.Toolchain != "" {
 		t.Errorf("head resolved to %+v, %v", c, err)
 	}
-	if c, err := NewCase("native", "v1.0.0"); err != nil || !c.Release() || c.Toolchain != fakeToolchain {
+	if c, err := NewCase("native", "v1.0.0"); err != nil || !c.Release() || c.Toolchain != fakeToolchain || c.CreateAPIGuard {
 		t.Errorf("v1.0.0 resolved to %+v, %v", c, err)
 	}
 	if _, err := NewCase("native", "v2.0.0"); !errors.Is(err, ErrUnknownRelease) || !strings.Contains(err.Error(), "v0.9.0, v1.0.0") {

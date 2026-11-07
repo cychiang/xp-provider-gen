@@ -116,17 +116,18 @@ func newEnv(ctx context.Context, c Case, bin, overlay, logs string) (*Env, error
 		}
 	}
 	e := &Env{
-		Ctx:        ctx,
-		Repo:       repoRoot,
-		Head:       absolute(repoRoot, bin),
-		Gen:        absolute(repoRoot, bin),
-		Overlay:    absolute(repoRoot, overlay),
-		Work:       work,
-		Dir:        filepath.Join(work, provider),
-		Logs:       absolute(repoRoot, logs),
-		Kubeconfig: filepath.Join(work, "kubeconfig"),
-		Cluster:    "e2e-" + strings.TrimPrefix(filepath.Base(work), "xpg-e2e-"),
-		Toolchain:  c.Toolchain,
+		Ctx:            ctx,
+		Repo:           repoRoot,
+		Head:           absolute(repoRoot, bin),
+		Gen:            absolute(repoRoot, bin),
+		Overlay:        absolute(repoRoot, overlay),
+		Work:           work,
+		Dir:            filepath.Join(work, provider),
+		Logs:           absolute(repoRoot, logs),
+		Kubeconfig:     filepath.Join(work, "kubeconfig"),
+		Cluster:        "e2e-" + strings.TrimPrefix(filepath.Base(work), "xpg-e2e-"),
+		Toolchain:      c.Toolchain,
+		CreateAPIGuard: c.CreateAPIGuard,
 	}
 	if c.Release() {
 		if e.Gen, err = fetchRelease(ctx, c.From, work); err != nil {

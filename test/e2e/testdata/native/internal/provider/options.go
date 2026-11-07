@@ -1,17 +1,25 @@
 package provider
 
 import (
+	"errors"
+
 	"github.com/alecthomas/kingpin/v2"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 )
 
-// Flags registers a provider flag, as the scaffold's comment shows, so a
-// user-edited options.go has content the harness can see update leave alone.
+// Region is the --region flag's value, shared with the controllers.
+var Region = new(string)
+
+// Flags registers the provider's own flag, as the scaffold's comment shows.
 func Flags(app *kingpin.Application) {
-	app.Flag("e2e-marker", "Set by the e2e harness.").String()
+	Region = app.Flag("region", "Target region.").Envar("REGION").Default("us-east-1").String()
 }
 
+// Configure rejects a flag combination before startup.
 func Configure(_ *controller.Options) error {
+	if *Region == "" {
+		return errors.New("--region must not be empty")
+	}
 	return nil
 }

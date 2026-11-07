@@ -20,6 +20,7 @@ import (
 
 const (
 	errNotWidget = "managed resource is not a Widget custom resource"
+	errNoRegion  = "--region must not be empty"
 	externalNS   = "default"
 	dataKey      = "value"
 )
@@ -35,9 +36,12 @@ func NewExternal(c *provider.Client) *External {
 	return &External{client: c}
 }
 
-// ReconcilerOptions returns no extra reconciler options.
-func ReconcilerOptions(_ ctrl.Manager, _ controller.Options) ([]managed.ReconcilerOption, error) {
-	return nil, nil
+// ReconcilerOptions tags the reconciler's logger with the --region flag.
+func ReconcilerOptions(_ ctrl.Manager, o controller.Options) ([]managed.ReconcilerOption, error) {
+	if *provider.Region == "" {
+		return nil, errors.New(errNoRegion)
+	}
+	return []managed.ReconcilerOption{managed.WithLogger(o.Logger.WithValues("region", *provider.Region))}, nil
 }
 
 func (e *External) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {

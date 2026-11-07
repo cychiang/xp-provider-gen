@@ -34,6 +34,9 @@ type Case struct {
 	// Toolchain is the GOTOOLCHAIN a released binary's init and create api run
 	// under. Empty for head.
 	Toolchain string
+	// CreateAPIGuard is whether the release's create api refuses a project a
+	// different clean release last updated.
+	CreateAPIGuard bool
 }
 
 const fromHead = "head"
@@ -48,14 +51,18 @@ type Release struct {
 	Toolchain string
 	// NotApplicable maps a flavor to the reason this release cannot run it.
 	NotApplicable map[string]string
+	// CreateAPIGuard is whether create api refuses a project a different clean
+	// release last updated. update and update --adopt refuse a newer project
+	// in every release. v0.1.0 predates the create api check and accepts.
+	CreateAPIGuard bool
 }
 
 // Releases lists every published release. A new release fails the preflight
 // until it is added here.
 var Releases = map[string]Release{
 	"v0.1.0": {Toolchain: toolchain1268},
-	"v0.2.0": {Toolchain: toolchain1268},
-	"v0.3.0": {Toolchain: toolchain1268},
+	"v0.2.0": {Toolchain: toolchain1268, CreateAPIGuard: true},
+	"v0.3.0": {Toolchain: toolchain1268, CreateAPIGuard: true},
 }
 
 const toolchain1268 = "go1.26.8"
@@ -80,7 +87,7 @@ func NewCase(flavor, from string) (Case, error) {
 	if reason, na := r.NotApplicable[flavor]; na {
 		return c, fmt.Errorf("%w: %s from %s: %s", ErrNotApplicable, flavor, from, reason)
 	}
-	c.Toolchain = r.Toolchain
+	c.Toolchain, c.CreateAPIGuard = r.Toolchain, r.CreateAPIGuard
 	return c, nil
 }
 
