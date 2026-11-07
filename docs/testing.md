@@ -145,7 +145,7 @@ removes and names it, leaves a gitignored file with the same header alone, and c
 else.
 
 The `E2E (upgrade from <tag>)` jobs in `e2e-native-full.yml` run one release each, with a
-20-minute limit (a cell takes 12 to 16 minutes on a runner). **Run it before shipping a generator bump.**
+20-minute limit (a cell took 14 to 18 minutes on a runner; the fresh head scaffold `update-to-head` makes for its comparison runs `init`, with generate and reviewable, and is about two of them). **Run it before shipping a generator bump.**
 
 `refuse-old-generator` runs the release binary against the updated tree. A released binary
 orders only two clean release versions, and the head build's version is a git-describe string or a
