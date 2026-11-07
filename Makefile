@@ -107,7 +107,7 @@ mod-tidy: ## Run go mod tidy
 mod-verify: ## Verify go mod dependencies
 	$(GOMOD) verify
 
-check-go-version: ## Verify both go.mod files and the Dockerfile agree with pkg/versions/dependencies.yaml's go_version (network)
+check-go-version: ## Verify pkg/versions/dependencies.yaml's go_version is new enough for every pinned dependency (network)
 	$(GOCMD) run ./scripts/check-go-version
 
 check-consistency: ## Assert the repo's naming and terminology conventions

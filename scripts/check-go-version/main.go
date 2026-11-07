@@ -14,18 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Command check-go-version enforces the two facts about this repo's Go
-// version that pkg/versions/dependencies.yaml's go_version cannot compute
-// for itself: the `go` directive of this repo's go.mod (Go requires a
-// literal — there is no "read it from a YAML file" directive syntax) and the Dockerfile's
-// golang base image tag (Docker's FROM requires a literal tag). It also
-// checks that go_version is new enough for every dependency generated
-// providers pin, fetching each dependency's own go.mod from
-// proxy.golang.org rather than guessing.
+// Command check-go-version checks that pkg/versions/dependencies.yaml's
+// go_version, the Go language version generated providers declare, is new
+// enough for every dependency generated providers pin, fetching each
+// dependency's own go.mod from proxy.golang.org rather than guessing. It says
+// nothing about the Go this repo is itself built with: the generator and the
+// providers it scaffolds move independently.
 //
 // Run via `make check-go-version`, or `go run ./scripts/check-go-version`
-// from the repo root. Requires network access (the dependency check) and
-// go.mod/Dockerfile to be present in the working directory.
+// from the repo root. Requires network access.
 package main
 
 import (
@@ -43,73 +40,11 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := checkDependencyFloors(versions.GoVersion); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("OK: go.mod, the Dockerfile, and every pinned dependency agree with go_version %s.\n",
-		versions.GoVersion)
-}
-
-func run() error {
-	goVersion := versions.GoVersion
-
-	if err := checkGoModDirective(goModPath, goVersion); err != nil {
-		return err
-	}
-	if err := checkDockerfileTag(goVersion); err != nil {
-		return err
-	}
-	return checkDependencyFloors(goVersion)
-}
-
-// goModPath is this repo's own go.mod (not a generated provider's).
-const goModPath = "go.mod"
-
-// checkGoModDirective fails if the `go` directive of the go.mod at path
-// disagrees with goVersion.
-func checkGoModDirective(path, goVersion string) error {
-	content, err := os.ReadFile(path) // #nosec G304 -- path is goModPath, fixed
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", path, err)
-	}
-	modVersion, err := extractGoDirective(string(content))
-	if err != nil {
-		return fmt.Errorf("%s: %w", path, err)
-	}
-	cmp, err := compareGoVersions(modVersion, goVersion)
-	if err != nil {
-		return err
-	}
-	if cmp != 0 {
-		return fmt.Errorf(
-			"%s's `go` directive is %s but pkg/versions/dependencies.yaml's go_version is %s — "+
-				"update its go directive to match", path, modVersion, goVersion)
-	}
-	return nil
-}
-
-// checkDockerfileTag fails if the Dockerfile's golang base image tag
-// disagrees with goVersion.
-func checkDockerfileTag(goVersion string) error {
-	content, err := os.ReadFile("Dockerfile")
-	if err != nil {
-		return fmt.Errorf("reading Dockerfile: %w", err)
-	}
-	dockerVersion, err := extractDockerGoTag(string(content))
-	if err != nil {
-		return fmt.Errorf("checking Dockerfile: %w", err)
-	}
-	cmp, err := compareGoVersions(dockerVersion, goVersion)
-	if err != nil {
-		return err
-	}
-	if cmp != 0 {
-		return fmt.Errorf(
-			"dockerfile's golang base image tag is %s but pkg/versions/dependencies.yaml's go_version is %s — "+
-				"update the FROM line to match", dockerVersion, goVersion)
-	}
-	return nil
+	fmt.Printf("OK: go_version %s is new enough for every pinned dependency.\n", versions.GoVersion)
 }
 
 // checkDependencyFloors fails if goVersion is older than the `go` directive
@@ -126,16 +61,25 @@ func checkDependencyFloors(goVersion string) error {
 		if depDirective == "" {
 			continue // no go directive in that module's go.mod (pre-modules-era) — nothing to require
 		}
-		cmp, err := compareGoVersions(goVersion, depDirective)
-		if err != nil {
+		if err := requireFloor(goVersion, d.Module, d.Version, depDirective); err != nil {
 			return err
 		}
-		if cmp < 0 {
-			return fmt.Errorf(
-				"%s@%s requires go %s, but pkg/versions/dependencies.yaml's go_version is only %s — "+
-					"bump go_version (and go.mod and the Dockerfile to match) to at least %s",
-				d.Module, d.Version, depDirective, goVersion, depDirective)
-		}
+	}
+	return nil
+}
+
+// requireFloor fails if goVersion is older than depDirective, the `go`
+// directive of module@version.
+func requireFloor(goVersion, module, version, depDirective string) error {
+	cmp, err := compareGoVersions(goVersion, depDirective)
+	if err != nil {
+		return err
+	}
+	if cmp < 0 {
+		return fmt.Errorf(
+			"%s@%s requires go %s, but pkg/versions/dependencies.yaml's go_version is only %s — "+
+				"bump go_version to at least %s",
+			module, version, depDirective, goVersion, depDirective)
 	}
 	return nil
 }
@@ -149,20 +93,6 @@ func extractGoDirective(content string) (string, error) {
 	m := goDirectiveRe.FindStringSubmatch(content)
 	if m == nil {
 		return "", fmt.Errorf("no `go` directive found")
-	}
-	return m[1], nil
-}
-
-// dockerGoTagRe matches this Dockerfile's golang base image line, e.g.
-// "FROM golang:1.26.8-alpine AS builder".
-var dockerGoTagRe = regexp.MustCompile(`(?m)^FROM\s+golang:(\d+\.\d+\.\d+)-alpine\b`)
-
-// extractDockerGoTag returns the golang image tag's version from Dockerfile
-// content.
-func extractDockerGoTag(content string) (string, error) {
-	m := dockerGoTagRe.FindStringSubmatch(content)
-	if m == nil {
-		return "", fmt.Errorf("no `FROM golang:<version>-alpine` line found")
 	}
 	return m[1], nil
 }
