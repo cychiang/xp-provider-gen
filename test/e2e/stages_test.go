@@ -257,3 +257,66 @@ func TestUnstartedControllersNamesTheKindsNoStartLineMentions(t *testing.T) {
 		t.Errorf("an empty log left %v unstarted", got)
 	}
 }
+
+func gitRepo(t *testing.T, files map[string]string) *Env {
+	t.Helper()
+	e := &Env{Ctx: t.Context(), Dir: t.TempDir(), log: io.Discard, F: upjetFlavor}
+	for _, args := range [][]string{{"init", "-q"}, {"config", "user.name", "t"}, {"config", "user.email", "t@example.com"}} {
+		if _, err := e.git(args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for rel, s := range files {
+		if err := e.write(rel, []byte(s)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := e.commit(userLogicMsg); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+func TestAssertOnlyChangedFailsOnAnyOtherFile(t *testing.T) {
+	e := gitRepo(t, map[string]string{"a": "1", "b": "1", "PROJECT": "1"})
+	if err := e.assertOnlyChanged("adopt", "a", "PROJECT"); err != nil {
+		t.Fatalf("a clean tree failed: %v", err)
+	}
+	for rel, wantErr := range map[string]bool{"a": false, "PROJECT": false, "b": true} {
+		if err := e.write(rel, []byte("2")); err != nil {
+			t.Fatal(err)
+		}
+		err := e.assertOnlyChanged("adopt", "a", "PROJECT")
+		if (err != nil) != wantErr {
+			t.Errorf("changing %s: assertOnlyChanged = %v, wantErr %t", rel, err, wantErr)
+		}
+		if _, err := e.git("checkout", "--", rel); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestStockCommitFindsTheNamedCommitAndFailsWhenThereIsNone(t *testing.T) {
+	e := gitRepo(t, map[string]string{"a": "1"})
+	if err := e.write("a", []byte("2")); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.commit("later"); err != nil {
+		t.Fatal(err)
+	}
+	want, err := e.git("rev-parse", "HEAD~1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := e.stockCommit(); err != nil || got != want {
+		t.Errorf("stockCommit = %q, %v, want %q", got, err, want)
+	}
+	e.F = &Flavor{StockMsg: "no such commit"}
+	if got, err := e.stockCommit(); err == nil {
+		t.Errorf("stockCommit found %q for a message no commit has", got)
+	}
+	e.F = nativeFlavor
+	if got, err := e.stockCommit(); err != nil || got != want {
+		t.Errorf("native stockCommit = %q, %v, want the first commit %q", got, err, want)
+	}
+}

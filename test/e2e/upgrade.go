@@ -105,10 +105,11 @@ func (e *Env) assertUserLogicWorks() error {
 // scaffold's own files are compared, so the fresh run skips the generate and
 // reviewable that init and create api would otherwise run for minutes.
 func (e *Env) assertToolOwnedMatchesFreshScaffold() error {
-	fresh := filepath.Join(e.Work, "fresh")
-	if err := os.MkdirAll(fresh, 0o750); err != nil {
+	fresh, err := os.MkdirTemp(e.Work, "fresh-")
+	if err != nil {
 		return err
 	}
+	defer func() { _ = os.RemoveAll(fresh) }()
 	pathEnv, err := e.makeSkippingGenerate()
 	if err != nil {
 		return err

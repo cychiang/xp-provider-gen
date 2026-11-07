@@ -148,11 +148,11 @@ func stageUpjetInit(e *Env) error {
 	if err := e.scaffold(upjetBaseLayout); err != nil {
 		return err
 	}
-	makefile, err := e.read(makefile)
+	pinned, err := e.read(makefile)
 	if err != nil {
 		return err
 	}
-	if err := contains(makefile, tfProvider, "the Makefile"); err != nil {
+	if err := contains(pinned, tfProvider, "the Makefile"); err != nil {
 		return err
 	}
 	return e.assertCleanTree("init")
@@ -274,7 +274,7 @@ func stageTerraformBump(e *Env) error {
 	if err != nil {
 		return err
 	}
-	makefile, err := e.read(makefile)
+	old, err := e.read(makefile)
 	if err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func stageTerraformBump(e *Env) error {
 	if err := contains(out, "removed 0", "update --terraform-provider-version"); err != nil {
 		return err
 	}
-	if err := e.assertBumped(makefile); err != nil {
+	if err := e.assertBumped(old); err != nil {
 		return err
 	}
 	if err := e.assertCachesVersioned(); err != nil {
