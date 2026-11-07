@@ -34,8 +34,10 @@ jobs:
 
         echo "Changed files: $CHANGED_FILES"
 
-        # Check if any Go source files, templates, or build files changed
-        if echo "$CHANGED_FILES" | grep -E '\.(go|tmpl|yaml|yml|mod|sum|sh)$|Makefile|Dockerfile'; then
+        # Anything that is not docs counts as source, so a file type nobody
+        # listed still runs the e2e. Keep this ignore list equal to the
+        # paths-ignore in e2e-native-full.yml and e2e-upjet.yml.
+        if echo "$CHANGED_FILES" | grep -vE '^(docs/|LICENSE$)|\.md$' | grep .; then
           echo "source=true" >> $GITHUB_OUTPUT
           echo "Source code changes detected"
         else
