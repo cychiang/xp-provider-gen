@@ -83,7 +83,7 @@ report C6 "retired terminology is gone" "$(
 # Extend it when a new verb shows up. It scans the generator's own Go
 # (fmt.Errorf/errors.New, not t.Errorf test messages, not *.go.tmpl), whether the
 # string opens on the call's line or — as gofmt leaves a long message — on the next.
-BARE_VERBS='failed to|unable to|could not|error|adopt|build|check|configure|create|decode|derive|discover|encode|enumerate|fetch|get|init|load|open|parse|read|reconcile|record|refuse|render|run|scaffold|set|stamp|start|work|write'
+BARE_VERBS='failed to|unable to|could not|error|build|check|configure|create|decode|derive|discover|encode|enumerate|fetch|get|init|load|open|parse|read|reconcile|record|refuse|render|run|scaffold|set|stamp|start|work|write'
 # awk keeps one line of memory: `open` is true when the previous line ended at the
 # call's opening parenthesis, so this line starts the string. The /dev/null
 # argument keeps awk from reading stdin when xargs has no files to pass (GNU xargs

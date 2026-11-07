@@ -97,20 +97,19 @@ func createAPIPrepared(t *testing.T, fl createAPIFlavor) *createAPISubcommand {
 	if err := cfg.SetRepository(testProviderRepo); err != nil {
 		t.Fatalf("SetRepository: %v", err)
 	}
-	if err := saveProjectMeta(cfg, func(m *projectMeta) {
-		m.Flavor = fl.flavor
-		if fl.flavor == core.FlavorUpjet {
-			m.Upjet = &core.UpjetSettings{
-				TerraformProvider:        createAPIUpjetSrc,
-				TerraformProviderName:    createAPITFName,
-				TerraformProviderVersion: "2.38.0",
-				TerraformProviderRepo:    core.DefaultProviderRepo(createAPIUpjetSrc),
-				TerraformDocsPath:        core.DefaultTerraformDocsPath,
-				TerraformResourcePrefix:  createAPITFName,
-			}
+	meta := projectMeta{Flavor: fl.flavor}
+	if fl.flavor == core.FlavorUpjet {
+		meta.Upjet = &core.UpjetSettings{
+			TerraformProvider:        createAPIUpjetSrc,
+			TerraformProviderName:    createAPITFName,
+			TerraformProviderVersion: "2.38.0",
+			TerraformProviderRepo:    core.DefaultProviderRepo(createAPIUpjetSrc),
+			TerraformDocsPath:        core.DefaultTerraformDocsPath,
+			TerraformResourcePrefix:  createAPITFName,
 		}
-	}); err != nil {
-		t.Fatalf("saveProjectMeta: %v", err)
+	}
+	if err := cfg.EncodePluginConfig(pluginName, meta); err != nil {
+		t.Fatalf("EncodePluginConfig: %v", err)
 	}
 
 	p := &createAPISubcommand{}

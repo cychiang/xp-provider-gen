@@ -130,7 +130,7 @@ func TestInitSubcommand_InjectConfig_WarnsOnUnconventionalRepoName(t *testing.T)
 
 // TestInitStampsGeneratorVersion pins that init stamps the running
 // generator's version into PROJECT's plugin block on the way in, the same
-// field update and adopt later read as checkNotDowngrade's "last" — without
+// field update later reads as checkNotDowngrade's "last" — without
 // this, every project would be unprotected against a downgrade until its
 // first update. Scaffold only renders into the given machinery.Filesystem
 // (here an in-memory one); the post-init automation pipeline that touches

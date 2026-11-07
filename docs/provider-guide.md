@@ -247,9 +247,9 @@ After upgrading the generator, run `update` before `create api`: `create api` re
 generator differs from the one that last updated the project.
 
 `update` refuses outright if PROJECT declares an unknown `flavor:` value, or `flavor: upjet`
-with no `upjet:` settings block — only an empty flavor is read as native.
+with no `upjet:` settings block. It refuses a PROJECT with no plugin block or an empty `flavor:` the same way.
 
-`update` (and `update --adopt`) also refuses when the generator running is an older clean
+`update` also refuses when the generator running is an older clean
 release than the one that last updated this project, naming both versions; to downgrade
 deliberately, edit `version:` under the `crossplane.go.kubebuilder.io` plugin in PROJECT,
 commit it, then run `update` again.
@@ -270,8 +270,7 @@ commit it, then run `update` again.
    them fail — this is why the diff also contains regenerated `zz_generated.*` and CRDs.
 
 `update` prints counts by default; `update --verbose` also lists each file under
-`Refreshed`, `Unchanged`, `Added` and `Kept` (user-owned) headings. Combined with `--adopt`,
-it lists the files that were adopted.
+`Refreshed`, `Unchanged`, `Added` and `Kept` (user-owned) headings.
 
 `update` never moves the `build` submodule. When yours is at a different commit than
 `build_ref`, it prints one line naming both commits and the commands that move it; the
@@ -291,67 +290,13 @@ header line into a file of your own, even in a comment: step 3 and step 4 both k
 one substring, so a file that merely quotes it reads as tool-owned and can be overwritten or
 deleted the same as a real generated file.
 
+If a tool-owned file lost its header by accident, `update` reads it as yours and keeps it.
+Delete the file and run `update`, which seeds a missing tool-owned file again.
+
 If a step fails midway, the error message spells out the exact revert steps: `git reset
 --hard` to restore modified tool-owned files, plus `rm -rf` for any file this run seeded (those
 are untracked, so `git reset --hard` alone leaves them behind). That is why the clean-tree
 precondition exists.
-
-### Adopting an older provider
-
-A provider generated before the ownership contract existed has no headers, so
-`update` cannot tell tool-owned files from yours. Run this once:
-
-```bash
-xp-provider-gen update --adopt   # adds headers to recognised tool-owned files
-git diff && git add -A && git commit -m "chore: adopt xp-provider-gen ownership contract"
-xp-provider-gen update           # now refreshes them normally
-```
-
-### Moving an older Makefile onto the refreshable pipeline
-
-Newer providers keep their build pipeline in `hack/xp-provider-gen.mk`, which is
-tool-owned, and their `Makefile` holds only project variables followed by
-`include hack/xp-provider-gen.mk`. A provider scaffolded before that split has the whole
-pipeline in its user-owned `Makefile`, which `update` never edits — so pipeline fixes
-do not reach it until you migrate once:
-
-1. Run `xp-provider-gen update`. It seeds `hack/xp-provider-gen.mk`; nothing includes it
-   yet, so the build behaves exactly as before.
-2. In your `Makefile`, keep the project variables — `PROJECT_NAME`, `PROJECT_REPO`,
-   `PLATFORMS`, and on an upjet provider `TERRAFORM_PROVIDER_SOURCE`,
-   `TERRAFORM_PROVIDER_REPO`, `TERRAFORM_PROVIDER_VERSION`,
-   `TERRAFORM_PROVIDER_DOWNLOAD_NAME`, `TERRAFORM_NATIVE_PROVIDER_BINARY`,
-   `TERRAFORM_DOCS_PATH` — and any targets you added yourself. Replace everything
-   else, including `TERRAFORM_VERSION`, with one line after the variables:
-   `include hack/xp-provider-gen.mk`.
-3. If you had customised a pipeline variable, where it goes depends on how the fragment
-   assigns it — check yours, the two flavors differ:
-
-   ```bash
-   grep -nE '^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*(\+=|\?=|:=|=)' hack/xp-provider-gen.mk
-   ```
-
-   | The fragment assigns it | Put your value | Example |
-   |---|---|---|
-   | `?=` | above the include (the fragment then keeps yours) | `KIND_CLUSTER_NAME`, `CROSSPLANE_VERSION`, `XPKG_REG_ORGS`; `GOLANGCILINT_VERSION` on upjet |
-   | `=` or `:=` | after the include (set above it, the fragment's later assignment silently replaces yours) | `IMAGES`, `XPKGS`, `UPTEST_INPUT_MANIFESTS`; `GOLANGCILINT_VERSION` on native |
-   | `+=` | either side, but append with `+=` too — a plain `=` drops what the fragment adds | `GO_SUBDIRS += mypkg`, `GO_LDFLAGS += -X ...` |
-4. Compare the result with the `Makefile` of a freshly scaffolded provider of the same
-   flavor, run `make reviewable` (upjet: `make generate` first), and commit both files.
-
-Providers generated before the modular layout (`external.go` / `wiring.go` /
-`internal/provider`) must be regenerated instead — there is no in-place migration
-for that change.
-
-**Native providers are namespaced-only as of 2026-08-16** — `ClusterProviderConfig` and the
-`Filesystem`/`Environment` credential sources were dropped in favor of a namespaced
-`ProviderConfig` with a `LocalSecretKeySelector`; `update` refreshes the tool-owned side
-automatically, but a provider scaffolded before that date needs a one-time hand migration of
-`apis/v1alpha1/types.go` (drop the removed types, switch `ProviderCredentials` to the current
-form) and, if it also predates the modular `test/` tree, of the Makefile's uptest section and
-the seeded pause test's drift-mirroring. This applies to the native flavor only — upjet keeps
-`ClusterProviderConfig` and the full `CommonCredentialSelectors`; see
-[upjet-provider.md](upjet-provider.md).
 
 ## 6. Where to look next
 

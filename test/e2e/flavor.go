@@ -38,9 +38,8 @@ type Flavor struct {
 	// the one create-test and the cluster stages use.
 	ProbeKind, TestKind string
 	// ToolProbe is a tool-owned file create api rewrites, UserProbe a user-owned
-	// one it leaves alone, and AdoptFile a tool-owned one whose header adopt
-	// restores.
-	ToolProbe, UserProbe, AdoptFile string
+	// one it leaves alone.
+	ToolProbe, UserProbe string
 	// StockMsg is the subject of the commit stock-e2e runs on.
 	StockMsg string
 	// ToolOwned must carry the generated header and UserOwned must not. Every
@@ -86,7 +85,6 @@ func (f *Flavor) Stages() []Stage {
 		{Name: "update-noop", Run: stageUpdateNoop},
 		{Name: "orphan-removal", Run: stageOrphanRemoval},
 		{Name: "create-api-refresh", Run: stageCreateAPIRefresh},
-		{Name: "adopt", Run: stageAdopt},
 		{Name: cmdCreateTest, Run: stageCreateTest},
 	}
 	stages = append(stages, f.Extra...)

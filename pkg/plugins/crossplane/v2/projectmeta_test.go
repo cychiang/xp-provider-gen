@@ -41,9 +41,9 @@ func TestLoadProjectMeta(t *testing.T) {
 		wantFlavor core.Flavor
 	}{
 		{
-			name:       "no plugin block defaults to native",
-			setup:      func(*testing.T, config.Config) {},
-			wantFlavor: core.FlavorNative,
+			name:    "no plugin block is refused",
+			setup:   func(*testing.T, config.Config) {},
+			wantErr: "could not be found",
 		},
 		{
 			name: "upjet flavor with a matching upjet block",
@@ -70,14 +70,14 @@ func TestLoadProjectMeta(t *testing.T) {
 			wantErr: "upjet",
 		},
 		{
-			name: "empty flavor string defaults to native",
+			name: "empty flavor is refused",
 			setup: func(t *testing.T, cfg config.Config) {
 				t.Helper()
 				if err := cfg.EncodePluginConfig(pluginName, projectMeta{Flavor: ""}); err != nil {
 					t.Fatalf("EncodePluginConfig: %v", err)
 				}
 			},
-			wantFlavor: core.FlavorNative,
+			wantErr: `unknown flavor ""`,
 		},
 		{
 			name: "unknown flavor is an error",

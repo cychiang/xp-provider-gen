@@ -372,7 +372,6 @@ var nativeFlavor = &Flavor{
 	TestKind:       widgetKind,
 	ToolProbe:      widgetWiring,
 	UserProbe:      widgetExternal,
-	AdoptFile:      widgetWiring,
 	StockMsg:       initialCommitMsg,
 	ToolOwned: []string{
 		"apis/register.go", "internal/controller/register.go", providerMain,
@@ -796,93 +795,6 @@ func (e *Env) refreshKeepsUserEdits(create []string) error {
 		return fmt.Errorf("user-owned %s was overwritten by create api", e.F.UserProbe)
 	}
 	return nil
-}
-
-// stageAdopt plants a sentinel stamp and strips a header, then asserts adopt
-// restores both. The sentinel is always planted, so the stamp check cannot
-// pass on a PROJECT that adopt never touched.
-func stageAdopt(e *Env) error {
-	const sentinel = "pre-contract"
-	want, err := e.stamp()
-	if err != nil {
-		return err
-	}
-	project, err := e.read("PROJECT")
-	if err != nil {
-		return err
-	}
-	adoptee := e.F.AdoptFile
-	owned, err := e.read(adoptee)
-	if err != nil {
-		return err
-	}
-	stripped, err := stripHeader(owned)
-	if err != nil {
-		return fmt.Errorf("%s: %w", adoptee, err)
-	}
-	for rel, s := range map[string]string{
-		"PROJECT": versionStamp.ReplaceAllString(project, "    version: "+sentinel),
-		adoptee:   stripped,
-	} {
-		if err := e.write(rel, []byte(s)); err != nil {
-			return err
-		}
-	}
-	if err := e.assertStamp(sentinel); err != nil {
-		return err
-	}
-	if err := e.commit("simulate a provider from before the ownership contract"); err != nil {
-		return err
-	}
-	out, err := e.head("update", "--adopt")
-	if err != nil {
-		return err
-	}
-	if err := contains(out, "Adopted 1 tool-owned file(s)", "update --adopt"); err != nil {
-		return err
-	}
-	if owned, err = e.read(adoptee); err != nil {
-		return err
-	}
-	if !strings.Contains(owned, headerMark) {
-		return fmt.Errorf("header still missing on %s after adopt", adoptee)
-	}
-	if err := e.assertStamp(want); err != nil {
-		return err
-	}
-	if err := e.assertOnlyChanged("adopt", adoptee, "PROJECT"); err != nil {
-		return err
-	}
-	return e.commit("adopt")
-}
-
-// assertOnlyChanged fails when the working tree differs from HEAD in a file
-// other than the ones named.
-func (e *Env) assertOnlyChanged(after string, allowed ...string) error {
-	changed, err := e.git("diff", "--name-only")
-	if err != nil {
-		return err
-	}
-	for _, rel := range strings.Fields(changed) {
-		if !slices.Contains(allowed, rel) {
-			return fmt.Errorf("%s touched %s, which is not one of %s", after, rel, strings.Join(allowed, ", "))
-		}
-	}
-	return nil
-}
-
-func stripHeader(s string) (string, error) {
-	var kept []string
-	lines := strings.Split(s, "\n")
-	for _, line := range lines {
-		if !strings.Contains(line, headerMark) {
-			kept = append(kept, line)
-		}
-	}
-	if len(kept) == len(lines) {
-		return "", fmt.Errorf("no header to strip")
-	}
-	return strings.Join(kept, "\n"), nil
 }
 
 // stock returns the clone stageStockClone makes and stageStockE2E runs in.

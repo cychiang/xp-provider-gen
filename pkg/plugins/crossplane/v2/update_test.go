@@ -100,7 +100,7 @@ func TestValidateProject(t *testing.T) {
 		wantErr    string
 	}{
 		{name: string(core.FlavorNative), meta: projectMeta{Flavor: core.FlavorNative}, wantErr: "reserved"},
-		{name: "unstamped reads as native", meta: projectMeta{}, wantErr: "reserved"},
+		{name: "unstamped is refused", meta: projectMeta{}, wantErr: `unknown flavor ""`},
 		{name: "upjet allows reserved kinds", meta: upjetTestMeta(), wantFlavor: core.FlavorUpjet},
 		{
 			name:    "unknown flavor is refused",
@@ -252,46 +252,6 @@ func TestUpdateCommand_RejectsTerraformVersionFlagBeforeRunning(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "TERRAFORM_PROVIDER_VERSION is set in the environment") {
 		t.Errorf("err = %q, want it to name the env-var rejection (RunE must call checkTerraformVersionFlag)", err)
-	}
-}
-
-// TestUpdateCommand_AdoptReturnsPrepareErrorBare pins that the --adopt branch
-// of RunE returns runAdopt's error unwrapped, not every error appended with
-// "changes are uncommitted; run 'git reset --hard' to revert" (revertAdvice's
-// no-seeded-files case). Before this, RunE always appended that advice, so
-// even a prepare failure — nothing written yet, since prepare fails before
-// any write — told the user to revert a change that was never made. This
-// runs somewhere that isn't a git repository at all, so prepare fails at
-// requireCleanTree's very first step: a real regression test without needing
-// a full scaffolded project on disk.
-func TestUpdateCommand_AdoptReturnsPrepareErrorBare(t *testing.T) {
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(wd) })
-	if err := os.Chdir(t.TempDir()); err != nil {
-		t.Fatalf("Chdir: %v", err)
-	}
-
-	cmd := NewUpdateCommand()
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-	cmd.SetArgs([]string{"--adopt"})
-
-	got := cmd.Execute()
-	if got == nil {
-		t.Fatal("Execute() = nil, want an error outside a git repository")
-	}
-	if strings.Contains(got.Error(), "git reset --hard") {
-		t.Errorf("err = %q, want it to NOT advise 'git reset --hard' for a failure before any write", got)
-	}
-}
-
-func assertContains(t *testing.T, label string, list []string, want string) {
-	t.Helper()
-	if !slices.Contains(list, want) {
-		t.Errorf("%s = %v, want to contain %q", label, list, want)
 	}
 }
 
@@ -491,27 +451,6 @@ func TestRunUpdate_RunsFinalizeThroughShims(t *testing.T) {
 		if !slices.Contains(calls, want) {
 			t.Errorf("shim calls = %q, want %q", calls, want)
 		}
-	}
-	if got := fx.projectVersion(t); got != version.Get().Version {
-		t.Errorf("PROJECT version = %q, want %q stamped", got, version.Get().Version)
-	}
-}
-
-func TestRunAdopt_RestoresStrippedHeader(t *testing.T) {
-	fx := newUpdateFixture(t)
-	stripped := strings.Replace(fx.read(t, apisRegisterPath), core.GeneratedHeader+"\n", "", 1)
-	fx.write(t, apisRegisterPath, stripped)
-	fx.write(t, "external.go", "package provider // user code\n")
-	fx.commit(t)
-
-	if err := runAdopt(t.Context(), fx.fs, false); err != nil {
-		t.Fatalf("runAdopt: %v", err)
-	}
-	if !strings.Contains(fx.read(t, apisRegisterPath), core.GeneratedHeader) {
-		t.Errorf("%s has no generated header after adopt", apisRegisterPath)
-	}
-	if got := fx.read(t, "external.go"); got != "package provider // user code\n" {
-		t.Errorf("external.go = %q, want user-owned file untouched", got)
 	}
 	if got := fx.projectVersion(t); got != version.Get().Version {
 		t.Errorf("PROJECT version = %q, want %q stamped", got, version.Get().Version)

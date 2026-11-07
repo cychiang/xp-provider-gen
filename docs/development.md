@@ -63,7 +63,7 @@ the golden-test step — is in [templates.md](templates.md).
 ## Updating an existing provider
 
 `xp-provider-gen update` refreshes tool-owned files in place and never touches user
-code. The contract, the review workflow, and `--adopt` are documented in
+code. The contract and the review workflow are documented in
 [provider-guide.md](provider-guide.md#5-upgrading).
 
 ## Dependency manifest

@@ -78,7 +78,6 @@ var upjetFlavor = &Flavor{
 	TestKind:  configMapKind,
 	ToolProbe: configZZ,
 	UserProbe: probeConfig,
-	AdoptFile: configProvider,
 	StockMsg:  userLogicMsg,
 	ToolOwned: []string{
 		configProvider, configZZ, makeFragment, ownershipDoc, providerMain, "internal/clients/resolve.go",

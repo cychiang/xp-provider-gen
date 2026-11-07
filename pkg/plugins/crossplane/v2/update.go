@@ -15,10 +15,9 @@ limitations under the License.
 */
 
 // The update command's own file: the cobra command, the prepare/run
-// orchestration shared with adopt, and the project-loading and
-// dependency-bumping helpers only update itself uses. The command's other
-// responsibilities live in core.Apply (the ownership-gated copy), reconcile.go
-// (orphan removal), adopt.go (--adopt) and tfversion.go
+// orchestration, and the project-loading and dependency-bumping helpers only
+// update itself uses. The command's other responsibilities live in core.Apply
+// (the ownership-gated copy), reconcile.go (orphan removal) and tfversion.go
 // (--terraform-provider-version).
 package v2
 
@@ -46,7 +45,7 @@ import (
 // NewUpdateCommand returns the `update` command, registered on the CLI via
 // cli.WithExtraCommands (kubebuilder's plugin interface has no update hook).
 func NewUpdateCommand() *cobra.Command {
-	var adopt, verbose bool
+	var verbose bool
 	var terraformProviderVersion string
 	cmd := &cobra.Command{
 		Use:   "update",
@@ -69,9 +68,6 @@ that lives in your Makefile — use --terraform-provider-version to bump it.
 The working tree must be clean; the result is left uncommitted so you can review it with
 'git diff' before committing. If a step fails midway, the error names exactly how to revert.
 
-Use --adopt once on a provider generated before the ownership contract existed: it stamps
-provenance and writes the header onto recognized tool-owned files so plain 'update' works.
-
 Plain 'update' prints counts; add --verbose to list each file by category — refreshed,
 unchanged (identical content, not rewritten), added and kept. Files whose rendered content
 already matches the disk are not rewritten.
@@ -81,9 +77,6 @@ provider: it rewrites the version in your Makefile, then runs the rest of update
 there is no way to bump only the version, since the generator refresh and framework
 dependency bump ride along in the same diff.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if adopt {
-				return runAdopt(context.Background(), afero.NewOsFs(), verbose)
-			}
 			if terraformProviderVersion != "" {
 				if err := checkTerraformVersionFlag(terraformProviderVersion); err != nil {
 					return err
@@ -92,22 +85,17 @@ dependency bump ride along in the same diff.`,
 			return runUpdate(context.Background(), afero.NewOsFs(), terraformProviderVersion, verbose)
 		},
 	}
-	cmd.Flags().BoolVar(&adopt, "adopt", false,
-		"retrofit an existing provider: stamp provenance and add the generated header to "+
-			"tool-owned files, then exit (run 'update' afterward to refresh them)")
 	cmd.Flags().StringVar(&terraformProviderVersion, "terraform-provider-version", "",
 		"bump the wrapped Terraform provider to this version (upjet only): rewrites the Makefile, "+
 			"then runs the rest of update as usual, including a fresh 'make generate'")
 	cmd.Flags().BoolVar(&verbose, "verbose", false,
-		"list every file by category (refreshed, unchanged, added, kept); with --adopt, list the adopted files")
-	cmd.MarkFlagsMutuallyExclusive("adopt", "terraform-provider-version")
+		"list every file by category (refreshed, unchanged, added, kept)")
 	return cmd
 }
 
-// prepare enforces the clean-tree precondition, loads and validates the project, and
-// renders the current template set of its flavor into an in-memory FS. Both update
-// and adopt start here; it also returns the project's plugin block so later steps
-// choose the same flavor's sets.
+// prepare enforces the clean-tree precondition, loads and validates the project,
+// and renders the current template set of its flavor into an in-memory FS. It also
+// returns the project's plugin block so later steps choose the same flavor's sets.
 func prepare(ctx context.Context, dst afero.Fs) (store.Store, afero.Fs, projectMeta, error) {
 	if err := requireCleanTree(ctx); err != nil {
 		return nil, nil, projectMeta{}, err

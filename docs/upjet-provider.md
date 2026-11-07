@@ -216,8 +216,7 @@ reviewable`. That coupling is deliberate: there is no way to bump only the Terra
 provider version through `update` — a generator upgrade and framework dependency bump ride
 along in the same diff. The flag refuses a non-semver value, an inherited
 `TERRAFORM_PROVIDER_VERSION` or `TERRAFORM_NATIVE_PROVIDER_BINARY` environment variable
-(either would silently win over the Makefile's `?=` assignment), `--adopt` used at the same
-time, and a non-upjet project. Run it on a clean tree, same as plain `update`, so the result
+(either would silently win over the Makefile's `?=` assignment), and a non-upjet project. Run it on a clean tree, same as plain `update`, so the result
 is reviewable as a diff.
 
 To bump *only* the version, without the generator refresh, edit `TERRAFORM_PROVIDER_VERSION`

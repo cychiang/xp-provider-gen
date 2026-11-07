@@ -17,7 +17,6 @@ limitations under the License.
 package v2
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -36,24 +35,18 @@ type projectMeta struct {
 	Upjet   *core.UpjetSettings `json:"upjet,omitempty"`
 }
 
-// loadProjectMeta reads this plugin's block. A project scaffolded before the
-// block existed has an empty flavor, which reads as native, which is what it
-// is. Any other unrecognized flavor is reported rather than silently
-// defaulted, since it means the file is corrupt, hand-edited, or was written
-// by a newer xp-provider-gen this build does not know how to handle. A block
-// that declares flavor: upjet but carries no upjet: settings is not a
-// missing block, it is a corrupt one — callers dereference meta.Upjet, so
-// this is reported too.
+// loadProjectMeta reads this plugin's block. A missing block, an empty flavor
+// and an unrecognized flavor are all reported rather than defaulted: each
+// means the file is corrupt, hand-edited, or was written by a newer
+// xp-provider-gen this build does not know how to handle. A block that
+// declares flavor: upjet but carries no upjet: settings is corrupt too —
+// callers dereference meta.Upjet, so this is reported as well.
 func loadProjectMeta(cfg config.Config) (projectMeta, error) {
 	var meta projectMeta
-	if err := cfg.DecodePluginConfig(pluginName, &meta); err != nil &&
-		!errors.Is(err, config.PluginKeyNotFoundError{Key: pluginName}) {
+	if err := cfg.DecodePluginConfig(pluginName, &meta); err != nil {
 		return projectMeta{}, fmt.Errorf("decoding %s project block: %w", pluginName, err)
 	}
-	switch {
-	case meta.Flavor == "":
-		meta.Flavor = core.FlavorNative
-	case !meta.Flavor.Valid():
+	if !meta.Flavor.Valid() {
 		return projectMeta{}, fmt.Errorf(
 			"PROJECT declares unknown flavor %q (known: %s); "+
 				"the file is corrupt, hand-edited, or written by a newer %s",

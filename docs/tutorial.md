@@ -448,8 +448,7 @@ git add -A && git commit -m "chore: update provider core"
 When the generator you built is the one that scaffolded the provider, `git diff` is empty
 and there is nothing to commit. After a release with template changes, the diff holds them.
 
-The [provider guide](provider-guide.md#5-upgrading) covers what to expect in that
-diff and how `--adopt` works for providers that predate the ownership contract.
+The [provider guide](provider-guide.md#5-upgrading) covers what to expect in that diff.
 
 ## Where to go next
 

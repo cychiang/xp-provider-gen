@@ -256,14 +256,12 @@ func stageRefuseOldGenerator(e *Env) error {
 }
 
 func (e *Env) refuseOnNewerProject() error {
-	for _, args := range [][]string{{"update"}, {"update", "--adopt"}} {
-		out, err := e.gen(args...)
-		if err := refused(out, err, refuseOlder, "release "+strings.Join(args, " ")+" on a newer project"); err != nil {
-			return err
-		}
-		if err := e.assertCleanTree("a refused " + strings.Join(args, " ")); err != nil {
-			return err
-		}
+	out, err := e.gen("update")
+	if err := refused(out, err, refuseOlder, "release update on a newer project"); err != nil {
+		return err
+	}
+	if err := e.assertCleanTree("a refused update"); err != nil {
+		return err
 	}
 	return e.refusedCreateAPI(refuseCreateOlder, "a newer project")
 }

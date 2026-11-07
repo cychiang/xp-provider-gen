@@ -294,25 +294,6 @@ func gitRepo(t *testing.T, files map[string]string) *Env {
 	return e
 }
 
-func TestAssertOnlyChangedFailsOnAnyOtherFile(t *testing.T) {
-	e := gitRepo(t, map[string]string{"a": "1", "b": "1", "PROJECT": "1"})
-	if err := e.assertOnlyChanged("adopt", "a", "PROJECT"); err != nil {
-		t.Fatalf("a clean tree failed: %v", err)
-	}
-	for rel, wantErr := range map[string]bool{"a": false, "PROJECT": false, "b": true} {
-		if err := e.write(rel, []byte("2")); err != nil {
-			t.Fatal(err)
-		}
-		err := e.assertOnlyChanged("adopt", "a", "PROJECT")
-		if (err != nil) != wantErr {
-			t.Errorf("changing %s: assertOnlyChanged = %v, wantErr %t", rel, err, wantErr)
-		}
-		if _, err := e.git("checkout", "--", rel); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
 func TestStockCloneChecksOutTheNamedCommitAndFailsWhenThereIsNone(t *testing.T) {
 	e := gitRepo(t, map[string]string{"a": "1"})
 	if err := e.write("a", []byte("2")); err != nil {

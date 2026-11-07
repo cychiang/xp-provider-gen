@@ -177,10 +177,10 @@ func (p *initSubcommand) Scaffold(fs machinery.Filesystem) error {
 	// Stamping the version here — not only on the first update — means a
 	// fresh project is protected by checkNotDowngrade from the moment it
 	// exists, not just after its first update.
-	if err := saveProjectMeta(p.config, func(m *projectMeta) {
-		m.Flavor = flavor
-		m.Upjet = upjet
-		m.Version = version.Get().Version
+	if err := p.config.EncodePluginConfig(pluginName, projectMeta{
+		Version: version.Get().Version,
+		Flavor:  flavor,
+		Upjet:   upjet,
 	}); err != nil {
 		return fmt.Errorf("recording project flavor: %w", err)
 	}
