@@ -33,7 +33,7 @@ import (
 const testKindSecret = "Secret"
 
 func testExampleResource() resource.Resource {
-	return resource.Resource{GVK: resource.GVK{Group: "core", Version: testVersionBeta, Kind: testKindSecret}}
+	return resource.Resource{GVK: resource.GVK{Group: updateTestGroup, Version: testVersionBeta, Kind: testKindSecret}}
 }
 
 // TestLoadExampleManifest pins that create-test derives its skeleton from

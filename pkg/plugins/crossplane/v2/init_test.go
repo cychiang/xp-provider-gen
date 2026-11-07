@@ -26,7 +26,6 @@ import (
 	"github.com/spf13/afero"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
-	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/core"
 	"github.com/cychiang/xp-provider-gen/pkg/version"
@@ -57,10 +56,20 @@ func captureStdout(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-// TestInitSubcommand_InjectConfig_RequiresDomain pins that init rejects an
+// newInitConfig returns the config a fresh init writes into.
+func newInitConfig(t *testing.T) config.Config {
+	t.Helper()
+	cfg, err := config.New(cfgv3.Version)
+	if err != nil {
+		t.Fatalf("config.New: %v", err)
+	}
+	return cfg
+}
+
+// TestWriteInit_RequiresDomain pins that init rejects an
 // empty --domain: it would produce a provider whose ProviderConfig group is
 // "" and whose CRDs get deleted by apis/generate.go's "no empty group" step.
-func TestInitSubcommand_InjectConfig_RequiresDomain(t *testing.T) {
+func TestWriteInit_RequiresDomain(t *testing.T) {
 	tests := []struct {
 		name    string
 		domain  string
@@ -82,22 +91,18 @@ func TestInitSubcommand_InjectConfig_RequiresDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.New(cfgv3.Version)
-			if err != nil {
-				t.Fatalf("config.New: %v", err)
-			}
+			cfg := newInitConfig(t)
 
-			p := &initSubcommand{domain: tt.domain, repo: tt.repo}
-			err = p.InjectConfig(cfg)
+			_, err := writeInit(t.Context(), afero.NewMemMapFs(), cfg, initOptions{domain: tt.domain, repo: tt.repo})
 
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("InjectConfig() error = %v, want containing %q", err, tt.wantErr)
+					t.Fatalf("writeInit() error = %v, want containing %q", err, tt.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("InjectConfig() unexpected error: %v", err)
+				t.Fatalf("writeInit() unexpected error: %v", err)
 			}
 			if got := cfg.GetDomain(); got != tt.domain {
 				t.Errorf("GetDomain() = %q, want %q", got, tt.domain)
@@ -106,20 +111,16 @@ func TestInitSubcommand_InjectConfig_RequiresDomain(t *testing.T) {
 	}
 }
 
-// TestInitSubcommand_InjectConfig_WarnsOnUnconventionalRepoName pins that
+// TestWriteInit_WarnsOnUnconventionalRepoName pins that
 // init prints the naming-convention warning from its own success path
 // (the validator itself must never print, see
 // TestValidator_ValidateRepository_NeverPrints) — exactly once.
-func TestInitSubcommand_InjectConfig_WarnsOnUnconventionalRepoName(t *testing.T) {
-	cfg, err := config.New(cfgv3.Version)
-	if err != nil {
-		t.Fatalf("config.New: %v", err)
-	}
-	p := &initSubcommand{domain: testDomain, repo: "github.com/example/not-conventional"}
+func TestWriteInit_WarnsOnUnconventionalRepoName(t *testing.T) {
+	o := initOptions{domain: testDomain, repo: "github.com/example/not-conventional"}
 
 	out := captureStdout(t, func() {
-		if err := p.InjectConfig(cfg); err != nil {
-			t.Fatalf("InjectConfig() unexpected error: %v", err)
+		if _, err := writeInit(t.Context(), afero.NewMemMapFs(), newInitConfig(t), o); err != nil {
+			t.Fatalf("writeInit() unexpected error: %v", err)
 		}
 	})
 
@@ -132,24 +133,18 @@ func TestInitSubcommand_InjectConfig_WarnsOnUnconventionalRepoName(t *testing.T)
 // generator's version into PROJECT's plugin block on the way in, the same
 // field update later reads as checkNotDowngrade's "last" — without
 // this, every project would be unprotected against a downgrade until its
-// first update. Scaffold only renders into the given machinery.Filesystem
-// (here an in-memory one); the post-init automation pipeline that touches
-// real disk and runs external commands lives in PostScaffold, which this
-// test never calls.
+// first update. writeInit only renders into the given filesystem (here an
+// in-memory one); the post-init automation pipeline that touches
+// real disk and runs external commands lives in runInit, which this test never
+// calls.
 func TestInitStampsGeneratorVersion(t *testing.T) {
-	cfg, err := config.New(cfgv3.Version)
-	if err != nil {
-		t.Fatalf("config.New: %v", err)
-	}
-	p := &initSubcommand{domain: testDomain, repo: testProviderRepo}
-	if err := p.InjectConfig(cfg); err != nil {
-		t.Fatalf("InjectConfig: %v", err)
-	}
-	if err := p.Scaffold(machinery.Filesystem{FS: afero.NewMemMapFs()}); err != nil {
-		t.Fatalf("Scaffold: %v", err)
+	cfg := newInitConfig(t)
+	o := initOptions{domain: testDomain, repo: testProviderRepo}
+	if _, err := writeInit(t.Context(), afero.NewMemMapFs(), cfg, o); err != nil {
+		t.Fatalf("writeInit: %v", err)
 	}
 
-	meta, err := loadProjectMeta(p.config)
+	meta, err := loadProjectMeta(cfg)
 	if err != nil {
 		t.Fatalf("loadProjectMeta: %v", err)
 	}
@@ -180,22 +175,15 @@ func TestInitNonEmptyDir(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.New(cfgv3.Version)
-			if err != nil {
-				t.Fatalf("config.New: %v", err)
-			}
-			p := &initSubcommand{domain: testDomain, repo: testProviderRepo}
-			if err := p.InjectConfig(cfg); err != nil {
-				t.Fatalf("InjectConfig: %v", err)
-			}
+			o := initOptions{domain: testDomain, repo: testProviderRepo}
 			dst := afero.NewMemMapFs()
 			if err := afero.WriteFile(dst, tt.path, []byte(tt.existing), 0o644); err != nil {
 				t.Fatalf("seeding %s: %v", tt.path, err)
 			}
 
 			out := captureStdout(t, func() {
-				if err := p.Scaffold(machinery.Filesystem{FS: dst}); err != nil {
-					t.Fatalf("Scaffold: %v", err)
+				if _, err := writeInit(t.Context(), dst, newInitConfig(t), o); err != nil {
+					t.Fatalf("writeInit: %v", err)
 				}
 			})
 
@@ -227,10 +215,10 @@ func TestInitEmptyDir(t *testing.T) {
 	const setupScript = "test/setup.sh" // headerless and executable in both flavors
 	tests := []struct {
 		name string
-		p    *initSubcommand
+		o    initOptions
 	}{
-		{string(core.FlavorNative), &initSubcommand{domain: testDomain, repo: testProviderRepo}},
-		{string(core.FlavorUpjet), &initSubcommand{
+		{string(core.FlavorNative), initOptions{domain: testDomain, repo: testProviderRepo}},
+		{string(core.FlavorUpjet), initOptions{
 			domain: testDomain, repo: testProviderRepo, upjet: true,
 			tfProvider: "hashicorp/kubernetes", tfProviderVersion: "2.30.0",
 			tfDocsPath: core.DefaultTerraformDocsPath,
@@ -238,17 +226,10 @@ func TestInitEmptyDir(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.New(cfgv3.Version)
-			if err != nil {
-				t.Fatalf("config.New: %v", err)
-			}
-			if err := tt.p.InjectConfig(cfg); err != nil {
-				t.Fatalf("InjectConfig: %v", err)
-			}
 			dst := afero.NewMemMapFs()
 			out := captureStdout(t, func() {
-				if err := tt.p.Scaffold(machinery.Filesystem{FS: dst}); err != nil {
-					t.Fatalf("Scaffold: %v", err)
+				if _, err := writeInit(t.Context(), dst, newInitConfig(t), tt.o); err != nil {
+					t.Fatalf("writeInit: %v", err)
 				}
 			})
 
@@ -273,7 +254,7 @@ func TestInitEmptyDir(t *testing.T) {
 	}
 }
 
-// Fixture values for TestInitSubcommand_GitIdentity.
+// Fixture values for TestInitOptions_GitIdentity.
 const (
 	testFlagGitName    = "Flag Name"
 	testFlagGitEmail   = "flag@example.com"
@@ -281,10 +262,10 @@ const (
 	testSystemGitEmail = "system@example.com"
 )
 
-// TestInitSubcommand_GitIdentity pins gitIdentity's three-tier priority: CLI
+// TestInitOptions_GitIdentity pins gitIdentity's three-tier priority: CLI
 // flags, then system git config (via query), then the project defaults
-// already in pluginConfig.
-func TestInitSubcommand_GitIdentity(t *testing.T) {
+// already in the plugin config.
+func TestInitOptions_GitIdentity(t *testing.T) {
 	tests := []struct {
 		name      string
 		gitName   string
@@ -327,14 +308,10 @@ func TestInitSubcommand_GitIdentity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := &initSubcommand{
-				gitName:      tt.gitName,
-				gitEmail:     tt.gitEmail,
-				pluginConfig: NewPluginConfig(),
-			}
+			o := initOptions{gitName: tt.gitName, gitEmail: tt.gitEmail}
 			query := func() (string, string) { return tt.sysName, tt.sysEmail }
 
-			gotName, gotEmail := p.gitIdentity(query)
+			gotName, gotEmail := o.gitIdentity(core.NewPluginConfig(), query)
 
 			if gotName != tt.wantName {
 				t.Errorf("gitIdentity() name = %q, want %q", gotName, tt.wantName)

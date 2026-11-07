@@ -47,7 +47,7 @@ const (
 )
 
 // newUpdateTestConfig builds a PROJECT config carrying the given plugin block
-// and resources, filled in the way createAPISubcommand.InjectResource does.
+// and resources, filled in the way newResource does.
 func newUpdateTestConfig(t *testing.T, meta projectMeta, kinds ...string) config.Config {
 	t.Helper()
 	cfg, err := config.New(cfgv3.Version)
@@ -65,6 +65,9 @@ func fillUpdateTestConfig(t *testing.T, cfg config.Config, meta projectMeta, kin
 	}
 	if err := cfg.SetRepository("github.com/example/provider-test"); err != nil {
 		t.Fatalf("SetRepository: %v", err)
+	}
+	if err := cfg.SetPluginChain([]string{pluginKey}); err != nil {
+		t.Fatalf("SetPluginChain: %v", err)
 	}
 	if err := cfg.EncodePluginConfig(pluginName, meta); err != nil {
 		t.Fatalf("EncodePluginConfig: %v", err)
@@ -418,6 +421,28 @@ func TestRunUpdate_RefusesDirtyTree(t *testing.T) {
 	}
 	if got := fx.goDirective(t); got != staleGoDirective {
 		t.Errorf("go directive = %q after a refused update, want it unchanged at %q", got, staleGoDirective)
+	}
+}
+
+// TestCommandsRefuseForeignLayoutFirst pins that a PROJECT of another tool is
+// refused on its layout by every command that loads it, even when the working
+// tree is also dirty (rewriting PROJECT dirties it), so the author is told
+// what the project is rather than to commit first.
+func TestCommandsRefuseForeignLayoutFirst(t *testing.T) {
+	fx := newUpdateFixture(t)
+	foreign := strings.Replace(fx.read(t, "PROJECT"), pluginKey, "go.kubebuilder.io/v4", 1)
+	fx.write(t, "PROJECT", foreign)
+	const want = "layout [go.kubebuilder.io/v4]"
+
+	if err := runUpdate(t.Context(), fx.fs, "", false); err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("runUpdate error = %v, want it to name the layout", err)
+	}
+	var out strings.Builder
+	if err := runCreateTest(fx.fs, "drift", "Widget", strings.NewReader(""), &out); err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("runCreateTest error = %v, want it to name the layout", err)
+	}
+	if err := runCreateAPI(t.Context(), fx.fs, createAPIOptions{group: "g", version: "v1", kind: "Gadget"}); err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("runCreateAPI error = %v, want it to name the layout", err)
 	}
 }
 

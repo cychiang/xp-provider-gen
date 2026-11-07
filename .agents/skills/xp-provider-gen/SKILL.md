@@ -176,9 +176,10 @@ header and is overwritten by `update`; everything else is yours forever — see 
 
 ### Ignore these
 
-`alpha`, `edit` and `create webhook` refuse outright (exit 1, "not supported"), even with
-`--help`. The `--plugins`/`--project-version` flags are Kubebuilder-framework leftovers, not part
-of this tool's supported surface.
+`alpha`, `edit` and `create webhook` are unknown commands (exit 1), even with `--help`, and
+`--plugins` and `--project-version` are unknown flags. `create api`, `create-test` and `update`
+refuse a PROJECT whose `layout:` is anything but exactly `crossplane.go.kubebuilder.io/v2`, since
+that is not a provider this tool scaffolded.
 
 `create api` also refuses in a git repository with no commit: `init` makes the scaffold commit
 last, so that repository means `init` did not finish. Fix what stopped it and run `init` again in

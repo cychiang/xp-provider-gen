@@ -29,7 +29,7 @@ const kindBucket = "Bucket"
 func testKinds() []resource.Resource {
 	return []resource.Resource{
 		{GVK: resource.GVK{Group: "compute", Version: testVersion, Kind: "Instance"}},
-		{GVK: resource.GVK{Group: "storage", Version: testVersion, Kind: kindBucket}},
+		{GVK: resource.GVK{Group: createAPIGroup, Version: testVersion, Kind: kindBucket}},
 	}
 }
 

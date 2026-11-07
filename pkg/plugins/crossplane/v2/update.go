@@ -31,7 +31,6 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config"
 	"sigs.k8s.io/kubebuilder/v4/pkg/config/store"
-	"sigs.k8s.io/kubebuilder/v4/pkg/config/store/yaml"
 	"sigs.k8s.io/kubebuilder/v4/pkg/machinery"
 
 	"github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2/automation"
@@ -42,8 +41,7 @@ import (
 	"github.com/cychiang/xp-provider-gen/pkg/versions"
 )
 
-// NewUpdateCommand returns the `update` command, registered on the CLI via
-// cli.WithExtraCommands (kubebuilder's plugin interface has no update hook).
+// NewUpdateCommand returns the `update` command.
 func NewUpdateCommand() *cobra.Command {
 	var verbose bool
 	var terraformProviderVersion string
@@ -93,15 +91,15 @@ dependency bump ride along in the same diff.`,
 	return cmd
 }
 
-// prepare enforces the clean-tree precondition, loads and validates the project,
+// prepare loads and validates the project, enforces the clean-tree precondition,
 // and renders the current template set of its flavor into an in-memory FS. It also
 // returns the project's plugin block so later steps choose the same flavor's sets.
 func prepare(ctx context.Context, dst afero.Fs) (store.Store, afero.Fs, projectMeta, error) {
-	if err := requireCleanTree(ctx); err != nil {
-		return nil, nil, projectMeta{}, err
-	}
 	st, err := loadProjectStore(dst)
 	if err != nil {
+		return nil, nil, projectMeta{}, err
+	}
+	if err := requireCleanTree(ctx); err != nil {
 		return nil, nil, projectMeta{}, err
 	}
 	meta, err := validateProject(st.Config())
@@ -238,14 +236,6 @@ func validateProject(cfg config.Config) (projectMeta, error) {
 // that PROJECT failed one of its checks.
 func projectNotUsable(err error) error {
 	return fmt.Errorf("PROJECT is not usable: %w", err)
-}
-
-func loadProjectStore(dst afero.Fs) (store.Store, error) {
-	st := yaml.New(machinery.Filesystem{FS: dst})
-	if err := st.Load(); err != nil {
-		return nil, fmt.Errorf("not a provider project (cannot load PROJECT): %w", err)
-	}
-	return st, nil
 }
 
 // requireCleanTree aborts unless the working tree has no uncommitted changes, so

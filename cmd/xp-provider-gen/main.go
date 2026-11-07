@@ -19,152 +19,88 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
+	"slices"
 
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/kubebuilder/v4/pkg/cli"
-	cfgv3 "sigs.k8s.io/kubebuilder/v4/pkg/config/v3"
 
 	crossplanev2 "github.com/cychiang/xp-provider-gen/pkg/plugins/crossplane/v2"
 	"github.com/cychiang/xp-provider-gen/pkg/version"
 )
 
-// Names of the Kubebuilder commands this generator refuses (refuseInert) and
-// hides from --help (hideInertCommands): "alpha", "edit" and "create webhook".
-// "create" is only the parent of "webhook" and is neither refused nor hidden.
-const (
-	alphaCommand   = "alpha"
-	editCommand    = "edit"
-	createCommand  = "create"
-	webhookCommand = "webhook"
-)
-
-// refuseInert exits before cli.New(...) is ever called if the invocation is
-// one of the Kubebuilder commands this generator cannot run. This must run
-// before construction, not after, for "alpha": Kubebuilder v4.15.0's cli.New
-// itself (pkg/cli/cli.go, getInfoFromConfigFile -> isAlphaGenerateCommand ->
-// patchProjectFileInMemoryIfNeeded) rewrites PROJECT on disk for any
-// invocation whose positional args are "alpha generate" (including "alpha
-// generate --help") — it does a blind strings.ReplaceAll of
-// "go.kubebuilder.io/v2" -> "go.kubebuilder.io/v4", and our plugin key
-// "crossplane.go.kubebuilder.io/v2" contains that literal substring, so it
-// gets corrupted into a key this generator never registers. That write
-// happens before the cobra tree exists, so hiding "alpha" from --help
-// (hideInertCommands, below) cannot prevent it — only never calling cli.New
-// for an alpha invocation can. Blocking the whole "alpha" tree here, not just
-// "alpha generate", is simpler than mirroring Kubebuilder's narrower check:
-// every alpha subcommand is inert for this plugin anyway (they hardcode a
-// lookup for the standard "go.kubebuilder.io/v4" plugin key, which this
-// generator never registers).
-//
-// "edit" and "create webhook" are refused for a different reason: the plugin
-// has no such subcommand, and Kubebuilder dereferences the nil one inside a
-// project (cmd_helpers.go), crashing with a goroutine trace. Their --help
-// is refused too, since it would list this plugin as supporting them.
-func refuseInert(args []string) {
-	if cmd := inertCommand(args); cmd != "" {
-		fmt.Fprintf(os.Stderr, "Error: %s is not supported by %s\n", cmd, version.CommandName)
-		os.Exit(1)
-	}
-}
-
-// inertCommand returns the name of the unsupported command args invoke, or ""
-// if args invoke a supported one.
-func inertCommand(args []string) string {
-	pos := positionalArgs(args)
-	// "help X" prints X's help, which lists this plugin as supporting it.
-	if len(pos) > 0 && pos[0] == "help" {
-		pos = pos[1:]
-	}
-	switch {
-	case len(pos) == 0:
-		return ""
-	case pos[0] == alphaCommand || pos[0] == editCommand:
-		return pos[0]
-	case pos[0] == createCommand && len(pos) > 1 && pos[1] == webhookCommand:
-		return createCommand + " " + webhookCommand
-	}
-	return ""
-}
-
-// positionalArgs returns the non-flag arguments in args, skipping
-// "--flag value" pairs the same way Kubebuilder's own isAlphaGenerateCommand
-// does (a "--flag=value" or a boolean "--flag" consumes only itself; a
-// "--flag value" pair consumes both tokens, recognized by the next token not
-// itself looking like a flag).
-func positionalArgs(args []string) []string {
-	var pos []string
-	skipNext := false
-	for i, arg := range args {
-		if skipNext {
-			skipNext = false
-			continue
-		}
-		if strings.HasPrefix(arg, "-") {
-			if !strings.Contains(arg, "=") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-				skipNext = true
-			}
-			continue
-		}
-		pos = append(pos, arg)
-	}
-	return pos
-}
-
 func main() {
-	refuseInert(os.Args[1:])
+	if err := newRootCommand().Execute(); err != nil {
+		os.Exit(1)
+	}
+}
 
-	versionInfo := version.Get()
-
-	c, err := cli.New(
-		cli.WithCommandName(version.CommandName),
-		cli.WithVersion(versionInfo.Short()),
-		cli.WithDescription("Crossplane Provider Generator - A tool for scaffolding Crossplane providers "+
-			"and managed resources following Crossplane v2 patterns"),
-		cli.WithDefaultProjectVersion(cfgv3.Version),
-		cli.WithPlugins(&crossplanev2.Plugin{}),
-		cli.WithDefaultPlugins(cfgv3.Version, &crossplanev2.Plugin{}),
-		cli.WithExtraCommands(crossplanev2.NewUpdateCommand(), crossplanev2.NewCreateTestCommand()),
-		cli.WithCompletion(),
+// newRootCommand builds the command tree. The root keeps cobra's default Args,
+// whose only check rejects an unknown subcommand of the root itself.
+func newRootCommand() *cobra.Command {
+	root := &cobra.Command{
+		Use: version.CommandName,
+		Long: "Crossplane Provider Generator - A tool for scaffolding Crossplane providers " +
+			"and managed resources following Crossplane v2 patterns",
+		SilenceUsage: true,
+	}
+	root.AddCommand(
+		crossplanev2.NewInitCommand(),
+		newCreateCommand(),
+		crossplanev2.NewCreateTestCommand(),
+		crossplanev2.NewUpdateCommand(),
+		&cobra.Command{
+			Use:   "version",
+			Short: "Print the " + version.CommandName + " version",
+			Args:  cobra.NoArgs,
+			Run: func(cmd *cobra.Command, _ []string) {
+				fmt.Fprintln(cmd.OutOrStdout(), version.Get().Short())
+			},
+		},
 	)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-		os.Exit(1)
-	}
-	hideInertCommands(c.Command())
-	if err := c.Run(); err != nil {
-		os.Exit(1)
-	}
+	root.SetHelpCommand(newHelpCommand())
+	return root
 }
 
-// hideInertCommands keeps the commands refuseInert stops ("edit", "create
-// webhook" and "alpha") out of --help, so it does not advertise functionality
-// this generator does not offer. Kubebuilder wires them into the command tree
-// regardless of what the plugin supports.
-func hideInertCommands(root *cobra.Command) {
-	hide(root, editCommand)
-	hide(root, createCommand, webhookCommand)
-	hide(root, alphaCommand)
-}
-
-// hide walks path (each element the Name() of one level) and marks the
-// command it resolves to Hidden. It is a no-op if the path does not resolve,
-// so a Kubebuilder upgrade that renames or removes one of these commands
-// fails safe (the command simply reappears in --help) rather than panicking.
-func hide(root *cobra.Command, path ...string) {
-	cmd := root
-	for _, name := range path {
-		var next *cobra.Command
-		for _, sub := range cmd.Commands() {
-			if sub.Name() == name {
-				next = sub
-				break
+// newCreateCommand returns `create`, whose only subcommand is `api`. Cobra
+// checks the arguments of a non-root command only after it has handled --help,
+// so `create webhook --help` would print this help and succeed. Flag parsing
+// is off so that every argument reaches RunE, which rejects anything but help.
+func newCreateCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "create",
+		Short:              "Scaffold a Crossplane API",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			for _, arg := range args {
+				if !slices.Contains([]string{"-h", "--help"}, arg) {
+					return unknownCommand(cmd, arg)
+				}
 			}
-		}
-		if next == nil {
-			return
-		}
-		cmd = next
+			return cmd.Help()
+		},
 	}
-	cmd.Hidden = true
+	cmd.AddCommand(crossplanev2.NewCreateAPICommand())
+	return cmd
+}
+
+// newHelpCommand replaces cobra's `help`, which prints the help of the nearest
+// command it finds: `help create webhook` would print `create`'s help and succeed.
+func newHelpCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "help [command]",
+		Short: "Help about any command",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			target, rest, err := cmd.Root().Find(args)
+			if err != nil {
+				return err
+			}
+			if len(rest) > 0 {
+				return unknownCommand(target, rest[0])
+			}
+			return target.Help()
+		},
+	}
+}
+
+func unknownCommand(parent *cobra.Command, name string) error {
+	return fmt.Errorf("unknown command %q for %q", name, parent.CommandPath())
 }
