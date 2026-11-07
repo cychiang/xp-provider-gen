@@ -6,11 +6,13 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -100,5 +102,34 @@ func TestUnpackBinaryFailsOnAnArchiveWithoutTheBinary(t *testing.T) {
 	}
 	if _, err := unpackBinary(archive, t.TempDir()); err == nil {
 		t.Fatal("unpacked an archive that holds no binary")
+	}
+}
+
+func TestListReleasesSkipsPreReleasesAndDrafts(t *testing.T) {
+	for _, flag := range []string{"--exclude-pre-releases", "--exclude-drafts"} {
+		if !slices.Contains(listReleasesArgs, flag) {
+			t.Errorf("gh release list lacks %s: a prerelease would fail every cell at the preflight", flag)
+		}
+	}
+}
+
+func TestNewEnvRemovesItsWorkDirectoryWhenTheReleaseFetchFails(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\nexit 1\n"), 0o700); err != nil { // #nosec G306 -- a test stub
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	logs := filepath.Join(t.TempDir(), "logs")
+	if _, err := newEnv(context.Background(), Case{From: "v0.1.0"}, "bin/xp-provider-gen", "overlay", logs); err == nil {
+		t.Fatal("newEnv succeeded with a failing gh")
+	}
+	left, err := os.ReadDir(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) != 0 {
+		t.Fatalf("a failed fetch left %d entries in the temp directory", len(left))
 	}
 }

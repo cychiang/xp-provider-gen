@@ -494,12 +494,12 @@ func stageUserLogic(e *Env) error {
 
 // stageUpdateToHead plants a stale go directive, because a release and head
 // can share one and the directive check would then pass on a file update never
-// touched. Head's update must then leave the user-owned seams alone, move the
+// touched. Head's update must then leave every user-owned file alone, move the
 // go directive to the one head pins, stamp PROJECT with head's version, and
 // keep the ownership contract. The stages that deploy and reconcile run on the
 // updated tree, so a provider that does not come up Ready fails there.
 func stageUpdateToHead(e *Env) error {
-	seams, err := e.readSeams()
+	userOwned, err := e.userOwned()
 	if err != nil {
 		return err
 	}
@@ -516,7 +516,7 @@ func stageUpdateToHead(e *Env) error {
 	if _, err := e.head("update"); err != nil {
 		return err
 	}
-	if err := e.assertSeamsUnchanged(seams, "update"); err != nil {
+	if err := e.assertUserOwnedUnchanged(userOwned); err != nil {
 		return err
 	}
 	if err := e.assertStampIsHeadVersion(); err != nil {

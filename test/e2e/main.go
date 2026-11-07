@@ -136,18 +136,30 @@ func newEnv(ctx context.Context, c Case, bin, overlay, logs string) (*Env, error
 		Toolchain:      c.Toolchain,
 		CreateAPIGuard: c.CreateAPIGuard,
 	}
-	if c.Release() {
-		if e.Gen, err = fetchRelease(ctx, c.From, work); err != nil {
-			return nil, err
-		}
-	}
-	if _, err := os.Stat(e.Head); err != nil {
-		return nil, fmt.Errorf("finding generator binary (run make build): %w", err)
-	}
-	if err := os.MkdirAll(e.Dir, 0o750); err != nil {
+	if err := e.prepare(ctx, c); err != nil {
+		e.cleanup(false, true)
 		return nil, err
 	}
-	return e, os.MkdirAll(e.Logs, 0o750)
+	return e, nil
+}
+
+// prepare fetches the release and makes the directories. A failure here
+// returns before run's own cleanup, so newEnv removes the work directory.
+func (e *Env) prepare(ctx context.Context, c Case) error {
+	if c.Release() {
+		gen, err := fetchRelease(ctx, c.From, e.Work)
+		if err != nil {
+			return err
+		}
+		e.Gen = gen
+	}
+	if _, err := os.Stat(e.Head); err != nil {
+		return fmt.Errorf("finding generator binary (run make build): %w", err)
+	}
+	if err := os.MkdirAll(e.Dir, 0o750); err != nil {
+		return err
+	}
+	return os.MkdirAll(e.Logs, 0o750)
 }
 
 func absolute(root, p string) string {

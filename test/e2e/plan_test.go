@@ -5,8 +5,12 @@ package main
 import (
 	"bytes"
 	"errors"
+	"os"
+	"slices"
 	"strings"
 	"testing"
+
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -242,5 +246,32 @@ func TestNewCaseResolvesHeadAReleaseAndRefusesTheRest(t *testing.T) {
 	}
 	if _, err := NewCase("native", "v0.9.0"); !errors.Is(err, ErrNotApplicable) || !strings.Contains(err.Error(), "predates the flavor") {
 		t.Errorf("not applicable error %v", err)
+	}
+}
+
+// TestWorkflowMatrixListsEveryRelease keeps the upgrade job's hand-kept
+// matrix.from equal to Releases: a release in only one runs in neither place
+// it should.
+func TestWorkflowMatrixListsEveryRelease(t *testing.T) {
+	b, err := os.ReadFile("../../.github/workflows/e2e-native-full.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wf struct {
+		Jobs map[string]struct {
+			Strategy struct {
+				Matrix struct {
+					From []string `json:"from"`
+				} `json:"matrix"`
+			} `json:"strategy"`
+		} `json:"jobs"`
+	}
+	if err := yaml.Unmarshal(b, &wf); err != nil {
+		t.Fatal(err)
+	}
+	got := slices.Clone(wf.Jobs["e2e-upgrade"].Strategy.Matrix.From)
+	slices.Sort(got)
+	if want := releaseTags(); !slices.Equal(got, want) {
+		t.Fatalf("e2e-native-full.yml e2e-upgrade matrix.from is %v, Releases in plan.go is %v: keep them equal", got, want)
 	}
 }

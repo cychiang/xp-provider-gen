@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -157,14 +158,13 @@ func (e *Env) makeSkippingGenerate() ([]string, error) {
 	return []string{"PATH=" + dir + string(os.PathListSeparator) + os.Getenv("PATH")}, nil
 }
 
-// toolOwned reads the files of a scaffold, tracked or not but not ignored,
-// that carry the generator's header in their first bytes.
-func (e *Env) toolOwned(dir string) (map[string][]byte, error) {
+// files reads every file of a scaffold, tracked or not but not ignored.
+func (e *Env) files(dir string) (map[string][]byte, error) {
 	listed, err := e.exec(dir, "", "git", "ls-files", "--cached", "--others", "--exclude-standard")
 	if err != nil {
 		return nil, err
 	}
-	owned := map[string][]byte{}
+	all := map[string][]byte{}
 	for _, rel := range strings.Split(listed, "\n") {
 		path := filepath.Join(dir, rel)
 		info, err := os.Stat(path)
@@ -178,11 +178,24 @@ func (e *Env) toolOwned(dir string) (map[string][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if bytes.Contains(b[:min(len(b), headerWindow)], []byte(generatedHead)) {
-			owned[rel] = b
-		}
+		all[rel] = b
 	}
-	return owned, nil
+	return all, nil
+}
+
+func hasGeneratedHeader(b []byte) bool {
+	return bytes.Contains(b[:min(len(b), headerWindow)], []byte(generatedHead))
+}
+
+// toolOwned reads the files of a scaffold that carry the generator's header
+// in their first bytes.
+func (e *Env) toolOwned(dir string) (map[string][]byte, error) {
+	all, err := e.files(dir)
+	if err != nil {
+		return nil, err
+	}
+	maps.DeleteFunc(all, func(_ string, b []byte) bool { return !hasGeneratedHeader(b) })
+	return all, nil
 }
 
 // compareToolOwned fails unless the updated tree has the fresh scaffold's
@@ -243,7 +256,7 @@ func stageRefuseOldGenerator(e *Env) error {
 
 func (e *Env) refuseOnNewerProject() error {
 	for _, args := range [][]string{{"update"}, {"update", "--adopt"}} {
-		out, err := e.exec(e.Dir, "", e.Gen, args...)
+		out, err := e.gen(args...)
 		if err := refused(out, err, refuseOlder, "release "+strings.Join(args, " ")+" on a newer project"); err != nil {
 			return err
 		}
@@ -282,4 +295,59 @@ func (e *Env) refusedCreateAPI(reason, on string) error {
 		return err
 	}
 	return e.assertCleanTree("a refused create api on " + on)
+}
+
+// updateRewrites names the files without the generator's header that update
+// is allowed to change, each with why. Every other such file is the author's
+// and must come out of update byte-identical, so a new user-owned file is
+// covered without being listed.
+var updateRewrites = []struct{ match, why string }{
+	{"PROJECT", "update stamps the generator's version"},
+	{"go.mod", "update moves the go directive to the one head pins"},
+	{"go.sum", "follows go.mod"},
+}
+
+func rewrittenByUpdate(rel string) (string, bool) {
+	for _, r := range updateRewrites {
+		if ok, _ := filepath.Match(r.match, rel); ok {
+			return r.why, true
+		}
+	}
+	return "", false
+}
+
+// userOwned reads the files of a scaffold that carry no generator header and
+// that update does not rewrite.
+func (e *Env) userOwned() (map[string][]byte, error) {
+	all, err := e.files(e.Dir)
+	if err != nil {
+		return nil, err
+	}
+	maps.DeleteFunc(all, func(rel string, b []byte) bool {
+		_, rewritten := rewrittenByUpdate(rel)
+		return hasGeneratedHeader(b) || rewritten
+	})
+	return all, nil
+}
+
+func (e *Env) assertUserOwnedUnchanged(before map[string][]byte) error {
+	now, err := e.userOwned()
+	if err != nil {
+		return err
+	}
+	var problems []string
+	for rel, b := range before {
+		got, ok := now[rel]
+		switch {
+		case !ok:
+			problems = append(problems, "gone after update: "+rel)
+		case !bytes.Equal(got, b):
+			problems = append(problems, "changed by update: "+rel)
+		}
+	}
+	if len(problems) > 0 {
+		slices.Sort(problems)
+		return fmt.Errorf("update touched user-owned files:\n%s", strings.Join(problems, "\n"))
+	}
+	return nil
 }

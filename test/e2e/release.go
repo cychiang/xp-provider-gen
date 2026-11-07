@@ -27,10 +27,16 @@ const (
 
 var ErrChecksum = errors.New("checksum mismatch")
 
+// listReleasesArgs leaves out prereleases and drafts: a cell must run only
+// what users install, and a prerelease tag is never in Releases.
+var listReleasesArgs = []string{
+	"release", "list", "-R", releaseRepo, "--limit", "1",
+	"--exclude-pre-releases", "--exclude-drafts", "--json", "tagName", "--jq", ".[].tagName",
+}
+
 // newestReleases asks GitHub for the newest published release tags, newest first.
 func newestReleases(ctx context.Context) ([]string, error) {
-	out, err := exec.CommandContext(ctx, "gh", "release", "list", "-R", releaseRepo, "--limit", "1",
-		"--json", "tagName", "--jq", ".[].tagName").Output() // #nosec G204 -- fixed command, no shell
+	out, err := exec.CommandContext(ctx, "gh", listReleasesArgs...).Output() // #nosec G204 -- fixed command, no shell
 	if err != nil {
 		return nil, fmt.Errorf("listing releases with gh: %w", err)
 	}
