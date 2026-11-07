@@ -460,11 +460,7 @@ func stageUpdateToHead(e *Env) error {
 	if err := e.assertSeamsUnchanged(seams, "update"); err != nil {
 		return err
 	}
-	wantStamp, err := e.head("version")
-	if err != nil {
-		return err
-	}
-	if err := e.assertStamp(wantStamp); err != nil {
+	if err := e.assertStampIsHeadVersion(); err != nil {
 		return err
 	}
 	got, err := e.goDirective()
@@ -478,6 +474,24 @@ func stageUpdateToHead(e *Env) error {
 		return err
 	}
 	return e.commit("update to head")
+}
+
+// assertStampIsHeadVersion compares without the leading v: the version command
+// adds one to a bare commit hash, which a checkout without tags reports, and
+// the stamp does not.
+func (e *Env) assertStampIsHeadVersion() error {
+	want, err := e.head("version")
+	if err != nil {
+		return err
+	}
+	got, err := e.stamp()
+	if err != nil {
+		return err
+	}
+	if strings.TrimPrefix(got, "v") != strings.TrimPrefix(want, "v") {
+		return fmt.Errorf("PROJECT stamp is %q, want head's version %q", got, want)
+	}
+	return nil
 }
 
 func (e *Env) headGoVersion() (string, error) {
