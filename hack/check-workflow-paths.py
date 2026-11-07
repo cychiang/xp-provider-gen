@@ -5,7 +5,7 @@ from fnmatch import fnmatch
 
 ENTRY = {   # workflow -> the scripts it runs, directly or via make
     ".github/workflows/e2e-native-full.yml": ["test/e2e"],
-    ".github/workflows/e2e-upjet.yml": ["scripts/e2e-upjet.sh"],
+    ".github/workflows/e2e-upjet.yml": ["test/e2e"],
 }
 COMMON = ["pkg/templates/generators", "pkg/templates/loader.go",
           "pkg/plugins/crossplane/v2", "pkg/versions", "Makefile"]

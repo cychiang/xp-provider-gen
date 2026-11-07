@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -79,42 +80,55 @@ func owned(files map[string]string) map[string][]byte {
 }
 
 func TestCompareToolOwnedNeedsTheFreshScaffoldsFilesWithTheSameBytes(t *testing.T) {
+	required := []string{connectorGo, widgetWiring, makeFragment}
 	fresh := func() map[string]string {
 		m := map[string]string{}
-		for _, rel := range requiredOwned {
+		for _, rel := range required {
 			m[rel] = "head " + rel
 		}
 		return m
 	}
 	tampered := fresh()
-	tampered[requiredOwned[0]] = "stale"
+	tampered[required[0]] = "stale"
 	missing := fresh()
-	delete(missing, requiredOwned[1])
+	delete(missing, required[1])
 	extra := fresh()
 	extra["internal/old.go"] = "a file head no longer renders"
 	noConnector := fresh()
-	delete(noConnector, requiredOwned[0])
+	delete(noConnector, required[0])
+
+	twoWrong := fresh()
+	twoWrong[required[0]] = "stale"
+	delete(twoWrong, required[1])
+	twoWrong["internal/old.go"] = "a file head no longer renders"
+	n := len(required)
 
 	cases := []struct {
-		name      string
-		got, want map[string]string
-		wantErr   string
+		name                string
+		got, want           map[string]string
+		wantErr             string
+		wantCompared, wantD *int
 	}{
-		{"identical", fresh(), fresh(), ""},
-		{"a stale file", tampered, fresh(), "differs from a fresh scaffold: " + requiredOwned[0]},
-		{"a file update never wrote", missing, fresh(), "missing after update: " + requiredOwned[1]},
-		{"a file update left behind", extra, fresh(), "not in a fresh scaffold: internal/old.go"},
-		{"an empty fresh set", fresh(), nil, errNoOwned.Error()},
-		{"a fresh set without the connector", noConnector, noConnector, "no tool-owned " + requiredOwned[0]},
+		{"identical", fresh(), fresh(), "", counted(n), counted(0)},
+		{"a stale file", tampered, fresh(), "differs from a fresh scaffold: " + required[0], counted(n), counted(1)},
+		{"a file update never wrote", missing, fresh(), "missing after update: " + required[1], counted(n), counted(1)},
+		{"a file update left behind", extra, fresh(), "not in a fresh scaffold: internal/old.go", counted(n), counted(1)},
+		{"three wrong at once", twoWrong, fresh(), "differs from a fresh scaffold", counted(n), counted(3)},
+		{"an empty fresh set", fresh(), nil, errNoOwned.Error(), nil, nil},
+		{"a fresh set without the connector", noConnector, noConnector, "no tool-owned " + required[0], nil, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := compareToolOwned(owned(c.got), owned(c.want))
+			compared, differing, err := compareToolOwned(owned(c.got), owned(c.want), required)
 			if c.wantErr == "" && err != nil {
 				t.Fatalf("compareToolOwned = %v, want nil", err)
 			}
 			if c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)) {
 				t.Fatalf("compareToolOwned = %v, want %q", err, c.wantErr)
+			}
+			if countOrNA(compared) != countOrNA(c.wantCompared) || countOrNA(differing) != countOrNA(c.wantD) {
+				t.Fatalf("compared %s, differing %s, want %s and %s",
+					countOrNA(compared), countOrNA(differing), countOrNA(c.wantCompared), countOrNA(c.wantD))
 			}
 		})
 	}
@@ -148,26 +162,180 @@ func TestCompareUserOwnedIgnoresGeneratedOutputAndFlagsAuthorFiles(t *testing.T)
 	}
 	before := map[string]string{author: mine, crd: oldGen, deepcopy: oldGen}
 	cases := []struct {
-		name    string
-		now     map[string]string
-		wantErr string
+		name        string
+		now         map[string]string
+		wantErr     string
+		wantChanged int
 	}{
-		{"a controller-gen bump", map[string]string{author: mine, crd: newGen, deepcopy: newGen}, ""},
-		{"a generated file update adds", map[string]string{author: mine, crd: oldGen, deepcopy: oldGen, "apis/v1alpha1/zz_generated.managed.go": newGen}, ""},
-		{"an author file changes", map[string]string{author: "theirs", crd: oldGen, deepcopy: oldGen}, "changed by update: " + author},
-		{"an author file goes", map[string]string{crd: oldGen, deepcopy: oldGen}, "gone after update: " + author},
-		{"update adds an author file", map[string]string{author: mine, crd: oldGen, deepcopy: oldGen, "internal/provider/extra.go": "x"}, "added by update: internal/provider/extra.go"},
-		{"a name that only resembles generated output", map[string]string{author: mine, "my_zz_generated.go": "x", "docs/package/crds/a.yaml": "x"}, "added by update: docs/package/crds/a.yaml\nadded by update: my_zz_generated.go"},
+		{"a controller-gen bump", map[string]string{author: mine, crd: newGen, deepcopy: newGen}, "", 0},
+		{"a generated file update adds", map[string]string{author: mine, crd: oldGen, deepcopy: oldGen, "apis/v1alpha1/zz_generated.managed.go": newGen}, "", 0},
+		{"an author file changes", map[string]string{author: "theirs", crd: oldGen, deepcopy: oldGen}, "changed by update: " + author, 1},
+		{"an author file goes", map[string]string{crd: oldGen, deepcopy: oldGen}, "gone after update: " + author, 1},
+		{"update adds an author file", map[string]string{author: mine, crd: oldGen, deepcopy: oldGen, "internal/provider/extra.go": "x"}, "added by update: internal/provider/extra.go", 1},
+		{"a name that only resembles generated output", map[string]string{author: mine, "my_zz_generated.go": "x", "docs/package/crds/a.yaml": "x"}, "added by update: docs/package/crds/a.yaml\nadded by update: my_zz_generated.go", 2},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := compareUserOwned(filter(before), filter(c.now))
+			changed, err := compareUserOwned(filter(before), filter(c.now))
 			if c.wantErr == "" && err != nil {
 				t.Fatalf("compareUserOwned = %v, want nil", err)
 			}
 			if c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)) {
 				t.Fatalf("compareUserOwned = %v, want %q", err, c.wantErr)
 			}
+			if changed != c.wantChanged {
+				t.Fatalf("changed %d, want %d", changed, c.wantChanged)
+			}
 		})
+	}
+}
+
+func TestAssertLayoutNamesEveryMissingFile(t *testing.T) {
+	dir := t.TempDir()
+	e := &Env{Dir: dir}
+	if err := os.WriteFile(filepath.Join(dir, "present"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.assertLayout([]string{"present"}); err != nil {
+		t.Fatalf("assertLayout = %v, want nil", err)
+	}
+	err := e.assertLayout([]string{"present", "gone/a.go", "gone/b.go"})
+	if err == nil || !strings.Contains(err.Error(), "gone/a.go\ngone/b.go") || strings.Contains(err.Error(), "present") {
+		t.Fatalf("assertLayout = %v, want exactly the two missing files", err)
+	}
+}
+
+func TestUpjetOutputIsLeftOutOfTheUserOwnedCheckButAuthorFilesAreNot(t *testing.T) {
+	const author = "internal/clients/user.go"
+	generated := []string{
+		"internal/controller/cluster/core/secret/zz_controller.go", "apis/cluster/zz_register.go",
+		"examples-generated/namespaced/core/v1alpha1/secret.yaml", "config/schema.json", "config/provider-metadata.yaml",
+	}
+	for _, rel := range generated {
+		if !isGeneratedOutput(rel) {
+			t.Errorf("%s is upjet's generated output and was not left out", rel)
+		}
+	}
+	for _, rel := range []string{author, "config/secret/config.go", "docs/schema.json", "examples/core/configmap.yaml"} {
+		if isGeneratedOutput(rel) {
+			t.Errorf("%s is the author's and was left out", rel)
+		}
+	}
+}
+
+func TestAssertBumpedAcceptsOnlyTheVersionReplacedInTheMakefile(t *testing.T) {
+	old := "export TERRAFORM_PROVIDER_VERSION ?= " + tfFrom + "\n" +
+		"export TERRAFORM_NATIVE_PROVIDER_BINARY ?= terraform-provider-kubernetes_v" + tfFrom + "_x5\n# mine\n"
+	bumped := strings.ReplaceAll(old, tfFrom, tfTo)
+	for name, c := range map[string]struct {
+		now     string
+		wantErr bool
+	}{
+		"the version replaced":    {bumped, false},
+		"nothing changed":         {old, true},
+		"an edit besides":         {bumped + "# more\n", true},
+		"one line left behind":    {strings.Replace(bumped, tfTo, tfFrom, 1), true},
+		"an author line removed":  {strings.ReplaceAll(bumped, "# mine\n", ""), true},
+		"the binary line missing": {strings.ReplaceAll(old, "terraform-provider-kubernetes_v"+tfFrom+"_x5", "x"), true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte(c.now), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			err := (&Env{Dir: dir}).assertBumped(old)
+			if (err != nil) != c.wantErr {
+				t.Fatalf("assertBumped = %v, wantErr %t", err, c.wantErr)
+			}
+		})
+	}
+}
+
+func TestUpjetCreateAPINamesTheTerraformResource(t *testing.T) {
+	for kind, want := range map[string]string{
+		probeKind: "--terraform-resource=kubernetes_secret", configMapKind: "--terraform-resource=kubernetes_config_map",
+		volumeKind: "--terraform-resource=kubernetes_secret",
+	} {
+		if args := upjetCreateAPI(kind); !slices.Contains(args, want) || !slices.Contains(args, "--kind="+kind) {
+			t.Errorf("create api for %s is %v, want %s", kind, args, want)
+		}
+	}
+}
+
+func TestUnstartedControllersNamesTheKindsNoStartLineMentions(t *testing.T) {
+	logs := `{"msg":"Starting Controller","controller":"managed/secret.core.example.m.com"}
+{"msg":"Starting Controller","controller":"providerconfig/config.example.m.com"}
+{"msg":"Starting workers","controller":"managed/configmap.core.example.m.com"}`
+	got := unstartedControllers(logs, []string{probeKind, configMapKind})
+	if want := []string{configMapKind}; !slices.Equal(got, want) {
+		t.Errorf("unstarted %v, want %v: a worker line is not a started controller", got, want)
+	}
+	if got := unstartedControllers("", []string{probeKind}); !slices.Equal(got, []string{probeKind, "ProviderConfig"}) {
+		t.Errorf("an empty log left %v unstarted", got)
+	}
+}
+
+func gitRepo(t *testing.T, files map[string]string) *Env {
+	t.Helper()
+	e := &Env{Ctx: t.Context(), Dir: t.TempDir(), log: io.Discard, F: upjetFlavor}
+	for _, args := range [][]string{{cmdInit, "-q"}, {"config", "user.name", "t"}, {"config", "user.email", "t@example.com"}} {
+		if _, err := e.git(args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for rel, s := range files {
+		if err := e.write(rel, []byte(s)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := e.commit(userLogicMsg); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+func TestAssertOnlyChangedFailsOnAnyOtherFile(t *testing.T) {
+	e := gitRepo(t, map[string]string{"a": "1", "b": "1", "PROJECT": "1"})
+	if err := e.assertOnlyChanged("adopt", "a", "PROJECT"); err != nil {
+		t.Fatalf("a clean tree failed: %v", err)
+	}
+	for rel, wantErr := range map[string]bool{"a": false, "PROJECT": false, "b": true} {
+		if err := e.write(rel, []byte("2")); err != nil {
+			t.Fatal(err)
+		}
+		err := e.assertOnlyChanged("adopt", "a", "PROJECT")
+		if (err != nil) != wantErr {
+			t.Errorf("changing %s: assertOnlyChanged = %v, wantErr %t", rel, err, wantErr)
+		}
+		if _, err := e.git("checkout", "--", rel); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestStockCloneChecksOutTheNamedCommitAndFailsWhenThereIsNone(t *testing.T) {
+	e := gitRepo(t, map[string]string{"a": "1"})
+	if err := e.write("a", []byte("2")); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.commit("later"); err != nil {
+		t.Fatal(err)
+	}
+	want, err := e.git("rev-parse", "HEAD~1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.Work = t.TempDir()
+	e.F = &Flavor{StockMsg: "no such commit"}
+	if err := stageStockClone(e); err == nil {
+		t.Error("stageStockClone found a commit no message names")
+	}
+	e.F = &Flavor{StockMsg: userLogicMsg}
+	if err := stageStockClone(e); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.exec(e.stock(), "", "git", "rev-parse", "HEAD")
+	if err != nil || got != want {
+		t.Errorf("the stock clone is at %q, %v, want %q", got, err, want)
 	}
 }

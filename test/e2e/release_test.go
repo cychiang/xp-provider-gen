@@ -17,7 +17,10 @@ import (
 	"testing"
 )
 
-const binaryBody = "binary"
+const (
+	binaryBody = "binary"
+	failingGh  = "#!/bin/sh\nexit 1\n"
+)
 
 func tarball(t *testing.T, entries map[string]string) []byte {
 	t.Helper()
@@ -108,13 +111,13 @@ func TestUnpackBinaryFailsOnAnArchiveWithoutTheBinary(t *testing.T) {
 func TestNewestReleasesAsksGhForPublishedReleasesOnly(t *testing.T) {
 	bin := t.TempDir()
 	argsFile := filepath.Join(t.TempDir(), "args")
-	stub := "#!/bin/sh\necho \"$@\" > '" + argsFile + "'\necho v0.3.0\n"
+	stub := "#!/bin/sh\necho \"$@\" > '" + argsFile + "'\necho " + newestTag + "\n"
 	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(stub), 0o700); err != nil { // #nosec G306 -- a test stub
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	tags, err := newestReleases(context.Background())
-	if err != nil || !slices.Equal(tags, []string{"v0.3.0"}) {
+	if err != nil || !slices.Equal(tags, []string{newestTag}) {
 		t.Fatalf("newestReleases = %v, %v, want [v0.3.0]", tags, err)
 	}
 	got, err := os.ReadFile(argsFile) // #nosec G304 -- a file this test wrote
@@ -123,21 +126,49 @@ func TestNewestReleasesAsksGhForPublishedReleasesOnly(t *testing.T) {
 	}
 	for _, flag := range []string{"--exclude-pre-releases", "--exclude-drafts"} {
 		if !strings.Contains(string(got), flag) {
-			t.Errorf("gh ran as %q, lacking %s: a prerelease would fail every cell at the preflight", got, flag)
+			t.Errorf("gh ran as %q, lacking %s: a prerelease would be the release the upgrade cell scaffolds with", got, flag)
 		}
+	}
+}
+
+func TestResolveFromTurnsLatestIntoTheNewestTagAndLeavesTheRest(t *testing.T) {
+	stubGh := func(t *testing.T, script string) {
+		bin := t.TempDir()
+		if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(script), 0o700); err != nil { // #nosec G306 -- a test stub
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	}
+	for _, c := range []struct {
+		name, gh, from, want string
+		wantErr              bool
+	}{
+		{"latest", "#!/bin/sh\necho v1.2.3\n", fromLatest, "v1.2.3", false},
+		{"an explicit tag asks gh nothing", failingGh, newestTag, newestTag, false},
+		{"head asks gh nothing", failingGh, fromHead, fromHead, false},
+		{"latest with no release", "#!/bin/sh\n", fromLatest, "", true},
+		{"latest when gh fails", failingGh, fromLatest, "", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			stubGh(t, c.gh)
+			got, err := resolveFrom(context.Background(), c.from)
+			if (err != nil) != c.wantErr || got != c.want {
+				t.Fatalf("resolveFrom(%q) = %q, %v, want %q, error %t", c.from, got, err, c.want, c.wantErr)
+			}
+		})
 	}
 }
 
 func TestNewEnvRemovesItsWorkDirectoryWhenTheReleaseFetchFails(t *testing.T) {
 	bin := t.TempDir()
-	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\nexit 1\n"), 0o700); err != nil { // #nosec G306 -- a test stub
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(failingGh), 0o700); err != nil { // #nosec G306 -- a test stub
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	tmp := t.TempDir()
 	t.Setenv("TMPDIR", tmp)
 	logs := filepath.Join(t.TempDir(), "logs")
-	if _, err := newEnv(context.Background(), Case{From: "v0.1.0"}, "bin/xp-provider-gen", "overlay", logs); err == nil {
+	if _, err := newEnv(context.Background(), Case{From: "v0.1.0"}, nativeFlavor, "bin/xp-provider-gen", "overlay", logs); err == nil {
 		t.Fatal("newEnv succeeded with a failing gh")
 	}
 	left, err := os.ReadDir(tmp)
@@ -146,5 +177,18 @@ func TestNewEnvRemovesItsWorkDirectoryWhenTheReleaseFetchFails(t *testing.T) {
 	}
 	if len(left) != 0 {
 		t.Fatalf("a failed fetch left %d entries in the temp directory", len(left))
+	}
+}
+
+func TestNewestReleasesCarriesGhsStderrInItsError(t *testing.T) {
+	bin := t.TempDir()
+	stub := "#!/bin/sh\necho 'gh: To use GitHub CLI, run: gh auth login' >&2\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(stub), 0o700); err != nil { // #nosec G306 -- a test stub
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	_, err := newestReleases(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "gh auth login") {
+		t.Fatalf("newestReleases = %v, want gh's stderr in the error", err)
 	}
 }

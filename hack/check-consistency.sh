@@ -69,48 +69,6 @@ report C3 "make help lists exactly the documented targets" "$(
     comm -13 <(echo "$documented") <(echo "$listed") | sed 's/^/in make help but not documented: /'
 )"
 
-# The e2e scripts are read and edited as one family; a skeleton that differs in
-# one of them makes every cross-script edit a guessing game. Each facet is checked
-# against its expected value, not just for agreement, so the whole family cannot
-# quietly slide back together (to `set -e`, or to no lib.sh) with nothing noticing.
-# assert-layout.sh is held to strict mode only: it is standalone, so it neither
-# sources lib.sh nor uses step_header. (lib.sh is sourced, so it deliberately has
-# no `set`.)
-# facet FILE NAME prints one line describing how FILE handles NAME.
-facet() {
-    case $2 in
-        "set line")         grep -m1 '^set -' "$1" || echo "(none)" ;;
-        "sources lib.sh")   grep -q 'source .*lib\.sh' "$1" && echo yes || echo no ;;
-        "line-2 comment")   sed -n 2p "$1" | grep -q '^# ' && echo yes || echo no ;;
-        "uses step_header") grep -q 'step_header' "$1" && echo yes || echo no ;;
-    esac
-}
-# want_facet NAME WANT FILE... records every FILE whose NAME facet is not WANT.
-skeleton=""
-want_facet() {
-    local name=$1 want=$2 f got
-    shift 2
-    for f in "$@"; do
-        got=$(facet "$f" "$name")
-        [ "$got" = "$want" ] || skeleton="$skeleton$f: $name is '$got', want '$want'"$'\n'
-    done
-}
-want_facet "set line" "set -euo pipefail" scripts/e2e-*.sh scripts/assert-layout.sh
-for name in "sources lib.sh" "line-2 comment" "uses step_header"; do
-    want_facet "$name" yes scripts/e2e-*.sh
-done
-report C4 "scripts share strict mode and one e2e skeleton" "${skeleton%$'\n'}"
-
-# Each e2e run deletes and recreates its working directories; one shared prefix
-# keeps that cleanup away from anything else in /tmp and makes leftovers easy
-# to recognise. Covers every script, including the lib.sh they all source.
-# grep exits 1 for "no matches" (fine) and 2 when it could not scan (a violation).
-tmp_paths=$(grep -noE '/tmp/[^[:space:]"'"'"')]*' scripts/*.sh) || [ $? -eq 1 ] ||
-    tmp_paths="grep failed while scanning scripts/*.sh"
-report C5 "script scratch paths use the /tmp/xpg-e2e- prefix" "$(
-    printf '%s\n' "$tmp_paths" | grep -v ':/tmp/xpg-e2e-' || true
-)"
-
 # One concept, one word. These are the retired spellings from the terminology
 # cleanup; if they reappear, two names for the same thing are back in circulation.
 report C6 "retired terminology is gone" "$(
