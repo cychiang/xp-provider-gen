@@ -34,8 +34,10 @@ jobs:
 
         echo "Changed files: $CHANGED_FILES"
 
-        # Check if any Go source files, templates, or build files changed
-        if echo "$CHANGED_FILES" | grep -E '\.(go|tmpl|yaml|yml|mod|sum|sh)$|Makefile|Dockerfile'; then
+        # Anything that is not docs counts as source, so a file type nobody
+        # listed still runs the e2e. Keep this ignore list equal to the
+        # paths-ignore in e2e-native-full.yml and e2e-upjet.yml.
+        if echo "$CHANGED_FILES" | grep -vE '^(docs/|LICENSE$)|\.md$' | grep .; then
           echo "source=true" >> $GITHUB_OUTPUT
           echo "Source code changes detected"
         else
@@ -100,7 +102,7 @@ jobs:
     # generate, user logic, update, create api refresh, adopt) and ends in
     # VERDICT PARTIAL naming each stage it did not run. The cluster stages are
     # minutes of Docker time that does not belong on every PR; they run weekly,
-    # and on relevant PRs, in e2e-native-full.yml.
+    # and on every PR that changes a non-doc file, in e2e-native-full.yml.
     - name: Run native E2E stages (fast mode, cluster stages not run)
       run: make e2e-native E2E_ARGS="--mode=fast --logs=${{ runner.temp }}/e2e-logs"
 

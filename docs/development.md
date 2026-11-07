@@ -38,9 +38,9 @@ Run `make help` for the full target list. A few aren't obvious from their name a
 
 ## Consistency gate
 
-`make check-consistency` runs `hack/check-consistency.sh`, seven checks that stop drift from
+`make check-consistency` runs `hack/check-consistency.sh`, six checks that stop drift from
 growing back: stale script names, a `Makefile` whose `.PHONY` or `make help` disagrees with its
-targets, retired terminology, non-gerund error strings, workflow `paths:` filters,
+targets, retired terminology, non-gerund error strings,
 markdown links/anchors that no longer resolve. To add a check, append a `report Cn "<title>" "<violations>"` block to the script; CI
 and `make reviewable` both run it.
 

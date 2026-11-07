@@ -101,14 +101,6 @@ bare_verb_errors=$(git ls-files --cached --others --exclude-standard -z -- '*.go
     }' /dev/null) || bare_verb_errors="scanning *.go for error strings failed"
 report C7 "error strings start with a gerund, not a bare verb" "$bare_verb_errors"
 
-# A workflow whose paths: filter misses a file it depends on silently skips the
-# e2e run on the PRs that most need it. The logic lives in the Python script.
-if out=$(python3 hack/check-workflow-paths.py 2>&1); then
-    report C8 "workflow paths filters match the files each e2e workflow uses" ""
-else
-    report C8 "workflow paths filters match the files each e2e workflow uses" "${out:-hack/check-workflow-paths.py failed}"
-fi
-
 # A relative markdown link or #anchor that no longer resolves reads as valid but
 # sends a reader nowhere. The logic lives in the Python script.
 if out=$(python3 hack/check-links.py 2>&1); then

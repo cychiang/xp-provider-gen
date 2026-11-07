@@ -79,8 +79,8 @@ reconsider.
 - `pkg/versions/`, `pkg/version/` — see Core concepts above
 - `test/e2e/` — the Go stage harness behind both e2e targets; see [docs/testing.md](docs/testing.md)
 - `scripts/check-go-version/` — fails CI when `go_version` is below what a pinned dependency requires
-- `hack/check-consistency.sh` — the gate behind `make check-consistency`, seven checks including
-  `hack/check-workflow-paths.py` and `hack/check-links.py` (markdown links and anchors)
+- `hack/check-consistency.sh` — the gate behind `make check-consistency`, six checks including
+  `hack/check-links.py` (markdown links and anchors)
 - `hack/cliff-golden.sh` — golden test for `cliff.toml`'s git-cliff rules (version bump, note
   grouping, ASCII normalization); runs as a step of every `release.yml` run
 - `.goreleaser.yaml`, `cliff.toml` — release automation config for `release.yml`: GoReleaser

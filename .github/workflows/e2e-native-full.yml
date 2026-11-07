@@ -10,24 +10,19 @@ permissions:
 # scaffolded by the newest published release (the check that protects provider
 # authors from a breaking generator bump) are both expensive and both valuable,
 # so they run here instead. The full run is on a weekly schedule, on demand, and
-# on PRs that touch the generator surfaces it exercises (so a PR that changes
-# that surface is verified before merge, not just after, without slowing down
-# unrelated PRs). The upgrade run is on the schedule and on demand only.
+# on every PR except one that touches only docs (paths-ignore): a path allow-list
+# silently skips the PRs whose dependency it forgot, so this lists what is safe
+# to skip, not what to run. The upgrade run is on the schedule and on demand only.
 on:
   schedule:
     - cron: '0 5 * * 1'
   workflow_dispatch: {}
   pull_request:
     branches: [ main, develop ]
-    paths:
-      - 'pkg/plugins/crossplane/v2/**'
-      - 'pkg/templates/files/**'
-      - 'pkg/templates/generators/**'
-      - 'pkg/templates/loader.go'
-      - 'pkg/versions/**'
-      - 'test/e2e/**'
-      - 'Makefile'
-      - '.github/workflows/e2e-native-full.yml'
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
 
 jobs:
   e2e-native-full:
