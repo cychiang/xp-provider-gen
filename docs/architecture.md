@@ -115,9 +115,8 @@ second are files we decline to manage.
 tool-owned, and skip otherwise. The golden test `templates/engine/ownership_test.go` asserts
 every template's bucket, so a new template fails until someone decides its owner. Without it, a
 tool-owned template that forgot its header would be user-owned, and `update` would never
-refresh it. `go.mod` is seed-once, and `update` changes it in two ways only: it raises the
-`go` directive to `go_version` and never lowers it (`godirective.go` parses with `modfile`,
-keeps everything else, and writes the file), and it runs `go get` for each pinned dependency.
+refresh it. `go.mod` is seed-once, and `update` changes it only as step 7 of
+[§7](#7-the-update-command) describes.
 
 **Every write and delete passes `core.CheckContained`.** Rendered paths come from PROJECT, so
 a hand-edited PROJECT must not turn `update` into an arbitrary-file-write primitive.
@@ -151,7 +150,9 @@ uncommitted for review.
 6. **Remove orphans.** A file is a candidate only if git tracks it (`git ls-files`, so an
    ignored file is never one), it carries the header, and no template renders it now.
 7. **Raise the go directive, then bump dependencies** from the manifest. The directive moves to
-   `go_version` only if it is lower. A higher one is the author's and stays.
+   `go_version` only if it is lower (`godirective.go` parses with `modfile` and keeps
+   everything else). A higher one is the author's and stays. Then `go get` runs for each pinned
+   dependency. These are the only changes `update` makes to the seed-once `go.mod`.
 8. **Finalize.** Native runs tidy, generate and reviewable. Upjet runs generate first, because
    tidy cannot resolve the packages that generation produces. Then `update` stamps the
    generator version into PROJECT.
