@@ -68,7 +68,7 @@ jobs:
   e2e-upjet-upgrade:
     name: E2E (upjet, upgrade from ${{ matrix.from }})
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

@@ -107,7 +107,8 @@ pipeline: unit tests alone do not catch broken generated output.
 ## Upgrade from a released binary (`--from=<tag>`)
 
 `make e2e-native E2E_ARGS=--from=v0.3.0` runs the native stages with the published release's own
-binary doing `init` and `create api`, and the binary under test doing everything after. That is
+binary doing `init` and `create api`, and the binary under test doing everything after. `make e2e-upjet
+E2E_ARGS=--from=v0.3.0` does the same for an upjet provider; its stages are in the upjet section below. That is
 the one run in which tool-owned files receive a real generator's changes, which the
 same-generator `update-noop` cannot show. The `update-to-head` and `refuse-old-generator` stages are added and `stock-e2e` is dropped; the rest are the
 stages above.
@@ -148,6 +149,9 @@ updated provider, so one that does not come up `Ready` fails there. `orphan-remo
 file that carries the generated header but that no template renders, and asserts `update`
 removes and names it, leaves a gitignored file with the same header alone, and changes nothing
 else.
+
+The `E2E (upjet, upgrade from <tag>)` jobs in `e2e-upjet.yml` run one release each for the upjet flavor, with
+the same limit. Every published release applies to upjet: v0.1.0, v0.2.0 and v0.3.0 each ran every stage.
 
 The `E2E (upgrade from <tag>)` jobs in `e2e-native-full.yml` run one release each, with a
 20-minute limit that only cancels a hung run. A cell took 9m45s to 10m16s on a runner, and the
