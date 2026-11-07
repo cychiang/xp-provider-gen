@@ -17,7 +17,10 @@ import (
 	"testing"
 )
 
-const binaryBody = "binary"
+const (
+	binaryBody = "binary"
+	failingGh  = "#!/bin/sh\nexit 1\n"
+)
 
 func tarball(t *testing.T, entries map[string]string) []byte {
 	t.Helper()
@@ -108,13 +111,13 @@ func TestUnpackBinaryFailsOnAnArchiveWithoutTheBinary(t *testing.T) {
 func TestNewestReleasesAsksGhForPublishedReleasesOnly(t *testing.T) {
 	bin := t.TempDir()
 	argsFile := filepath.Join(t.TempDir(), "args")
-	stub := "#!/bin/sh\necho \"$@\" > '" + argsFile + "'\necho v0.3.0\n"
+	stub := "#!/bin/sh\necho \"$@\" > '" + argsFile + "'\necho " + newestTag + "\n"
 	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(stub), 0o700); err != nil { // #nosec G306 -- a test stub
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	tags, err := newestReleases(context.Background())
-	if err != nil || !slices.Equal(tags, []string{"v0.3.0"}) {
+	if err != nil || !slices.Equal(tags, []string{newestTag}) {
 		t.Fatalf("newestReleases = %v, %v, want [v0.3.0]", tags, err)
 	}
 	got, err := os.ReadFile(argsFile) // #nosec G304 -- a file this test wrote
@@ -141,10 +144,10 @@ func TestResolveFromTurnsLatestIntoTheNewestTagAndLeavesTheRest(t *testing.T) {
 		wantErr              bool
 	}{
 		{"latest", "#!/bin/sh\necho v1.2.3\n", fromLatest, "v1.2.3", false},
-		{"an explicit tag asks gh nothing", "#!/bin/sh\nexit 1\n", "v0.3.0", "v0.3.0", false},
-		{"head asks gh nothing", "#!/bin/sh\nexit 1\n", fromHead, fromHead, false},
+		{"an explicit tag asks gh nothing", failingGh, newestTag, newestTag, false},
+		{"head asks gh nothing", failingGh, fromHead, fromHead, false},
 		{"latest with no release", "#!/bin/sh\n", fromLatest, "", true},
-		{"latest when gh fails", "#!/bin/sh\nexit 1\n", fromLatest, "", true},
+		{"latest when gh fails", failingGh, fromLatest, "", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			stubGh(t, c.gh)
@@ -158,7 +161,7 @@ func TestResolveFromTurnsLatestIntoTheNewestTagAndLeavesTheRest(t *testing.T) {
 
 func TestNewEnvRemovesItsWorkDirectoryWhenTheReleaseFetchFails(t *testing.T) {
 	bin := t.TempDir()
-	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\nexit 1\n"), 0o700); err != nil { // #nosec G306 -- a test stub
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(failingGh), 0o700); err != nil { // #nosec G306 -- a test stub
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))

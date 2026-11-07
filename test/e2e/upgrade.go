@@ -104,7 +104,7 @@ func (e *Env) assertUserLogicWorks() error {
 // byte-identical to the fresh one's, and the two sets to be the same. Only the
 // scaffold's own files are compared, so the fresh run skips the generate and
 // reviewable that init and create api would otherwise run for minutes.
-func (e *Env) assertToolOwnedMatchesFreshScaffold() (compared, differing int, err error) {
+func (e *Env) assertToolOwnedMatchesFreshScaffold() (int, int, error) {
 	fresh, err := os.MkdirTemp(e.Work, "fresh-")
 	if err != nil {
 		return 0, 0, err
@@ -203,7 +203,7 @@ func (e *Env) toolOwned(dir string) (map[string][]byte, error) {
 // on a set missing the files whose refresh matters most, so an empty or
 // header-less walk cannot pass. It returns how many files it compared and how
 // many differ, whether or not it fails.
-func compareToolOwned(got, want map[string][]byte, required []string) (compared, differing int, err error) {
+func compareToolOwned(got, want map[string][]byte, required []string) (int, int, error) {
 	if len(want) == 0 {
 		return 0, 0, errNoOwned
 	}
@@ -363,7 +363,7 @@ func keepUserOwned(all map[string][]byte) map[string][]byte {
 // assertUserOwnedUnchanged compares the user-owned files now with before, leaving
 // out the paths in except, which the caller checks itself. It returns how many
 // files changed, whether or not it fails.
-func (e *Env) assertUserOwnedUnchanged(before map[string][]byte, except ...string) (changed int, err error) {
+func (e *Env) assertUserOwnedUnchanged(before map[string][]byte, except ...string) (int, error) {
 	now, err := e.userOwned()
 	if err != nil {
 		return 0, err

@@ -18,37 +18,47 @@ import (
 
 func main() { os.Exit(run()) }
 
-func run() (code int) {
-	flavor := flag.String("flavor", "native", "flavor to test")
-	mode := flag.String("mode", string(ModeFull),
+// options are the flags of one run.
+type options struct {
+	flavor, mode, from, bin, overlay, logs, report string
+	list                                           bool
+}
+
+func run() int {
+	var o options
+	flag.StringVar(&o.flavor, "flavor", "native", "flavor to test")
+	flag.StringVar(&o.mode, "mode", string(ModeFull),
 		"full runs every stage and fails without Docker; fast runs the stages that need none and reports PARTIAL")
-	from := flag.String("from", fromHead,
+	flag.StringVar(&o.from, "from", fromHead,
 		"binary that scaffolds: head, latest (the newest published release), or a release tag such as v0.3.0")
-	list := flag.Bool("list", false, "print the declared stages and exit; with --from a release, only those that apply")
-	bin := flag.String("bin", "bin/xp-provider-gen", "binary under test")
-	overlay := flag.String("overlay", "",
+	flag.BoolVar(&o.list, "list", false,
+		"print the declared stages and exit; with --from a release, only those that apply")
+	flag.StringVar(&o.bin, "bin", "bin/xp-provider-gen", "binary under test")
+	flag.StringVar(&o.overlay, "overlay", "",
 		"overlay tree, laid over the scaffold at the same paths (default test/e2e/testdata/<flavor>)")
-	logs := flag.String("logs", "", "directory for per-stage logs (default: a new temporary directory)")
-	reportPath := flag.String("report", "", "file to write the JSON report to, also when the run fails")
+	flag.StringVar(&o.logs, "logs", "", "directory for per-stage logs (default: a new temporary directory)")
+	flag.StringVar(&o.report, "report", "", "file to write the JSON report to, also when the run fails")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	rep := Report{Schema: reportSchema, Flavor: *flavor, Verdict: VerdictFailed}
-	if *reportPath != "" {
-		defer func() {
-			if err := rep.write(*reportPath); err != nil {
-				code = fail(err)
-			}
-		}()
+	rep := Report{Schema: reportSchema, Flavor: o.flavor, Verdict: VerdictFailed}
+	code := runCase(ctx, o, &rep)
+	if o.report != "" {
+		if err := rep.write(o.report); err != nil {
+			return fail(err)
+		}
 	}
+	return code
+}
 
-	tag, err := resolveFrom(ctx, *from)
+// runCase fills rep as far as the run gets, so a run that fails still has a report.
+func runCase(ctx context.Context, o options, rep *Report) int {
+	tag, err := resolveFrom(ctx, o.from)
 	if err != nil {
 		return fail(err)
 	}
-	*from = tag
-	c := NewCase(*flavor, *from)
+	c := NewCase(o.flavor, tag)
 	if c.Release() {
 		rep.From = c.From
 	}
@@ -57,21 +67,21 @@ func run() (code int) {
 		return fail(err)
 	}
 	stages := f.Stages()
-	if *list {
+	if o.list {
 		printStages(c, stages)
 		return 0
 	}
-	if *overlay == "" {
-		*overlay = filepath.Join("test/e2e/testdata", f.Name)
+	if o.overlay == "" {
+		o.overlay = filepath.Join("test/e2e/testdata", f.Name)
 	}
 
 	have := map[Capability]bool{CapDocker: dockerUp(ctx)}
-	plan, err := NewPlan(c, stages, Mode(*mode), have)
+	plan, err := NewPlan(c, stages, Mode(o.mode), have)
 	if err != nil {
 		return fail(err)
 	}
 
-	env, err := newEnv(ctx, c, f, *bin, *overlay, *logs)
+	env, err := newEnv(ctx, c, f, o.bin, o.overlay, o.logs)
 	if err != nil {
 		return fail(err)
 	}

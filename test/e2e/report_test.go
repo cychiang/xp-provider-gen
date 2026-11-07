@@ -90,6 +90,12 @@ func TestAHeadRunsReportHasNoUpgradeAndNoFrom(t *testing.T) {
 	}
 }
 
+const (
+	freshBody = "fresh\n"
+	fileA     = "a.txt"
+	fileB     = "b.txt"
+)
+
 func TestAssertGenerateChangesNothingCountsEveryFileGenerateRewrites(t *testing.T) {
 	const makefile = "generate:\n\t@echo fresh > a.txt\n\t@echo fresh > b.txt\n"
 	for _, c := range []struct {
@@ -97,9 +103,9 @@ func TestAssertGenerateChangesNothingCountsEveryFileGenerateRewrites(t *testing.
 		files       map[string]string
 		wantChanged int
 	}{
-		{"output is current", map[string]string{"a.txt": "fresh\n", "b.txt": "fresh\n"}, 0},
-		{"one file is stale", map[string]string{"a.txt": "stale\n", "b.txt": "fresh\n"}, 1},
-		{"two stale and one missing", map[string]string{"a.txt": "stale\n"}, 2},
+		{"output is current", map[string]string{fileA: freshBody, fileB: freshBody}, 0},
+		{"one file is stale", map[string]string{fileA: "stale\n", fileB: freshBody}, 1},
+		{"two stale and one missing", map[string]string{fileA: "stale\n"}, 2},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			dir := t.TempDir()

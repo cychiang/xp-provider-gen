@@ -5,15 +5,24 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 const newestTag = "v0.3.0"
 
+// counting records its name in ran, under a lock because a Background stage
+// runs on its own goroutine.
+var ranMu sync.Mutex
+
 func counting(name string, ran *[]string, err error, needs ...Capability) Stage {
 	return Stage{Name: name, Needs: needs, Run: func(*Env) error {
+		ranMu.Lock()
+		defer ranMu.Unlock()
 		*ran = append(*ran, name)
 		return err
 	}}
@@ -155,8 +164,8 @@ func stageNames(stages []Stage) []string {
 }
 
 func TestNativeStagesAreDeclaredInPlanOrder(t *testing.T) {
-	want := "init create-api generate user-logic update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh adopt create-test " +
-		"stock-e2e build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected " +
+	want := "init create-api generate user-logic stock-e2e update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh adopt create-test " +
+		"build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected " +
 		"mr-delete external-gone"
 	if got := strings.Join(stageNames(nativeStages()), " "); got != want {
 		t.Errorf("stages\n got %v\nwant %s", got, want)
@@ -244,6 +253,114 @@ func TestNewCaseGivesAToolchainOnlyToTheReleasesListed(t *testing.T) {
 	} {
 		if got := NewCase(nativeName, c.from).Toolchain; got != c.want {
 			t.Errorf("%s runs under toolchain %q, want %q", c.from, got, c.want)
+		}
+	}
+}
+
+func TestABackgroundStageRunsBesideTheStagesAfterItAndIsJoinedAtTheStageThatAsksForIt(t *testing.T) {
+	var mu sync.Mutex
+	var events []string
+	note := func(e string) {
+		mu.Lock()
+		defer mu.Unlock()
+		events = append(events, e)
+	}
+	release := make(chan struct{})
+	stages := []Stage{
+		{Name: "bg", Background: true, Needs: []Capability{CapDocker}, Run: func(*Env) error {
+			note("bg start")
+			select {
+			case <-release:
+			case <-time.After(10 * time.Second):
+				return errors.New("never released: the next stage did not run beside it")
+			}
+			note("bg end")
+			return nil
+		}},
+		{Name: "beside", Run: func(*Env) error {
+			note("beside")
+			close(release)
+			return nil
+		}},
+		{Name: "cluster", Join: true, Run: func(*Env) error {
+			note("cluster")
+			return nil
+		}},
+	}
+	plan, err := NewPlan(Case{From: fromHead}, stages, ModeFull, map[Capability]bool{CapDocker: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	verdict, results := Execute(plan, &Env{}, &out)
+	if verdict != VerdictComplete {
+		t.Fatalf("verdict %s:\n%s", verdict, out.String())
+	}
+	if got := strings.Join(events, ","); !strings.HasSuffix(got, "bg end,cluster") {
+		t.Errorf("events %s: the stage that joins did not wait for the background one", got)
+	}
+	if got := strings.Join(stageNamesOf(results), " "); got != "bg beside cluster" {
+		t.Errorf("results are in the order %s, want the declared one", got)
+	}
+}
+
+func stageNamesOf(results []StageResult) []string {
+	var names []string
+	for _, r := range results {
+		names = append(names, r.Name)
+	}
+	return names
+}
+
+func TestABackgroundFailureFailsTheRunAndStopsTheStagesAfterTheJoin(t *testing.T) {
+	var ran []string
+	bg := counting("bg", &ran, errors.New("boom"))
+	bg.Background = true
+	join := counting("cluster", &ran, nil)
+	join.Join = true
+	stages := []Stage{bg, counting("beside", &ran, nil), join}
+	plan, err := NewPlan(Case{From: fromHead}, stages, ModeFull, map[Capability]bool{CapDocker: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	verdict, results := Execute(plan, &Env{}, &out)
+	if verdict != VerdictFailed {
+		t.Fatalf("verdict %s, want FAILED:\n%s", verdict, out.String())
+	}
+	want := []Status{StatusFail, StatusPass, StatusNotRun}
+	for i, r := range results {
+		if r.Status != want[i] {
+			t.Errorf("stage %s is %s, want %s", r.Name, r.Status, want[i])
+		}
+	}
+	if slices.Contains(ran, "cluster") {
+		t.Errorf("the stage after the failed background one ran: %v", ran)
+	}
+	if !strings.Contains(out.String(), "VERDICT FAILED at bg") {
+		t.Errorf("output lacks the failed stage:\n%s", out.String())
+	}
+}
+
+func TestAForegroundFailureStillWaitsForTheBackgroundStageAndReportsIt(t *testing.T) {
+	var ran []string
+	bg := counting("bg", &ran, nil)
+	bg.Background = true
+	join := counting("cluster", &ran, nil)
+	join.Join = true
+	stages := []Stage{bg, counting("beside", &ran, errors.New("boom")), join}
+	plan, err := NewPlan(Case{From: fromHead}, stages, ModeFull, map[Capability]bool{CapDocker: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	verdict, results := Execute(plan, &Env{}, io.Discard)
+	if verdict != VerdictFailed {
+		t.Fatalf("verdict %s, want FAILED", verdict)
+	}
+	want := []Status{StatusPass, StatusFail, StatusNotRun}
+	for i, r := range results {
+		if r.Status != want[i] {
+			t.Errorf("stage %s is %s, want %s", r.Name, r.Status, want[i])
 		}
 	}
 }
