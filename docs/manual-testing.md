@@ -14,7 +14,7 @@ run alongside CI or another `make e2e-native`/`make e2e-upjet` run on the same m
 
 | Requirement | Check |
 |---|---|
-| Go (the version this repo targets, from `pkg/versions/dependencies.yaml`'s `go_version`) | `go version` |
+| Go (the version in this repo's `go.mod`) | `go version` |
 | Docker (scenarios B and the live half of A; not needed for C's ownership checks, D, or E) | `docker info` |
 | Network access (upjet scenarios download Terraform and a provider schema; native `init`/`create api` fetch Go modules) | `curl -sI https://proxy.golang.org >/dev/null && echo ok` |
 

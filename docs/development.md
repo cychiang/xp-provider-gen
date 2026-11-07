@@ -2,9 +2,11 @@
 
 ## Requirements
 
-- **Go** — the version in [`pkg/versions/dependencies.yaml`](../pkg/versions/dependencies.yaml)'s
-  `go_version`; `make check-go-version` (`.github/workflows/go-version.yml`) fails CI if either
-  go.mod or the Dockerfile falls out of step with it. Renovate bumps all three together in one PR.
+- **Go** — the version in `go.mod`'s `go` directive. Renovate bumps it with the Dockerfile's
+  golang tag in one PR. It is independent of the Go generated providers declare
+  ([`pkg/versions/dependencies.yaml`](../pkg/versions/dependencies.yaml)'s `go_version`, which
+  Renovate bumps alone); `make check-go-version` (`.github/workflows/go-version.yml`) fails CI
+  if `go_version` is below what a pinned dependency requires.
 - **Git**
 - **golangci-lint** — installed automatically by `make lint` if missing, at the version in
   [`pkg/versions/dependencies.yaml`](../pkg/versions/dependencies.yaml)'s `golangci_lint_version`.
@@ -32,7 +34,7 @@ Run `make help` for the full target list. A few aren't obvious from their name a
 | `make reviewable` | `mod-tidy` + `check` (fmt/vet/lint/gosec/test) + `check-consistency` — run this before pushing; mirrors what CI enforces |
 | `make coverage` | Coverage report at `coverage/coverage.html` |
 | `make e2e-native E2E_ARGS=--from=latest` / `make e2e-upjet E2E_ARGS=--from=latest` | Upgrades a provider scaffolded by the newest published release to this build; `--from=<tag>` names another, and `--report=<file>` writes the run's JSON report — see [testing.md](testing.md) |
-| `make check-go-version` | Verifies go.mod/Dockerfile agree with `pkg/versions/dependencies.yaml`'s `go_version` (network) |
+| `make check-go-version` | Verifies `pkg/versions/dependencies.yaml`'s `go_version` is new enough for every pinned dependency (network) |
 
 ## Consistency gate
 

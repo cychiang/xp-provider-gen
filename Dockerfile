@@ -2,9 +2,9 @@ FROM golang:1.26.10-alpine AS builder
 
 # The official golang images set GOTOOLCHAIN=local, so the base image tag has to
 # be at least as new as go.mod's go directive or `go mod download` refuses to
-# run. Renovate bumps the tag and the directive from different datasources in
-# different PRs, so they drift, and the drift breaks the image build rather than
-# conflicting honestly. Letting Go fetch the toolchain go.mod asks for makes the
+# run. Renovate groups the tag and the directive into one PR, but a manual
+# `go get` or a go mod tidy post-update can still raise the directive alone,
+# and that drift would break the image build. Letting Go fetch the toolchain go.mod asks for makes the
 # build follow the module instead of racing it; the pinned tag still fixes the
 # base OS and the usual case downloads nothing.
 ENV GOTOOLCHAIN=auto

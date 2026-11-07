@@ -78,7 +78,7 @@ reconsider.
 - `pkg/templates/files/`, `pkg/templates/upjet/` — embedded `.tmpl` scaffolding, one root per flavor; `pkg/templates/generators/` — Go-rendered files neither tree can express (register.go, go.mod, `docs/ownership.md`)
 - `pkg/versions/`, `pkg/version/` — see Core concepts above
 - `test/e2e/` — the Go stage harness behind both e2e targets; see [docs/testing.md](docs/testing.md)
-- `scripts/check-go-version/` — fails CI when the Go version pinned in three places disagrees
+- `scripts/check-go-version/` — fails CI when `go_version` is below what a pinned dependency requires
 - `hack/check-consistency.sh` — the gate behind `make check-consistency`, six checks including
   `hack/check-links.py` (markdown links and anchors)
 - `hack/cliff-golden.sh` — golden test for `cliff.toml`'s git-cliff rules (version bump, note
