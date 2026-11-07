@@ -110,7 +110,7 @@ mod-verify: ## Verify go mod dependencies
 check-go-version: ## Verify both go.mod files and the Dockerfile agree with pkg/versions/dependencies.yaml's go_version (network)
 	$(GOCMD) run ./scripts/check-go-version
 
-check-consistency: ## Assert the repo's naming, skeleton and terminology conventions
+check-consistency: ## Assert the repo's naming and terminology conventions
 	@./hack/check-consistency.sh
 
 check: fmt vet lint gosec test ## Run all quality checks (format, vet, lint, security, test)

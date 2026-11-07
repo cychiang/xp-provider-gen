@@ -80,53 +80,55 @@ func owned(files map[string]string) map[string][]byte {
 }
 
 func TestCompareToolOwnedNeedsTheFreshScaffoldsFilesWithTheSameBytes(t *testing.T) {
+	required := []string{connectorGo, widgetWiring, makeFragment}
 	fresh := func() map[string]string {
 		m := map[string]string{}
-		for _, rel := range nativeFlavor.RequiredOwned {
+		for _, rel := range required {
 			m[rel] = "head " + rel
 		}
 		return m
 	}
 	tampered := fresh()
-	tampered[nativeFlavor.RequiredOwned[0]] = "stale"
+	tampered[required[0]] = "stale"
 	missing := fresh()
-	delete(missing, nativeFlavor.RequiredOwned[1])
+	delete(missing, required[1])
 	extra := fresh()
 	extra["internal/old.go"] = "a file head no longer renders"
 	noConnector := fresh()
-	delete(noConnector, nativeFlavor.RequiredOwned[0])
+	delete(noConnector, required[0])
 
 	twoWrong := fresh()
-	twoWrong[nativeFlavor.RequiredOwned[0]] = "stale"
-	delete(twoWrong, nativeFlavor.RequiredOwned[1])
+	twoWrong[required[0]] = "stale"
+	delete(twoWrong, required[1])
 	twoWrong["internal/old.go"] = "a file head no longer renders"
-	n := len(nativeFlavor.RequiredOwned)
+	n := len(required)
 
 	cases := []struct {
 		name                string
 		got, want           map[string]string
 		wantErr             string
-		wantCompared, wantD int
+		wantCompared, wantD *int
 	}{
-		{"identical", fresh(), fresh(), "", n, 0},
-		{"a stale file", tampered, fresh(), "differs from a fresh scaffold: " + nativeFlavor.RequiredOwned[0], n, 1},
-		{"a file update never wrote", missing, fresh(), "missing after update: " + nativeFlavor.RequiredOwned[1], n, 1},
-		{"a file update left behind", extra, fresh(), "not in a fresh scaffold: internal/old.go", n, 1},
-		{"three wrong at once", twoWrong, fresh(), "differs from a fresh scaffold", n, 3},
-		{"an empty fresh set", fresh(), nil, errNoOwned.Error(), 0, 0},
-		{"a fresh set without the connector", noConnector, noConnector, "no tool-owned " + nativeFlavor.RequiredOwned[0], n - 1, 0},
+		{"identical", fresh(), fresh(), "", counted(n), counted(0)},
+		{"a stale file", tampered, fresh(), "differs from a fresh scaffold: " + required[0], counted(n), counted(1)},
+		{"a file update never wrote", missing, fresh(), "missing after update: " + required[1], counted(n), counted(1)},
+		{"a file update left behind", extra, fresh(), "not in a fresh scaffold: internal/old.go", counted(n), counted(1)},
+		{"three wrong at once", twoWrong, fresh(), "differs from a fresh scaffold", counted(n), counted(3)},
+		{"an empty fresh set", fresh(), nil, errNoOwned.Error(), nil, nil},
+		{"a fresh set without the connector", noConnector, noConnector, "no tool-owned " + required[0], nil, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			compared, differing, err := compareToolOwned(owned(c.got), owned(c.want), nativeFlavor.RequiredOwned)
+			compared, differing, err := compareToolOwned(owned(c.got), owned(c.want), required)
 			if c.wantErr == "" && err != nil {
 				t.Fatalf("compareToolOwned = %v, want nil", err)
 			}
 			if c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)) {
 				t.Fatalf("compareToolOwned = %v, want %q", err, c.wantErr)
 			}
-			if compared != c.wantCompared || differing != c.wantD {
-				t.Fatalf("compared %d, differing %d, want %d and %d", compared, differing, c.wantCompared, c.wantD)
+			if countOrNA(compared) != countOrNA(c.wantCompared) || countOrNA(differing) != countOrNA(c.wantD) {
+				t.Fatalf("compared %s, differing %s, want %s and %s",
+					countOrNA(compared), countOrNA(differing), countOrNA(c.wantCompared), countOrNA(c.wantD))
 			}
 		})
 	}
@@ -311,7 +313,7 @@ func TestAssertOnlyChangedFailsOnAnyOtherFile(t *testing.T) {
 	}
 }
 
-func TestStockCommitFindsTheNamedCommitAndFailsWhenThereIsNone(t *testing.T) {
+func TestStockCloneChecksOutTheNamedCommitAndFailsWhenThereIsNone(t *testing.T) {
 	e := gitRepo(t, map[string]string{"a": "1"})
 	if err := e.write("a", []byte("2")); err != nil {
 		t.Fatal(err)
@@ -323,15 +325,17 @@ func TestStockCommitFindsTheNamedCommitAndFailsWhenThereIsNone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := e.stockCommit(); err != nil || got != want {
-		t.Errorf("stockCommit = %q, %v, want %q", got, err, want)
-	}
+	e.Work = t.TempDir()
 	e.F = &Flavor{StockMsg: "no such commit"}
-	if got, err := e.stockCommit(); err == nil {
-		t.Errorf("stockCommit found %q for a message no commit has", got)
+	if err := stageStockClone(e); err == nil {
+		t.Error("stageStockClone found a commit no message names")
 	}
-	e.F = nativeFlavor
-	if got, err := e.stockCommit(); err != nil || got != want {
-		t.Errorf("native stockCommit = %q, %v, want the first commit %q", got, err, want)
+	e.F = &Flavor{StockMsg: userLogicMsg}
+	if err := stageStockClone(e); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.exec(e.stock(), "", "git", "rev-parse", "HEAD")
+	if err != nil || got != want {
+		t.Errorf("the stock clone is at %q, %v, want %q", got, err, want)
 	}
 }

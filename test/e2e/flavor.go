@@ -24,8 +24,12 @@ type Live struct {
 
 // Flavor is everything the shared stages read that differs between flavors.
 type Flavor struct {
-	Name   string
-	Stages func() []Stage
+	Name string
+	// Scaffold, CreateAPIStage, Generate and UserLogic are the stages of the
+	// shared list whose work differs between flavors; the rest read the fields
+	// below. Extra are the stages one flavor adds after create-test.
+	Scaffold, CreateAPIStage, Generate, UserLogic func(*Env) error
+	Extra                                         []Stage
 	// Init and CreateAPI are the arguments the scaffold is made with.
 	Init      []string
 	CreateAPI func(kind string) []string
@@ -37,13 +41,11 @@ type Flavor struct {
 	// one it leaves alone, and AdoptFile a tool-owned one whose header adopt
 	// restores.
 	ToolProbe, UserProbe, AdoptFile string
-	// StockMsg is the subject of the commit stock-e2e runs on; empty means the
-	// first commit.
+	// StockMsg is the subject of the commit stock-e2e runs on.
 	StockMsg string
-	// ToolOwned must carry the generated header and UserOwned must not.
+	// ToolOwned must carry the generated header and UserOwned must not. Every
+	// ToolOwned file must also be in the tool-owned set of a fresh scaffold.
 	ToolOwned, UserOwned []string
-	// RequiredOwned must be in the tool-owned set of a fresh scaffold.
-	RequiredOwned []string
 	// Seams are user-owned files a same-generator update must leave alone.
 	Seams []string
 	// RefusesTerraformVersion is whether update --terraform-provider-version is
@@ -63,4 +65,39 @@ func flavorFor(name string) (*Flavor, error) {
 		return upjetFlavor, nil
 	}
 	return nil, fmt.Errorf("no stages declared for flavor %q", name)
+}
+
+// Stages is the one declared list both flavors run, in plan order.
+func (f *Flavor) Stages() []Stage {
+	docker := []Capability{CapDocker}
+	stages := []Stage{
+		{Name: cmdInit, Run: f.Scaffold},
+		{Name: "create-api", Run: f.CreateAPIStage},
+		{Name: "generate", Run: f.Generate},
+		{Name: "user-logic", Run: f.UserLogic},
+		// stock-e2e works on a clone made before it starts, so the update stages
+		// that run beside it share nothing with it but the cluster name:
+		// install-in-kind joins first, and stock-e2e's e2e-clean deletes that
+		// cluster, so install-in-kind starts on none.
+		{Name: "stock-clone", Needs: docker, When: Case.Head, Run: stageStockClone},
+		{Name: "stock-e2e", Needs: docker, When: Case.Head, Background: true, Run: stageStockE2E},
+		{Name: "update-to-head", When: Case.Release, Run: stageUpdateToHead},
+		{Name: "refuse-old-generator", When: Case.Release, Run: stageRefuseOldGenerator},
+		{Name: "update-noop", Run: stageUpdateNoop},
+		{Name: "orphan-removal", Run: stageOrphanRemoval},
+		{Name: "create-api-refresh", Run: stageCreateAPIRefresh},
+		{Name: "adopt", Run: stageAdopt},
+		{Name: cmdCreateTest, Run: stageCreateTest},
+	}
+	stages = append(stages, f.Extra...)
+	return append(stages,
+		Stage{Name: "build-xpkg", Needs: docker, Run: func(e *Env) error { return e.make("build") }},
+		Stage{Name: "install-in-kind", Needs: docker, Join: true, Run: stageInstallInKind},
+		Stage{Name: "provider-config", Needs: docker, Run: func(e *Env) error { return e.F.Live.ProviderConfig(e) }},
+		Stage{Name: "mr-ready-synced", Needs: docker, Run: stageReadySynced},
+		Stage{Name: "mr-update", Needs: docker, Run: stageMRUpdate},
+		Stage{Name: "drift-corrected", Needs: docker, Run: stageDriftCorrected},
+		Stage{Name: "mr-delete", Needs: docker, Run: stageMRDelete},
+		Stage{Name: "external-gone", Needs: docker, Run: stageExternalGone},
+	)
 }

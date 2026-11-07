@@ -24,7 +24,7 @@ func TestAFailedRunStillWritesItsReportWithEveryStagesStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	env := &Env{Upgrade: &Upgrade{ToolOwnedCompared: 9, ToolOwnedDiffering: 2, UserOwnedChanged: 1, GeneratedChanged: 3}}
+	env := &Env{Upgrade: &Upgrade{ToolOwnedCompared: counted(9), ToolOwnedDiffering: counted(2), UserOwnedChanged: counted(1), GeneratedChanged: counted(3)}}
 	verdict, results := Execute(plan, env, io.Discard)
 	path := filepath.Join(t.TempDir(), "nested", "report.json")
 	rep := Report{
@@ -123,9 +123,57 @@ func TestAssertGenerateChangesNothingCountsEveryFileGenerateRewrites(t *testing.
 				t.Fatal(err)
 			}
 			changed, err := e.assertGenerateChangesNothing()
-			if changed != c.wantChanged || (err != nil) != (c.wantChanged > 0) {
-				t.Fatalf("changed %d, error %v, want %d changed", changed, err, c.wantChanged)
+			if changed == nil || *changed != c.wantChanged || (err != nil) != (c.wantChanged > 0) {
+				t.Fatalf("changed %s, error %v, want %d changed", countOrNA(changed), err, c.wantChanged)
 			}
 		})
+	}
+}
+
+func TestACountThatCouldNotBeTakenReportsNullNotZero(t *testing.T) {
+	b, err := json.Marshal(Upgrade{ToolOwnedCompared: counted(21), ToolOwnedDiffering: counted(0)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]*int
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	for k, wantNull := range map[string]bool{
+		"tool_owned_compared": false, "tool_owned_differing": false, "user_owned_changed": true, "generated_changed": true,
+	} {
+		v, present := got[k]
+		if !present || (v == nil) != wantNull {
+			t.Errorf("%s in %s: null is %t, want %t", k, b, v == nil, wantNull)
+		}
+	}
+	const want = "UPGRADE tool_owned 21 compared 0 differing, user_owned n/a changed, generated n/a changed"
+	if s := (Upgrade{ToolOwnedCompared: counted(21), ToolOwnedDiffering: counted(0)}).Summary(); s != want {
+		t.Errorf("summary %q, want %q", s, want)
+	}
+}
+
+func TestAnUpgradeCountOfZeroIsMeasuredNotNull(t *testing.T) {
+	b, err := json.Marshal(Upgrade{GeneratedChanged: counted(0)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(b, []byte(`"generated_changed":0`)) {
+		t.Errorf("a measured zero is not 0 in %s", b)
+	}
+}
+
+func TestAGenerateThatFailsLeavesTheCountNull(t *testing.T) {
+	dir := t.TempDir()
+	e := &Env{Ctx: t.Context(), Dir: dir, Work: dir, log: io.Discard}
+	if err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte("generate:\n\t@exit 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.git("init", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := e.assertGenerateChangesNothing()
+	if err == nil || changed != nil {
+		t.Fatalf("changed %s, error %v, want a failure that counted nothing", countOrNA(changed), err)
 	}
 }

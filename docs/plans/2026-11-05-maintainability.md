@@ -172,17 +172,19 @@ migration path for that reason alone. The ten live lanes per PR stay.
    Recommendation: head cells per PR, release cells daily and before a release, and a set
    budget for P11's per-PR rule.
 
-   Amended 2026-11-07 by the operator. The "daily" above had already become weekly by the
-   operator's order, and the release cells now change further. Upgrades test the newest
-   published release in each flavor (`--from=latest`), on the weekly schedule and on
-   `workflow_dispatch`, and not on pull requests. The operator's words: "You can skip
-   upgrade from v0.1.0 to v0.3.0 or anything like that, you dont't need to consider any
-   backward compatiable just make sure the new architecture and implementation is easy to
-   maintain in the future", and then "will the upgrade path becomes much easy to test and
-   measurable?" Older releases are not tested, no list of releases is kept by hand, and
-   each run can write a JSON report (`--report`) of stage times and upgrade counts, which
-   makes the path measurable. A tag that needs a toolchain override is the one exception
-   the harness lists (v0.3.0 needs `go1.26.8`).
+   Amended 2026-11-07. The operator's words that day: "You can skip upgrade from v0.1.0 to
+   v0.3.0 or anything like that, you dont't need to consider any backward compatiable just
+   make sure the new architecture and implementation is easy to maintain in the future", and
+   "You will need to focus on after your implementations, will the upgrade path becomes much
+   easy to test and measurable?" The implementer's reading of them, not the operator's words:
+   upgrades test the newest published release in each flavor (`--from=latest`), on the weekly
+   schedule and on `workflow_dispatch`, and not on pull requests. The weekly schedule is the
+   operator's earlier order. During #194 they asked why a `0 5 * * *` cron was needed, then
+   said "change it to weekly" and "Change other files as well, let's keep them the same
+   weekly." Older releases are not tested and no list of releases is kept by hand. The one
+   hand-kept table is `toolchains` in `test/e2e/plan.go`, which holds a tag whose `init`
+   needs a Go other than the host's (today `v0.3.0`, `go1.26.8`). Each run can write a JSON
+   report (`--report`) of stage times and upgrade counts, which makes the path measurable.
 5. **Harness language.** Recommendation: Go, because the three blind checks above are
    shell-shaped failures, and `scripts/check-go-version` is the precedent. Stage names, the
    verdict rule and exit codes survive any choice. If the answer is shell, P3 becomes the

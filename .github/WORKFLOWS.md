@@ -79,7 +79,9 @@ gh workflow run e2e-upjet.yml --ref feature-branch
    `e2e-native-full`, `e2e-upjet` and `init-stable-go` run only on PRs that touch the surfaces they cover
 2. **Merge to main** — the same push-triggered workflows run again
 3. **Cut a release** — run `release.yml` from the Actions tab (see "Creating a Release" above).
-   Nothing else is kept in step: the upgrade jobs resolve `--from=latest` through `gh`, which
-   ignores pre-releases and drafts. Only if the new release's `init` needs a Go the host may
-   lack, add its tag to `toolchains` in `test/e2e/plan.go`.
+   No list of releases is kept: the upgrade jobs resolve `--from=latest` through `gh`, which
+   ignores pre-releases and drafts. The one hand-kept table is `toolchains` in
+   `test/e2e/plan.go`. A release whose scaffold carries the `GOTOOLCHAIN` pin in
+   `hack/xp-provider-gen.mk` needs no entry, and the head templates carry it. Add the tag only
+   if the new release's `init` needs a Go the host may lack.
 4. **Security monitoring** — Renovate keeps dependencies updated (see above)

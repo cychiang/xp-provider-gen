@@ -38,6 +38,10 @@ var listReleasesArgs = []string{
 func newestReleases(ctx context.Context) ([]string, error) {
 	out, err := exec.CommandContext(ctx, "gh", listReleasesArgs...).Output() // #nosec G204 -- fixed command, no shell
 	if err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && len(exit.Stderr) > 0 {
+			return nil, fmt.Errorf("listing releases with gh: %w\n%s", err, bytes.TrimSpace(exit.Stderr))
+		}
 		return nil, fmt.Errorf("listing releases with gh: %w", err)
 	}
 	return strings.Fields(string(out)), nil

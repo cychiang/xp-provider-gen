@@ -1,7 +1,7 @@
 # Testing
 
 This page covers the **automated** suites: fast Go unit tests, a full end-to-end scaffold
-test, an upgrade from each published release, and an upjet-flavor e2e — four layers, all run by `make`
+test, an upgrade from the newest published release, and an upjet-flavor e2e — four layers, all run by `make`
 targets and wired into CI — plus a golden test for the release pipeline's git-cliff rules.
 For a **manual** walkthrough of the same surfaces — reproducing a bug report,
 sanity-checking a change by hand, or seeing what a provider author actually experiences —
@@ -58,7 +58,7 @@ Reuse shared literals via constants (keeps tests DRY and satisfies `goconst`).
 `test/e2e` is a Go program that runs a declared list of stages, in order, against a native
 provider scaffolded by `bin/xp-provider-gen`. `go run ./test/e2e --list --flavor=native` prints
 the list. A stage returns an error or it passed; there is no skip result, and the run stops at
-the first failure. One stage, `stock-e2e`, is a background stage: it starts after `user-logic` and runs beside the update stages that follow it, because it works on its own clone and its own kind cluster and touches nothing they do. `build-xpkg` runs beside it too; the run joins it at `install-in-kind`, which brings up a cluster of the same name, so its outcome is reported there. The runner is `plan.go`, the stages are `stages.go`, and `plan_test.go`
+the first failure. One stage, `stock-e2e`, is a background stage: it starts after `user-logic` and runs beside the update stages that follow it. It works on a clone that the foreground stage `stock-clone` makes before it starts, so nothing it reads changes under it. It shares one thing with `install-in-kind`, the run's `KIND_CLUSTER_NAME`, and that is safe only because the run joins it at `install-in-kind` and its `e2e-clean` deletes the cluster first; the run's cleanup deletes whatever is left. `build-xpkg` runs beside it too, so its outcome is reported at `install-in-kind` as well. The runner is `plan.go`, the one stage list both flavors run is `Flavor.Stages` in `flavor.go`, the stages are `stages.go` and `upjet.go`, and `plan_test.go`
 tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mode verdict, the exact set of stages fast mode runs and the first-failure stop. `stages_test.go` tests the chainsaw-report check, which needs a passed `lifecycle` testcase (`go test ./test/e2e/`).
 
 | Stage | Proves |
@@ -72,6 +72,7 @@ tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mo
 | `update-noop` | A same-generator `update` reports `removed 0`, `Refreshed 0` and a non-zero `Unchanged N`, leaves the seam files byte-identical and the tree clean, refuses a dirty tree, and rejects `--terraform-provider-version` naming the flavor. |
 | `create-api-refresh` | Re-running `create api` regenerates a tool-owned file, keeps a user edit, commits nothing the second time, and rejects `--force`. |
 | `adopt` | Plants a sentinel PROJECT `version:` and strips a header, then asserts `update --adopt` restores both. |
+| `stock-clone` | Head cases only. Clones the scaffold and checks out the flavor's stock commit, in the foreground, so the background `stock-e2e` never reads the provider directory the stages beside it change. |
 | `stock-e2e` | Background stage, head cases only: in a release case it would test the old release's scaffold, which the head cell already covers for this build, and the upgraded tree is deployed and reconciled by `install-in-kind` and the `mr-` stages. The scaffold exactly as generated, in a clone of its first commit, passes its own `make e2e`, with the head's `create-test` lifecycle test added first, so the one run covers uptest, the pause tests and the test `create-test` wrote; the stage then fails unless `junit.xml` names that test. Uptest skips its update step on the stock scaffold: it updates only a resource annotated `meta.upbound.io/example-id`, and allows one such root per run, while `make e2e` runs every kind's example in one run. |
 | `build-xpkg`, `install-in-kind`, `provider-config` | The overlay provider's package builds, installs into a new kind cluster and is Healthy, (deployed with `--poll=10s` through a harness-only DeploymentRuntimeConfig, so drift shows in seconds; the stage fails unless the provider's deployment carries that argument), and a ProviderConfig holds the cluster's own kubeconfig as credentials and keeps the user-added `endpoint` field instead of pruning it. |
 | `mr-ready-synced` | The `Widget` example is `Ready` and `Synced`, and a ConfigMap, the external object, holds its value. |
@@ -113,13 +114,16 @@ are in the upjet section below. That is the one run in which tool-owned files re
 generator's changes, which the same-generator `update-noop` cannot show. The `update-to-head` and
 `refuse-old-generator` stages are added and `stock-e2e` is dropped; the rest are the stages above.
 
-`latest` is resolved by `gh release list`, which leaves out pre-releases and drafts, so nothing
-is kept by hand when a release is cut. `--from=<tag>` names another published release and is
+`latest` is resolved by `gh release list`, which leaves out pre-releases and drafts, so no list
+of releases is kept by hand when a release is cut. `--from=<tag>` names another published release and is
 the way to look at an older one; older releases are not tested in CI, and nothing here keeps
-them working. The only per-release fact the harness holds is `toolchains` in `test/e2e/plan.go`:
-a tag listed there (today `v0.3.0`, `go1.26.8`) has its `init` and `create api`, and only those,
+them working. The only per-release fact the harness holds, and the one thing here that is kept by hand, is
+`toolchains` in `test/e2e/plan.go`: a tag listed there (today `v0.3.0`, `go1.26.8`) has its `init` and `create api`, and only those,
 run under that `GOTOOLCHAIN`, printed at the start of each run, so the scaffold is the one the
-release produced whatever Go the host has. A tag not listed runs with no override. Every other
+release produced whatever Go the host has. A tag not listed runs with no override. A release whose scaffold carries the toolchain pin needs
+no entry: the head templates do (`export GOTOOLCHAIN ?= go<version>+auto` in
+`pkg/templates/files/hack/xp-provider-gen.mk.tmpl` and `pkg/templates/upjet/hack/xp-provider-gen.mk.tmpl`),
+so by that reading the next release needs nothing; no such release has been cut to show it. Every other
 command runs with `GOTOOLCHAIN` unset, even when the caller exports one, as `actions/setup-go`
 does with `local`. The archive and checksum file are downloaded with `gh` into new directories
 under the run's work directory; the checksum is verified before the binary is unpacked, and the
@@ -132,7 +136,7 @@ and takes four measurements before it fails on any of them:
 |---|---|
 | `tool_owned_compared`, `tool_owned_differing` | The binary under test scaffolds the same project (same flags) in a second directory, with `generate` and `reviewable` stubbed out. Every file carrying the `Code generated by xp-provider-gen` header, in its first 1024 bytes, must exist in both trees with the same bytes, and the two sets must be equal. The set must be non-empty and hold `connector.go`, a `wiring.go` and the make fragment. `compared` is the fresh scaffold's tool-owned files; `differing` is those the updated tree lacks or holds with other bytes, plus tool-owned files it holds that a fresh scaffold does not. |
 | `user_owned_changed` | Every tracked file with no generator header must be byte-identical across the `update`, except `PROJECT` (the version stamp), `go.mod` (the go directive moves to head's pin) and `go.sum` (follows `go.mod`); generated output is left out by name (below). A new user-owned file is covered without being listed, and one `update` adds counts. |
-| `generated_changed` | After `update`, the provider's own `make generate` runs and every file it changes, adds or removes counts. The byte comparison above leaves generated output out (`zz_generated.*`, `package/crds/`), so a stale generated file that still compiles and lints would otherwise pass. Whatever `update` left stale, generate rewrites, and the stage fails naming the file. |
+| `generated_changed` | After `update`, the provider's own `make generate` runs and every file it changes, adds or removes counts. The byte comparison above leaves generated output out (any `zz_*` file, `package/crds/`, `examples-generated/`, and upjet's `config/schema.json` and `config/provider-metadata.yaml`), so a stale generated file that still compiles and lints would otherwise pass. Whatever `update` left stale, generate rewrites, and the stage fails naming the file. |
 
 The stage also asserts the go directive is the `go_version` in `pkg/versions/dependencies.yaml`,
 the PROJECT stamp is the binary's own `version`, the ownership contract holds, the user-owned
@@ -167,7 +171,11 @@ jobs upload it with the logs as `report.json`. The shape (`schema` is 1):
 
 `from` is empty for a head run. A stage's `status` is `pass`, `fail` or `not-run`, and
 `seconds` is 0 for one that did not run. `upgrade` is present only when `update-to-head` ran its
-measurements, so a missing one on an upgrade run means the stage failed before it. A run that
+measurements, so a missing one on an upgrade run means the stage failed before it. A count is
+`null`, not `0`, when its check errored before it could count (say `make generate` failed), so a
+measured zero is never confused with a check that did not finish. The run also prints one line,
+for example `UPGRADE tool_owned 21 compared 0 differing, user_owned 0 changed, generated 0 changed`,
+with `n/a` for a count that is `null`. `--list` writes no report. A run that
 failed before any stage, say because `gh` could not fetch the release, writes a `FAILED` report
 with no stages.
 
@@ -192,9 +200,8 @@ and change nothing, and that `create api` is refused at `v9.9.9` ("is older than
 ## Upjet-flavor e2e (`make e2e-upjet`)
 
 `go run ./test/e2e --list --flavor=upjet` prints the stages. The upjet flavor runs the same
-harness, with the same `Stage`, `Case`, `Plan` and verdict rules as native, and declares the
-native stage names plus two of its own, `tf-bump` and `provider-starts` (`upjetOnly` in
-`upjet.go`; `TestUpjetDeclaresTheNativeStagesAndOnlyItsOwnAdditions` fails if the lists drift).
+harness, with the same `Stage`, `Case`, `Plan` and verdict rules as native, and runs the
+same stage list as native (`Flavor.Stages`), with four stages whose work differs (`init`, `create-api`, `generate`, `user-logic`) and two of its own after `create-test`, `tf-bump` and `provider-starts` (`Flavor.Extra`).
 The target is a provider that wraps `hashicorp/kubernetes` at 2.37.1, so the external system is
 the kind cluster itself and no cloud credentials are involved.
 
@@ -202,8 +209,8 @@ Where an upjet stage differs from the native one of the same name:
 
 | Stage | Proves |
 |---|---|
-| `init`, `create-api` | `init --upjet` scaffolds the files `upjetBaseLayout` lists, pins the `build` submodule at `build_ref` (head), wires the Terraform provider into the Makefile and leaves a clean tree. `create api` for `Secret` (`kubernetes_secret`) and `ConfigMap` (`kubernetes_config_map`) writes each `config/<kind>/config.go` and wires it into `config/zz_resources.go`. |
-| `generate` | The real upjet pipeline (`make submodules generate`): Terraform is downloaded, the provider schema read, its docs scraped, and the types, controllers, scheme registration, setup and CRDs written from the real schema. `go build ./...` passes, the ownership contract holds, and the output is committed as `Generate provider`. The scaffold's `go.generate` tidies go.mod after generating, as the build submodule's own recipe does, so the first generate leaves it as the next one would (before, `dario.cat/mergo` stayed indirect until the second generate, and a same-generator `update` then changed go.mod). |
+| `init`, `create-api` | `init --upjet` scaffolds the files `upjetBaseLayout` lists, pins the `build` submodule at `build_ref` (head), wires the Terraform provider into the Makefile and leaves a clean tree. `create api` for `Secret` (`kubernetes_secret`) writes `config/secret/config.go` and wires it into `config/zz_resources.go`. |
+| `generate` | The real upjet pipeline (`make submodules generate`): Terraform is downloaded, the provider schema read, its docs scraped, and the types, controllers, scheme registration, setup and CRDs written from the real schema. Then `create api` for `ConfigMap` (`kubernetes_config_map`) and a second `make generate`, the incremental generate an author runs for a new kind, which must write the second kind's types, controller and CRD. `go build ./...` passes, the ownership contract holds, and the output is committed as `Generate provider`. The scaffold's `go.generate` tidies go.mod after generating, as the build submodule's own recipe does, so the first generate leaves it as the next one would (before, `dario.cat/mergo` stayed indirect until the second generate, and a same-generator `update` then changed go.mod). |
 | `user-logic` | The overlay adds a user-owned `internal/clients/user.go` and test, wires the scaffold's `clients.go` to call it, and adds the `examples/core/configmap.yaml` that uptest and `create-test` read. The user test passes and the provider builds. |
 | `update-to-head` | As native. The user-owned files not rewritten by `update` stay byte-identical, and the tool-owned files match a fresh upjet scaffold. |
 | `update-noop` | As native, with the user-owned probe `config/secret/config.go`. The `--terraform-provider-version` refusal is native only. |
@@ -223,7 +230,10 @@ and `update` re-runs: `zz_*` files (upjet's types, controllers, registration and
 above.
 
 Fast mode runs the stages that need no Docker, through `provider-starts`, and ends in `VERDICT
-PARTIAL`. The generated controllers are shown to start against a real API server by the cluster
+PARTIAL`. `provider-starts` proves the provider builds, prints `--help` and reaches its startup
+precheck without a panic; it does not start a controller. That proof, which the old shell script
+gave without Docker through `hack/envtest-provider-check/`, now needs Docker, so fast mode no
+longer has it. The generated controllers are shown to start against a real API server by the cluster
 stages: `install-in-kind` waits for the provider to be Healthy and then for its log to show a
 started controller for every generated kind and for ProviderConfig, and `mr-ready-synced`
 shows one reconciling.

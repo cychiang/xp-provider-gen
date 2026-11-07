@@ -179,3 +179,16 @@ func TestNewEnvRemovesItsWorkDirectoryWhenTheReleaseFetchFails(t *testing.T) {
 		t.Fatalf("a failed fetch left %d entries in the temp directory", len(left))
 	}
 }
+
+func TestNewestReleasesCarriesGhsStderrInItsError(t *testing.T) {
+	bin := t.TempDir()
+	stub := "#!/bin/sh\necho 'gh: To use GitHub CLI, run: gh auth login' >&2\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(stub), 0o700); err != nil { // #nosec G306 -- a test stub
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	_, err := newestReleases(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "gh auth login") {
+		t.Fatalf("newestReleases = %v, want gh's stderr in the error", err)
+	}
+}

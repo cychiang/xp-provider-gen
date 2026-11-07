@@ -163,23 +163,19 @@ func stageNames(stages []Stage) []string {
 	return names
 }
 
-func TestNativeStagesAreDeclaredInPlanOrder(t *testing.T) {
-	want := "init create-api generate user-logic stock-e2e update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh adopt create-test " +
-		"build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected " +
-		"mr-delete external-gone"
-	if got := strings.Join(stageNames(nativeStages()), " "); got != want {
-		t.Errorf("stages\n got %v\nwant %s", got, want)
-	}
-}
-
-func TestUpjetDeclaresTheNativeStagesAndOnlyItsOwnAdditions(t *testing.T) {
-	shared := slices.DeleteFunc(stageNames(upjetStages()), func(name string) bool { return slices.Contains(upjetOnly, name) })
-	if want := stageNames(nativeStages()); !slices.Equal(shared, want) {
-		t.Errorf("upjet's stages less %v\n got %v\nwant native's %v", upjetOnly, shared, want)
-	}
-	for _, name := range upjetOnly {
-		if !slices.Contains(stageNames(upjetStages()), name) {
-			t.Errorf("upjetOnly names %s, which upjet does not declare", name)
+func TestEachFlavorDeclaresItsStagesInPlanOrder(t *testing.T) {
+	const head = "init create-api generate user-logic stock-clone stock-e2e update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh adopt create-test "
+	const tail = "build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected mr-delete external-gone"
+	for flavor, want := range map[string]string{
+		nativeName: head + tail,
+		upjetName:  head + "tf-bump provider-starts " + tail,
+	} {
+		f, err := flavorFor(flavor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Join(stageNames(f.Stages()), " "); got != want {
+			t.Errorf("%s stages\n got %v\nwant %s", flavor, got, want)
 		}
 	}
 }
@@ -218,7 +214,7 @@ func TestEveryFlavorsStagesNeedDockerExactlyWhereTheClusterIsUsed(t *testing.T) 
 				docker = append(docker, s.Name)
 			}
 		}
-		want := "stock-e2e build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected mr-delete external-gone"
+		want := "stock-clone stock-e2e build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected mr-delete external-gone"
 		if got := strings.Join(docker, " "); got != want {
 			t.Errorf("%s stages needing docker\n got %v\nwant %s", flavor, got, want)
 		}

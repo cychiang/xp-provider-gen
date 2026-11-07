@@ -25,7 +25,7 @@ type Capability string
 
 const CapDocker Capability = "docker"
 
-// Case is one cell of the matrix: a flavor and the binary that scaffolds it.
+// Case is a flavor and the binary that scaffolds it.
 // From is "head" for the binary under test, or the tag of a published release.
 type Case struct {
 	Flavor string
@@ -64,7 +64,9 @@ type Stage struct {
 	Run  func(*Env) error
 	// Background starts the stage where it is declared and lets the stages
 	// after it run beside it, until one with Join and before the verdict. Such
-	// a stage may share nothing the stages beside it touch.
+	// a stage may share nothing the stages beside it touch, so whatever it reads
+	// is made before it starts. The one exception is a resource only the Join
+	// stage uses beside it, and the Background stage must free that first.
 	Background bool
 	// Join makes the stage wait for every running Background stage first.
 	Join bool

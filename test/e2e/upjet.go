@@ -51,18 +51,25 @@ users:
 
 var (
 	tfCLIVersion   = regexp.MustCompile(`(?m)^export TERRAFORM_VERSION\s*\?*=\s*(\S+)$`)
-	upjetResources = map[string]string{probeKind: probeResource, configMapKind: configMapResource}
-	upjetSeams     = []string{
+	upjetResources = map[string]string{
+		probeKind: probeResource, configMapKind: configMapResource, volumeKind: probeResource,
+	}
+	upjetSeams = []string{
 		clientsGo, "internal/clients/user.go", "internal/clients/user_test.go",
 		probeConfig, "config/configmap/config.go", "examples/core/configmap.yaml",
 	}
-	// upjetOnly names the stages upjet adds to the ones both flavors declare.
-	upjetOnly = []string{"tf-bump", "provider-starts"}
 )
 
 var upjetFlavor = &Flavor{
-	Name:   upjetName,
-	Stages: upjetStages,
+	Name:           upjetName,
+	Scaffold:       stageUpjetInit,
+	CreateAPIStage: stageUpjetCreateAPI,
+	Generate:       stageUpjetGenerate,
+	UserLogic:      stageUpjetUserLogic,
+	Extra: []Stage{
+		{Name: "tf-bump", Run: stageTerraformBump},
+		{Name: "provider-starts", Run: stageProviderStarts},
+	},
 	Init: slices.Concat(commonInit,
 		[]string{"--upjet", "--terraform-provider=" + tfProvider, "--terraform-provider-version=" + tfFrom}),
 	CreateAPI: upjetCreateAPI,
@@ -80,8 +87,7 @@ var upjetFlavor = &Flavor{
 		makefile, agentsDoc, probeConfig, "config/configmap/config.go", clientsGo,
 		"apis/namespaced/v1beta1/types.go", providerConfigYML,
 	},
-	RequiredOwned: []string{configProvider, configZZ, makeFragment},
-	Seams:         upjetSeams,
+	Seams: upjetSeams,
 	AssertUserLogic: func(e *Env) error {
 		_, err := e.exec(e.Dir, "", "go", "test", "-count=1", "./internal/clients/")
 		return err
@@ -106,41 +112,9 @@ var upjetFlavor = &Flavor{
 }
 
 func upjetCreateAPI(kind string) []string {
-	resource, ok := upjetResources[kind]
-	if !ok {
-		resource = probeResource
-	}
 	return []string{
 		"create", "api", "--group=" + upjetGroup, "--version=" + apiVersion, "--kind=" + kind,
-		"--terraform-resource=" + resource,
-	}
-}
-
-func upjetStages() []Stage {
-	docker := []Capability{CapDocker}
-	return []Stage{
-		{Name: cmdInit, Run: stageUpjetInit},
-		{Name: "create-api", Run: stageUpjetCreateAPI},
-		{Name: "generate", Run: stageUpjetGenerate},
-		{Name: "user-logic", Run: stageUpjetUserLogic},
-		{Name: "stock-e2e", Needs: docker, When: Case.Head, Background: true, Run: stageStockE2E},
-		{Name: "update-to-head", When: Case.Release, Run: stageUpdateToHead},
-		{Name: "refuse-old-generator", When: Case.Release, Run: stageRefuseOldGenerator},
-		{Name: "update-noop", Run: stageUpdateNoop},
-		{Name: "orphan-removal", Run: stageOrphanRemoval},
-		{Name: "create-api-refresh", Run: stageCreateAPIRefresh},
-		{Name: "adopt", Run: stageAdopt},
-		{Name: cmdCreateTest, Run: stageCreateTest},
-		{Name: "tf-bump", Run: stageTerraformBump},
-		{Name: "provider-starts", Run: stageProviderStarts},
-		{Name: "build-xpkg", Needs: docker, Run: func(e *Env) error { return e.make("build") }},
-		{Name: "install-in-kind", Needs: docker, Join: true, Run: stageInstallInKind},
-		{Name: "provider-config", Needs: docker, Run: stageProviderConfig},
-		{Name: "mr-ready-synced", Needs: docker, Run: stageReadySynced},
-		{Name: "mr-update", Needs: docker, Run: stageMRUpdate},
-		{Name: "drift-corrected", Needs: docker, Run: stageDriftCorrected},
-		{Name: "mr-delete", Needs: docker, Run: stageMRDelete},
-		{Name: "external-gone", Needs: docker, Run: stageExternalGone},
+		"--terraform-resource=" + upjetResources[kind],
 	}
 }
 
@@ -158,23 +132,25 @@ func stageUpjetInit(e *Env) error {
 	return e.assertCleanTree("init")
 }
 
-func stageUpjetCreateAPI(e *Env) error {
-	for _, kind := range e.F.Kinds {
-		if _, err := e.gen(e.F.CreateAPI(kind)...); err != nil {
+// stageUpjetCreateAPI adds the first kind only. The second is added after the
+// first generate, as an author adds a kind to a provider that already has one.
+func stageUpjetCreateAPI(e *Env) error { return e.createKind(e.F.Kinds[0]) }
+
+func (e *Env) createKind(kind string) error {
+	if _, err := e.gen(e.F.CreateAPI(kind)...); err != nil {
+		return err
+	}
+	lower := strings.ToLower(kind)
+	if err := e.assertLayout([]string{"config/" + lower + "/config.go"}); err != nil {
+		return err
+	}
+	resources, err := e.read(e.F.ToolProbe)
+	if err != nil {
+		return err
+	}
+	for _, want := range []string{lower + ".Configure", lower + ".TerraformResource"} {
+		if err := contains(resources, want, e.F.ToolProbe); err != nil {
 			return err
-		}
-		lower := strings.ToLower(kind)
-		if err := e.assertLayout([]string{"config/" + lower + "/config.go"}); err != nil {
-			return err
-		}
-		resources, err := e.read(e.F.ToolProbe)
-		if err != nil {
-			return err
-		}
-		for _, want := range []string{lower + ".Configure", lower + ".TerraformResource"} {
-			if err := contains(resources, want, e.F.ToolProbe); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
@@ -182,21 +158,34 @@ func stageUpjetCreateAPI(e *Env) error {
 
 // stageUpjetGenerate runs upjet's real pipeline: it downloads Terraform, reads
 // the provider schema and scrapes its docs, then writes the types, controllers
-// and CRDs. Unlike native's, its output is not part of the scaffold, so the
-// stage commits it for the stages that update the tree. The scaffold's
-// generate leaves go.mod tidy, so a same-generator update changes nothing.
+// and CRDs. It then adds the second kind and generates again, so the
+// incremental generate an author runs for a new kind is covered too. Unlike
+// native's, the output is not part of the scaffold, so the stage commits it for
+// the stages that update the tree. The scaffold's generate leaves go.mod tidy,
+// so a same-generator update changes nothing.
 func stageUpjetGenerate(e *Env) error {
 	subjects, err := e.git("log", "--format=%s")
 	if err != nil {
 		return err
 	}
-	if subjects != "Initial commit" {
-		return fmt.Errorf("want one Initial commit before generate, git log has:\n%s", subjects)
+	if subjects != initialCommitMsg {
+		return fmt.Errorf("want one %s before generate, git log has:\n%s", initialCommitMsg, subjects)
 	}
 	if err := e.make("submodules", targetGenerate); err != nil {
 		return err
 	}
-	if err := e.assertUpjetGenerated(); err != nil {
+	if err := e.assertUpjetGenerated(e.F.Kinds[:1]); err != nil {
+		return err
+	}
+	for _, kind := range e.F.Kinds[1:] {
+		if err := e.createKind(kind); err != nil {
+			return err
+		}
+	}
+	if err := e.make(targetGenerate); err != nil {
+		return err
+	}
+	if err := e.assertUpjetGenerated(e.F.Kinds); err != nil {
 		return err
 	}
 	if _, err := e.exec(e.Dir, "", "go", "build", "./..."); err != nil {
@@ -208,9 +197,9 @@ func stageUpjetGenerate(e *Env) error {
 	return e.commit("Generate provider")
 }
 
-func (e *Env) assertUpjetGenerated() error {
+func (e *Env) assertUpjetGenerated(kinds []string) error {
 	want := []string{"apis/cluster/zz_register.go", "internal/controller/cluster/zz_setup.go"}
-	for _, kind := range e.F.Kinds {
+	for _, kind := range kinds {
 		lower := strings.ToLower(kind)
 		want = append(want,
 			fmt.Sprintf("apis/cluster/%s/%s/zz_%s_types.go", upjetGroup, apiVersion, lower),

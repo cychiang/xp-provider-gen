@@ -32,7 +32,7 @@ func run() int {
 	flag.StringVar(&o.from, "from", fromHead,
 		"binary that scaffolds: head, latest (the newest published release), or a release tag such as v0.3.0")
 	flag.BoolVar(&o.list, "list", false,
-		"print the declared stages and exit; with --from a release, only those that apply")
+		"print the declared stages and exit, writing no report; with --from a release, only those that apply")
 	flag.StringVar(&o.bin, "bin", "bin/xp-provider-gen", "binary under test")
 	flag.StringVar(&o.overlay, "overlay", "",
 		"overlay tree, laid over the scaffold at the same paths (default test/e2e/testdata/<flavor>)")
@@ -44,7 +44,7 @@ func run() int {
 	defer stop()
 	rep := Report{Schema: reportSchema, Flavor: o.flavor, Verdict: VerdictFailed}
 	code := runCase(ctx, o, &rep)
-	if o.report != "" {
+	if o.report != "" && !o.list {
 		if err := rep.write(o.report); err != nil {
 			return fail(err)
 		}
@@ -93,6 +93,9 @@ func runCase(ctx context.Context, o options, rep *Report) int {
 
 	verdict, results := Execute(plan, env, os.Stdout)
 	rep.Verdict, rep.Stages, rep.Upgrade = verdict, results, env.Upgrade
+	if env.Upgrade != nil {
+		fmt.Println(env.Upgrade.Summary())
+	}
 	env.cleanup(plan.Mode == ModeFull, verdict != VerdictFailed)
 	if verdict == VerdictFailed {
 		return 1
@@ -155,7 +158,7 @@ func newEnv(ctx context.Context, c Case, f *Flavor, bin, overlay, logs string) (
 		Kubeconfig: filepath.Join(work, "kubeconfig"),
 		Cluster:    "e2e-" + strings.TrimPrefix(filepath.Base(work), "xpg-e2e-"),
 		F:          f,
-		Toolchain:  c.Toolchain,
+		Case:       c,
 	}
 	if err := e.prepare(ctx, c); err != nil {
 		e.cleanup(false, true)
