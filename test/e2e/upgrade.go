@@ -104,31 +104,31 @@ func (e *Env) assertUserLogicWorks() error {
 // byte-identical to the fresh one's, and the two sets to be the same. Only the
 // scaffold's own files are compared, so the fresh run skips the generate and
 // reviewable that init and create api would otherwise run for minutes.
-func (e *Env) assertToolOwnedMatchesFreshScaffold() error {
+func (e *Env) assertToolOwnedMatchesFreshScaffold() (compared, differing int, err error) {
 	fresh, err := os.MkdirTemp(e.Work, "fresh-")
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	defer func() { _ = os.RemoveAll(fresh) }()
 	pathEnv, err := e.makeSkippingGenerate()
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	if _, err := e.execEnv(pathEnv, fresh, "", e.Head, e.F.Init...); err != nil {
-		return err
+		return 0, 0, err
 	}
 	for _, kind := range e.F.Kinds {
 		if _, err := e.execEnv(pathEnv, fresh, "", e.Head, e.F.CreateAPI(kind)...); err != nil {
-			return err
+			return 0, 0, err
 		}
 	}
 	got, err := e.toolOwned(e.Dir)
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	want, err := e.toolOwned(fresh)
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	return compareToolOwned(got, want, e.F.RequiredOwned)
 }
@@ -201,14 +201,15 @@ func (e *Env) toolOwned(dir string) (map[string][]byte, error) {
 // compareToolOwned fails unless the updated tree has the fresh scaffold's
 // tool-owned files, no more and no fewer, with the same bytes. It also fails
 // on a set missing the files whose refresh matters most, so an empty or
-// header-less walk cannot pass.
-func compareToolOwned(got, want map[string][]byte, required []string) error {
+// header-less walk cannot pass. It returns how many files it compared and how
+// many differ, whether or not it fails.
+func compareToolOwned(got, want map[string][]byte, required []string) (compared, differing int, err error) {
 	if len(want) == 0 {
-		return errNoOwned
+		return 0, 0, errNoOwned
 	}
 	for _, rel := range required {
 		if _, ok := want[rel]; !ok {
-			return fmt.Errorf("fresh scaffold has no tool-owned %s", rel)
+			return len(want), 0, fmt.Errorf("fresh scaffold has no tool-owned %s", rel)
 		}
 	}
 	var problems []string
@@ -228,15 +229,16 @@ func compareToolOwned(got, want map[string][]byte, required []string) error {
 	}
 	if len(problems) > 0 {
 		slices.Sort(problems)
-		return fmt.Errorf("tool-owned files after update do not match a fresh scaffold:\n%s", strings.Join(problems, "\n"))
+		return len(want), len(problems), fmt.Errorf("tool-owned files after update do not match a fresh scaffold:\n%s",
+			strings.Join(problems, "\n"))
 	}
-	return nil
+	return len(want), 0, nil
 }
 
 // stageRefuseOldGenerator runs the release binary against the updated tree.
 // A released binary orders only clean release versions, so the tree is
 // stamped with one by hand and the stamp is restored afterwards. The
-// refusals are the release's own; one that predates a check is not asked.
+// refusals are the release's own.
 func stageRefuseOldGenerator(e *Env) error {
 	want, err := e.stamp()
 	if err != nil {
@@ -245,11 +247,9 @@ func stageRefuseOldGenerator(e *Env) error {
 	if err := e.withStamp(newerStamp, e.refuseOnNewerProject); err != nil {
 		return err
 	}
-	if e.CreateAPIGuard {
-		err := e.withStamp(olderStamp, func() error { return e.refusedCreateAPI(refuseNewer, "an older project") })
-		if err != nil {
-			return err
-		}
+	err = e.withStamp(olderStamp, func() error { return e.refusedCreateAPI(refuseNewer, "an older project") })
+	if err != nil {
+		return err
 	}
 	return e.assertStamp(want)
 }
@@ -263,9 +263,6 @@ func (e *Env) refuseOnNewerProject() error {
 		if err := e.assertCleanTree("a refused " + strings.Join(args, " ")); err != nil {
 			return err
 		}
-	}
-	if !e.CreateAPIGuard {
-		return nil
 	}
 	return e.refusedCreateAPI(refuseCreateOlder, "a newer project")
 }
@@ -364,11 +361,12 @@ func keepUserOwned(all map[string][]byte) map[string][]byte {
 }
 
 // assertUserOwnedUnchanged compares the user-owned files now with before, leaving
-// out the paths in except, which the caller checks itself.
-func (e *Env) assertUserOwnedUnchanged(before map[string][]byte, except ...string) error {
+// out the paths in except, which the caller checks itself. It returns how many
+// files changed, whether or not it fails.
+func (e *Env) assertUserOwnedUnchanged(before map[string][]byte, except ...string) (changed int, err error) {
 	now, err := e.userOwned()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	for _, rel := range except {
 		delete(before, rel)
@@ -378,26 +376,57 @@ func (e *Env) assertUserOwnedUnchanged(before map[string][]byte, except ...strin
 }
 
 // compareUserOwned fails on a user-owned file that update removed, changed or
-// added.
-func compareUserOwned(before, now map[string][]byte) error {
+// added, and returns how many.
+func compareUserOwned(before, now map[string][]byte) (int, error) {
+	problems := differences(before, now, "update")
+	if len(problems) > 0 {
+		return len(problems), fmt.Errorf("update touched user-owned files:\n%s", strings.Join(problems, "\n"))
+	}
+	return 0, nil
+}
+
+// differences names, sorted, each file of before that now lacks or holds with
+// other bytes and each file of now that before lacks.
+func differences(before, now map[string][]byte, by string) []string {
 	var problems []string
 	for rel, b := range before {
 		got, ok := now[rel]
 		switch {
 		case !ok:
-			problems = append(problems, "gone after update: "+rel)
+			problems = append(problems, "gone after "+by+": "+rel)
 		case !bytes.Equal(got, b):
-			problems = append(problems, "changed by update: "+rel)
+			problems = append(problems, "changed by "+by+": "+rel)
 		}
 	}
 	for rel := range now {
 		if _, ok := before[rel]; !ok {
-			problems = append(problems, "added by update: "+rel)
+			problems = append(problems, "added by "+by+": "+rel)
 		}
 	}
-	if len(problems) > 0 {
-		slices.Sort(problems)
-		return fmt.Errorf("update touched user-owned files:\n%s", strings.Join(problems, "\n"))
+	slices.Sort(problems)
+	return problems
+}
+
+// assertGenerateChangesNothing runs the provider's own generate and fails on
+// every file it changes, adds or removes. The byte comparison with a fresh
+// scaffold leaves generated output out, and stale output that still compiles
+// would otherwise pass. It returns how many files changed.
+func (e *Env) assertGenerateChangesNothing() (int, error) {
+	before, err := e.files(e.Dir)
+	if err != nil {
+		return 0, err
 	}
-	return nil
+	if err := e.make(targetGenerate); err != nil {
+		return 0, err
+	}
+	after, err := e.files(e.Dir)
+	if err != nil {
+		return 0, err
+	}
+	problems := differences(before, after, targetGenerate)
+	if len(problems) > 0 {
+		return len(problems), fmt.Errorf("generate after update changed the tree, so its output was stale:\n%s",
+			strings.Join(problems, "\n"))
+	}
+	return 0, nil
 }

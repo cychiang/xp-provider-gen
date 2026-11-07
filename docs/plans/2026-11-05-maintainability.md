@@ -85,7 +85,8 @@ stage. Fast mode exists, and reports `VERDICT PARTIAL` with each stage it did no
 | `mr-delete`, `external-gone` | The resource is gone, then the external object is gone |
 | `create-test` | A scaffolded chainsaw test passes |
 
-The cells are `{native, upjet} x {head, v0.2.0, v0.3.0}`.
+The cells are `{native, upjet} x {head, newest release}` (amended 2026-11-07; the record
+first listed v0.2.0 and v0.3.0, see decision four).
 
 Native needs an honest external system without changing what authors receive. The
 harness overlays the user-owned `client.go` and `external.go` in the scaffold under test,
@@ -170,6 +171,18 @@ migration path for that reason alone. The ten live lanes per PR stay.
 4. **CI cost.** Today's medians are 442 seconds native and upgrade, and 598 seconds upjet.
    Recommendation: head cells per PR, release cells daily and before a release, and a set
    budget for P11's per-PR rule.
+
+   Amended 2026-11-07 by the operator. The "daily" above had already become weekly by the
+   operator's order, and the release cells now change further. Upgrades test the newest
+   published release in each flavor (`--from=latest`), on the weekly schedule and on
+   `workflow_dispatch`, and not on pull requests. The operator's words: "You can skip
+   upgrade from v0.1.0 to v0.3.0 or anything like that, you dont't need to consider any
+   backward compatiable just make sure the new architecture and implementation is easy to
+   maintain in the future", and then "will the upgrade path becomes much easy to test and
+   measurable?" Older releases are not tested, no list of releases is kept by hand, and
+   each run can write a JSON report (`--report`) of stage times and upgrade counts, which
+   makes the path measurable. A tag that needs a toolchain override is the one exception
+   the harness lists (v0.3.0 needs `go1.26.8`).
 5. **Harness language.** Recommendation: Go, because the three blind checks above are
    shell-shaped failures, and `scripts/check-go-version` is the precedent. Stage names, the
    verdict rule and exit codes survive any choice. If the answer is shell, P3 becomes the
@@ -186,7 +199,9 @@ All of these hold, shown by their output:
 
 - Scenario replays show the predicted reductions, or the plan says why not.
 - Scaffold diffs for both flavors show only declared changes.
-- Providers from v0.2.0 and v0.3.0 upgrade cleanly in both flavors.
+- A provider from the newest published release upgrades cleanly in both flavors, run weekly
+  and on dispatch rather than on pull requests (amended 2026-11-07), and the run reports
+  what it compared and what differed.
 - Both flavors reach `Ready` and `Synced` in kind and clean up the external object.
 - A deliberately broken template fails the e2e, and every new check has been break-tested.
 - `make reviewable` passes, and CI passes on a clean runner with zero skipped required

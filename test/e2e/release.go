@@ -28,7 +28,7 @@ const (
 var ErrChecksum = errors.New("checksum mismatch")
 
 // listReleasesArgs leaves out prereleases and drafts: a cell must run only
-// what users install, and a prerelease tag is never in Releases.
+// what users install.
 var listReleasesArgs = []string{
 	"release", "list", "-R", releaseRepo, "--limit", "1",
 	"--exclude-pre-releases", "--exclude-drafts", "--json", "tagName", "--jq", ".[].tagName",
@@ -41,6 +41,24 @@ func newestReleases(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("listing releases with gh: %w", err)
 	}
 	return strings.Fields(string(out)), nil
+}
+
+var errNoRelease = errors.New("gh lists no published release")
+
+// resolveFrom turns --from=latest into the newest published release's tag and
+// leaves head and an explicit tag as they are.
+func resolveFrom(ctx context.Context, from string) (string, error) {
+	if from != fromLatest {
+		return from, nil
+	}
+	tags, err := newestReleases(ctx)
+	if err == nil && len(tags) == 0 {
+		err = errNoRelease
+	}
+	if err != nil {
+		return "", fmt.Errorf("resolving --from=%s: %w", fromLatest, err)
+	}
+	return tags[0], nil
 }
 
 // fetchRelease downloads a release's archive for this host into a new empty

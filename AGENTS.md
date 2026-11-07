@@ -35,7 +35,7 @@ Prerequisites (Go version, gosec, Docker for e2e) are in
 | Command | Purpose |
 |---------|---------|
 | `make reviewable` | mod-tidy + fmt/vet/lint/gosec/test + check-consistency — the same checks CI enforces |
-| `make e2e-native` / `make e2e-upjet` | The two e2e surfaces; `E2E_ARGS=--from=v0.3.0` upgrades a provider scaffolded by that release |
+| `make e2e-native` / `make e2e-upjet` | The two e2e surfaces; `E2E_ARGS=--from=latest` upgrades a provider scaffolded by the newest published release, and `--report=<file>` writes the run as JSON |
 | `make help` | List all targets |
 
 Both run the Go stage harness in `test/e2e`: full mode fails before its first stage when Docker is

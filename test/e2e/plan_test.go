@@ -5,18 +5,12 @@ package main
 import (
 	"bytes"
 	"errors"
-	"os"
 	"slices"
 	"strings"
 	"testing"
-
-	"sigs.k8s.io/yaml"
 )
 
-const (
-	newestTag     = "v0.3.0"
-	fakeToolchain = "go1.2.3"
-)
+const newestTag = "v0.3.0"
 
 func counting(name string, ran *[]string, err error, needs ...Capability) Stage {
 	return Stage{Name: name, Needs: needs, Run: func(*Env) error {
@@ -63,7 +57,7 @@ func TestFastModeSetsDockerStagesAsideAndReportsPartial(t *testing.T) {
 				t.Fatal(err)
 			}
 			var out bytes.Buffer
-			if v := Execute(plan, &Env{}, &out); v != VerdictPartial {
+			if v, _ := Execute(plan, &Env{}, &out); v != VerdictPartial {
 				t.Fatalf("verdict %s, want PARTIAL", v)
 			}
 			if strings.Join(ran, ",") != cmdInit {
@@ -90,7 +84,7 @@ func TestFirstFailureStopsTheRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if v := Execute(plan, &Env{}, &out); v != VerdictFailed {
+	if v, _ := Execute(plan, &Env{}, &out); v != VerdictFailed {
 		t.Fatalf("verdict %s, want FAILED", v)
 	}
 	if strings.Join(ran, ",") != "one,two" {
@@ -111,7 +105,7 @@ func TestFullModeWithEveryStagePassingIsComplete(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if v := Execute(plan, &Env{}, &out); v != VerdictComplete {
+	if v, _ := Execute(plan, &Env{}, &out); v != VerdictComplete {
 		t.Fatalf("verdict %s, want COMPLETE:\n%s", v, out.String())
 	}
 }
@@ -242,93 +236,14 @@ func TestAPlanWithNothingToRunIsRejected(t *testing.T) {
 	}
 }
 
-func TestPreflightFailsWhenTheNewestReleaseIsNotDeclared(t *testing.T) {
-	for name, c := range map[string]struct {
-		listed  []string
-		wantErr string
-	}{
-		"newest declared":          {listed: []string{newestTag, "v0.2.0"}},
-		"newest missing":           {listed: []string{"v9.9.9", newestTag}, wantErr: "v9.9.9"},
-		"only an older is missing": {listed: []string{newestTag, "v0.0.1"}},
-		"no releases":              {wantErr: ErrNoReleases.Error()},
+func TestNewCaseGivesAToolchainOnlyToTheReleasesListed(t *testing.T) {
+	for _, c := range []struct{ from, want string }{
+		{fromHead, ""},
+		{newestTag, "go1.26.8"},
+		{"v9.9.9", ""},
 	} {
-		t.Run(name, func(t *testing.T) {
-			err := Preflight(c.listed)
-			switch {
-			case c.wantErr == "" && err != nil:
-				t.Errorf("unexpected error %v", err)
-			case c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)):
-				t.Errorf("error %v, want one naming %q", err, c.wantErr)
-			}
-		})
-	}
-}
-
-func TestEveryDeclaredReleaseCarriesAToolchain(t *testing.T) {
-	for tag, r := range Releases {
-		if r.Toolchain == "" {
-			t.Errorf("%s declares no toolchain", tag)
+		if got := NewCase(nativeName, c.from).Toolchain; got != c.want {
+			t.Errorf("%s runs under toolchain %q, want %q", c.from, got, c.want)
 		}
-	}
-}
-
-func TestNewCaseResolvesHeadAReleaseAndRefusesTheRest(t *testing.T) {
-	saved := Releases
-	t.Cleanup(func() { Releases = saved })
-	Releases = map[string]Release{
-		"v1.0.0": {Toolchain: fakeToolchain},
-		"v0.9.0": {Toolchain: fakeToolchain, NotApplicable: map[string]string{nativeName: "predates the flavor"}},
-	}
-	if c, err := NewCase(nativeName, fromHead); err != nil || c.Release() || c.Toolchain != "" {
-		t.Errorf("head resolved to %+v, %v", c, err)
-	}
-	if c, err := NewCase(nativeName, "v1.0.0"); err != nil || !c.Release() || c.Toolchain != fakeToolchain || c.CreateAPIGuard {
-		t.Errorf("v1.0.0 resolved to %+v, %v", c, err)
-	}
-	if _, err := NewCase(nativeName, "v2.0.0"); !errors.Is(err, ErrUnknownRelease) || !strings.Contains(err.Error(), "v0.9.0, v1.0.0") {
-		t.Errorf("unknown tag error %v", err)
-	}
-	if _, err := NewCase(nativeName, "v0.9.0"); !errors.Is(err, ErrNotApplicable) || !strings.Contains(err.Error(), "predates the flavor") {
-		t.Errorf("not applicable error %v", err)
-	}
-}
-
-// TestWorkflowMatrixListsEveryRelease keeps each upgrade job's hand-kept
-// matrix.from equal to the releases that apply to its flavor: a release in only
-// one of them runs in neither place it should.
-func TestWorkflowMatrixListsEveryRelease(t *testing.T) {
-	for _, c := range []struct{ flavor, file, job string }{
-		{nativeName, "../../.github/workflows/e2e-native-full.yml", "e2e-upgrade"},
-		{upjetName, "../../.github/workflows/e2e-upjet.yml", "e2e-upjet-upgrade"},
-	} {
-		t.Run(c.flavor, func(t *testing.T) {
-			b, err := os.ReadFile(c.file)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var wf struct {
-				Jobs map[string]struct {
-					Strategy struct {
-						Matrix struct {
-							From []string `json:"from"`
-						} `json:"matrix"`
-					} `json:"strategy"`
-				} `json:"jobs"`
-			}
-			if err := yaml.Unmarshal(b, &wf); err != nil {
-				t.Fatal(err)
-			}
-			got := slices.Clone(wf.Jobs[c.job].Strategy.Matrix.From)
-			slices.Sort(got)
-			var want []string
-			for _, tag := range releaseTags() {
-				if _, na := Releases[tag].NotApplicable[c.flavor]; !na {
-					want = append(want, tag)
-				}
-			}
-			if !slices.Equal(got, want) {
-				t.Fatalf("%s %s matrix.from is %v, the %s releases in plan.go are %v: keep them equal", c.file, c.job, got, c.flavor, want)
-			}
-		})
 	}
 }

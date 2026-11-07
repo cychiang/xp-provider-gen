@@ -96,26 +96,37 @@ func TestCompareToolOwnedNeedsTheFreshScaffoldsFilesWithTheSameBytes(t *testing.
 	noConnector := fresh()
 	delete(noConnector, nativeFlavor.RequiredOwned[0])
 
+	twoWrong := fresh()
+	twoWrong[nativeFlavor.RequiredOwned[0]] = "stale"
+	delete(twoWrong, nativeFlavor.RequiredOwned[1])
+	twoWrong["internal/old.go"] = "a file head no longer renders"
+	n := len(nativeFlavor.RequiredOwned)
+
 	cases := []struct {
-		name      string
-		got, want map[string]string
-		wantErr   string
+		name                string
+		got, want           map[string]string
+		wantErr             string
+		wantCompared, wantD int
 	}{
-		{"identical", fresh(), fresh(), ""},
-		{"a stale file", tampered, fresh(), "differs from a fresh scaffold: " + nativeFlavor.RequiredOwned[0]},
-		{"a file update never wrote", missing, fresh(), "missing after update: " + nativeFlavor.RequiredOwned[1]},
-		{"a file update left behind", extra, fresh(), "not in a fresh scaffold: internal/old.go"},
-		{"an empty fresh set", fresh(), nil, errNoOwned.Error()},
-		{"a fresh set without the connector", noConnector, noConnector, "no tool-owned " + nativeFlavor.RequiredOwned[0]},
+		{"identical", fresh(), fresh(), "", n, 0},
+		{"a stale file", tampered, fresh(), "differs from a fresh scaffold: " + nativeFlavor.RequiredOwned[0], n, 1},
+		{"a file update never wrote", missing, fresh(), "missing after update: " + nativeFlavor.RequiredOwned[1], n, 1},
+		{"a file update left behind", extra, fresh(), "not in a fresh scaffold: internal/old.go", n, 1},
+		{"three wrong at once", twoWrong, fresh(), "differs from a fresh scaffold", n, 3},
+		{"an empty fresh set", fresh(), nil, errNoOwned.Error(), 0, 0},
+		{"a fresh set without the connector", noConnector, noConnector, "no tool-owned " + nativeFlavor.RequiredOwned[0], n - 1, 0},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := compareToolOwned(owned(c.got), owned(c.want), nativeFlavor.RequiredOwned)
+			compared, differing, err := compareToolOwned(owned(c.got), owned(c.want), nativeFlavor.RequiredOwned)
 			if c.wantErr == "" && err != nil {
 				t.Fatalf("compareToolOwned = %v, want nil", err)
 			}
 			if c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)) {
 				t.Fatalf("compareToolOwned = %v, want %q", err, c.wantErr)
+			}
+			if compared != c.wantCompared || differing != c.wantD {
+				t.Fatalf("compared %d, differing %d, want %d and %d", compared, differing, c.wantCompared, c.wantD)
 			}
 		})
 	}
@@ -149,25 +160,29 @@ func TestCompareUserOwnedIgnoresGeneratedOutputAndFlagsAuthorFiles(t *testing.T)
 	}
 	before := map[string]string{author: mine, crd: oldGen, deepcopy: oldGen}
 	cases := []struct {
-		name    string
-		now     map[string]string
-		wantErr string
+		name        string
+		now         map[string]string
+		wantErr     string
+		wantChanged int
 	}{
-		{"a controller-gen bump", map[string]string{author: mine, crd: newGen, deepcopy: newGen}, ""},
-		{"a generated file update adds", map[string]string{author: mine, crd: oldGen, deepcopy: oldGen, "apis/v1alpha1/zz_generated.managed.go": newGen}, ""},
-		{"an author file changes", map[string]string{author: "theirs", crd: oldGen, deepcopy: oldGen}, "changed by update: " + author},
-		{"an author file goes", map[string]string{crd: oldGen, deepcopy: oldGen}, "gone after update: " + author},
-		{"update adds an author file", map[string]string{author: mine, crd: oldGen, deepcopy: oldGen, "internal/provider/extra.go": "x"}, "added by update: internal/provider/extra.go"},
-		{"a name that only resembles generated output", map[string]string{author: mine, "my_zz_generated.go": "x", "docs/package/crds/a.yaml": "x"}, "added by update: docs/package/crds/a.yaml\nadded by update: my_zz_generated.go"},
+		{"a controller-gen bump", map[string]string{author: mine, crd: newGen, deepcopy: newGen}, "", 0},
+		{"a generated file update adds", map[string]string{author: mine, crd: oldGen, deepcopy: oldGen, "apis/v1alpha1/zz_generated.managed.go": newGen}, "", 0},
+		{"an author file changes", map[string]string{author: "theirs", crd: oldGen, deepcopy: oldGen}, "changed by update: " + author, 1},
+		{"an author file goes", map[string]string{crd: oldGen, deepcopy: oldGen}, "gone after update: " + author, 1},
+		{"update adds an author file", map[string]string{author: mine, crd: oldGen, deepcopy: oldGen, "internal/provider/extra.go": "x"}, "added by update: internal/provider/extra.go", 1},
+		{"a name that only resembles generated output", map[string]string{author: mine, "my_zz_generated.go": "x", "docs/package/crds/a.yaml": "x"}, "added by update: docs/package/crds/a.yaml\nadded by update: my_zz_generated.go", 2},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := compareUserOwned(filter(before), filter(c.now))
+			changed, err := compareUserOwned(filter(before), filter(c.now))
 			if c.wantErr == "" && err != nil {
 				t.Fatalf("compareUserOwned = %v, want nil", err)
 			}
 			if c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)) {
 				t.Fatalf("compareUserOwned = %v, want %q", err, c.wantErr)
+			}
+			if changed != c.wantChanged {
+				t.Fatalf("changed %d, want %d", changed, c.wantChanged)
 			}
 		})
 	}

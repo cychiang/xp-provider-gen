@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -69,20 +70,20 @@ var (
 // Env is everything a stage may touch. Every subprocess gets the private
 // Kubeconfig and Cluster, so no stage can reach the user's own cluster.
 type Env struct {
-	Ctx            context.Context
-	Repo           string // the generator checkout
-	Head           string // the binary under test
-	Gen            string // the binary that scaffolds: Head, or a released one
-	Toolchain      string // GOTOOLCHAIN for Gen's init and create api; empty leaves it unset
-	CreateAPIGuard bool   // whether Gen's create api refuses a project another release stamped
-	Overlay        string // directory holding the user-logic overlay files
-	F              *Flavor
-	Work           string
-	Dir            string // the scaffolded provider
-	Logs           string
-	Kubeconfig     string
-	Cluster        string
-	log            io.Writer
+	Ctx        context.Context
+	Repo       string   // the generator checkout
+	Head       string   // the binary under test
+	Gen        string   // the binary that scaffolds: Head, or a released one
+	Toolchain  string   // GOTOOLCHAIN for Gen's init and create api; empty leaves it unset
+	Upgrade    *Upgrade // what update-to-head measured; nil until it has
+	Overlay    string   // directory holding the user-logic overlay files
+	F          *Flavor
+	Work       string
+	Dir        string // the scaffolded provider
+	Logs       string
+	Kubeconfig string
+	Cluster    string
+	log        io.Writer
 }
 
 func (e *Env) runStage(s Stage) error {
@@ -573,9 +574,33 @@ func stageUpdateToHead(e *Env) error {
 	if _, err := e.head("update"); err != nil {
 		return err
 	}
-	if err := e.assertUserOwnedUnchanged(userOwned); err != nil {
+	if err := e.measureUpgrade(userOwned, wantGo); err != nil {
 		return err
 	}
+	if err := e.F.AssertUserLogic(e); err != nil {
+		return err
+	}
+	return e.commit("update to head")
+}
+
+// measureUpgrade takes every upgrade count before it fails on any, so a report
+// of a failed run still says how far off the update was. The checks of what
+// update itself wrote come before generate, which could otherwise rewrite
+// go.mod and hide a directive update left behind.
+func (e *Env) measureUpgrade(userOwned map[string][]byte, wantGo string) error {
+	var up Upgrade
+	var userErr, toolErr, genErr error
+	up.UserOwnedChanged, userErr = e.assertUserOwnedUnchanged(userOwned)
+	up.ToolOwnedCompared, up.ToolOwnedDiffering, toolErr = e.assertToolOwnedMatchesFreshScaffold()
+	updatedErr := e.assertUpdated(wantGo)
+	up.GeneratedChanged, genErr = e.assertGenerateChangesNothing()
+	e.Upgrade = &up
+	return errors.Join(userErr, toolErr, updatedErr, genErr)
+}
+
+// assertUpdated checks what head's update stamps and moves: the stamp, the go
+// directive, and the ownership contract.
+func (e *Env) assertUpdated(wantGo string) error {
 	if err := e.assertStampIsHeadVersion(); err != nil {
 		return err
 	}
@@ -586,16 +611,7 @@ func stageUpdateToHead(e *Env) error {
 	if got != wantGo {
 		return fmt.Errorf("go directive is %q after update, want head's %q", got, wantGo)
 	}
-	if err := e.assertOwnership(); err != nil {
-		return err
-	}
-	if err := e.F.AssertUserLogic(e); err != nil {
-		return err
-	}
-	if err := e.assertToolOwnedMatchesFreshScaffold(); err != nil {
-		return err
-	}
-	return e.commit("update to head")
+	return e.assertOwnership()
 }
 
 // assertStampIsHeadVersion compares without the leading v and without quotes:

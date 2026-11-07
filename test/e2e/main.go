@@ -6,7 +6,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -19,25 +18,39 @@ import (
 
 func main() { os.Exit(run()) }
 
-func run() int {
+func run() (code int) {
 	flavor := flag.String("flavor", "native", "flavor to test")
 	mode := flag.String("mode", string(ModeFull),
 		"full runs every stage and fails without Docker; fast runs the stages that need none and reports PARTIAL")
-	from := flag.String("from", fromHead, "binary that scaffolds: head, or the tag of a published release such as v0.3.0")
+	from := flag.String("from", fromHead,
+		"binary that scaffolds: head, latest (the newest published release), or a release tag such as v0.3.0")
 	list := flag.Bool("list", false, "print the declared stages and exit; with --from a release, only those that apply")
 	bin := flag.String("bin", "bin/xp-provider-gen", "binary under test")
 	overlay := flag.String("overlay", "",
 		"overlay tree, laid over the scaffold at the same paths (default test/e2e/testdata/<flavor>)")
 	logs := flag.String("logs", "", "directory for per-stage logs (default: a new temporary directory)")
+	reportPath := flag.String("report", "", "file to write the JSON report to, also when the run fails")
 	flag.Parse()
 
-	c, err := NewCase(*flavor, *from)
-	if errors.Is(err, ErrNotApplicable) {
-		fmt.Printf("VERDICT NOT-APPLICABLE, nothing ran: %v\n", err)
-		return 0
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	rep := Report{Schema: reportSchema, Flavor: *flavor, Verdict: VerdictFailed}
+	if *reportPath != "" {
+		defer func() {
+			if err := rep.write(*reportPath); err != nil {
+				code = fail(err)
+			}
+		}()
 	}
+
+	tag, err := resolveFrom(ctx, *from)
 	if err != nil {
 		return fail(err)
+	}
+	*from = tag
+	c := NewCase(*flavor, *from)
+	if c.Release() {
+		rep.From = c.From
 	}
 	f, err := flavorFor(c.Flavor)
 	if err != nil {
@@ -52,17 +65,6 @@ func run() int {
 		*overlay = filepath.Join("test/e2e/testdata", f.Name)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	if c.Release() {
-		listed, err := newestReleases(ctx)
-		if err == nil {
-			err = Preflight(listed)
-		}
-		if err != nil {
-			return fail(err)
-		}
-	}
 	have := map[Capability]bool{CapDocker: dockerUp(ctx)}
 	plan, err := NewPlan(c, stages, Mode(*mode), have)
 	if err != nil {
@@ -77,8 +79,10 @@ func run() int {
 	if c.Toolchain != "" {
 		fmt.Printf("GOTOOLCHAIN=%s on the released binary's init and create api only\n", c.Toolchain)
 	}
+	rep.Head = versionOf(ctx, env.Head)
 
-	verdict := Execute(plan, env, os.Stdout)
+	verdict, results := Execute(plan, env, os.Stdout)
+	rep.Verdict, rep.Stages, rep.Upgrade = verdict, results, env.Upgrade
 	env.cleanup(plan.Mode == ModeFull, verdict != VerdictFailed)
 	if verdict == VerdictFailed {
 		return 1
@@ -93,6 +97,15 @@ func printStages(c Case, stages []Stage) {
 		}
 		fmt.Printf("%-20s needs=%v release-only=%t\n", s.Name, s.Needs, s.When != nil && !s.When(Case{From: fromHead}))
 	}
+}
+
+// versionOf is the version the binary reports, empty when it cannot say.
+func versionOf(ctx context.Context, bin string) string {
+	out, err := exec.CommandContext(ctx, bin, "version").Output() // #nosec G204 -- the binary under test, no shell
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func fail(err error) int {
@@ -121,19 +134,18 @@ func newEnv(ctx context.Context, c Case, f *Flavor, bin, overlay, logs string) (
 		}
 	}
 	e := &Env{
-		Ctx:            ctx,
-		Repo:           repoRoot,
-		Head:           absolute(repoRoot, bin),
-		Gen:            absolute(repoRoot, bin),
-		Overlay:        absolute(repoRoot, overlay),
-		Work:           work,
-		Dir:            filepath.Join(work, provider),
-		Logs:           absolute(repoRoot, logs),
-		Kubeconfig:     filepath.Join(work, "kubeconfig"),
-		Cluster:        "e2e-" + strings.TrimPrefix(filepath.Base(work), "xpg-e2e-"),
-		F:              f,
-		Toolchain:      c.Toolchain,
-		CreateAPIGuard: c.CreateAPIGuard,
+		Ctx:        ctx,
+		Repo:       repoRoot,
+		Head:       absolute(repoRoot, bin),
+		Gen:        absolute(repoRoot, bin),
+		Overlay:    absolute(repoRoot, overlay),
+		Work:       work,
+		Dir:        filepath.Join(work, provider),
+		Logs:       absolute(repoRoot, logs),
+		Kubeconfig: filepath.Join(work, "kubeconfig"),
+		Cluster:    "e2e-" + strings.TrimPrefix(filepath.Base(work), "xpg-e2e-"),
+		F:          f,
+		Toolchain:  c.Toolchain,
 	}
 	if err := e.prepare(ctx, c); err != nil {
 		e.cleanup(false, true)

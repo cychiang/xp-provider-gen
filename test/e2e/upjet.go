@@ -183,10 +183,8 @@ func stageUpjetCreateAPI(e *Env) error {
 // stageUpjetGenerate runs upjet's real pipeline: it downloads Terraform, reads
 // the provider schema and scrapes its docs, then writes the types, controllers
 // and CRDs. Unlike native's, its output is not part of the scaffold, so the
-// stage commits it for the stages that update the tree. The first generate
-// leaves go.mod listing as indirect a module the generated code imports, which
-// the next generate corrects, so the stage tidies first: otherwise a
-// same-generator update would change go.mod.
+// stage commits it for the stages that update the tree. The scaffold's
+// generate leaves go.mod tidy, so a same-generator update changes nothing.
 func stageUpjetGenerate(e *Env) error {
 	subjects, err := e.git("log", "--format=%s")
 	if err != nil {
@@ -199,9 +197,6 @@ func stageUpjetGenerate(e *Env) error {
 		return err
 	}
 	if err := e.assertUpjetGenerated(); err != nil {
-		return err
-	}
-	if _, err := e.exec(e.Dir, "", "go", "mod", "tidy"); err != nil {
 		return err
 	}
 	if _, err := e.exec(e.Dir, "", "go", "build", "./..."); err != nil {
@@ -307,10 +302,10 @@ func stageTerraformBump(e *Env) error {
 		return err
 	}
 	delete(before, providerConfigYML)
-	if err := e.assertUserOwnedUnchanged(before, makefile); err != nil {
+	if _, err := e.assertUserOwnedUnchanged(before, makefile); err != nil {
 		return err
 	}
-	if err := e.assertToolOwnedMatchesFreshScaffold(); err != nil {
+	if _, _, err := e.assertToolOwnedMatchesFreshScaffold(); err != nil {
 		return err
 	}
 	if _, err := e.git("checkout", "HEAD~1", "--", providerConfigYML); err != nil {

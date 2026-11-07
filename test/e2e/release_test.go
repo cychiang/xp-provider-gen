@@ -123,8 +123,36 @@ func TestNewestReleasesAsksGhForPublishedReleasesOnly(t *testing.T) {
 	}
 	for _, flag := range []string{"--exclude-pre-releases", "--exclude-drafts"} {
 		if !strings.Contains(string(got), flag) {
-			t.Errorf("gh ran as %q, lacking %s: a prerelease would fail every cell at the preflight", got, flag)
+			t.Errorf("gh ran as %q, lacking %s: a prerelease would be the release the upgrade cell scaffolds with", got, flag)
 		}
+	}
+}
+
+func TestResolveFromTurnsLatestIntoTheNewestTagAndLeavesTheRest(t *testing.T) {
+	stubGh := func(t *testing.T, script string) {
+		bin := t.TempDir()
+		if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(script), 0o700); err != nil { // #nosec G306 -- a test stub
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	}
+	for _, c := range []struct {
+		name, gh, from, want string
+		wantErr              bool
+	}{
+		{"latest", "#!/bin/sh\necho v1.2.3\n", fromLatest, "v1.2.3", false},
+		{"an explicit tag asks gh nothing", "#!/bin/sh\nexit 1\n", "v0.3.0", "v0.3.0", false},
+		{"head asks gh nothing", "#!/bin/sh\nexit 1\n", fromHead, fromHead, false},
+		{"latest with no release", "#!/bin/sh\n", fromLatest, "", true},
+		{"latest when gh fails", "#!/bin/sh\nexit 1\n", fromLatest, "", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			stubGh(t, c.gh)
+			got, err := resolveFrom(context.Background(), c.from)
+			if (err != nil) != c.wantErr || got != c.want {
+				t.Fatalf("resolveFrom(%q) = %q, %v, want %q, error %t", c.from, got, err, c.want, c.wantErr)
+			}
+		})
 	}
 }
 

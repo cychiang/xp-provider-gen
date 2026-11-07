@@ -7,12 +7,12 @@ permissions:
 # (kind + Crossplane + a real external object), so PRs stay fast and the run
 # ends in VERDICT PARTIAL. Those stages — a generated native provider actually
 # deploying to a real cluster and reconciling — and the upgrade of a provider
-# scaffolded by each published release (the check that protects provider
-# authors from a breaking generator bump) are both
-# expensive and both valuable, so they run here instead: on a weekly schedule, on demand,
-# and on PRs that touch the generator surfaces these checks actually exercise
-# (so a PR that changes that surface is verified before merge, not just
-# after, without slowing down unrelated PRs).
+# scaffolded by the newest published release (the check that protects provider
+# authors from a breaking generator bump) are both expensive and both valuable,
+# so they run here instead. The full run is on a weekly schedule, on demand, and
+# on PRs that touch the generator surfaces it exercises (so a PR that changes
+# that surface is verified before merge, not just after, without slowing down
+# unrelated PRs). The upgrade run is on the schedule and on demand only.
 on:
   schedule:
     - cron: '0 5 * * 1'
@@ -53,23 +53,22 @@ jobs:
     # (KIND_VERSION is pinned there), so this runner needs only the Docker
     # daemon GitHub's ubuntu-latest runners already provide.
     - name: Run full native E2E stages
-      run: make e2e-native E2E_ARGS="--logs=${{ runner.temp }}/e2e-logs"
+      run: make e2e-native E2E_ARGS="--logs=${{ runner.temp }}/e2e-logs --report=${{ runner.temp }}/e2e-logs/report.json"
 
-    - name: Upload per-stage logs
+    - name: Upload per-stage logs and report
       if: always()
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: e2e-native-full-logs
         path: ${{ runner.temp }}/e2e-logs
 
+  # Not on pull requests: it needs the published release's own binary, and the
+  # newest release does not change with a PR.
   e2e-upgrade:
-    name: E2E (upgrade from ${{ matrix.from }})
+    name: E2E (upgrade from the newest release)
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        from: [v0.1.0, v0.2.0, v0.3.0]
 
     steps:
     - name: Checkout code
@@ -85,18 +84,19 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-    # Scaffolds a provider with the published release's own binary, writes
-    # user logic into it, updates it with this checkout's build, and asserts
-    # the user's logic survives and the result still generates, lints, builds
-    # and reconciles on a kind cluster. gh lists and downloads the release.
-    - name: Run upgrade E2E from ${{ matrix.from }}
+    # Scaffolds a provider with the newest published release's own binary
+    # (--from=latest, which gh resolves), writes user logic into it, updates it
+    # with this checkout's build, and asserts the user's logic survives and the
+    # result still generates, lints, builds and reconciles on a kind cluster.
+    # report.json in the artifact holds the stage times and the upgrade counts.
+    - name: Run upgrade E2E from the newest release
       env:
         GH_TOKEN: ${{ github.token }}
-      run: make e2e-native E2E_ARGS="--from=${{ matrix.from }} --logs=${{ runner.temp }}/e2e-logs"
+      run: make e2e-native E2E_ARGS="--from=latest --logs=${{ runner.temp }}/e2e-logs --report=${{ runner.temp }}/e2e-logs/report.json"
 
-    - name: Upload per-stage logs
+    - name: Upload per-stage logs and report
       if: always()
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: e2e-upgrade-${{ matrix.from }}-logs
+        name: e2e-upgrade-logs
         path: ${{ runner.temp }}/e2e-logs

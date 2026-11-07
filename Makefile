@@ -70,11 +70,11 @@ coverage: ## Generate test coverage report
 
 E2E_ARGS ?=
 
-e2e-native: build ## Run the native-flavor end-to-end stages (E2E_ARGS=--mode=fast skips the Docker ones, --from=<tag> scaffolds with a release)
+e2e-native: build ## Run the native-flavor end-to-end stages (E2E_ARGS=--mode=fast skips the Docker ones, --from=latest scaffolds with the newest release, --report=<file> writes JSON)
 	@$(GOCMD) build -o $(BUILD_DIR)/e2e ./test/e2e
 	@exec $(BUILD_DIR)/e2e --flavor=native $(E2E_ARGS)
 
-e2e-upjet: build ## Run the upjet-flavor end-to-end stages (network, Docker; E2E_ARGS=--mode=fast skips the Docker ones, --from=<tag> scaffolds with a release)
+e2e-upjet: build ## Run the upjet-flavor end-to-end stages (network, Docker; E2E_ARGS=--mode=fast skips the Docker ones, --from=latest scaffolds with the newest release, --report=<file> writes JSON)
 	@$(GOCMD) build -o $(BUILD_DIR)/e2e ./test/e2e
 	@exec $(BUILD_DIR)/e2e --flavor=upjet $(E2E_ARGS)
 
