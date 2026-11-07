@@ -1,177 +1,101 @@
 # Architecture
 
-`xp-provider-gen` is a CLI built on the **Kubebuilder v4 plugin system**. It scaffolds a
-complete Crossplane provider from embedded templates, runs a post-scaffold automation
-pipeline (git, module tidy, code generation), and can later **`update`** an existing
-provider's tool-owned core without touching the user's business logic.
+`xp-provider-gen` is a CLI built on the Kubebuilder v4 plugin system. It scaffolds a Crossplane
+provider from embedded templates, runs a post-scaffold pipeline (git, module tidy, code
+generation), and later refreshes the tool-owned part of that provider with `update`, leaving
+the author's code alone.
 
-The code is organized into clearly separated layers:
+This page holds the contracts and invariants that stay true when a function is renamed. To
+learn what a function does, read its package. The decisions behind these contracts are linked
+in [section 8](#8-decision-records).
+
+## 1. Layers
 
 ```
-cmd/xp-provider-gen/            CLI entry point (Kubebuilder CLI + the `update` and `create-test` commands)
-pkg/plugins/crossplane/v2/
-├── plugin.go, init.go,         Plugin layer — subcommands (init, create api)
-│   createapi.go,
-│   update.go, reconcile.go,    + the update / update --adopt command: update.go (orchestration),
-│   adopt.go, tfversion.go,       reconcile.go (orphan removal), adopt.go (--adopt),
-│                                 tfversion.go (--terraform-provider-version)
-│   projectmeta.go              + the flavor/upjet settings persisted in PROJECT
-├── core/                       Reusable building blocks (git, exec, config, ownership gate,
-│                                apply.go, flavor.go, upjet.go)
-├── templates/engine/           Template discovery + deterministic generators + `Render`, the one
-│                                place init, create api and update assemble them (+ upjet_generator.go,
-│                                boilerplate.go, interfaces.go)
-├── automation/                 Post-scaffold pipeline (steps + git operations)
-└── validation/                 Input validation (domain, repo, group/version/kind)
-pkg/templates/                  Embedded template filesystem (go:embed) + loader
-pkg/versions/                   Dependency manifest (single source of truth for generated go.mod)
-pkg/version/                    The CLI's own version (distinct from pkg/versions/)
-scripts/                        check-go-version
-test/e2e/                       The e2e stage harness for both flavors (plan.go, flavor.go, stages.go, upjet.go, release.go) and its overlay testdata
+cmd/xp-provider-gen/            CLI entry: the Kubebuilder CLI plus the update and create-test commands
+pkg/plugins/crossplane/v2/      Plugin: the init, create api, update and create-test commands
+  core/                         Side-effecting building blocks with no template knowledge
+  templates/engine/             Template discovery, the generators, and Render
+  automation/                   Post-scaffold pipeline: steps and git operations
+  validation/                   Input validation
+pkg/templates/                  Embedded template filesystem, one root per flavor
+pkg/versions/                   dependencies.yaml: the pins a generated provider gets
+pkg/version/                    This CLI's own version, distinct from pkg/versions/
+test/e2e/                       The e2e stage harness for both flavors
 ```
 
-## 1. Entry point & command flow
+`core` imports nothing else from this module. `templates/engine`, `automation` and
+`validation` import `core` and never each other. Run
+`go list -f '{{join .Imports "\n"}}' ./pkg/plugins/crossplane/v2/<package>` to check.
 
-`cmd/xp-provider-gen/main.go` constructs a Kubebuilder CLI, registers the Crossplane plugin,
-and adds the standalone `update` and `create-test` commands (Kubebuilder's plugin interface has no update hook):
+## 2. Commands
 
-```go
-cli.New(
-    cli.WithCommandName(version.CommandName),
-    cli.WithVersion(versionInfo.Short()),
-    cli.WithPlugins(&crossplanev2.Plugin{}),
-    cli.WithDefaultPlugins(cfgv3.Version, &crossplanev2.Plugin{}),
-    cli.WithExtraCommands(crossplanev2.NewUpdateCommand(), crossplanev2.NewCreateTestCommand()),
-    cli.WithCompletion(),
-)
-```
+One rule holds for every command: **a render never writes to the provider directory.** A
+command renders the full result into memory with `engine.Render`, then writes it through
+`core.Apply`, which decides per file from what is already on disk (section 6). A failed render
+leaves the directory untouched.
 
-Kubebuilder routes `init` and `create api` to the plugin's subcommands, each driven through
-the standard lifecycle: `BindFlags` → `InjectConfig` → `PreScaffold` → `Scaffold` →
-`PostScaffold`. `update` is driven by its own `cobra` command; like `create api`, it reads
-the project's flavor from PROJECT and renders, validates and finalizes with that flavor's sets.
+- **`init`** validates its inputs, renders the init scope, applies it, and runs the init
+  pipeline. Kubebuilder saves PROJECT right after the scaffold step, before the pipeline runs.
+- **`create api`** adds the resource to the config, renders the kind's templates, and
+  regenerates the register files from every resource (section 3). While the history is still
+  the tool's scaffold, the commit folds into the `Initial commit`, which carries the
+  `xp-provider-gen-scaffold` trailer, so a fresh provider has one commit. After the author
+  commits, later runs add their own commits.
+- **`update`** is its own cobra command, because Kubebuilder's plugin interface has no update
+  hook. Section 7 is its contract.
+- **`create-test`** renders a chainsaw skeleton to `test/behavior/<name>/chainsaw-test.yaml`
+  and never overwrites one.
 
-## 2. Plugin layer (`pkg/plugins/crossplane/v2/`)
+PROJECT records the flavor (native or upjet). The flavor picks the template root, the
+generators, the validator and the pipelines.
 
-- **`plugin.go`** — `Plugin` implements Kubebuilder's `plugin.Full`, advertises config v3 /
-  plugin v2, returns the init and create-api subcommands.
-- **`init.go`** — binds `--domain`, `--repo`, `--git-name`, `--git-email`, plus (for `--upjet`)
-  four `--terraform-*` flags validated by `upjetSettings`; validates inputs; resolves
-  git author (CLI flags > system git config > defaults); delegates scaffolding to
-  `engine.Render(..., engine.ScopeInit, ...)`, which renders the flavor's init templates
-  plus its generators into memory, then writes the result through `core.Apply` — the rule
-  `update` uses (headered files refreshed, headerless ones kept and listed) — so a failed
-  render leaves the directory untouched; runs the init pipeline. Propagates pipeline errors (fails loudly).
-  Kubebuilder's own CLI saves PROJECT right after `Scaffold` returns, before `PostScaffold` runs.
-- **`createapi.go`** — injects the Kubebuilder resource model with Crossplane defaults;
-  validates the resource; adds it to the config; renders the resource's API templates and
-  **regenerates the register files deterministically** from `GetResources()`; runs the
-  API-commit pipeline.
-- **`update.go`**, **`reconcile.go`**, **`adopt.go`**, **`tfversion.go`**, **`godirective.go`** —
-  the `update` / `update --adopt` command, split by responsibility: `update.go` (the cobra
-  command and the prepare/run orchestration), `reconcile.go` (orphan removal and the summary),
-  `adopt.go` (`--adopt`), `tfversion.go` (`--terraform-provider-version`), and
-  `godirective.go` (raising go.mod's `go` directive to `go_version`). See §7.
-- **`createtest.go`** — the `create-test` command: resolves kind and test name (flag,
-  sole kind, or interactive prompt) and renders the chainsaw skeleton.
-- **`config.go`** — `NewPluginConfig()` wraps `core.NewPluginConfig()` to seed defaults.
+## 3. Template engine
 
-## 3. Core layer (`pkg/plugins/crossplane/v2/core/`)
+- **Templates are data.** Discovery walks the embedded filesystem once. A path with `GROUP`,
+  `VERSION` or `KIND` placeholders is per-kind, and every other path is init. Every path lands
+  in one of the two, so a template cannot be silently dropped, and adding a file needs no
+  registration ([templates.md](templates.md) is the contributor guide). A walk error panics,
+  because the filesystem is embedded and an error is a build defect.
+- **Slices, not maps.** Nothing looks a template up by name, and a derived key could collide
+  and drop a file (`Makefile.tmpl` exists in two directories).
+- **The machinery action is `SkipFile`, except in the in-memory render `update` uses.** No
+  render overwrites on its own.
+- **Generated files are rendered in full, never parsed and merged.** The register files are a
+  pure function of the resource list, and `go.mod` is rendered from the dependency manifest.
+  Generator bodies live in `pkg/templates/generators/`, outside the discovered roots.
+- **`docs/ownership.md` is built from the headers the ownership gate reads.** It walks the
+  template filesystem and maps each path as `core.GenerateOutputPath` does, so the published
+  contract cannot drift from the enforced one.
+- **`engine.Render` is the one assembly.** Its three scopes (init, kind, project) are the only
+  place templates and generators combine, for both flavors.
 
-Reusable, side-effecting building blocks with no template knowledge:
+## 4. Automation pipeline
 
-- **`command_runner.go`** — `CommandRunner` wraps `exec.CommandContext` with a working dir.
-- **`git_runner.go`** — `GitCommandRunner`: `Init`, `Add`, `CommitWithSystemAuthor`,
-  `GetUserName/Email`, `AddSubmodule`.
-- **`config.go`** — `PluginConfig` (repo prefix, git author); `GenerateDefaultRepo()`.
-- **`provider.go`** — `ExtractProviderName` / `ExtractProjectName` helpers.
-- **`template_path.go`** — maps a template path to an output path (strips the flavor root —
-  `files/` or `upjet/` — and `.tmpl`, maps the `project/` prefix to the provider root, applies
-  `GROUP`/`VERSION`/`KIND`/`IMAGENAME`). Pure functions — there is no state to carry.
-- **`ownership.go`** — the **ownership gate**: `GeneratedHeader`, `IsToolOwned(content)`, and
-  `DecideWrite(exists, existing) → Seed | Overwrite | Skip`. This is the rule that lets `update`
-  refresh tool-owned files while never clobbering user-owned files (§6).
-- **`apply.go`** — `Apply(src, dst, seedUserOwned)`, the ownership-gated copy of a rendered tree
-  onto a filesystem (`DecideWrite` per file, `FileMode` for the written mode), and
-  `CheckContained`, the path-containment gate every write and delete passes.
+A pipeline is a sequence of steps that runs after the scaffold.
 
-## 4. Template engine (`pkg/plugins/crossplane/v2/templates/engine/`)
+- **Every step is required.** A failure aborts the run. There is no warn-and-continue.
+- **The commit is last**, so the tree is clean and committed when the command returns.
+- **Each command picks its pipeline in one place per flavor**, and `update` picks its finalize
+  pipeline the same way.
+- **An upjet project does not compile until `make generate` has run.** Its init pipeline skips
+  tidy, generate and reviewable, and runs `go mod download` for the `go.sum` entries of the
+  generator's own tools. Its create-api pipeline only folds the commit.
 
-The engine turns embedded `.tmpl` files into Kubebuilder template products. Its defining
-trait is **auto-discovery**: templates are found by walking the embedded filesystem at factory
-init, not registered by hand. ([templates.md](templates.md) is the contributor-facing guide
-to adding one — placeholders, the generated header, the golden-test step.)
+## 5. Validation and the dependency manifest
 
-- **Discovery** — `autodiscovery.go` classifies each template by its path placeholders:
-  `GROUP`/`VERSION`/`KIND` mean per-kind (`APICategory`), `IMAGENAME` or none mean
-  `InitCategory`. Every path lands in one of the two, so discovery cannot silently drop a
-  template; a walk error panics (the FS is embedded, so it is a build defect).
-- **Factory** — `factory.go` (`CrossplaneTemplateFactory`) walks a flavor's root of the embedded
-  FS once (`NewFactoryForFlavor(cfg, flavor)`) and keeps the discovered templates in two
-  slices — init and per-kind — which `GetInitTemplates` / `GetAPITemplates` render on demand.
-  Slices, not maps: nothing looks a template up by name, and a derived key could collide and
-  drop a file.
-- **Building** — `builders.go` turns one `TemplateInfo` into a renderable product
-  (`BuildTemplate`): it resolves the output path's placeholders, applies the config,
-  and resource, and loads the body.
-- **Products** — `product_base.go` (`BaseTemplateProduct`) embeds Kubebuilder machinery mixins;
-  `product_generic.go` (`GenericTemplateProduct`) loads any discovered template's body
-  straight from `templates.TemplateFS`.
-  The machinery action is the zero value `SkipFile` unless `WithForce` is given (only the
-  `update` render does, into memory), so a render never overwrites on its own: every write
-  to disk goes through `core.Apply`, which decides from the file already on disk.
-- **Deterministic generators** — instead of parsing and merging existing files, the register
-  and go.mod files are rendered **in full** from the project state:
-  - `register_generators.go` — `APIRegisterGenerator` (renders `apis/register.go` from the
-    unique group/versions) and `ControllerRegisterGenerator` (renders
-    `internal/controller/register.go` per kind). Output is a pure function of the resource list.
-  - `gomod_generator.go` — `GoModGenerator` renders `go.mod` from the dependency manifest
-    (seed-once; never overwritten — see §6/§8).
-  - `ownership_doc_generator.go` — `OwnershipDocGenerator` renders `docs/ownership.md` by
-    walking the template FS and reading the same headers the ownership gate reads, so the
-    published contract cannot drift from the enforced one. It walks the FS directly (base
-    names are not unique) and maps each template through `core.GenerateOutputPath`, so the
-    doc lists the paths a provider actually has.
-  - `chainsaw_generator.go` — `ChainsawTestGenerator` renders the `create-test` skeleton.
-  - `render.go` — `Render` and the three Scopes (init, kind, project): the one assembly of
-    templates + generators every command calls.
-  - `assembly.go` — `AsBuilders`, `coreGenerators` (native) and `upjetCoreGenerators` (upjet:
-    `config/zz_resources.go` + the ownership doc) helpers, reached only through
-    `CoreGeneratorsFor`, which `Render` calls for every scope.
-  - Generator template **bodies** are files too: `pkg/templates/generators/*.tmpl`, loaded via
-    `templates.GeneratorBody` — deliberately outside `files/` so auto-discovery never renders
-    them directly (see [templates.md](templates.md)).
-
-## 5. Automation pipeline (`pkg/plugins/crossplane/v2/automation/`)
-
-A sequential chain of steps run after scaffolding. **Every step is required** — a failure
-aborts (no warn-and-continue) — and the **commit is last**, so the tree is left clean and
-fully committed.
-
-- **`steps.go`** — `Step` interface (`Name`, `Execute`); steps: `GitInitStep`, `GitCommitStep`
-  (or, via `NewGitFoldCommitStep`, folded into the scaffold commit), `GitSubmoduleStep`,
-  `MakeStep(target)`, `GoModDownloadStep` (populates go.sum before `make generate` has run —
-  an upjet init can't `go mod tidy` yet), `GoModTidyStep`,
-  `StreamingCommandStep` (runs a command with output streamed live, for steps that take
-  minutes — e.g. `update`'s finalize).
-- **`pipeline.go`** — `InitPipelineFor(flavor, ...)` and `APICommitPipelineFor(flavor, ...)`
-  are the one place `init` and `create api` choose a pipeline for a project's flavor,
-  mirroring `UpdateFinalizePipelineFor` (see below). The native pipeline runs git init →
-  submodule → `make submodules` → `go mod tidy` → `make generate` →
-  `make reviewable` → **commit** for init, and `make generate` → **commit** for create api.
-  `Run()` aborts on the first failure. The upjet init pipeline runs git init →
-  submodule → `make submodules` → `go mod download` → **commit**, skipping
-  tidy/generate/reviewable: the project doesn't compile until `make generate` runs; the
-  generated make fragment scopes `make generate` to `./apis/...` for the same reason; and
-  `go mod download` still fetches `go.sum` entries for the generator's own tools (behind the
-  `generate` build tag). The upjet create-api pipeline is a fold-commit only — no
-  `make generate`.
-- **`git.go`** — `GitOperations`: idempotent `Init`, `CreateCommit`, idempotent `AddSubmodule`.
+- **Validation** enforces Kubebuilder and Kubernetes naming rules and wraps a failure with a
+  fix-it hint. `update` runs it again over PROJECT, because that file may have been edited
+  by hand.
+- **`pkg/versions/dependencies.yaml` is the one source** for a generated provider's pins. It
+  is rendered into `go.mod`, tracked by a Renovate custom manager, and applied to an existing
+  provider by `update`.
 
 ## 6. Ownership contract (the upgrade foundation)
 
-A file is **tool-owned** iff it carries `// Code generated by xp-provider-gen. DO NOT EDIT.`
-within the first 1024 bytes (`headerScanLimit`, `core/ownership.go`):
+A file is tool-owned if and only if it carries `// Code generated by xp-provider-gen. DO NOT EDIT.`
+within its first 1024 bytes (`headerScanLimit`, `core/ownership.go`). The match is on a
+substring, so an author-written file that quotes the line becomes tool-owned and `update` overwrites it.
 
 | Bucket | Files | On `update` |
 |--------|-------|-------------|
@@ -180,86 +104,59 @@ within the first 1024 bytes (`headerScanLimit`, `core/ownership.go`):
 | User-owned (no header) | `<kind>/external.go`, `internal/provider/client.go`, `internal/provider/options.go`, `*_types.go` | never touched |
 | Seed-once (no header) | `go.mod`, `crossplane.yaml`, Makefile, Dockerfile, README, `AGENTS.md` | created once, never re-touched |
 
-The generated Makefile is split along the same line: the user-owned `Makefile` holds only the
-project variables and `include hack/xp-provider-gen.mk`; the tool-owned fragment holds the
-build pipeline (submodule includes, generation, test/e2e/local-dev targets and, for upjet, the
-Terraform CLI version and its download/schema logic), so pipeline fixes reach existing providers
-on `update`.
+User-owned and seed-once are one mechanism. Both are headerless, and `DecideWrite` treats them
+the same. The difference is intent: the first are files we expect the author to edit, and the
+second are files we decline to manage.
 
-"User-owned" and "seed-once" are the same mechanism, not two: both are headerless,
-and `DecideWrite` treats them identically. The distinction is intent — user-owned
-files are ones we expect to be edited, seed-once files are ones we merely decline
-to manage.
+`core.DecideWrite` returns seed if the file is absent, overwrite if the file on disk is
+tool-owned, and skip otherwise. The golden test `templates/engine/ownership_test.go` asserts
+every template's bucket, so a new template fails until someone decides its owner. Without it, a
+tool-owned template that forgot its header would be user-owned, and `update` would never
+refresh it. `go.mod` is seed-once, and `update` changes it only by running `go` commands.
 
-A golden test (`templates/engine/ownership_test.go`) asserts every template's
-bucket by walking the embedded FS, so adding a template forces a deliberate
-ownership decision. Without it, forgetting the header on a new tool-owned template
-would silently make it user-owned and `update` would never refresh it.
+The generated Makefile follows the same line. The user-owned `Makefile` holds the project
+variables and `include hack/xp-provider-gen.mk`. The tool-owned fragment holds the build
+pipeline, so a pipeline fix reaches existing providers on `update`.
 
-`core.DecideWrite` enforces this: seed if absent, overwrite if the on-disk file is tool-owned,
-otherwise skip. `go.mod` is seed-once; its `go` directive is raised to `go_version` (never lowered,
-`godirective.go`) and its framework versions are bumped via `go get`, never by overwrite.
+## 7. The `update` command
 
-## 7. The `update` command (`update.go`, `reconcile.go`, `adopt.go`, `tfversion.go`, `godirective.go`, `downgrade.go`)
+`update` brings a provider's tool-owned core to the running generator and leaves the result
+uncommitted for review.
 
-`update` refreshes an existing provider's tool-owned core to the current generator:
-
-1. **Precondition** — the working tree must be clean (drift protection); the result is left
-   uncommitted for review via `git diff`. PROJECT's plugin block is loaded once and gates the
-   rest: its flavor picks the validator (upjet allows reserved kinds, as in `create api`).
-   An unrecognized `flavor:` value — or `flavor: upjet` with no `upjet:` settings block —
-   is treated as a corrupt PROJECT and refused outright, not silently defaulted to native
-   (`projectmeta.go`); only an empty flavor reads as native. `checkNotDowngrade` (`downgrade.go`)
-   then refuses if the running generator is an older clean release than the one PROJECT was
-   last stamped with — compared only when both are `^vX.Y.Z`, via `semver.Compare`, never a
-   string comparison, so a maintainer's own development build is never misjudged as older.
-   `checkSameGenerator` applies the same ordering to `create api`, refusing any clean-release
-   mismatch.
-2. **Render** the flavor's full template set into an in-memory FS (`afero.NewMemMapFs`); upjet
-   renders with the settings PROJECT keeps (`WithUpjet`).
-3. **Reconcile** onto disk through `core.Apply`, which runs `core.DecideWrite` per file
-   (tool-owned files overwritten, user-owned files skipped, new files seeded). A tool-owned
-   file whose bytes already equal the rendered content is not written and is recorded as
-   `Unchanged`, so the summary's `Refreshed` counts only files that really changed;
-   `update --verbose` lists each category. On an upjet
-   project a missing user-owned file is not seeded — some such templates need init-time
-   Terraform settings PROJECT does not keep, so none are recreated — and is listed instead. Then **remove orphans**: `trackedFiles` lists what git
-   tracks (`git ls-files -z`, so a gitignored file is never a candidate) and `removeOrphans`
-   deletes the tracked, tool-owned ones this render no longer produces.
-4. **Bump dependencies** — raise go.mod's `go` directive to `go_version` if it is lower
-   (`godirective.go`; a higher one is the author's and is kept), then the flavor's manifest set
-   via `go get` (go.mod's own requires preserved); with `--terraform-provider-version` (upjet only — refused by flavor on a native
-   provider, `tfversion.go`), also rewrites the pinned Terraform provider version.
-5. **Finalize** — native: `go mod tidy` / `make generate` / `make reviewable`; upjet: `make
-   generate` first, since tidy cannot resolve the packages generation produces. Then stamp the
+1. **The tree must be clean**, so the whole effect shows as one `git diff`.
+2. **PROJECT is loaded once and gates the rest.** An unrecognized `flavor:`, or `flavor: upjet`
+   with no `upjet:` block, is a corrupt PROJECT and is refused, not defaulted to native. Only an
+   empty flavor means native. `checkNotDowngrade` refuses a generator older than the clean
+   release that last stamped PROJECT, and `checkSameGenerator` applies the same ordering to
+   `create api`. Both compare only `vX.Y.Z` strings with `semver.Compare`, so a development
+   build is never judged older.
+3. **Render** the flavor's full set into memory.
+4. **Reconcile** through `core.Apply`. Tool-owned files are overwritten, user-owned files are
+   skipped, and a file already equal to the render counts as `Unchanged` and is not written. An
+   upjet project never seeds a missing user-owned file, because some need init-time Terraform
+   settings that PROJECT does not keep. `update` lists them instead.
+5. **Remove orphans.** A file is a candidate only if git tracks it (`git ls-files`, so an
+   ignored file is never one), it carries the header, and no template renders it now.
+6. **Bump dependencies** from the manifest. The `--terraform-provider-version` flag also
+   rewrites the Terraform provider pin, and a native provider refuses it.
+7. **Finalize.** Native runs tidy, generate and reviewable. Upjet runs generate first, because
+   tidy cannot resolve the packages that generation produces. Then `update` stamps the
    generator version into PROJECT.
 
-**`update --adopt`** retrofits a provider generated before the contract existed: it writes the
-header onto recognized tool-owned files (so plain `update` can manage them) and stamps
-provenance. User-owned files are never adopted.
+`update --adopt` retrofits a provider that predates the contract. It adds the header to the
+recognized tool-owned files and stamps PROJECT. It never adopts a user-owned file.
 
-## 8. Validation, templates & the dependency manifest
+## 8. Decision records
 
-- **Validation** (`validation/`) — `validator.go` enforces Kubebuilder/Kubernetes conventions
-  (patterns compiled once, shared `checkRequired`/`checkPattern`/`checkLength` helpers);
-  `errors.go` wraps a failure as `PluginError`, attaching fix-it hints matched from the
-  cause. `update` re-runs the same validation over PROJECT before rendering, since that
-  file may have been hand-edited since `init`.
-- **Templates** (`pkg/templates/`) — `loader.go` embeds the `.tmpl` tree via `go:embed`. To add
-  scaffolding, add a `.tmpl` file; discovery picks it up. Tool-owned templates include the
-  generated header; user-owned ones (`external.go`, `client.go`, `options.go`, `*_types.go`)
-  do not. The golden ownership test enforces this — see §6.
-- **Dependency manifest** (`pkg/versions/`) — `dependencies.yaml` is the single source of truth
-  for the generated provider's direct dependency versions, plus the `GoVersion` constant; an
-  `upjet_dependencies` block adds the upjet-flavor-only set (upjet, controller-tools, …),
-  rendered on top of the shared set by `init --upjet`. It is rendered into `go.mod`, tracked by
-  a Renovate custom manager, and applied to existing providers by `update`.
+- [Render and apply](design/render-apply.md) is the proposal behind one render path and one
+  write rule. It is implemented.
+- [docs/plans/](plans/) holds one record per program: what it decided, what it declined, and
+  the limits it accepted. Read the relevant one before reversing a decision it covers.
 
 ## 9. Seams (the modular layout)
 
-A **seam** is three things: a tool-owned caller, a user-owned stub, and one
-documented name. That is the whole extension mechanism — adding a seam later is
-mechanical, not a redesign.
+A seam is a tool-owned caller, a user-owned stub, and one documented name. Adding a seam later
+is mechanical, not a redesign.
 
 | Seam | Tool-owned caller | User-owned stub | Names |
 |------|-------------------|-----------------|-------|
@@ -268,67 +165,15 @@ mechanical, not a redesign.
 | Reconciler options | `<kind>/wiring.go` | `<kind>/external.go` | `ReconcilerOptions` |
 | Provider options | `cmd/provider/main.go` | `internal/provider/options.go` | `Flags`, `Configure` |
 
-**Only those six names are frozen.** Tool-owned signatures — `Connector`,
-`ClientConfig`, `clientConfig` — may change in any release without being a breaking
-change, which is the point of moving the plumbing tool-side.
+**Only those six names are frozen.** Tool-owned signatures such as `Connector`,
+`ClientConfig` and `clientConfig` may change in any release without being a breaking change.
+That freedom is why the plumbing moved to the tool side.
 
-The connector is shared rather than per-kind because `ProviderConfigUsageTracker.Track`
-takes `resource.ModernManaged`: the concrete-kind assertion the old per-kind
-`controller.go` performed existed only to satisfy it, so asserting `ModernManaged`
-once makes the whole of `Connect` kind-agnostic. The per-kind part is the injected
-`func(*Client) managed.ExternalClient` factory.
+The connector is shared across kinds because `ProviderConfigUsageTracker.Track` takes
+`resource.ModernManaged`. Asserting that type once makes `Connect` kind-agnostic. The per-kind
+part is the injected `func(*Client) managed.ExternalClient` factory.
 
-Per-kind `wiring.go` stays flat and explicit rather than hidden behind a generic.
-DRY governs hand-maintained sources of truth, not generated output — one template
-producing N files is one source of truth, and `update` regenerates all N for free.
-The connector was different precisely because it lived in a user-owned file and so
-could never be regenerated.
-
-## Design patterns at a glance
-
-| Pattern | Where |
-|---------|-------|
-| Plugin architecture | Kubebuilder v4 plugin (`plugin.go`) + `WithExtraCommands` for `update` and `create-test` |
-| Auto-discovery | `autodiscovery.go` + `factory.go` |
-| Deterministic generation | register/go.mod generators (no parse-and-merge) |
-| Ownership gate | `core.DecideWrite` (header-based) |
-| Render-then-reconcile | `update` renders to memfs, reconciles to disk via the gate |
-| Pipeline / chain | `Pipeline` + `Step` |
-| Embedded FS | `go:embed` template tree |
-
-The list is deliberately short. Scaffolding a file is a path transform plus a body, so
-the engine stays at that altitude: one `TemplateInfo` per discovered template, one
-function to build it, no registry keys, strategies or per-template types in between.
-
-## Design proposals
-
-- [Render and apply](design/render-apply.md) — one render path and one write rule for `init`,
-  `create api` and `update` (implemented: Phase 1, 1b and Phase 2).
-
-## Command flow summary
-
-**`init`** → validate → render init/static templates + register & go.mod generators in memory → write through `core.Apply` → save
-PROJECT → init pipeline (git init/submodule, `make submodules`, tidy, generate, reviewable,
-commit).
-
-**`create api`** → inject & validate resource and PROJECT → version check → `AddResource` to the config →
-render the kind's templates + **regenerate register files** from all resources in memory → write through
-`core.Apply` (tool-owned files refreshed, files without the header kept and listed) → save PROJECT → API-commit pipeline (generate, commit).
-While the history is still just the tool's scaffold (the `Initial commit` carries the
-`xp-provider-gen-scaffold` trailer and the user hasn't committed yet), the commit **folds into
-that `Initial commit`** via `--amend`, so a freshly scaffolded provider has a single commit;
-once the user commits their own work, later `create api` runs add separate commits.
-
-**`create-test`** → load PROJECT → resolve kind (flag, sole kind, or interactive pick-list)
-and test name (flag or prompt) → render the chainsaw skeleton to
-`test/behavior/<name>/chainsaw-test.yaml` (never overwrites).
-
-**`update`** → require clean tree → load & validate PROJECT (flavor) → render the flavor's templates
-to memfs → reconcile via the ownership gate (upjet: missing user-owned files are not seeded) →
-remove orphaned tool-owned files this render no longer produces → raise go.mod's `go`
-directive to `go_version` → bump the flavor's deps via `go get` (plus `--terraform-provider-version`, upjet only) → finalize (native:
-tidy/generate/reviewable; upjet: generate/tidy/reviewable) → stamp provenance (no commit; review
-the diff).
-
-**`update --adopt`** → require clean tree → render to memfs → add the header to recognized
-tool-owned on-disk files → stamp provenance (no commit).
+Per-kind `wiring.go` stays flat and explicit instead of hiding behind a generic. DRY governs
+hand-maintained sources of truth, not generated output: one template that produces N files
+is one source of truth, and `update` regenerates all N. The connector differed because it
+lived in a user-owned file, which can never be regenerated.

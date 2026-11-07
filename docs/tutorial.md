@@ -433,16 +433,20 @@ make dev-clean
 
 ## 8. Take an upgrade
 
-When a new `xp-provider-gen` ships, refreshing the generated core is one command —
-and it cannot touch the files you edited in this tutorial:
+When a new `xp-provider-gen` ships, refreshing the generated core is one command, and it
+cannot touch the files you edited in this tutorial. `update` refuses a tree with uncommitted
+changes, so commit your work first:
 
 ```bash
-git status            # must be clean
+git add -A && git commit -m "feat: implement Bucket"
 xp-provider-gen update
 git diff              # tool-owned files + dependency bumps only
 make reviewable
-git commit -m "chore: update provider core"
+git commit -am "chore: update provider core"
 ```
+
+When the generator you built is the one that scaffolded the provider, `git diff` is empty
+and there is nothing to commit. After a release with template changes, the diff holds them.
 
 The [provider guide](provider-guide.md#5-upgrading) covers what to expect in that
 diff and how `--adopt` works for providers that predate the ownership contract.

@@ -40,8 +40,13 @@ golangci-lint cannot type-check, does not break `make lint` or `make reviewable`
 
 Because of `?=`, any `GOTOOLCHAIN` already in your environment wins over that line,
 including `auto`, which brings the failure back on a host whose Go is newer than the
-linter. An offline host sets `GOTOOLCHAIN=local` and needs an installed Go that matches
-the pin.
+linter.
+
+**Work offline.** The `+auto` suffix lets Go download `go<go_version>` when it is not
+installed, and an offline host cannot. To opt out of the line, install that Go release,
+put it first on your `PATH`, and run `export GOTOOLCHAIN=local` before `make`. With
+`GOTOOLCHAIN=local` and a host Go that does not match the pin, `make lint` fails with
+`typecheck`, the failure the line prevents.
 
 `actions/setup-go` exports `GOTOOLCHAIN=local`, so a CI job needs its installed Go to match
 the pin. Install it with `go-version-file: go.mod`, or clear the variable before `make`.
