@@ -99,7 +99,7 @@ jobs:
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
     # Fast mode runs the native stages that need no cluster (init, create api,
-    # generate, user logic, update, create api refresh, adopt) and ends in
+    # generate, user logic, update, create api refresh) and ends in
     # VERDICT PARTIAL naming each stage it did not run. The cluster stages are
     # minutes of Docker time that does not belong on every PR; they run weekly,
     # and on every PR that changes a non-doc file, in e2e-native-full.yml.

@@ -26,7 +26,7 @@ This tool generates code. That makes "where the vulnerability lives" the first
 question worth answering, because the three cases have different owners:
 
 **In scope — the generator itself.** Anything `xp-provider-gen` does on your
-machine: path traversal when writing a scaffold, `update`/`update --adopt`
+machine: path traversal when writing a scaffold, `update`
 overwriting or destroying files it should not touch, command injection through
 a flag value, or a template that renders attacker-controlled input into
 generated source.

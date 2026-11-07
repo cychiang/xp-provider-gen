@@ -199,23 +199,6 @@ func TestUpdateFlagRejects(t *testing.T) {
 		}
 	})
 
-	t.Run("adopt and terraform-provider-version are mutually exclusive", func(t *testing.T) {
-		cmd := NewUpdateCommand()
-		cmd.SilenceUsage = true
-		cmd.SilenceErrors = true
-		cmd.SetArgs([]string{"--adopt", "--terraform-provider-version=2.38.0"})
-		err := cmd.Execute()
-		if err == nil {
-			t.Fatal("Execute() = nil, want an error when --adopt and --terraform-provider-version are both set")
-		}
-		// Must be cobra's mutual-exclusion error specifically, not some later
-		// failure (e.g. requireCleanTree) that Execute() would also return —
-		// a bare nil check can't tell the two apart.
-		if !strings.Contains(err.Error(), "[adopt terraform-provider-version]") {
-			t.Errorf("err = %q, want cobra's mutually-exclusive-flags error naming [adopt terraform-provider-version]", err)
-		}
-	})
-
 	t.Run("an inherited environment variable would silently override the flag", func(t *testing.T) {
 		t.Setenv("TERRAFORM_PROVIDER_VERSION", "2.37.1")
 		if err := checkTerraformVersionFlag("2.38.0"); err == nil {

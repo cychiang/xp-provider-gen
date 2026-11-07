@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Downgrade detection: refusing 'update' and 'update --adopt' when the
+// Downgrade detection: refusing 'update' when the
 // running generator is an older clean release than the one that last
 // stamped PROJECT's provenance, and 'create api' when it differs at all.
 package v2
@@ -56,10 +56,8 @@ func compareGenerators(last, cur string) (int, bool) {
 // checkNotDowngrade refuses when both versions are clean release versions
 // and cur is older than last. The returned error carries the whole
 // user-facing message, including the deliberate-downgrade exit and the
-// trailing "no changes were made; nothing to revert": runUpdate wraps
-// prepare's own errors with that sentence, but runAdopt returns prepare's
-// errors unwrapped, so the sentence cannot be left to either caller to add —
-// it has to live in the error itself.
+// trailing "no changes were made; nothing to revert": runUpdate returns it
+// unwrapped, so the sentence has to live in the error itself.
 func checkNotDowngrade(last, cur string) error {
 	cmp, ordered := compareGenerators(last, cur)
 	if !ordered || cmp >= 0 {

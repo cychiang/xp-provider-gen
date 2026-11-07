@@ -160,21 +160,8 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   reviewable`. That coupling is deliberate: there is no way to bump only the Terraform provider
   version through this flag. Check: refuses a non-semver value; refuses if
   `TERRAFORM_PROVIDER_VERSION` or `TERRAFORM_NATIVE_PROVIDER_BINARY` is set in the environment
-  (either would silently win over the Makefile's `?=` assignment); mutually exclusive with
-  `--adopt`; refuses on a non-**upjet** project. See
+  (either would silently win over the Makefile's `?=` assignment); refuses on a non-**upjet** project. See
   [docs/upjet-provider.md §7](https://github.com/cychiang/xp-provider-gen/blob/main/docs/upjet-provider.md#7-bumping-the-terraform-provider).
-
-### `update --adopt`
-
-- **What**: one-time retrofit for a provider generated before the ownership contract existed —
-  stamps provenance and writes the generated header onto recognized tool-owned files.
-- **When**: bringing an old, pre-contract provider under `update`'s management.
-- **Command**:
-  ```bash
-  xp-provider-gen update --adopt
-  ```
-- **Produces**: exits after stamping headers; commit that diff, then run plain `update`
-  afterward to actually refresh the files. Add `--verbose` to list the adopted files.
 
 ### `version` / `completion`
 

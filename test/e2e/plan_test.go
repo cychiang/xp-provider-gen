@@ -164,7 +164,7 @@ func stageNames(stages []Stage) []string {
 }
 
 func TestEachFlavorDeclaresItsStagesInPlanOrder(t *testing.T) {
-	const head = "init create-api generate user-logic stock-clone stock-e2e update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh adopt create-test "
+	const head = "init create-api generate user-logic stock-clone stock-e2e update-to-head refuse-old-generator update-noop orphan-removal create-api-refresh create-test "
 	const tail = "build-xpkg install-in-kind provider-config mr-ready-synced mr-update drift-corrected mr-delete external-gone"
 	for flavor, want := range map[string]string{
 		nativeName: head + tail,
@@ -182,8 +182,8 @@ func TestEachFlavorDeclaresItsStagesInPlanOrder(t *testing.T) {
 
 func TestFastModeRunsExactlyTheDockerFreeStages(t *testing.T) {
 	for flavor, want := range map[string]string{
-		nativeName: "init create-api generate user-logic update-noop orphan-removal create-api-refresh adopt create-test",
-		upjetName: "init create-api generate user-logic update-noop orphan-removal create-api-refresh adopt create-test " +
+		nativeName: "init create-api generate user-logic update-noop orphan-removal create-api-refresh create-test",
+		upjetName: "init create-api generate user-logic update-noop orphan-removal create-api-refresh create-test " +
 			"tf-bump provider-starts",
 	} {
 		t.Run(flavor, func(t *testing.T) {

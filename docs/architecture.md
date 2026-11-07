@@ -121,8 +121,8 @@ refresh it. `go.mod` is seed-once, and `update` changes it only as step 7 of
 **Every write and delete passes `core.CheckContained`.** Rendered paths come from PROJECT, so
 a hand-edited PROJECT must not turn `update` into an arbitrary-file-write primitive.
 `CheckContained` rejects an absolute path, a path that climbs out of the project and the
-empty path (`filepath.IsLocal`). `core.Apply` calls it before it touches a file, and so do
-orphan removal and `--adopt`. A new code path that writes or deletes must call it too.
+empty path (`filepath.IsLocal`). `core.Apply` calls it before it touches a file, and so does
+orphan removal. A new code path that writes or deletes must call it too.
 
 The generated Makefile follows the same line. The user-owned `Makefile` holds the project
 variables and `include hack/xp-provider-gen.mk`. The tool-owned fragment holds the build
@@ -156,9 +156,6 @@ uncommitted for review.
 8. **Finalize.** Native runs tidy, generate and reviewable. Upjet runs generate first, because
    tidy cannot resolve the packages that generation produces. Then `update` stamps the
    generator version into PROJECT.
-
-`update --adopt` retrofits a provider that predates the contract. It adds the header to the
-recognized tool-owned files and stamps PROJECT. It never adopts a user-owned file.
 
 ## 8. Decision records
 
