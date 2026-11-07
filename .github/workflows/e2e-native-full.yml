@@ -67,7 +67,7 @@ jobs:
   e2e-upgrade:
     name: E2E (upgrade from ${{ matrix.from }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

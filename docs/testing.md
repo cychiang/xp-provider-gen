@@ -136,7 +136,7 @@ the generated header but that no template renders, and asserts `update` removes 
 leaves a gitignored file with the same header alone, and changes nothing else.
 
 The `E2E (upgrade from <tag>)` jobs in `e2e-native-full.yml` run one release each, with a
-15-minute limit. **Run it before shipping a generator bump.**
+20-minute limit (a cell takes 12 to 16 minutes on a runner). **Run it before shipping a generator bump.**
 
 Refusals of an older generator (`update`, `update --adopt`, `create api`) are covered by
 `TestCheckNotDowngrade` and `TestCheckSameGenerator` in `pkg/plugins/crossplane/v2/downgrade_test.go`,
