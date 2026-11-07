@@ -442,7 +442,7 @@ git add -A && git commit -m "feat: implement Bucket"
 xp-provider-gen update
 git diff              # tool-owned files + dependency bumps only
 make reviewable
-git commit -am "chore: update provider core"
+git add -A && git commit -m "chore: update provider core"
 ```
 
 When the generator you built is the one that scaffolded the provider, `git diff` is empty

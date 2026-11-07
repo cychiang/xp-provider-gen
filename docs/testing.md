@@ -43,7 +43,7 @@ output.
 
 ### Read the list
 
-`go run ./test/e2e --list --flavor=native` prints one line per stage, in run order:
+`go run ./test/e2e --list --flavor=native` prints one line per stage, in run order. This excerpt shows three of them:
 
 ```
 init                 needs=[] release-only=false
@@ -53,8 +53,9 @@ update-to-head       needs=[] release-only=true
 
 `needs=[docker]` marks a stage that fast mode leaves out. `release-only=true` marks a stage
 that runs only with `--from`, and a head run skips it. Add `--from=latest` to list only the
-stages that apply to an upgrade run, which also drops the head-only stages. `--list` runs
-nothing and writes no report. Use `--flavor=upjet` for the other flavor.
+stages that apply to an upgrade run, which also drops the head-only stages. `--from=latest`
+still calls `gh` to resolve the newest release, so it needs `gh` and network access even
+for `--list`. `--list` runs nothing else and writes no report. Use `--flavor=upjet` for the other flavor.
 
 ### Read the verdict
 
@@ -141,6 +142,13 @@ fetch the release, writes a `FAILED` report with no stages.
 | `tool_owned_differing` | How many of those the updated tree lacks or holds with other bytes, plus tool-owned files it holds that a fresh scaffold does not. Zero means `update` produced what a fresh scaffold has. |
 | `user_owned_changed` | Tracked files without the header that `update` removed, changed or added. `PROJECT`, `go.mod` and `go.sum` are expected to move and are left out, as is generated output. Zero means `update` left the author's files alone. |
 | `generated_changed` | Files that the provider's own `make generate` changes, adds or removes after `update`. Zero means `update` left no stale generated output. |
+
+### Limits
+
+Fast mode, for either flavor, does not prove that the generated controllers start. The upjet
+`provider-starts` stage builds the provider, prints `--help` and reaches the startup precheck without a panic,
+but it starts no controller. Full mode deploys the provider with `install-in-kind` and shows a
+resource reconciling in `mr-ready-synced`, and both need Docker.
 
 ## Release-note rules
 

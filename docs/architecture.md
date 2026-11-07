@@ -59,8 +59,11 @@ generators, the validator and the pipelines.
   because the filesystem is embedded and an error is a build defect.
 - **Slices, not maps.** Nothing looks a template up by name, and a derived key could collide
   and drop a file (`Makefile.tmpl` exists in two directories).
-- **The machinery action is `SkipFile`, except in the in-memory render `update` uses.** No
-  render overwrites on its own.
+- **A template's machinery action is `SkipFile`, except in the in-memory render `update`
+  uses.** That render sets `OverwriteFile` on a template carrying the header. The generators
+  set their own action: `OverwriteFile` for the register files, `docs/ownership.md` and the
+  upjet resources file, `SkipFile` for `go.mod`. No render writes to disk on its own, because
+  `core.Apply` decides each write.
 - **Generated files are rendered in full, never parsed and merged.** The register files are a
   pure function of the resource list, and `go.mod` is rendered from the dependency manifest.
   Generator bodies live in `pkg/templates/generators/`, outside the discovered roots.
@@ -112,7 +115,15 @@ second are files we decline to manage.
 tool-owned, and skip otherwise. The golden test `templates/engine/ownership_test.go` asserts
 every template's bucket, so a new template fails until someone decides its owner. Without it, a
 tool-owned template that forgot its header would be user-owned, and `update` would never
-refresh it. `go.mod` is seed-once, and `update` changes it only by running `go` commands.
+refresh it. `go.mod` is seed-once, and `update` changes it in two ways only: it raises the
+`go` directive to `go_version` and never lowers it (`godirective.go` parses with `modfile`,
+keeps everything else, and writes the file), and it runs `go get` for each pinned dependency.
+
+**Every write and delete passes `core.CheckContained`.** Rendered paths come from PROJECT, so
+a hand-edited PROJECT must not turn `update` into an arbitrary-file-write primitive.
+`CheckContained` rejects an absolute path, a path that climbs out of the project and the
+empty path (`filepath.IsLocal`). `core.Apply` calls it before it touches a file, and so do
+orphan removal and `--adopt`. A new code path that writes or deletes must call it too.
 
 The generated Makefile follows the same line. The user-owned `Makefile` holds the project
 variables and `include hack/xp-provider-gen.mk`. The tool-owned fragment holds the build
@@ -131,15 +142,17 @@ uncommitted for review.
    `create api`. Both compare only `vX.Y.Z` strings with `semver.Compare`, so a development
    build is never judged older.
 3. **Render** the flavor's full set into memory.
-4. **Reconcile** through `core.Apply`. Tool-owned files are overwritten, user-owned files are
+4. **Apply `--terraform-provider-version`**, if given, before reconcile. It rewrites the
+   Terraform provider pin, and a native provider refuses it.
+5. **Reconcile** through `core.Apply`. Tool-owned files are overwritten, user-owned files are
    skipped, and a file already equal to the render counts as `Unchanged` and is not written. An
    upjet project never seeds a missing user-owned file, because some need init-time Terraform
    settings that PROJECT does not keep. `update` lists them instead.
-5. **Remove orphans.** A file is a candidate only if git tracks it (`git ls-files`, so an
+6. **Remove orphans.** A file is a candidate only if git tracks it (`git ls-files`, so an
    ignored file is never one), it carries the header, and no template renders it now.
-6. **Bump dependencies** from the manifest. The `--terraform-provider-version` flag also
-   rewrites the Terraform provider pin, and a native provider refuses it.
-7. **Finalize.** Native runs tidy, generate and reviewable. Upjet runs generate first, because
+7. **Raise the go directive, then bump dependencies** from the manifest. The directive moves to
+   `go_version` only if it is lower. A higher one is the author's and stays.
+8. **Finalize.** Native runs tidy, generate and reviewable. Upjet runs generate first, because
    tidy cannot resolve the packages that generation produces. Then `update` stamps the
    generator version into PROJECT.
 

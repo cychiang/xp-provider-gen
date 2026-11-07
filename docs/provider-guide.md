@@ -45,8 +45,9 @@ linter.
 **Work offline.** The `+auto` suffix lets Go download `go<go_version>` when it is not
 installed, and an offline host cannot. To opt out of the line, install that Go release,
 put it first on your `PATH`, and run `export GOTOOLCHAIN=local` before `make`. With
-`GOTOOLCHAIN=local` and a host Go that does not match the pin, `make lint` fails with
-`typecheck`, the failure the line prevents.
+`GOTOOLCHAIN=local`, a host Go newer than the pin makes `make lint` fail with `typecheck`,
+the failure the line prevents. A host Go older than the `go` directive fails earlier, with
+`go.mod requires go >= <version>`.
 
 `actions/setup-go` exports `GOTOOLCHAIN=local`, so a CI job needs its installed Go to match
 the pin. Install it with `go-version-file: go.mod`, or clear the variable before `make`.
@@ -239,7 +240,7 @@ git status                 # must be clean; update refuses otherwise
 xp-provider-gen update
 git diff                   # review
 make reviewable
-git commit -m "chore: update provider core"
+git add -A && git commit -m "chore: update provider core"
 ```
 
 After upgrading the generator, run `update` before `create api`: `create api` refuses when the
@@ -302,7 +303,7 @@ A provider generated before the ownership contract existed has no headers, so
 
 ```bash
 xp-provider-gen update --adopt   # adds headers to recognised tool-owned files
-git diff && git commit -m "chore: adopt xp-provider-gen ownership contract"
+git diff && git add -A && git commit -m "chore: adopt xp-provider-gen ownership contract"
 xp-provider-gen update           # now refreshes them normally
 ```
 
