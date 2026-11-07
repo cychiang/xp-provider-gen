@@ -26,7 +26,6 @@ on:
       - 'pkg/templates/loader.go'
       - 'pkg/versions/**'
       - 'test/e2e/**'
-      - 'scripts/assert-layout.sh'
       - 'Makefile'
       - '.github/workflows/e2e-native-full.yml'
 

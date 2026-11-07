@@ -33,10 +33,9 @@ const (
 )
 
 var (
-	errNoOwned    = errors.New("no tool-owned file found")
-	requiredOwned = []string{"internal/provider/connector.go", widgetWiring, "hack/xp-provider-gen.mk"}
-	userTestPkgs  = []string{"./internal/provider/", "./" + widgetDir + "/"}
-	providerCRD   = "package/crds/" + domain + "_providerconfigs.yaml"
+	errNoOwned   = errors.New("no tool-owned file found")
+	userTestPkgs = []string{"./internal/provider/", "./" + widgetDir + "/"}
+	providerCRD  = "package/crds/" + domain + "_providerconfigs.yaml"
 )
 
 // addProviderConfigField gives ProviderConfigSpec a field of the author's
@@ -114,11 +113,11 @@ func (e *Env) assertToolOwnedMatchesFreshScaffold() error {
 	if err != nil {
 		return err
 	}
-	if _, err := e.execEnv(pathEnv, fresh, "", e.Head, initArgs()...); err != nil {
+	if _, err := e.execEnv(pathEnv, fresh, "", e.Head, e.F.Init...); err != nil {
 		return err
 	}
-	for _, kind := range []string{widgetKind, gadgetKind} {
-		if _, err := e.execEnv(pathEnv, fresh, "", e.Head, createAPIArgs(kind)...); err != nil {
+	for _, kind := range e.F.Kinds {
+		if _, err := e.execEnv(pathEnv, fresh, "", e.Head, e.F.CreateAPI(kind)...); err != nil {
 			return err
 		}
 	}
@@ -130,7 +129,7 @@ func (e *Env) assertToolOwnedMatchesFreshScaffold() error {
 	if err != nil {
 		return err
 	}
-	return compareToolOwned(got, want)
+	return compareToolOwned(got, want, e.F.RequiredOwned)
 }
 
 const shimScript = `#!/bin/sh
@@ -202,11 +201,11 @@ func (e *Env) toolOwned(dir string) (map[string][]byte, error) {
 // tool-owned files, no more and no fewer, with the same bytes. It also fails
 // on a set missing the files whose refresh matters most, so an empty or
 // header-less walk cannot pass.
-func compareToolOwned(got, want map[string][]byte) error {
+func compareToolOwned(got, want map[string][]byte, required []string) error {
 	if len(want) == 0 {
 		return errNoOwned
 	}
-	for _, rel := range requiredOwned {
+	for _, rel := range required {
 		if _, ok := want[rel]; !ok {
 			return fmt.Errorf("fresh scaffold has no tool-owned %s", rel)
 		}
@@ -290,7 +289,7 @@ func (e *Env) withStamp(version string, check func() error) error {
 }
 
 func (e *Env) refusedCreateAPI(reason, on string) error {
-	out, err := e.gen(createAPIArgs(volumeKind)...)
+	out, err := e.gen(e.F.CreateAPI(volumeKind)...)
 	if err := refused(out, err, reason, "release create api on "+on); err != nil {
 		return err
 	}
@@ -316,12 +315,33 @@ func rewrittenByUpdate(rel string) (string, bool) {
 	return "", false
 }
 
-// isGeneratedOutput names make generate's output, which carries no header and
-// which a controller-gen or angryjet bump legitimately rewrites: the
-// zz_generated.* files and the CRDs under package/crds/. No template renders
-// into either, so no author file can match.
+// generatedOutputs names make generate's output, which carries no
+// xp-provider-gen header and which a controller-gen, angryjet or upjet bump
+// legitimately rewrites. No template renders into any of them, so no author
+// file can match.
+type generatedOutput struct {
+	match func(rel string) bool
+	why   string
+}
+
+var generatedOutputs = []generatedOutput{
+	{
+		func(rel string) bool { return strings.HasPrefix(filepath.Base(rel), "zz_") },
+		"controller-gen, angryjet and upjet write their code to zz_* files",
+	},
+	{func(rel string) bool { return strings.HasPrefix(rel, "package/crds/") }, "the CRDs generated from the types"},
+	{
+		func(rel string) bool { return strings.HasPrefix(rel, "examples-generated/") },
+		"upjet's examples from the Terraform docs",
+	},
+	{
+		func(rel string) bool { return rel == "config/schema.json" || rel == "config/provider-metadata.yaml" },
+		"upjet's scrape of the Terraform schema and docs, embedded in config",
+	},
+}
+
 func isGeneratedOutput(rel string) bool {
-	return strings.HasPrefix(filepath.Base(rel), "zz_generated.") || strings.HasPrefix(rel, "package/crds/")
+	return slices.ContainsFunc(generatedOutputs, func(g generatedOutput) bool { return g.match(rel) })
 }
 
 // userOwned reads the files of a scaffold that carry no generator header and
@@ -342,10 +362,16 @@ func keepUserOwned(all map[string][]byte) map[string][]byte {
 	return all
 }
 
-func (e *Env) assertUserOwnedUnchanged(before map[string][]byte) error {
+// assertUserOwnedUnchanged compares the user-owned files now with before, leaving
+// out the paths in except, which the caller checks itself.
+func (e *Env) assertUserOwnedUnchanged(before map[string][]byte, except ...string) error {
 	now, err := e.userOwned()
 	if err != nil {
 		return err
+	}
+	for _, rel := range except {
+		delete(before, rel)
+		delete(now, rel)
 	}
 	return compareUserOwned(before, now)
 }

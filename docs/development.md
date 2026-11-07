@@ -4,18 +4,17 @@
 
 - **Go** — the version in [`pkg/versions/dependencies.yaml`](../pkg/versions/dependencies.yaml)'s
   `go_version`; `make check-go-version` (`.github/workflows/go-version.yml`) fails CI if either
-  go.mod (the generator's or `hack/envtest-provider-check`'s) or the Dockerfile falls out of
-  step with it. Renovate bumps all four together in one PR.
+  go.mod or the Dockerfile falls out of step with it. Renovate bumps all three together in one PR.
 - **Git**
 - **golangci-lint** — installed automatically by `make lint` if missing, at the version in
   [`pkg/versions/dependencies.yaml`](../pkg/versions/dependencies.yaml)'s `golangci_lint_version`.
   That key is its only pin: the `Makefile` and `.github/workflows/lint.yml` read it, and both
   flavors' `hack/xp-provider-gen.mk.tmpl` render it. Renovate bumps that one line.
 - **gosec** — security scanner
-- **Docker** — without it, `make e2e-native` fails before its first stage (use
-  `E2E_ARGS=--mode=fast` to run only the stages that need none, ending in `VERDICT PARTIAL`),
-  while `make e2e-upjet` skips its Docker-dependent stage rather than failing; `make e2e-upjet`
-  also needs network access for its non-Docker stages (downloading Terraform and a provider schema)
+- **Docker** — without it, `make e2e-native` and `make e2e-upjet` fail before their first stage (use
+  `E2E_ARGS=--mode=fast` to run only the stages that need none, ending in `VERDICT PARTIAL`);
+  `make e2e-upjet` also needs network access for its non-Docker stages (downloading Terraform and a
+  provider schema)
 
 ```bash
 # gosec (macOS)
@@ -37,11 +36,10 @@ Run `make help` for the full target list. A few aren't obvious from their name a
 
 ## Consistency gate
 
-`make check-consistency` runs `hack/check-consistency.sh`, nine checks that stop drift from
+`make check-consistency` runs `hack/check-consistency.sh`, seven checks that stop drift from
 growing back: stale script names, a `Makefile` whose `.PHONY` or `make help` disagrees with its
-targets, e2e scripts that diverge from one skeleton or `/tmp` prefix, retired terminology,
-non-gerund error strings, workflow `paths:` filters, markdown links/anchors that no longer
-resolve. To add a check, append a `report Cn "<title>" "<violations>"` block to the script; CI
+targets, retired terminology, non-gerund error strings, workflow `paths:` filters,
+markdown links/anchors that no longer resolve. To add a check, append a `report Cn "<title>" "<violations>"` block to the script; CI
 and `make reviewable` both run it.
 
 ## Typical workflow

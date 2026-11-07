@@ -74,8 +74,9 @@ e2e-native: build ## Run the native-flavor end-to-end stages (E2E_ARGS=--mode=fa
 	@$(GOCMD) build -o $(BUILD_DIR)/e2e ./test/e2e
 	@exec $(BUILD_DIR)/e2e --flavor=native $(E2E_ARGS)
 
-e2e-upjet: build ## Run the upjet-flavor end-to-end test (network, several minutes)
-	@./scripts/e2e-upjet.sh
+e2e-upjet: build ## Run the upjet-flavor end-to-end stages (network, Docker; E2E_ARGS=--mode=fast skips the Docker ones, --from=<tag> scaffolds with a release)
+	@$(GOCMD) build -o $(BUILD_DIR)/e2e ./test/e2e
+	@exec $(BUILD_DIR)/e2e --flavor=upjet $(E2E_ARGS)
 
 fmt: ## Format Go code
 	$(GOCMD) fmt ./...

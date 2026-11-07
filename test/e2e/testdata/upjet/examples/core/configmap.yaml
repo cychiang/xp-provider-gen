@@ -1,0 +1,19 @@
+# uptest.upbound.io/* annotations make this the make e2e lifecycle input too.
+apiVersion: core.example.m.com/v1alpha1
+kind: ConfigMap
+metadata:
+  name: example
+  namespace: crossplane-system
+  annotations:
+    uptest.upbound.io/timeout: "120"
+    uptest.upbound.io/conditions: "Ready,Synced"
+spec:
+  forProvider:
+    metadata:
+      - name: example
+        namespace: default
+    data:
+      hello: world
+  providerConfigRef:
+    name: default
+    kind: ProviderConfig

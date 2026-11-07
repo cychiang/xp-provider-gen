@@ -63,7 +63,7 @@ tests the unknown-mode and empty-run rejections, the full-mode rule, the fast-mo
 
 | Stage | Proves |
 |---|---|
-| `init`, `create-api` | The binary scaffolds a provider with two kinds (`Widget`, `Gadget`) and `scripts/assert-layout.sh` finds every expected file. `init` stamps PROJECT with the generator `version:`, and leaves a clean tree, so `create api` cannot commit an `init` leftover. |
+| `init`, `create-api` | The binary scaffolds a provider with two kinds (`Widget`, `Gadget`) and every file in the layout lists of `layout.go` exists. `init` stamps PROJECT with the generator `version:`, and leaves a clean tree, so `create api` cannot commit an `init` leftover. |
 | `generate` | `make submodules generate reviewable` pass on the pristine scaffold; release cases run `make submodules generate` only, since reviewable of an old scaffold proves nothing about this build. CRDs and examples exist, the ownership contract holds (tool-owned files carry the `DO NOT EDIT` header, user-owned files do not), the tree is clean, and `init` plus `create api` folded into one `Initial commit`. |
 | `user-logic` | The overlay replaces the user-owned `client.go`, `external.go` and `options.go`, adds a `--region` flag read by `ReconcilerOptions`, a user field on `ProviderConfigSpec` and two user unit tests, then `go mod tidy`, `make generate lint` (release cases: `make generate`, because a release's make fragment pins no toolchain and its linter cannot read a newer host Go's export data; `update` writes the pin and its own reviewable lints the overlay) and a commit. The ProviderConfig CRD must carry the new field, the user tests must pass, and the provider's `--help` must list `--region`. |
 | `update-to-head` | Release cases only (`--from=<tag>`). `update` by the binary under test leaves user-owned bytes alone, moves the go directive and the PROJECT stamp, keeps the ownership contract, regenerates the CRD with the user field, keeps the user tests passing and `--region` in `--help`, and leaves every tool-owned file byte-identical to a fresh scaffold from the same binary. |
@@ -94,9 +94,6 @@ scaffolds with that published release, adds `update-to-head` and `refuse-old-gen
 sets a private `KUBECONFIG` on every subprocess, so it never reads or writes `~/.kube/config` and
 parallel runs cannot collide. It deletes its cluster on exit, including on failure. A failed run
 keeps its work directory and prints the path.
-
-The shell helpers `assert_create_api_refreshes`, `assert_adopt_restores` and
-`assert_update_refuses_dirty` live in `scripts/lib.sh`, still shared with `e2e-upjet.sh`.
 
 ```bash
 make e2e-native                                  # build + full run
@@ -172,61 +169,50 @@ the `create api` check and accepts, so the stage does not ask it. The stamp is r
 
 ## Upjet-flavor e2e (`make e2e-upjet`)
 
-`scripts/e2e-upjet.sh` proves the other flavor end to end: scaffold a provider
-wrapping `hashicorp/kubernetes`, configure `kubernetes_secret` with `create api`,
-then run the **real** upjet pipeline — `make generate` downloads Terraform, reads
-the provider schema, scrapes the provider's docs and generates API types,
-controllers, scheme registration and CRDs — and finally build the result. It
-then runs `update --terraform-provider-version=2.38.0` once on the generated
-provider, asserting a stale tool-owned file is refreshed, the Makefile no longer
-pins the old `2.37.1`, and a deleted user-owned file is not re-seeded (the log
-also reports `removed 0`, since the same-generator run orphans nothing).
+`go run ./test/e2e --list --flavor=upjet` prints the stages. The upjet flavor runs the same
+harness, with the same `Stage`, `Case`, `Plan` and verdict rules as native, and declares the
+native stage names plus two of its own, `tf-bump` and `provider-starts` (`upjetOnly` in
+`upjet.go`; `TestUpjetDeclaresTheNativeStagesAndOnlyItsOwnAdditions` fails if the lists drift).
+The target is a provider that wraps `hashicorp/kubernetes` at 2.37.1, so the external system is
+the kind cluster itself and no cloud credentials are involved.
 
-Step 8, **"the generated provider starts, not just builds,"** goes past a bare
-build: it runs the provider binary's scheme registration against an unreachable
-API server (asserting no panic), then builds and runs
-`hack/envtest-provider-check` — its own Go module — against a real, ephemeral
-`envtest` API server to prove the generated controllers actually start and
-register, not merely compile.
+Where an upjet stage differs from the native one of the same name:
 
-It then covers three git-automation paths native's e2e already had (the `create api` refresh)
-or that upjet previously lacked (`--adopt`, the dirty-tree refusal), none of
-which need Docker:
+| Stage | Proves |
+|---|---|
+| `init`, `create-api` | `init --upjet` scaffolds the files `upjetBaseLayout` lists, pins the `build` submodule at `build_ref` (head), wires the Terraform provider into the Makefile and leaves a clean tree. `create api` for `Secret` (`kubernetes_secret`) and `ConfigMap` (`kubernetes_config_map`) writes each `config/<kind>/config.go` and wires it into `config/zz_resources.go`. |
+| `generate` | The real upjet pipeline (`make submodules generate`): Terraform is downloaded, the provider schema read, its docs scraped, and the types, controllers, scheme registration, setup and CRDs written from the real schema. `go mod tidy` and `go build ./...` pass, the ownership contract holds, and the output is committed as `Generate provider`. The tidy is there because the first generate leaves go.mod listing `dario.cat/mergo` as indirect; the next generate makes it direct, which would turn a same-generator `update` into a go.mod change. |
+| `user-logic` | The overlay adds a user-owned `internal/clients/user.go` and test, wires the scaffold's `clients.go` to call it, and adds the `examples/core/configmap.yaml` that uptest and `create-test` read. The user test passes and the provider builds. |
+| `update-to-head` | As native. The user-owned files not rewritten by `update` stay byte-identical, and the tool-owned files match a fresh upjet scaffold. |
+| `update-noop` | As native, with the user-owned probe `config/secret/config.go`. The `--terraform-provider-version` refusal is native only. |
+| `create-api-refresh`, `adopt` | `create api` regenerates `config/zz_resources.go` and keeps an edit in `config/secret/config.go`; `update --adopt` restores `config/provider.go`'s header, reports `Adopted 1 tool-owned file(s)` and touches only that file and PROJECT. |
+| `tf-bump` | Makes `config/provider.go` and `hack/xp-provider-gen.mk` stale and deletes `examples/providerconfig/providerconfig.yaml`, then `update --terraform-provider-version=2.38.0`. The Makefile is the old one with 2.37.1 replaced by 2.38.0 and nothing else, with the new provider binary pinned; the docs cache `.work/hashicorp/kubernetes@2.37.1` still exists next to `@2.38.0`, the unversioned directory is gone, the new checkout is at `v2.38.0` and `.work/terraform@2.38.0` exists; both stale files are refreshed, the deleted example is not re-seeded and the report says so; the other user-owned files are byte-identical. |
+| `provider-starts` | `make go.build` produces a provider that prints `--help`, and run against an API server that is not there it reaches `SafeStart precheck failed` without a panic. |
+| `stock-e2e` | Head cases only: the generated provider's own `make e2e` (uptest create, Ready and Synced, import, delete, then the chainsaw suite `create-test` wrote), on a clone of the `user logic` commit. |
+| `build-xpkg`, `install-in-kind`, `provider-config` | The package builds, installs into a new kind cluster and is Healthy with `--poll=10s`; `examples/providerconfig/providerconfig.yaml` is applied. |
+| `mr-ready-synced`, `mr-update`, `drift-corrected` | The `ConfigMap` example is Ready and Synced and a real ConfigMap `default/example` holds `hello: world`; a spec patch changes it to `updated-value`; a hand edit is restored. |
+| `mr-delete`, `external-gone` | The managed resource is deleted, then a `kubectl get` of the real ConfigMap finds nothing. |
 
-- **`create api` refresh:** mark a tool-owned file (`config/zz_resources.go`) and a user-owned one
-  (`config/secret/config.go`), commit, then re-run `create api` (with
-  `--terraform-resource`, required on every upjet `create api` call) and assert that the
-  tool-owned marker is regenerated while the user-owned one survives.
-- **`create api` with nothing to change:** run it again and assert it still exits 0, reports
-  the no-change skip, and adds no commit (git.go's `stageAndCheck` skips the commit when
-  nothing is staged).
-- **`--adopt`:** strip `config/provider.go`'s header to simulate a pre-contract provider,
-  run `update --adopt`, and assert it reports adopting exactly one file and that
-  `git diff --name-only` contains `config/provider.go` and, optionally, `PROJECT` (adopt
-  stamps a generator version there, but step 6's own `update` may already have stamped
-  the same value).
-- **Dirty-tree refusal:** leave an uncommitted change and assert `update` refuses it,
-  citing the working tree.
+The file ownership checks of an upjet `update` leave out, by name, what `make generate` writes
+and `update` re-runs: `zz_*` files (upjet's types, controllers, registration and setup),
+`package/crds/`, `examples-generated/`, and `config/schema.json` and `config/provider-metadata.yaml`
+(upjet's scrape of the schema and docs). PROJECT, go.mod and go.sum are the only other files an
+`update` changes (checked for v0.1.0, v0.2.0 and v0.3.0); `tf-bump` also allows the Makefile, as
+above.
 
-It also configures a `kubernetes_config_map` resource, writes its
-`docs/upjet-provider.md` worked example (with `uptest.upbound.io/*` annotations), and runs
-`xp-provider-gen create-test` — the scaffolding half of the native e2e's `create-test` coverage
-(it does not re-run to check the refusal to overwrite). With a Docker daemon available (skipped with a warning otherwise, or
-with `E2E_SKIP_DOCKER` set; `E2E_REQUIRE_DOCKER=1` fails the run instead), it then:
+Fast mode runs the stages that need no Docker, through `provider-starts`, and ends in `VERDICT
+PARTIAL`. The generated controllers are shown to start against a real API server by the cluster
+stages: `install-in-kind` waits for the provider to be Healthy and then for its log to show a
+started controller for every generated kind and for ProviderConfig, and `mr-ready-synced`
+shows one reconciling.
 
-- runs the **generated provider's own `make e2e`**: the uptest lifecycle (create →
-  Ready/Synced → import → delete) plus the `test-behavior` chainsaw hook running the suite
-  `create-test` just scaffolded, asserting `junit.xml` shows it ran;
-- on that same still-live cluster, exercises the one lifecycle path uptest's own run never
-  covers — UPDATE, since the worked example carries no `uptest.upbound.io/update-parameter`
-  annotation: apply the example directly and assert the real ConfigMap's `data.hello`;
-- patch `spec.forProvider.data` and assert the real object follows;
-- delete it and confirm it's gone.
+The upgrade cells (`--from=<tag>`) run the same stages as native's: the release's binary does
+`init` and `create api`, `generate` runs with the release's make fragment, and head's `update` is
+checked by `update-to-head`. Every published release is tested for upjet; see `Releases` in
+`test/e2e/plan.go` for any declared otherwise.
 
-That is the only test that proves the config files this tool scaffolds satisfy
-upjet's contract; a unit test cannot, because the contract is upjet's generator.
-It needs network access and takes several minutes, so it is a separate target
-rather than part of `make e2e-native`.
+It needs network access and takes several minutes, so it is a separate target rather than part of
+`make e2e-native`.
 
 ## Release-note rules (`hack/cliff-golden.sh`)
 

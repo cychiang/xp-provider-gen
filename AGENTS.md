@@ -35,13 +35,11 @@ Prerequisites (Go version, gosec, Docker for e2e) are in
 | Command | Purpose |
 |---------|---------|
 | `make reviewable` | mod-tidy + fmt/vet/lint/gosec/test + check-consistency — the same checks CI enforces |
-| `make e2e-native` / `make e2e-upjet` | The two e2e surfaces; `make e2e-native E2E_ARGS=--from=v0.3.0` upgrades a provider scaffolded by that release |
+| `make e2e-native` / `make e2e-upjet` | The two e2e surfaces; `E2E_ARGS=--from=v0.3.0` upgrades a provider scaffolded by that release |
 | `make help` | List all targets |
 
-`make e2e-native` runs the Go stage harness in `test/e2e`: full mode fails before its first stage
-when Docker is missing, and `E2E_ARGS=--mode=fast` ends in `VERDICT PARTIAL`, naming each stage it did
-not run. `e2e-upjet.sh` skips its Docker-dependent step — not fails — when Docker is unavailable or
-`E2E_SKIP_DOCKER=1` is set. See [docs/testing.md](docs/testing.md) for what each covers, and
+Both run the Go stage harness in `test/e2e`: full mode fails before its first stage when Docker is
+missing, and `E2E_ARGS=--mode=fast` ends in `VERDICT PARTIAL`, naming each stage it did not run. See [docs/testing.md](docs/testing.md) for what each covers, and
 [docs/manual-testing.md](docs/manual-testing.md) for a step-by-step guide to reproducing the same surfaces by hand.
 
 ## Code style
@@ -79,11 +77,9 @@ reconsider.
 - `pkg/plugins/crossplane/v2/` — the plugin: commands, template engine, automation, validation
 - `pkg/templates/files/`, `pkg/templates/upjet/` — embedded `.tmpl` scaffolding, one root per flavor; `pkg/templates/generators/` — Go-rendered files neither tree can express (register.go, go.mod, `docs/ownership.md`)
 - `pkg/versions/`, `pkg/version/` — see Core concepts above
-- `scripts/` — the three e2e scripts plus their shared helpers (`lib.sh`, `assert-layout.sh`,
-  `check-go-version`); see [docs/testing.md](docs/testing.md)
-- `hack/envtest-provider-check/` — its own Go module; proves an upjet-generated provider's
-  controllers actually start, used by `e2e-upjet.sh`
-- `hack/check-consistency.sh` — the gate behind `make check-consistency`, nine checks including
+- `test/e2e/` — the Go stage harness behind both e2e targets; see [docs/testing.md](docs/testing.md)
+- `scripts/check-go-version/` — fails CI when the Go version pinned in three places disagrees
+- `hack/check-consistency.sh` — the gate behind `make check-consistency`, seven checks including
   `hack/check-workflow-paths.py` and `hack/check-links.py` (markdown links and anchors)
 - `hack/cliff-golden.sh` — golden test for `cliff.toml`'s git-cliff rules (version bump, note
   grouping, ASCII normalization); runs as a step of every `release.yml` run

@@ -137,7 +137,7 @@ func TestNewEnvRemovesItsWorkDirectoryWhenTheReleaseFetchFails(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("TMPDIR", tmp)
 	logs := filepath.Join(t.TempDir(), "logs")
-	if _, err := newEnv(context.Background(), Case{From: "v0.1.0"}, "bin/xp-provider-gen", "overlay", logs); err == nil {
+	if _, err := newEnv(context.Background(), Case{From: "v0.1.0"}, nativeFlavor, "bin/xp-provider-gen", "overlay", logs); err == nil {
 		t.Fatal("newEnv succeeded with a failing gh")
 	}
 	left, err := os.ReadDir(tmp)

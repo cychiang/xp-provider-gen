@@ -19,10 +19,9 @@ run alongside CI or another `make e2e-native`/`make e2e-upjet` run on the same m
 | Network access (upjet scenarios download Terraform and a provider schema; native `init`/`create api` fetch Go modules) | `curl -sI https://proxy.golang.org >/dev/null && echo ok` |
 
 **Cluster names.** Every scaffolded provider's `make e2e` creates a kind cluster named
-`<PROJECT_NAME>-e2e`, where `PROJECT_NAME` is derived from `--repo`. `e2e-upjet.sh` uses
-a fixed repo (`github.com/example/provider-k8s`), so picking any other `--repo` for these
-manual runs — as this guide does — already avoids a name collision. `make e2e-native` names its
-cluster per run. Nothing further to configure.
+`<PROJECT_NAME>-e2e`, where `PROJECT_NAME` is derived from `--repo`. `make e2e-native` and
+`make e2e-upjet` name their cluster per run, so a manual run with any `--repo` cannot collide with
+them. Nothing further to configure.
 
 Build the binary once before starting:
 

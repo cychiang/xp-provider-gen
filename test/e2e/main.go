@@ -26,7 +26,8 @@ func run() int {
 	from := flag.String("from", fromHead, "binary that scaffolds: head, or the tag of a published release such as v0.3.0")
 	list := flag.Bool("list", false, "print the declared stages and exit; with --from a release, only those that apply")
 	bin := flag.String("bin", "bin/xp-provider-gen", "binary under test")
-	overlay := flag.String("overlay", "test/e2e/testdata/native", "overlay tree, laid over the scaffold at the same paths")
+	overlay := flag.String("overlay", "",
+		"overlay tree, laid over the scaffold at the same paths (default test/e2e/testdata/<flavor>)")
 	logs := flag.String("logs", "", "directory for per-stage logs (default: a new temporary directory)")
 	flag.Parse()
 
@@ -38,13 +39,17 @@ func run() int {
 	if err != nil {
 		return fail(err)
 	}
-	stages, err := stagesFor(c.Flavor)
+	f, err := flavorFor(c.Flavor)
 	if err != nil {
 		return fail(err)
 	}
+	stages := f.Stages()
 	if *list {
 		printStages(c, stages)
 		return 0
+	}
+	if *overlay == "" {
+		*overlay = filepath.Join("test/e2e/testdata", f.Name)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -64,7 +69,7 @@ func run() int {
 		return fail(err)
 	}
 
-	env, err := newEnv(ctx, c, *bin, *overlay, *logs)
+	env, err := newEnv(ctx, c, f, *bin, *overlay, *logs)
 	if err != nil {
 		return fail(err)
 	}
@@ -95,20 +100,13 @@ func fail(err error) int {
 	return 1
 }
 
-func stagesFor(flavor string) ([]Stage, error) {
-	if flavor != "native" {
-		return nil, fmt.Errorf("no stages declared for flavor %q", flavor)
-	}
-	return nativeStages(), nil
-}
-
 func dockerUp(ctx context.Context) bool {
 	return exec.CommandContext(ctx, "docker", "info").Run() == nil
 }
 
 // newEnv makes every path private to this run, so parallel runs cannot
 // collide and none can touch the caller's kubeconfig or clusters.
-func newEnv(ctx context.Context, c Case, bin, overlay, logs string) (*Env, error) {
+func newEnv(ctx context.Context, c Case, f *Flavor, bin, overlay, logs string) (*Env, error) {
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		return nil, err
@@ -133,6 +131,7 @@ func newEnv(ctx context.Context, c Case, bin, overlay, logs string) (*Env, error
 		Logs:           absolute(repoRoot, logs),
 		Kubeconfig:     filepath.Join(work, "kubeconfig"),
 		Cluster:        "e2e-" + strings.TrimPrefix(filepath.Base(work), "xpg-e2e-"),
+		F:              f,
 		Toolchain:      c.Toolchain,
 		CreateAPIGuard: c.CreateAPIGuard,
 	}
