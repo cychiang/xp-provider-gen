@@ -23,12 +23,9 @@ jobs:
       with:
         go-version-file: go.mod
 
-    # pkg/versions/dependencies.yaml's go_version is the single source of
-    # truth for the Go version generated providers (and this repo) target.
-    # go.mod's own `go` directive and the Dockerfile's golang base image tag
-    # cannot be computed from it (Go and Docker both require literals), so
-    # this enforces that they still agree with it, and that go_version is
+    # pkg/versions/dependencies.yaml's go_version is the Go version generated
+    # providers target, independent of this repo's own. This checks that it is
     # new enough for every dependency the manifest pins (fetched live from
     # proxy.golang.org, not guessed) — see scripts/check-go-version.
-    - name: Check go.mod, Dockerfile, and dependency floors agree with dependencies.yaml
+    - name: Check go_version is new enough for every pinned dependency
       run: make check-go-version

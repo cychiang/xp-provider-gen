@@ -71,38 +71,23 @@ func TestExtractGoDirective(t *testing.T) {
 	}
 }
 
-func TestExtractDockerGoTag(t *testing.T) {
+func TestRequireFloor(t *testing.T) {
 	tests := []struct {
-		name    string
-		content string
-		want    string
-		wantErr bool
+		name      string
+		goVersion string
+		directive string
+		wantErr   bool
 	}{
-		{
-			name:    "this repo's Dockerfile shape",
-			content: "FROM golang:" + testGoVersionA + "-alpine AS builder\n\nENV GOTOOLCHAIN=auto\n",
-			want:    testGoVersionA,
-		},
-		{
-			name:    "no golang FROM line",
-			content: "FROM alpine:3.24\n",
-			wantErr: true,
-		},
+		{"equal to the floor", testGoVersionA, testGoVersionA, false},
+		{"above the floor", testGoVersionA, testGoVersionB, false},
+		{"below the floor", testGoVersionB, testGoVersionA, true},
+		{"two-component floor", testGoVersionA, "1.17", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := extractDockerGoTag(tt.content)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("extractDockerGoTag() = %q, want an error", got)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("extractDockerGoTag() unexpected error: %v", err)
-			}
-			if got != tt.want {
-				t.Errorf("extractDockerGoTag() = %q, want %q", got, tt.want)
+			err := requireFloor(tt.goVersion, "example.com/dep", "v1.0.0", tt.directive)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("requireFloor(%q, %q) error = %v, wantErr %v", tt.goVersion, tt.directive, err, tt.wantErr)
 			}
 		})
 	}

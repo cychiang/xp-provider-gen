@@ -90,10 +90,10 @@ func parseManifest(raw []byte) (manifest, error) {
 
 // GoVersion is the Go language version generated providers target (the
 // go.mod `go` directive), read from the embedded manifest's go_version key —
-// the single place this number is set. This repo's own go.mod `go` directive
-// and the Dockerfile's golang base image tag both have to match it literally
-// (neither can be computed), which scripts/check-go-version enforces in CI
-// instead of re-deriving them.
+// the single place this number is set. It is independent of this repo's own
+// go.mod `go` directive and Dockerfile golang tag; scripts/check-go-version
+// only enforces in CI that it is at least what every pinned dependency
+// requires.
 var GoVersion = requireField(embedded.GoVersion, "go_version")
 
 // TerraformVersion is the Terraform CLI version an upjet-flavored provider
