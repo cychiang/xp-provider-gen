@@ -53,7 +53,8 @@ var (
 	widgetExternal = filepath.Join(widgetDir, "external.go")
 	widgetWiring   = filepath.Join(widgetDir, "wiring.go")
 	scaffoldSeams  = []string{widgetExternal, "internal/provider/client.go", "internal/provider/options.go"}
-	seamFiles      = append(slices.Clone(scaffoldSeams), providerTypes, "internal/provider/options_test.go", widgetDir+"/external_test.go")
+	userTests      = []string{"internal/provider/options_test.go", widgetDir + "/external_test.go"}
+	seamFiles      = slices.Concat(scaffoldSeams, []string{providerTypes}, userTests)
 	versionStamp   = regexp.MustCompile(`(?m)^    version: (.+)$`)
 	unchanged      = regexp.MustCompile(`Unchanged [1-9][0-9]* tool-owned file\(s\)`)
 	goDirective    = regexp.MustCompile(`(?m)^go (\S+)$`)

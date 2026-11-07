@@ -197,9 +197,19 @@ func stageRefuseOldGenerator(e *Env) error {
 	if err != nil {
 		return err
 	}
-	if err := e.restamp(newerStamp); err != nil {
+	if err := e.withStamp(newerStamp, e.refuseOnNewerProject); err != nil {
 		return err
 	}
+	if e.CreateAPIGuard {
+		err := e.withStamp(olderStamp, func() error { return e.refusedCreateAPI(refuseNewer, "an older project") })
+		if err != nil {
+			return err
+		}
+	}
+	return e.assertStamp(want)
+}
+
+func (e *Env) refuseOnNewerProject() error {
 	for _, args := range [][]string{{"update"}, {"update", "--adopt"}} {
 		out, err := e.exec(e.Dir, "", e.Gen, args...)
 		if err := refused(out, err, refuseOlder, "release "+strings.Join(args, " ")+" on a newer project"); err != nil {
@@ -209,26 +219,29 @@ func stageRefuseOldGenerator(e *Env) error {
 			return err
 		}
 	}
-	if e.CreateAPIGuard {
-		if err := e.refusedCreateAPI(refuseCreateOlder, "a newer project"); err != nil {
-			return err
-		}
+	if !e.CreateAPIGuard {
+		return nil
 	}
-	if err := e.unstamp(); err != nil {
+	return e.refusedCreateAPI(refuseCreateOlder, "a newer project")
+}
+
+// withStamp commits a hand-set PROJECT stamp, runs check, then drops the commit.
+func (e *Env) withStamp(version string, check func() error) error {
+	project, err := e.read("PROJECT")
+	if err != nil {
 		return err
 	}
-	if e.CreateAPIGuard {
-		if err := e.restamp(olderStamp); err != nil {
-			return err
-		}
-		if err := e.refusedCreateAPI(refuseNewer, "an older project"); err != nil {
-			return err
-		}
-		if err := e.unstamp(); err != nil {
-			return err
-		}
+	if err := e.write("PROJECT", []byte(versionStamp.ReplaceAllString(project, "    version: "+version))); err != nil {
+		return err
 	}
-	return e.assertStamp(want)
+	if err := e.commit("stamp " + version); err != nil {
+		return err
+	}
+	if err := check(); err != nil {
+		return err
+	}
+	_, err = e.git("reset", "-q", "--hard", "HEAD~1")
+	return err
 }
 
 func (e *Env) refusedCreateAPI(reason, on string) error {
@@ -237,20 +250,4 @@ func (e *Env) refusedCreateAPI(reason, on string) error {
 		return err
 	}
 	return e.assertCleanTree("a refused create api on " + on)
-}
-
-func (e *Env) restamp(version string) error {
-	project, err := e.read("PROJECT")
-	if err != nil {
-		return err
-	}
-	if err := e.write("PROJECT", []byte(versionStamp.ReplaceAllString(project, "    version: "+version))); err != nil {
-		return err
-	}
-	return e.commit("stamp " + version)
-}
-
-func (e *Env) unstamp() error {
-	_, err := e.git("reset", "-q", "--hard", "HEAD~1")
-	return err
 }
