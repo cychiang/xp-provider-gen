@@ -10,10 +10,9 @@ on crossplane-runtime v2. From `init`, `create api`, `create-test` and `update` 
 maintains a complete, buildable provider project. It keeps only Kubebuilder's PROJECT file
 format and file writer.
 
-It scaffolds two **flavors**, each a self-contained template root. **Native** (`pkg/templates/files/`)
-is a provider whose reconcile logic you write. **Upjet** (`pkg/templates/upjet/`) is one whose types
-and controllers are generated from a Terraform provider's schema. When to pick one is in the skill
-(see "Further reading").
+It scaffolds two **flavors**, native and upjet, each a self-contained template root:
+`pkg/templates/files/` and `pkg/templates/upjet/`. What the flavors are and when to pick one is
+in the skill (see "Further reading").
 
 ## Setup commands
 
