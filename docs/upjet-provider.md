@@ -101,6 +101,9 @@ into what `clients.go` receives.
 make build
 ```
 
+Every upjet `make` prints two `go.generate` override warnings. They are expected: the tool-owned
+fragment replaces the build submodule's `go.generate` recipe on purpose.
+
 The image bakes in what the controllers need at runtime: Terraform itself, the
 Terraform provider binary (mirrored into Terraform's filesystem-mirror layout,
 so no network access is needed at runtime), and a `.terraformrc` pointing at

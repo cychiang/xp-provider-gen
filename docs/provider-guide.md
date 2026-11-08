@@ -28,8 +28,9 @@ single clean commit. `create api` adds a kind and folds
 into that commit until you make one of your own.
 
 Both leave a clean working tree. If yours is dirty afterwards, that is a bug worth
-reporting. `init` makes the commit as your git identity. When git has none, pass `--git-name` and
-`--git-email`.
+reporting. `init` makes the commit as your git identity. When git has none, it commits as
+`Crossplane Provider Generator <noreply@crossplane.io>`. `--git-name` and `--git-email` override
+either.
 
 ### The Go toolchain
 
@@ -54,10 +55,6 @@ the failure the line prevents. A host Go older than the `go` directive fails ear
 the pin. Install it with `go-version-file: go.mod`, or clear the variable before `make`.
 
 ## 2. What you actually write
-
-Per kind you write `external.go` and `<kind>_types.go`. Provider-wide you write `client.go` and
-`options.go`, plus `apis/v1alpha1/types.go` when the ProviderConfig needs settings. That is the whole
-surface.
 
 | You want to | Edit |
 |---|---|

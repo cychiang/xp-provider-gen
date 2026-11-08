@@ -1,8 +1,6 @@
 # Crossplane Provider Generator
 
-A Go CLI that scaffolds Crossplane providers on crossplane-runtime v2. A provider is either
-**native**, where you write the reconcile logic, or **upjet**, where the types and controllers
-are generated from a Terraform provider's schema.
+A Go CLI that scaffolds native and upjet Crossplane providers on crossplane-runtime v2.
 
 ## Key Features
 
@@ -86,11 +84,8 @@ make e2e-upjet     # The same for an upjet provider (needs Docker and network)
 make help          # List all targets
 ```
 
-To measure an upgrade, add `E2E_ARGS="--from=latest --report=report.json"` to either e2e target. It
-scaffolds with the newest published release, runs `update` with this build, and writes how many
-files differ from a fresh scaffold. [docs/testing.md](docs/testing.md) explains the flags and the
-report. Requirements, the full target list and the contributor workflow are in
-[docs/development.md](docs/development.md).
+The e2e flags, including how to measure an upgrade, are in [docs/testing.md](docs/testing.md).
+Requirements and the contributor workflow are in [docs/development.md](docs/development.md).
 
 **Provider authors** start with [docs/provider-guide.md](docs/provider-guide.md) (native) /
 [docs/upjet-provider.md](docs/upjet-provider.md) (upjet); **generator contributors** start with

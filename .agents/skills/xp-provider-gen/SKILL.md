@@ -16,7 +16,7 @@ Cross-client, user-level: copy or symlink this directory to `~/.agents/skills/xp
 Individual clients also scan their own native directory — check your client's docs for its own
 convention (for example, Claude Code additionally reads project-level `.claude/skills/` and
 user-level `~/.claude/skills/`). Commands below assume `xp-provider-gen` is on `PATH`; otherwise
-substitute its actual path (e.g. `./bin/xp-provider-gen`).
+substitute its actual path (e.g. `./bin/xp-provider-gen`, which exists after you run `make build`).
 
 ## A. Build a provider
 
@@ -119,7 +119,8 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   seeded `test/behavior/<kind>-pause/`, and `create-test` refuses to overwrite an existing name, so
   pick a different `--name`. `--kind` is only optional
   when the project has exactly one kind; with more than one it prompts on a TTY or errors
-  asking for both flags non-interactively.
+  asking for both flags non-interactively. `create-test` leaves its files uncommitted, and
+  `update` refuses a dirty tree, so commit them before you run `update`.
 
 ### `update`
 
@@ -132,7 +133,8 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   ```bash
   xp-provider-gen update
   ```
-- **Produces**: requires a clean working tree; leaves the result uncommitted for `git diff`
+- **Produces**: requires a clean working tree, so commit anything pending first (for example after
+  `create-test`); leaves the result uncommitted for `git diff`
   review, then your own commit. On a mid-run failure the error names the exact revert step.
   Check: on an **upjet** provider it never recreates a missing user-owned file (some need
   init-time Terraform settings PROJECT does not keep, so it recreates none) and lists the
@@ -193,6 +195,7 @@ an empty directory.
 - **`make build`** — what: builds the provider binary and image (from the `crossplane/build`
   submodule). when: after generate. command: `make build`. produces:
   `_output/bin/<os>_<arch>/provider` — not `bin/`, which is this generator's own output dir.
+  The binary is always linux (`linux_arm64` on an Apple-silicon Mac), whatever your host.
 - **`make reviewable`** — what: `generate` + `lint` + `test`, from `crossplane/build`'s
   `common.mk` — a different Makefile from this generator's own `reviewable` gate, and does not
   include gosec or mod-tidy. when: before every commit. command: `make reviewable`. produces:
@@ -222,7 +225,7 @@ an empty directory.
   runs upjet's code generation. when: after `create api` adds a resource. command:
   `make generate`. produces: types/controllers under `apis/{cluster,namespaced}/**` and
   `internal/controller/{cluster,namespaced}/**`.
-- **`make build`** — what: builds the provider binary and an image with Terraform itself and
+- **`make build`** — what (needs Docker): builds the provider binary and an image with Terraform itself and
   the mirrored provider plugin baked in (no network needed at pod runtime). when: after
   generate. command: `make build`. produces: image `<registry>/<provider>-<arch>`; the
   container's `ENV` satisfies `cmd/provider`'s required flags with nothing extra to configure.
