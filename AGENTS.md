@@ -6,12 +6,13 @@ provider scaffolded by it. Keep this file short — depth lives in [`docs/`](doc
 ## Project overview
 
 `xp-provider-gen` is a Go CLI that scaffolds [Crossplane](https://crossplane.io) providers
-using Kubebuilder v4 and crossplane-runtime v2. From `init`, `create api`, `create-test` and
-`update` it generates and maintains a complete, buildable provider project.
+on crossplane-runtime v2. From `init`, `create api`, `create-test` and `update` it generates and
+maintains a complete, buildable provider project. It keeps only Kubebuilder's PROJECT file
+format and file writer.
 
-It scaffolds two **flavors** — native and upjet — each a self-contained template
-root: `pkg/templates/files/` and `pkg/templates/upjet/`. What the flavors are and
-when to pick one is in the skill (see "Further reading").
+It scaffolds two **flavors**, native and upjet, each a self-contained template root:
+`pkg/templates/files/` and `pkg/templates/upjet/`. What the flavors are and when to pick one is
+in the skill (see "Further reading").
 
 ## Setup commands
 
@@ -26,7 +27,7 @@ Prerequisites (Go version, gosec, Docker for e2e) are in
 
 - **Ownership contract** — a `// Code generated … DO NOT EDIT.` header (first 1024 bytes) marks a file tool-owned (`init` and `update` write through `core.Apply`, which overwrites it; `update` also removes it); never quote that line in your own file, even in a comment — it's a substring match and flips ownership. See [architecture.md §6](docs/architecture.md#6-ownership-contract-the-upgrade-foundation).
 - **Golden ownership test** (`templates/engine/ownership_test.go`) fails on any new template until you add it to `wantOwnership` — deliberate, not a bug.
-- **Prove template changes with a scaffold diff** (an old-vs-new binary's `init` output; a git worktree gets the old binary cheaply) — never trust a template read alone.
+- **Prove template changes with a scaffold diff** (an old-vs-new binary's `init` and `create api` output, for both flavors; a git worktree gets the old binary cheaply) — never trust a template read alone.
 - **`PROJECT`** holds flavor, upjet settings and the provenance `version:` stamp of whichever generator last ran `update`/`init`; a corrupt or unrecognized one is refused, not guessed at.
 - **`pkg/versions/dependencies.yaml`** pins a generated provider's dependencies (Renovate-tracked via a custom manager); `pkg/version/` is this CLI's own version, stamped into PROJECT — don't confuse the two.
 
@@ -77,7 +78,7 @@ reconsider.
 ## Repository layout
 
 - `cmd/xp-provider-gen/` — CLI entry point: a plain cobra root over the four commands
-- `pkg/plugins/crossplane/v2/` — the plugin: commands, template engine, automation, validation
+- `pkg/plugins/crossplane/v2/` — the `init`, `create api`, `update` and `create-test` commands, template engine, automation, validation
 - `pkg/templates/files/`, `pkg/templates/upjet/` — embedded `.tmpl` scaffolding, one root per flavor; `pkg/templates/generators/` — Go-rendered files neither tree can express (register.go, go.mod, `docs/ownership.md`)
 - `pkg/versions/`, `pkg/version/` — see Core concepts above
 - `test/e2e/` — the Go stage harness behind both e2e targets; see [docs/testing.md](docs/testing.md)

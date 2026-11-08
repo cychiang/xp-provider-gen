@@ -28,7 +28,9 @@ single clean commit. `create api` adds a kind and folds
 into that commit until you make one of your own.
 
 Both leave a clean working tree. If yours is dirty afterwards, that is a bug worth
-reporting.
+reporting. `init` makes the commit as your git identity. When git has none, it commits as
+`Crossplane Provider Generator <noreply@crossplane.io>`. `--git-name` and `--git-email` override
+either.
 
 ### The Go toolchain
 
@@ -53,8 +55,6 @@ the failure the line prevents. A host Go older than the `go` directive fails ear
 the pin. Install it with `go-version-file: go.mod`, or clear the variable before `make`.
 
 ## 2. What you actually write
-
-Two files per kind, plus two provider-wide files. That is the whole surface.
 
 | You want to | Edit |
 |---|---|
@@ -242,6 +242,8 @@ git diff                   # review
 make reviewable
 git add -A && git commit -m "chore: update provider core"
 ```
+
+When `update` changes nothing, the last command reports `nothing to commit`.
 
 After upgrading the generator, run `update` before `create api`: `create api` refuses when the
 generator differs from the one that last updated the project.

@@ -101,6 +101,9 @@ into what `clients.go` receives.
 make build
 ```
 
+Every upjet `make` prints two `go.generate` override warnings. They are expected: the tool-owned
+fragment replaces the build submodule's `go.generate` recipe on purpose.
+
 The image bakes in what the controllers need at runtime: Terraform itself, the
 Terraform provider binary (mirrored into Terraform's filesystem-mirror layout,
 so no network access is needed at runtime), and a `.terraformrc` pointing at
@@ -131,8 +134,8 @@ nothing about a valid `spec.forProvider` is knowable before `make generate` prod
 schema-derived types, so a fresh scaffold's `examples/` has nothing to test until you write
 one — see the worked example below, or `test/README.md` inside your scaffold for the exact
 steps (copy from `examples-generated/`, resolve `${...}` interpolations). `make test-behavior`
-and `make e2e-clean` now exist too; `make dev`, `make dev-clean` and `make test-integration`
-are still native-only, since they run the controller from source, which an upjet controller
+and `make e2e-clean` work as on native. `make dev`, `make dev-clean` and `make test-integration`
+exist only on native, since they run the controller from source, which an upjet controller
 cannot do without Terraform, the provider plugin and the `TERRAFORM_*` env the image bakes in.
 
 ## 6. Worked example: managing a ConfigMap with hashicorp/kubernetes

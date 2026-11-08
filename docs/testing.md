@@ -132,8 +132,8 @@ is 0 for a stage that did not run. `schema` changes when a field is renamed or r
 upgrade run means the stage failed before it. A count is `null`, not `0`, when its check
 errored before it could count, so a measured zero is never confused with a check that did not
 finish. The run also prints one line, for example
-`UPGRADE tool_owned 21 compared 0 differing, user_owned 0 changed, generated 0 changed`, with
-`n/a` for a `null` count. A run that fails before its first stage, say because `gh` could not
+`UPGRADE tool_owned 21 compared 0 differing, user_owned 0 changed, generated 0 changed` for upjet
+(a native run compares 15), with `n/a` for a `null` count. A run that fails before its first stage, say because `gh` could not
 fetch the release, writes a `FAILED` report with no stages.
 
 | Count | Meaning |

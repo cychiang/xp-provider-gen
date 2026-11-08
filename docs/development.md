@@ -48,7 +48,8 @@ and `make reviewable` both run it.
 
 1. Make a focused change. Keep it [KISS and DRY](../AGENTS.md#code-style).
 2. `make reviewable` — fix anything it reports.
-3. `make e2e-native` if you touched templates, the engine, or the automation pipeline.
+3. `make e2e-native` or `make e2e-upjet` if you touched templates, the engine, or the automation
+   pipeline. Pick the flavor you changed, or run both.
 4. Commit with a [conventional commit](https://www.conventionalcommits.org/) message
    (`feat:`, `fix:`, `refactor:`, `chore:`, `ci:`, `docs:`, `test:`), small and focused.
 5. Open a PR. CI runs lint, tests, e2e, build, and security scans.
