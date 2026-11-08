@@ -1,6 +1,8 @@
 # Crossplane Provider Generator
 
-A CLI tool for scaffolding Crossplane providers with Kubebuilder v4 and crossplane-runtime v2.
+A Go CLI that scaffolds Crossplane providers on crossplane-runtime v2. A provider is either
+**native**, where you write the reconcile logic, or **upjet**, where the types and controllers
+are generated from a Terraform provider's schema.
 
 ## Key Features
 
@@ -68,20 +70,26 @@ make generate && make build && make reviewable
 
 ## Commands
 
-`init` (add `--upjet`/`--terraform-*` flags to wrap a Terraform provider instead), `create api`
-(`--terraform-resource` on an upjet project), `create-test`, and `update`. Full flags, examples, and what each one does are in
+`init` (add `--upjet` and the `--terraform-*` flags to wrap a Terraform provider instead), `create api`
+(`--terraform-resource` on an upjet project), `create-test`, and `update`. `xp-provider-gen <command> --help`
+lists every flag. What each command does is in
 [docs/provider-guide.md](docs/provider-guide.md) (native), [docs/upjet-provider.md](docs/upjet-provider.md)
 (upjet), and the [xp-provider-gen skill](.agents/skills/xp-provider-gen/SKILL.md).
 
 ## Working on This Project
 
 ```bash
-make build       # Build the binary
-make reviewable  # Everything CI enforces — run before pushing
-make help        # List all targets
+make build         # Build the binary
+make reviewable    # Everything CI enforces — run before pushing
+make e2e-native    # Scaffold a native provider and run it end to end (needs Docker)
+make e2e-upjet     # The same for an upjet provider (needs Docker and network)
+make help          # List all targets
 ```
 
-Requirements, the full target list and the contributor workflow are in
+To measure an upgrade, add `E2E_ARGS="--from=latest --report=report.json"` to either e2e target. It
+scaffolds with the newest published release, runs `update` with this build, and writes how many
+files differ from a fresh scaffold. [docs/testing.md](docs/testing.md) explains the flags and the
+report. Requirements, the full target list and the contributor workflow are in
 [docs/development.md](docs/development.md).
 
 **Provider authors** start with [docs/provider-guide.md](docs/provider-guide.md) (native) /
@@ -90,9 +98,10 @@ Requirements, the full target list and the contributor workflow are in
 
 ### Generated Project Structure
 
-You write four files: `external.go` (observe/create/update/delete), `client.go` (the API
-client), `options.go` (CLI flags), and each kind's `apis/<group>/<version>/<kind>_types.go`.
-Everything else starts tool-owned. Every scaffold gets its own generated `docs/ownership.md`
+On a native provider you write `external.go` (observe/create/update/delete), `client.go` (the API
+client), `options.go` (CLI flags), each kind's `apis/<group>/<version>/<kind>_types.go`, and
+`apis/v1alpha1/types.go` when the ProviderConfig needs settings. The framework wiring is tool-owned,
+and the remaining files are seeded once and then yours. Every scaffold gets its own generated `docs/ownership.md`
 listing exactly which files are yours for that provider — see
 [docs/provider-guide.md](docs/provider-guide.md) (native) or
 [docs/upjet-provider.md](docs/upjet-provider.md) (upjet, whose layout differs) for the full

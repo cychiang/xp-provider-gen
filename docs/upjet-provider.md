@@ -131,8 +131,8 @@ nothing about a valid `spec.forProvider` is knowable before `make generate` prod
 schema-derived types, so a fresh scaffold's `examples/` has nothing to test until you write
 one — see the worked example below, or `test/README.md` inside your scaffold for the exact
 steps (copy from `examples-generated/`, resolve `${...}` interpolations). `make test-behavior`
-and `make e2e-clean` now exist too; `make dev`, `make dev-clean` and `make test-integration`
-are still native-only, since they run the controller from source, which an upjet controller
+and `make e2e-clean` work as on native. `make dev`, `make dev-clean` and `make test-integration`
+exist only on native, since they run the controller from source, which an upjet controller
 cannot do without Terraform, the provider plugin and the `TERRAFORM_*` env the image bakes in.
 
 ## 6. Worked example: managing a ConfigMap with hashicorp/kubernetes

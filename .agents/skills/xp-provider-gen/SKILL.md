@@ -54,9 +54,8 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   xp-provider-gen init --domain=example.com --repo=github.com/example/provider-k8s \
     --upjet --terraform-provider=hashicorp/kubernetes --terraform-provider-version=2.38.0
   ```
-- **Produces**: a **6**-step pipeline, deliberately shorter than native's — git init, scripts
-  executable, add the build submodule, `make submodules`, `go mod download` (not `tidy`),
-  commit. No `make generate`, no `make reviewable`: the scaffold does not compile yet, because
+- **Produces**: a 5-step pipeline, deliberately shorter than native's — git init, add the
+  build submodule, `make submodules`, `go mod download` (not `tidy`), commit. No `make generate`, no `make reviewable`: the scaffold does not compile yet, because
   `cmd/provider` imports API/controller packages that only `make generate` produces from the
   Terraform schema. Optional coordinates: `--terraform-provider-repo` (defaults to the
   provider's hashicorp GitHub repo), `--terraform-provider-docs-path` (default
@@ -84,7 +83,7 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   overwrites files without the generated header (`external.go`, `*_types.go`); they are
   listed as `Kept`. A registration file (`apis/register.go`, `internal/controller/register.go`,
   or upjet's `config/zz_resources.go`) whose header you removed is also kept, with a warning
-  that the new kind must be registered by hand. `--force` was removed after v0.2.0, the release that deprecated it.
+  that the new kind must be registered by hand.
 
 ### `create api` — upjet
 
@@ -113,10 +112,12 @@ for the full explanation. Each entry below names which flavor(s) it applies to.
   write the example first, or `create-test` refuses with the exact path it looked for.
 - **Command**:
   ```bash
-  xp-provider-gen create-test --name=bucket-pause --kind=Bucket
+  xp-provider-gen create-test --name=bucket-drift --kind=Bucket
   ```
-- **Produces**: `test/behavior/bucket-pause/chainsaw-test.yaml` with TODO assertions to fill
-  in; run with `make test-behavior` or as part of `make e2e`. Check: `--kind` is only optional
+- **Produces**: `test/behavior/bucket-drift/chainsaw-test.yaml` with TODO assertions to fill
+  in; run with `make test-behavior` or as part of `make e2e`. Check: a native `create api` already
+  seeded `test/behavior/<kind>-pause/`, and `create-test` refuses to overwrite an existing name, so
+  pick a different `--name`. `--kind` is only optional
   when the project has exactly one kind; with more than one it prompts on a TTY or errors
   asking for both flags non-interactively.
 
@@ -257,7 +258,7 @@ an empty directory.
 
 Not scaffolding a provider — contributing to this generator's own code? Start with
 [AGENTS.md](https://github.com/cychiang/xp-provider-gen/blob/main/AGENTS.md) in the repo root:
-it has the make targets (`build`, `test`, `lint`, `reviewable`), the two e2e targets
+it has the `build` and `reviewable` targets, the two e2e targets
 (`e2e-native`, `e2e-upjet`), and the working agreements. Templates live under
 `pkg/templates/files/` (native)
 and `pkg/templates/upjet/` (upjet) and are auto-discovered — adding a `.tmpl` file wires it in;
@@ -266,16 +267,20 @@ there is no registration step.
 The one habit AGENTS.md assumes but doesn't spell out: **prove every template change with an
 old-vs-new scaffold diff**, never by reading the template. `go build`'s package argument must
 be a directory inside the current module, so build the old side from its own checkout — a git
-worktree is the cheapest way to get one. Both `init` runs hit the network and take a minute or
-two (submodule clone, `go mod` work).
+worktree is the cheapest way to get one. Per-kind templates render only at `create api`, so the
+diff covers both commands. Each run hits the network and takes a minute or two (submodule clone,
+`go mod` work). For the upjet root, repeat with the `init --upjet ...` and
+`create api --terraform-resource=...` forms above.
 
 ```bash
 git worktree add /tmp/xpgen-old-src <pre-change-ref>   # e.g. a commit or branch before your edit
 ( cd /tmp/xpgen-old-src && go build -o /tmp/xpgen-old ./cmd/xp-provider-gen )
 go build -o /tmp/xpgen-new ./cmd/xp-provider-gen
 mkdir -p /tmp/old /tmp/new
-( cd /tmp/old && /tmp/xpgen-old init --domain=example.com --repo=github.com/x/p1 )
-( cd /tmp/new && /tmp/xpgen-new init --domain=example.com --repo=github.com/x/p1 )
-diff -ru /tmp/old /tmp/new   # must show only the lines you intended to change
+for v in old new; do
+  ( cd /tmp/$v && /tmp/xpgen-$v init --domain=example.com --repo=github.com/x/provider-p1 &&
+    /tmp/xpgen-$v create api --group=compute --version=v1alpha1 --kind=Instance )
+done
+diff -ru -x .git -x _output /tmp/old /tmp/new   # must show only the lines you intended to change
 git worktree remove /tmp/xpgen-old-src
 ```

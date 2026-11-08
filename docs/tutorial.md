@@ -19,7 +19,8 @@ you must not rename, the full `update` contract — see the
 
 - Go (the version in this repo's `go.mod`)
 - [kind](https://kind.sigs.k8s.io/) and `kubectl` (Docker running, for kind)
-- `xp-provider-gen` built from this repo: `make build` → `bin/xp-provider-gen`
+- `xp-provider-gen` on your `PATH`. Build it from this repo with `make build`, then run
+  `export PATH="$PWD/bin:$PATH"` in the repo root.
 
 ## 1. Scaffold
 

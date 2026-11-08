@@ -28,7 +28,8 @@ single clean commit. `create api` adds a kind and folds
 into that commit until you make one of your own.
 
 Both leave a clean working tree. If yours is dirty afterwards, that is a bug worth
-reporting.
+reporting. `init` makes the commit as your git identity. When git has none, pass `--git-name` and
+`--git-email`.
 
 ### The Go toolchain
 
@@ -54,7 +55,9 @@ the pin. Install it with `go-version-file: go.mod`, or clear the variable before
 
 ## 2. What you actually write
 
-Two files per kind, plus two provider-wide files. That is the whole surface.
+Per kind you write `external.go` and `<kind>_types.go`. Provider-wide you write `client.go` and
+`options.go`, plus `apis/v1alpha1/types.go` when the ProviderConfig needs settings. That is the whole
+surface.
 
 | You want to | Edit |
 |---|---|
@@ -242,6 +245,8 @@ git diff                   # review
 make reviewable
 git add -A && git commit -m "chore: update provider core"
 ```
+
+When `update` changes nothing, the last command reports `nothing to commit`.
 
 After upgrading the generator, run `update` before `create api`: `create api` refuses when the
 generator differs from the one that last updated the project.
