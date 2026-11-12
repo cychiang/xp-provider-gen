@@ -453,8 +453,7 @@ func stageCreateAPI(e *Env) error {
 
 // stageGenerate runs the scaffold's own generate, with reviewable on top for
 // head. A release's reviewable lints and tests an old scaffold, which says
-// nothing about this build, and its pinned linter cannot read a newer Go's
-// export data. The stages after it need only the generated files.
+// nothing about this build. The stages after it need only the generated files.
 func stageGenerate(e *Env) error {
 	targets := []string{"submodules", targetGenerate}
 	if !e.Case.Release() {
@@ -489,8 +488,8 @@ func stageGenerate(e *Env) error {
 	return nil
 }
 
-// stageUserLogic lints the overlay for head only; a release's own reviewable
-// lints the same overlay after update.
+// stageUserLogic lints the overlay for head only; on a release, update's own
+// make reviewable lints the same overlay.
 func stageUserLogic(e *Env) error {
 	if err := e.copyOverlay(); err != nil {
 		return err
