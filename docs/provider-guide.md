@@ -28,9 +28,11 @@ single clean commit. `create api` adds a kind and folds
 into that commit until you make one of your own.
 
 Both leave a clean working tree. If yours is dirty afterwards, that is a bug worth
-reporting. `init` makes the commit as your git identity. When git has none, it commits as
-`Crossplane Provider Generator <noreply@crossplane.io>`. `--git-name` and `--git-email` override
-either.
+reporting. `init` makes the commit as your git identity. If `init` creates the repository and
+git has no identity, it commits as `Crossplane Provider Generator <noreply@crossplane.io>` and
+writes that identity into `.git/config`
+([#217](https://github.com/cychiang/xp-provider-gen/issues/217)). `--git-name` and `--git-email`
+set the identity, but only when `init` creates the repository.
 
 ### The Go toolchain
 
