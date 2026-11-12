@@ -17,6 +17,7 @@ body:
         - native
         - upjet
         - Both
+        - Not about a flavor (CLI, docs, releases)
     validations:
       required: true
   - type: textarea

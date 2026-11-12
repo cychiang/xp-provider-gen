@@ -23,9 +23,9 @@ its release notes say what to change. v0.4.0, for example, removed `update --ado
   Policies are on by default, change logs are behind `--enable-changelogs`, and the controllers
   record managed-resource metrics.
 - `make e2e` in the generated provider deploys it to a kind cluster and runs uptest and
-  chainsaw tests. It needs Docker. On a native provider, each `create api` seeds the kind's example manifest
-  (the uptest input) and a chainsaw pause test. On upjet, you write the example manifest after
-  `make generate`.
+  chainsaw tests. It needs Docker. On a native provider, each `create api` seeds the kind's
+  example manifest (the uptest input) and a chainsaw pause test. On upjet, you write the example
+  manifest after `make generate`.
 - One version manifest pins the provider's dependencies. Renovate bumps it in this repo, and
   `update` applies it to your provider.
 
@@ -93,17 +93,25 @@ bumping the Terraform provider.
 
 `init` makes one commit, `Initial commit`. Each `create api` amends that commit
 (`git commit --amend`) until you make a commit of your own, so a new provider starts with one
-commit. Make your own first commit before you push. After that, each `create api` adds a new
-commit. The commit uses your git identity. Without one, it uses
-`Crossplane Provider Generator <noreply@crossplane.io>`, and `--git-name` and `--git-email`
-override both.
+commit. Make your own first commit before you push. Otherwise the next `create api` amends a
+commit you already pushed, and you need a force-push. After that, each `create api` adds a new
+commit. Every `create api` stages the whole working tree (`git add .`). Commit or stash
+unrelated edits first, or they end up in the commit that `create api` makes or amends.
+
+Set your git identity (`git config --global user.name` and `user.email`) before `init`. If
+`init` creates the repository and git has no identity, `init` writes
+`Crossplane Provider Generator <noreply@crossplane.io>` into the repository's `.git/config`, and
+your own commits there use that identity too
+([#217](https://github.com/cychiang/xp-provider-gen/issues/217)). `init --git-name` and
+`--git-email` set the identity, but only when `init` creates the repository.
 
 ## Commands
 
-`init`, `create api`, `create-test`, and `update`. `xp-provider-gen <command> --help` lists every
-flag. [docs/provider-guide.md](docs/provider-guide.md) describes what you edit in a native
-provider and how to upgrade it. [docs/upjet-provider.md](docs/upjet-provider.md) does the same
-for upjet. The [xp-provider-gen skill](.agents/skills/xp-provider-gen/SKILL.md) is a reference
+The CLI has four commands: `init`, `create api`, `create-test`, and `update`.
+`xp-provider-gen <command> --help` lists every flag.
+[docs/provider-guide.md](docs/provider-guide.md) describes what you edit in a native provider and
+how to upgrade it. [docs/upjet-provider.md](docs/upjet-provider.md) does the same for upjet. The
+[xp-provider-gen skill](.agents/skills/xp-provider-gen/SKILL.md) is a reference
 for each command, written for coding agents.
 
 ## Contributing
