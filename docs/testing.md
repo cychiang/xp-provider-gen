@@ -77,7 +77,7 @@ exits 1 before anything starts.
 |---|---|
 | `--flavor=native\|upjet` | The flavor to test. `make` passes it for you. |
 | `--mode=full\|fast` | `full` is the default. |
-| `--from=head\|latest\|<tag>` | The binary that runs `init` and `create api`. `head` is the default. `latest` is the newest published release, which `gh release list` resolves without pre-releases or drafts. A tag such as `v0.3.0` names another release. Older releases are not tested in CI. |
+| `--from=head\|latest\|<tag>` | The binary that runs `init` and `create api`. `head` is the default. `latest` is the newest published release, which `gh release list` resolves without pre-releases or drafts. A tag such as `v0.4.0` names another release. Older releases are not tested in CI. |
 | `--report=<file>` | Write the run as JSON, also when a stage fails. |
 | `--logs=<dir>` | Keep per-stage logs there. The default is a new temporary directory. |
 | `--overlay=<dir>` | Lay these files over the scaffold. The default is `test/e2e/testdata/<flavor>`. |
@@ -108,8 +108,8 @@ and takes four measurements before it fails on any of them.
 {
   "schema": 1,
   "flavor": "upjet",
-  "from": "v0.3.0",
-  "head": "v0.3.0-19-g723b828",
+  "from": "v0.4.0",
+  "head": "v0.4.0-19-g723b828",
   "verdict": "COMPLETE",
   "stages": [{"name": "init", "status": "pass", "seconds": 1.7}],
   "upgrade": {

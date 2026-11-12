@@ -35,7 +35,6 @@ const (
 	externalNS       = "default"
 	lifecycleTest    = "lifecycle"
 	targetGenerate   = "generate"
-	toolchainVar     = "GOTOOLCHAIN"
 	killGrace        = 5 * time.Second
 	pollArg          = "--poll=10s"
 	providerLabel    = "pkg.crossplane.io/provider"
@@ -114,7 +113,7 @@ func (e *Env) execEnv(extra []string, dir, stdin, name string, args ...string) (
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = killGrace
-	unsetToolchain := func(kv string) bool { return strings.HasPrefix(kv, toolchainVar+"=") }
+	unsetToolchain := func(kv string) bool { return strings.HasPrefix(kv, "GOTOOLCHAIN=") }
 	cmd.Env = append(slices.DeleteFunc(os.Environ(), unsetToolchain),
 		"KUBECONFIG="+e.Kubeconfig, "KIND_CLUSTER_NAME="+e.Cluster)
 	cmd.Env = append(cmd.Env, extra...)
@@ -490,10 +489,8 @@ func stageGenerate(e *Env) error {
 	return nil
 }
 
-// stageUserLogic lints the overlay for head only. A release's make fragment
-// does not pin the toolchain, so on a host newer than its linter reads, lint
-// fails on the host's export data; update writes head's pinned toolchain, and
-// its own reviewable lints the same overlay after it.
+// stageUserLogic lints the overlay for head only; a release's own reviewable
+// lints the same overlay after update.
 func stageUserLogic(e *Env) error {
 	if err := e.copyOverlay(); err != nil {
 		return err

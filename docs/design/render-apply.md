@@ -4,16 +4,15 @@
   (#178, #179), skipping byte-identical writes (Q6, #180) and Phase 2
   (`create api` via `core.Apply`; `--force` deprecated, #181) are in; §4 and §7
   are the proposal as written; the decisions (Q1: `ScopeKind` only, Q3: `--force` deprecated for one
-  minor, Q4: skip and warn, Q5: seeding limited by scope, no `inKind` predicate, Q6: implemented) are
-  as §7 records them. The `file:line`
+  minor, Q4: skip and warn, Q5: seeding limited by scope, no `inKind` predicate, Q6: implemented)
+  are the ones that shipped. The `file:line`
   references below, and the mechanisms they describe (for example `ExecutableBitStep`), are as of #161, and
   `scaffold.Apply` became `core.Apply`.
 - **Date:** 2026-09-16
 - **Author:** Chuan-Yen Chiang
 - **Scope:** `pkg/plugins/crossplane/v2/` (`templates/engine/`, `scaffold/`, `createapi.go`,
-  `update.go`). It follows the architecture review's R2 ("Render/Apply").
-  The review accepted unified assembly but deferred the apply-policy layer until
-  someone wrote this design.
+  `update.go`). It unifies how the three commands assemble files and
+  adds the apply-policy layer, which was deferred until someone wrote this design.
 
 All `file:line` references point at the state PR #161 merges into main (after
 Tasks 8, 10, 11, 12 and 13). Kubebuilder references are to module `sigs.k8s.io/kubebuilder/v4@v4.15.0`
