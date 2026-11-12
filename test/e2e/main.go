@@ -86,9 +86,6 @@ func runCase(ctx context.Context, o options, rep *Report) int {
 		return fail(err)
 	}
 	fmt.Printf("work %s\nlogs %s\ncluster %s\ngenerator %s\n", env.Work, env.Logs, env.Cluster, env.Gen)
-	if c.Toolchain != "" {
-		fmt.Printf("GOTOOLCHAIN=%s on the released binary's init and create api only\n", c.Toolchain)
-	}
 	rep.Head = versionOf(ctx, env.Head)
 
 	verdict, results := Execute(plan, env, os.Stdout)

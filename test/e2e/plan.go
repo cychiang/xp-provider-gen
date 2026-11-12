@@ -30,9 +30,6 @@ const CapDocker Capability = "docker"
 type Case struct {
 	Flavor string
 	From   string
-	// Toolchain is the GOTOOLCHAIN a released binary's init and create api run
-	// under. Empty for head and for any tag toolchains does not list.
-	Toolchain string
 }
 
 const (
@@ -44,14 +41,9 @@ func (c Case) Release() bool { return c.From != fromHead }
 
 func (c Case) Head() bool { return !c.Release() }
 
-// toolchains lists the releases whose init and create api need the Go they
-// were built with, so the scaffold is the one the release produced whatever Go
-// the host has. A tag not listed runs under the host's own.
-var toolchains = map[string]string{"v0.3.0": "go1.26.8"}
-
 // NewCase resolves a --from value that is already a tag or "head".
 func NewCase(flavor, from string) Case {
-	return Case{Flavor: flavor, From: from, Toolchain: toolchains[from]}
+	return Case{Flavor: flavor, From: from}
 }
 
 // Stage is one declared step. It returns an error or it passed: there is no

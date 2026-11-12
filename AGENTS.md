@@ -104,14 +104,6 @@ reconsider.
 - [docs/development.md](docs/development.md) — environment, tooling, and workflow
 - [docs/testing.md](docs/testing.md) — run the unit tests and the e2e harness, and read its output
 - [.github/WORKFLOWS.md](.github/WORKFLOWS.md) — CI/CD pipelines
-- [docs/design/render-apply.md](docs/design/render-apply.md) — the proposal behind one render path and one write rule; implemented (see its decision record)
+- [docs/design/render-apply.md](docs/design/render-apply.md) — the proposal behind one render path and one write rule; implemented
 - [.agents/skills/xp-provider-gen/](.agents/skills/xp-provider-gen/) — using this tool to
   build a provider (author-facing; how to scaffold, configure and deploy either flavor)
-- [docs/plans/](docs/plans/) — decision records: what each program decided, what it deliberately
-  did not do, and the limits it accepted. Read the relevant one before revisiting a decision it
-  covers: [2026-09-15-architecture-review.md](docs/plans/2026-09-15-architecture-review.md),
-  [2026-09-19-consistency.md](docs/plans/2026-09-19-consistency.md),
-  [2026-09-21-phase-b.md](docs/plans/2026-09-21-phase-b.md),
-  [2026-09-24-release-and-docs.md](docs/plans/2026-09-24-release-and-docs.md),
-  [2026-10-03-render-apply.md](docs/plans/2026-10-03-render-apply.md),
-  [2026-11-05-maintainability.md](docs/plans/2026-11-05-maintainability.md).

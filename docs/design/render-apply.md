@@ -5,7 +5,7 @@
   (`create api` via `core.Apply`; `--force` deprecated, #181) are in; §4 and §7
   are the proposal as written; the decisions (Q1: `ScopeKind` only, Q3: `--force` deprecated for one
   minor, Q4: skip and warn, Q5: seeding limited by scope, no `inKind` predicate, Q6: implemented) are
-  recorded in [`docs/plans/2026-10-03-render-apply.md`](../plans/2026-10-03-render-apply.md). The `file:line`
+  as §7 records them. The `file:line`
   references below, and the mechanisms they describe (for example `ExecutableBitStep`), are as of #161, and
   `scaffold.Apply` became `core.Apply`.
 - **Date:** 2026-09-16

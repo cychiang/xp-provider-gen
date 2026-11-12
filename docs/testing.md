@@ -100,12 +100,6 @@ With `--from`, the release's own binary does `init` and `create api`, and the bi
 does everything after. The `update-to-head` stage plants a stale go directive, runs `update`,
 and takes four measurements before it fails on any of them.
 
-The hand-kept part is `toolchains` in `test/e2e/plan.go`. A tag listed there (today `v0.3.0`)
-runs its `init` and `create api` under that `GOTOOLCHAIN`, printed at the start of the run, so
-the scaffold is the one the release produced whatever Go the host has. Every other command runs
-with `GOTOOLCHAIN` unset. A release whose make fragment carries the toolchain line should need no entry. No such
-release has been cut yet to confirm it.
-
 ### Read the report
 
 `--report=<file>` writes this JSON, and the CI upgrade jobs upload it as `report.json`:

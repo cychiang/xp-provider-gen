@@ -22,14 +22,13 @@ report() {
 }
 
 # hits PATTERN [PATHSPEC...] — matching lines in tracked and untracked (not
-# ignored) files. docs/plans/ is a historical record that is deliberately left
-# as written, and this script necessarily spells out the patterns it bans.
+# ignored) files. This script necessarily spells out the patterns it bans.
 # A search that cannot run (say, a malformed PATTERN) is reported as a hit, so
 # a broken check turns red instead of passing.
 hits() {
     local pattern=$1 out rc=0
     shift
-    out=$(git grep --untracked -nEi "$pattern" -- "${@:-.}" ':!docs/plans' ':!hack/check-consistency.sh') || rc=$?
+    out=$(git grep --untracked -nEi "$pattern" -- "${@:-.}" ':!hack/check-consistency.sh') || rc=$?
     # git grep: 0 = hits, 1 = none, anything else = it could not search.
     [ "$rc" -le 1 ] || out="git grep failed (rc=$rc) for pattern: $pattern"
     printf '%s' "$out"
@@ -44,7 +43,7 @@ hits() {
 # Known trade-off: this also blocks file names like `_e2e_test.go` and `sim.go`;
 # narrow it when one is really needed.
 LEGACY='upgrade[-_ ]?sim|e2e[-_]?test|(^|[^[:alnum:]_])sim($|[^[:alnum:]_])'
-legacy_files=$(git ls-files --cached --others --exclude-standard -- . ':!docs/plans' ':!hack/check-consistency.sh' |
+legacy_files=$(git ls-files --cached --others --exclude-standard -- . ':!hack/check-consistency.sh' |
     { grep -Ei "$LEGACY" || true; } | sed 's/$/: file name carries a legacy name/') || legacy_files="listing file names failed"
 report C1 "no legacy script names" "$(
     hits "$LEGACY" | grep -v SIMULATED-V2-CHANGE || true

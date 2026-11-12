@@ -171,8 +171,6 @@ uncommitted for review.
 
 - [Render and apply](design/render-apply.md) is the proposal behind one render path and one
   write rule. It is implemented.
-- [docs/plans/](plans/) holds one record per program: what it decided, what it declined, and
-  the limits it accepted. Read the relevant one before reversing a decision it covers.
 
 ## 9. Seams (the modular layout)
 

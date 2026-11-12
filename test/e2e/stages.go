@@ -72,10 +72,10 @@ var (
 // Kubeconfig and Cluster, so no stage can reach the user's own cluster.
 type Env struct {
 	Ctx        context.Context
-	Repo       string   // the generator checkout
-	Head       string   // the binary under test
-	Gen        string   // the binary that scaffolds: Head, or a released one
-	Case       Case     // its Toolchain is the GOTOOLCHAIN for Gen's init and create api; empty leaves it unset
+	Repo       string // the generator checkout
+	Head       string // the binary under test
+	Gen        string // the binary that scaffolds: Head, or a released one
+	Case       Case
 	Upgrade    *Upgrade // what update-to-head measured; nil until it has
 	Overlay    string   // directory holding the user-logic overlay files
 	F          *Flavor
@@ -101,7 +101,7 @@ func (e *Env) runStage(s Stage) error {
 }
 
 // exec runs a command with GOTOOLCHAIN unset, whatever the caller's
-// environment holds, so only a command that declares one runs under it.
+// environment holds.
 func (e *Env) exec(dir, stdin, name string, args ...string) (string, error) {
 	return e.execEnv(nil, dir, stdin, name, args...)
 }
@@ -135,15 +135,7 @@ func (e *Env) execEnv(extra []string, dir, stdin, name string, args ...string) (
 	return out, nil
 }
 
-// gen runs the scaffolding binary. A released one runs under its declared
-// toolchain, which no other command gets.
-func (e *Env) gen(args ...string) (string, error) {
-	var extra []string
-	if e.Case.Toolchain != "" {
-		extra = []string{toolchainVar + "=" + e.Case.Toolchain}
-	}
-	return e.execEnv(extra, e.Dir, "", e.Gen, args...)
-}
+func (e *Env) gen(args ...string) (string, error) { return e.exec(e.Dir, "", e.Gen, args...) }
 
 func (e *Env) head(args ...string) (string, error) { return e.exec(e.Dir, "", e.Head, args...) }
 
