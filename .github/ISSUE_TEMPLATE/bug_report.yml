@@ -1,0 +1,69 @@
+name: Bug report
+description: A command failed, or it produced a provider that is wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        To report a security problem, do not use this form. Follow SECURITY.md instead.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `xp-provider-gen version`.
+      placeholder: v0.4.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed it
+      options:
+        - Release binary
+        - go install
+        - Container image
+        - Built from source
+    validations:
+      required: true
+  - type: dropdown
+    id: flavor
+    attributes:
+      label: Flavor
+      description: Upjet if the provider was created with `init --upjet`, native otherwise.
+      options:
+        - native
+        - upjet
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: >-
+        The exact command, with every flag. Say whether it ran in a new directory or in an
+        existing provider, and which version last ran `init` or `update` on that provider
+        (the `version:` key under `plugins` in its PROJECT file).
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead. Paste the full output, including the error.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Your OS and the output of `go version` and `git --version`.
+      render: text
