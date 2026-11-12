@@ -30,7 +30,7 @@ BINARY=xp-provider-gen
 
 GOLANGCILINT_VERSION := $(shell sed -n 's/^golangci_lint_version: *"\([^"]*\)".*/\1/p' pkg/versions/dependencies.yaml)
 
-.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy mod-verify check reviewable e2e-native e2e-upjet check-go-version check-consistency
+.PHONY: help build clean test coverage fmt vet lint lint-fix lint-install gosec mod-tidy check reviewable e2e-native e2e-upjet check-go-version check-consistency
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -45,7 +45,7 @@ help: ## Show this help message
 	@grep -E '^(fmt|vet|lint|lint-fix|gosec|check|check-consistency|reviewable):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Dependencies:"
-	@grep -E '^(mod-tidy|mod-verify|check-go-version):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@grep -E '^(mod-tidy|check-go-version):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Other:"
 	@grep -E '^(help):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -103,9 +103,6 @@ gosec: ## Run gosec security scanner
 
 mod-tidy: ## Run go mod tidy
 	$(GOMOD) tidy
-
-mod-verify: ## Verify go mod dependencies
-	$(GOMOD) verify
 
 check-go-version: ## Verify pkg/versions/dependencies.yaml's go_version is new enough for every pinned dependency (network)
 	$(GOCMD) run ./scripts/check-go-version

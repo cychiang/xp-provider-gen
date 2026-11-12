@@ -35,7 +35,6 @@ const (
 	externalNS       = "default"
 	lifecycleTest    = "lifecycle"
 	targetGenerate   = "generate"
-	toolchainVar     = "GOTOOLCHAIN"
 	killGrace        = 5 * time.Second
 	pollArg          = "--poll=10s"
 	providerLabel    = "pkg.crossplane.io/provider"
@@ -72,10 +71,10 @@ var (
 // Kubeconfig and Cluster, so no stage can reach the user's own cluster.
 type Env struct {
 	Ctx        context.Context
-	Repo       string   // the generator checkout
-	Head       string   // the binary under test
-	Gen        string   // the binary that scaffolds: Head, or a released one
-	Case       Case     // its Toolchain is the GOTOOLCHAIN for Gen's init and create api; empty leaves it unset
+	Repo       string // the generator checkout
+	Head       string // the binary under test
+	Gen        string // the binary that scaffolds: Head, or a released one
+	Case       Case
 	Upgrade    *Upgrade // what update-to-head measured; nil until it has
 	Overlay    string   // directory holding the user-logic overlay files
 	F          *Flavor
@@ -101,7 +100,7 @@ func (e *Env) runStage(s Stage) error {
 }
 
 // exec runs a command with GOTOOLCHAIN unset, whatever the caller's
-// environment holds, so only a command that declares one runs under it.
+// environment holds.
 func (e *Env) exec(dir, stdin, name string, args ...string) (string, error) {
 	return e.execEnv(nil, dir, stdin, name, args...)
 }
@@ -114,7 +113,7 @@ func (e *Env) execEnv(extra []string, dir, stdin, name string, args ...string) (
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = killGrace
-	unsetToolchain := func(kv string) bool { return strings.HasPrefix(kv, toolchainVar+"=") }
+	unsetToolchain := func(kv string) bool { return strings.HasPrefix(kv, "GOTOOLCHAIN=") }
 	cmd.Env = append(slices.DeleteFunc(os.Environ(), unsetToolchain),
 		"KUBECONFIG="+e.Kubeconfig, "KIND_CLUSTER_NAME="+e.Cluster)
 	cmd.Env = append(cmd.Env, extra...)
@@ -135,15 +134,7 @@ func (e *Env) execEnv(extra []string, dir, stdin, name string, args ...string) (
 	return out, nil
 }
 
-// gen runs the scaffolding binary. A released one runs under its declared
-// toolchain, which no other command gets.
-func (e *Env) gen(args ...string) (string, error) {
-	var extra []string
-	if e.Case.Toolchain != "" {
-		extra = []string{toolchainVar + "=" + e.Case.Toolchain}
-	}
-	return e.execEnv(extra, e.Dir, "", e.Gen, args...)
-}
+func (e *Env) gen(args ...string) (string, error) { return e.exec(e.Dir, "", e.Gen, args...) }
 
 func (e *Env) head(args ...string) (string, error) { return e.exec(e.Dir, "", e.Head, args...) }
 
@@ -462,8 +453,7 @@ func stageCreateAPI(e *Env) error {
 
 // stageGenerate runs the scaffold's own generate, with reviewable on top for
 // head. A release's reviewable lints and tests an old scaffold, which says
-// nothing about this build, and its pinned linter cannot read a newer Go's
-// export data. The stages after it need only the generated files.
+// nothing about this build. The stages after it need only the generated files.
 func stageGenerate(e *Env) error {
 	targets := []string{"submodules", targetGenerate}
 	if !e.Case.Release() {
@@ -498,10 +488,8 @@ func stageGenerate(e *Env) error {
 	return nil
 }
 
-// stageUserLogic lints the overlay for head only. A release's make fragment
-// does not pin the toolchain, so on a host newer than its linter reads, lint
-// fails on the host's export data; update writes head's pinned toolchain, and
-// its own reviewable lints the same overlay after it.
+// stageUserLogic lints the overlay for head only; on a release, update's own
+// make reviewable lints the same overlay.
 func stageUserLogic(e *Env) error {
 	if err := e.copyOverlay(); err != nil {
 		return err

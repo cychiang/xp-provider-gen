@@ -7,8 +7,8 @@ generation), and later refreshes the tool-owned part of that provider with `upda
 the author's code alone.
 
 This page holds the contracts and invariants that stay true when a function is renamed. To
-learn what a function does, read its package. The decisions behind these contracts are linked
-in [section 8](#8-decision-records).
+learn what a function does, read its package. The design proposal behind them is in
+[section 8](#8-design-proposal).
 
 ## 1. Layers
 
@@ -167,12 +167,10 @@ uncommitted for review.
    tidy cannot resolve the packages that generation produces. Then `update` stamps the
    generator version into PROJECT.
 
-## 8. Decision records
+## 8. Design proposal
 
 - [Render and apply](design/render-apply.md) is the proposal behind one render path and one
   write rule. It is implemented.
-- [docs/plans/](plans/) holds one record per program: what it decided, what it declined, and
-  the limits it accepted. Read the relevant one before reversing a decision it covers.
 
 ## 9. Seams (the modular layout)
 

@@ -241,18 +241,6 @@ func TestAPlanWithNothingToRunIsRejected(t *testing.T) {
 	}
 }
 
-func TestNewCaseGivesAToolchainOnlyToTheReleasesListed(t *testing.T) {
-	for _, c := range []struct{ from, want string }{
-		{fromHead, ""},
-		{newestTag, "go1.26.8"},
-		{"v9.9.9", ""},
-	} {
-		if got := NewCase(nativeName, c.from).Toolchain; got != c.want {
-			t.Errorf("%s runs under toolchain %q, want %q", c.from, got, c.want)
-		}
-	}
-}
-
 func TestABackgroundStageRunsBesideTheStagesAfterItAndIsJoinedAtTheStageThatAsksForIt(t *testing.T) {
 	var mu sync.Mutex
 	var events []string

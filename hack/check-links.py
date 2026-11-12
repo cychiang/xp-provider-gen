@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """C9: markdown links and anchors resolve. Run from repo root. Exit 1 on any miss.
 
-Scans every tracked .md and .tmpl file (docs/plans/ excluded, like the rest of this
-gate) for `](...)` links. A relative path must exist; a `#anchor` on a .md target
-must match one of that file's heading slugs (GitHub's slug rules). An absolute
+Scans every tracked .md and .tmpl file for `](...)` links. A relative path must
+exist; a `#anchor` on a .md target must match one of that file's heading slugs (GitHub's slug rules). An absolute
 `.../blob/main/<path>` URL onto this repo is converted to `<path>` and checked the
 same way; any other absolute URL (including one onto a different repo) is untouched
 - checking it would mean a network call, which this gate does not make.
@@ -20,7 +19,7 @@ import sys
 REPO_URL = "https://github.com/cychiang/xp-provider-gen/blob/main/"
 
 files = subprocess.check_output(
-    ["git", "ls-files", "*.md", "*.tmpl", ":!docs/plans"], text=True
+    ["git", "ls-files", "*.md", "*.tmpl"], text=True
 ).split()
 files = [f for f in files if f != "CLAUDE.md"]  # symlink to AGENTS.md, not a second copy
 

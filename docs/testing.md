@@ -77,7 +77,7 @@ exits 1 before anything starts.
 |---|---|
 | `--flavor=native\|upjet` | The flavor to test. `make` passes it for you. |
 | `--mode=full\|fast` | `full` is the default. |
-| `--from=head\|latest\|<tag>` | The binary that runs `init` and `create api`. `head` is the default. `latest` is the newest published release, which `gh release list` resolves without pre-releases or drafts. A tag such as `v0.3.0` names another release. Older releases are not tested in CI. |
+| `--from=head\|latest\|<tag>` | The binary that runs `init` and `create api`. `head` is the default. `latest` is the newest published release, which `gh release list` resolves without pre-releases or drafts. A tag such as `v0.4.0` names another release. Older releases are not tested in CI. |
 | `--report=<file>` | Write the run as JSON, also when a stage fails. |
 | `--logs=<dir>` | Keep per-stage logs there. The default is a new temporary directory. |
 | `--overlay=<dir>` | Lay these files over the scaffold. The default is `test/e2e/testdata/<flavor>`. |
@@ -100,12 +100,6 @@ With `--from`, the release's own binary does `init` and `create api`, and the bi
 does everything after. The `update-to-head` stage plants a stale go directive, runs `update`,
 and takes four measurements before it fails on any of them.
 
-The hand-kept part is `toolchains` in `test/e2e/plan.go`. A tag listed there (today `v0.3.0`)
-runs its `init` and `create api` under that `GOTOOLCHAIN`, printed at the start of the run, so
-the scaffold is the one the release produced whatever Go the host has. Every other command runs
-with `GOTOOLCHAIN` unset. A release whose make fragment carries the toolchain line should need no entry. No such
-release has been cut yet to confirm it.
-
 ### Read the report
 
 `--report=<file>` writes this JSON, and the CI upgrade jobs upload it as `report.json`:
@@ -114,8 +108,8 @@ release has been cut yet to confirm it.
 {
   "schema": 1,
   "flavor": "upjet",
-  "from": "v0.3.0",
-  "head": "v0.3.0-19-g723b828",
+  "from": "v0.4.0",
+  "head": "v0.4.0-19-g723b828",
   "verdict": "COMPLETE",
   "stages": [{"name": "init", "status": "pass", "seconds": 1.7}],
   "upgrade": {

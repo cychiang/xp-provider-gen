@@ -30,7 +30,7 @@ func run() int {
 	flag.StringVar(&o.mode, "mode", string(ModeFull),
 		"full runs every stage and fails without Docker; fast runs the stages that need none and reports PARTIAL")
 	flag.StringVar(&o.from, "from", fromHead,
-		"binary that scaffolds: head, latest (the newest published release), or a release tag such as v0.3.0")
+		"binary that scaffolds: head, latest (the newest published release), or a release tag such as v0.4.0")
 	flag.BoolVar(&o.list, "list", false,
 		"print the declared stages and exit, writing no report; with --from a release, only those that apply")
 	flag.StringVar(&o.bin, "bin", "bin/xp-provider-gen", "binary under test")
@@ -86,9 +86,6 @@ func runCase(ctx context.Context, o options, rep *Report) int {
 		return fail(err)
 	}
 	fmt.Printf("work %s\nlogs %s\ncluster %s\ngenerator %s\n", env.Work, env.Logs, env.Cluster, env.Gen)
-	if c.Toolchain != "" {
-		fmt.Printf("GOTOOLCHAIN=%s on the released binary's init and create api only\n", c.Toolchain)
-	}
 	rep.Head = versionOf(ctx, env.Head)
 
 	verdict, results := Execute(plan, env, os.Stdout)
