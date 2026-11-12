@@ -30,14 +30,15 @@ generated provider carries it.
    and the usual workflow.
 2. Keep the change small and focused on one thing.
 3. Run `make reviewable` before you push. It runs the lint, test, security, and consistency
-   checks that CI runs. If you changed a template, also compare the output of the old and the
-   new binary, as AGENTS.md describes. CI also runs the e2e suites, which need Docker locally.
-   [docs/testing.md](docs/testing.md) explains how to run them.
+   checks that CI runs, and needs no Docker. If you changed a template, also compare the output of the old and the
+   new binary, as AGENTS.md describes. CI also runs the e2e suites on every pull request that is not docs-only. Running them
+   locally is optional and needs Docker. [docs/testing.md](docs/testing.md) explains how.
 4. Give the pull request a [conventional commit](https://www.conventionalcommits.org/) title,
    such as `docs: fix the upjet quick start in the README`. The
    [`pr-title.yml`](.github/workflows/pr-title.yml) workflow checks the type and the subject.
    It accepts `feat`, `fix`, `perf`, `deps`, `refactor`, `docs`, `test`, `ci`, `chore`, and
-   `build`, and a subject in printable ASCII. If the pull request has a single commit, that
+   `build`, and a subject in printable ASCII. Mark a breaking change with `!`, as in
+   `feat!: remove a flag`, so the release notes list it under breaking changes. If the pull request has a single commit, that
    commit's subject must match the title.
 
 The maintainer squash-merges pull requests, so the title becomes the commit subject on `main`.

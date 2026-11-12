@@ -23,7 +23,7 @@ its release notes say what to change. v0.4.0, for example, removed `update --ado
   Policies are on by default, change logs are behind `--enable-changelogs`, and the controllers
   record managed-resource metrics.
 - `make e2e` in the generated provider deploys it to a kind cluster and runs uptest and
-  chainsaw tests. On a native provider, each `create api` seeds the kind's example manifest
+  chainsaw tests. It needs Docker. On a native provider, each `create api` seeds the kind's example manifest
   (the uptest input) and a chainsaw pause test. On upjet, you write the example manifest after
   `make generate`.
 - One version manifest pins the provider's dependencies. Renovate bumps it in this repo, and
@@ -65,6 +65,7 @@ make reviewable
 ```
 
 `init` runs `make generate` and `make reviewable` itself, and `create api` runs `make generate`.
+The last `make reviewable` checks the finished scaffold again. It needs no Docker.
 To write the reconcile logic, follow [the tutorial](docs/tutorial.md). It builds a complete
 provider and runs it on a local kind cluster in about thirty minutes.
 
@@ -82,7 +83,10 @@ make reviewable
 
 An upjet scaffold does not compile until `make generate` runs. `make generate` downloads
 Terraform and the provider schema, so it needs network access and can take a few minutes the
-first time. [docs/upjet-provider.md](docs/upjet-provider.md) covers credentials, deployment, and
+first time. Every upjet `make` prints two warnings about the `go.generate` target. They are
+expected. To test a kind, copy its generated example from `examples-generated/` to
+`examples/<group>/<kind>.yaml`, as the `create api` output says, then run `create-test`.
+[docs/upjet-provider.md](docs/upjet-provider.md) covers credentials, deployment, and
 bumping the Terraform provider.
 
 ## Commit history while you scaffold
@@ -90,7 +94,9 @@ bumping the Terraform provider.
 `init` makes one commit, `Initial commit`. Each `create api` amends that commit
 (`git commit --amend`) until you make a commit of your own, so a new provider starts with one
 commit. Make your own first commit before you push. After that, each `create api` adds a new
-commit.
+commit. The commit uses your git identity. Without one, it uses
+`Crossplane Provider Generator <noreply@crossplane.io>`, and `--git-name` and `--git-email`
+override both.
 
 ## Commands
 

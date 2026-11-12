@@ -23,6 +23,7 @@ body:
         - go install
         - Container image
         - Built from source
+        - Other
     validations:
       required: true
   - type: dropdown
@@ -43,7 +44,7 @@ body:
       description: >-
         The exact command, with every flag. Say whether it ran in a new directory or in an
         existing provider, and which version last ran `init` or `update` on that provider
-        (the `version:` key under `plugins` in its PROJECT file).
+        (the `version:` key under `plugins` in its PROJECT file). For a new directory, say so.
       render: shell
     validations:
       required: true
