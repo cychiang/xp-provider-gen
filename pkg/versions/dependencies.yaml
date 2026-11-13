@@ -13,7 +13,7 @@
 # the Go this repo is built with (go.mod and the Dockerfile), so a provider Go
 # bump is this one line. `scripts/check-go-version` fails CI if this value
 # falls below what a pinned dependency below requires.
-go_version: "1.26.10"
+go_version: "1.26.11"
 
 # The Terraform CLI version an upjet-flavored provider uses to read its wrapped
 # provider's schema at `make generate`. This is not the author's call: the
@@ -28,7 +28,7 @@ terraform_version: "1.5.7"
 # The golangci-lint release generated providers lint with, and this repository
 # too: the Makefile and lint.yml read this key, and both flavors' make fragments
 # render it. Renovate bumps it on its own (renovate.json).
-golangci_lint_version: "2.13.2"
+golangci_lint_version: "2.15.0"
 
 # The crossplane/build commit new providers pin their build submodule at; init checks
 # it out and commits the gitlink, and update only reports a provider that sits elsewhere.
@@ -54,12 +54,12 @@ dependencies:
   - module: google.golang.org/grpc
     version: v1.83.2
   - module: k8s.io/apiextensions-apiserver
-    version: v0.36.3
+    version: v0.36.6
     package: k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
   - module: k8s.io/apimachinery
-    version: v0.36.3
+    version: v0.36.6
   - module: k8s.io/client-go
-    version: v0.36.3
+    version: v0.36.6
   - module: sigs.k8s.io/controller-runtime
     version: v0.24.1
 
@@ -73,6 +73,6 @@ upjet_dependencies:
   - module: dario.cat/mergo
     version: v1.0.2
   - module: k8s.io/api
-    version: v0.36.3
+    version: v0.36.6
   - module: sigs.k8s.io/controller-tools
     version: v0.20.1
