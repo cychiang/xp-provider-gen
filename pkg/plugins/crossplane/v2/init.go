@@ -121,6 +121,10 @@ func (o initOptions) upjetSettings() (*core.UpjetSettings, error) {
 	}, nil
 }
 
+// makeBuildStep is init's next step for building the provider, the same for
+// both flavors.
+const makeBuildStep = "Run 'make build' to build the provider binary and image (needs Docker)"
+
 // runInit scaffolds a new provider into dst, which must be the tree rooted at
 // the working directory: git, make and go run there, not through dst. PROJECT
 // is saved after the files are written and before the automation pipeline, so
@@ -155,12 +159,12 @@ func runInit(ctx context.Context, dst afero.Fs, o initOptions) error {
 		fmt.Printf("  1. Use '%s create api --terraform-resource=...' to add resources\n", version.CommandName)
 		fmt.Printf("  2. Run 'make generate' to fetch the Terraform schema and generate types and controllers\n")
 		fmt.Printf("  3. Map your credentials in internal/clients/clients.go\n")
-		fmt.Printf("  4. Run 'make build' to build the provider image (needs Docker)\n")
+		fmt.Printf("  4. %s\n", makeBuildStep)
 		return nil
 	}
 	fmt.Printf("  1. Use '%s create api' to add managed resources\n", version.CommandName)
 	fmt.Printf("  2. Implement external client logic for your provider\n")
-	fmt.Printf("  3. Run 'make build' to build the provider image (needs Docker)\n")
+	fmt.Printf("  3. %s\n", makeBuildStep)
 	fmt.Printf("  4. Run 'make run' to run the provider against your current kubeconfig context\n")
 
 	return nil
