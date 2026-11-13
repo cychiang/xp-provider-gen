@@ -226,9 +226,10 @@ an empty directory.
   `make generate`. produces: types/controllers under `apis/{cluster,namespaced}/**` and
   `internal/controller/{cluster,namespaced}/**`.
 - **`make build`** — what (needs Docker): builds the provider binary, the xpkg package, and an
-  image with Terraform itself and the mirrored provider plugin baked in (no network needed at pod runtime). when: after
-  generate. command: `make build`. produces: image `<registry>/<provider>-<arch>`; the
-  container's `ENV` satisfies `cmd/provider`'s required flags with nothing extra to configure.
+  image with Terraform itself and the mirrored provider plugin baked in (no network needed at
+  pod runtime). when: after generate. command: `make build`. produces: image
+  `<registry>/<provider>-<arch>`; the container's `ENV` satisfies `cmd/provider`'s required
+  flags with nothing extra to configure.
 - **`make local-deploy`** — what: builds, creates a dedicated kind cluster, installs
   Crossplane, deploys the provider package. when: first real run of an upjet provider. command:
   `make local-deploy`. produces: cluster `<provider>-e2e`; switches your `kubectl` context to it.
