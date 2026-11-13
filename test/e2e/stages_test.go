@@ -278,6 +278,8 @@ func TestUnstartedControllersNamesTheKindsNoStartLineMentions(t *testing.T) {
 func gitRepo(t *testing.T, files map[string]string) *Env {
 	t.Helper()
 	e := &Env{Ctx: t.Context(), Dir: t.TempDir(), log: io.Discard, F: upjetFlavor}
+	// useConfigOnly with no identity makes any commit that does not pass its
+	// own identity fail.
 	for _, args := range [][]string{{cmdInit, "-q"}, {"config", "user.useConfigOnly", "true"}} {
 		if _, err := e.git(args...); err != nil {
 			t.Fatal(err)

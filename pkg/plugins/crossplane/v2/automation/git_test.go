@@ -385,6 +385,10 @@ func TestGeneratorCommitIdentity(t *testing.T) {
 			wantAuthor: flagIdentity, wantCommitter: flagIdentity,
 		},
 		{
+			name: "the fallback applies per field", existing: true, flags: core.GitConfig{Author: flagName},
+			wantAuthor: flagName + " <" + fallbackEmail + ">", wantCommitter: flagName + " <" + fallbackEmail + ">",
+		},
+		{
 			name: "a repository Init creates gets no identity", flags: flags,
 			wantAuthor: flagIdentity, wantCommitter: flagIdentity,
 		},
