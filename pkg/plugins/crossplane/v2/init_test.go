@@ -93,7 +93,7 @@ func TestWriteInit_RequiresDomain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := newInitConfig(t)
 
-			_, err := writeInit(t.Context(), afero.NewMemMapFs(), cfg, initOptions{domain: tt.domain, repo: tt.repo})
+			_, err := writeInit(afero.NewMemMapFs(), cfg, initOptions{domain: tt.domain, repo: tt.repo})
 
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
@@ -119,7 +119,7 @@ func TestWriteInit_WarnsOnUnconventionalRepoName(t *testing.T) {
 	o := initOptions{domain: testDomain, repo: "github.com/example/not-conventional"}
 
 	out := captureStdout(t, func() {
-		if _, err := writeInit(t.Context(), afero.NewMemMapFs(), newInitConfig(t), o); err != nil {
+		if _, err := writeInit(afero.NewMemMapFs(), newInitConfig(t), o); err != nil {
 			t.Fatalf("writeInit() unexpected error: %v", err)
 		}
 	})
@@ -140,7 +140,7 @@ func TestWriteInit_WarnsOnUnconventionalRepoName(t *testing.T) {
 func TestInitStampsGeneratorVersion(t *testing.T) {
 	cfg := newInitConfig(t)
 	o := initOptions{domain: testDomain, repo: testProviderRepo}
-	if _, err := writeInit(t.Context(), afero.NewMemMapFs(), cfg, o); err != nil {
+	if _, err := writeInit(afero.NewMemMapFs(), cfg, o); err != nil {
 		t.Fatalf("writeInit: %v", err)
 	}
 
@@ -182,7 +182,7 @@ func TestInitNonEmptyDir(t *testing.T) {
 			}
 
 			out := captureStdout(t, func() {
-				if _, err := writeInit(t.Context(), dst, newInitConfig(t), o); err != nil {
+				if _, err := writeInit(dst, newInitConfig(t), o); err != nil {
 					t.Fatalf("writeInit: %v", err)
 				}
 			})
@@ -228,7 +228,7 @@ func TestInitEmptyDir(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dst := afero.NewMemMapFs()
 			out := captureStdout(t, func() {
-				if _, err := writeInit(t.Context(), dst, newInitConfig(t), tt.o); err != nil {
+				if _, err := writeInit(dst, newInitConfig(t), tt.o); err != nil {
 					t.Fatalf("writeInit: %v", err)
 				}
 			})
@@ -249,75 +249,6 @@ func TestInitEmptyDir(t *testing.T) {
 			}
 			if strings.Contains(out, "Kept ") {
 				t.Errorf("fresh init printed a Kept list:\n%s", out)
-			}
-		})
-	}
-}
-
-// Fixture values for TestInitOptions_GitIdentity.
-const (
-	testFlagGitName    = "Flag Name"
-	testFlagGitEmail   = "flag@example.com"
-	testSystemGitName  = "System Name"
-	testSystemGitEmail = "system@example.com"
-)
-
-// TestInitOptions_GitIdentity pins gitIdentity's three-tier priority: CLI
-// flags, then system git config (via query), then the project defaults
-// already in the plugin config.
-func TestInitOptions_GitIdentity(t *testing.T) {
-	tests := []struct {
-		name      string
-		gitName   string
-		gitEmail  string
-		sysName   string
-		sysEmail  string
-		wantName  string
-		wantEmail string
-	}{
-		{
-			name:      "both flags given wins over system config",
-			gitName:   testFlagGitName,
-			gitEmail:  testFlagGitEmail,
-			sysName:   testSystemGitName,
-			sysEmail:  testSystemGitEmail,
-			wantName:  testFlagGitName,
-			wantEmail: testFlagGitEmail,
-		},
-		{
-			name:      "only name flag given, email falls back to system config",
-			gitName:   testFlagGitName,
-			sysName:   testSystemGitName,
-			sysEmail:  testSystemGitEmail,
-			wantName:  testFlagGitName,
-			wantEmail: testSystemGitEmail,
-		},
-		{
-			name:      "no flags given, system config has values",
-			sysName:   testSystemGitName,
-			sysEmail:  testSystemGitEmail,
-			wantName:  testSystemGitName,
-			wantEmail: testSystemGitEmail,
-		},
-		{
-			name:      "no flags given, system config empty falls back to project defaults",
-			wantName:  "Crossplane Provider Generator",
-			wantEmail: "noreply@crossplane.io",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			o := initOptions{gitName: tt.gitName, gitEmail: tt.gitEmail}
-			query := func() (string, string) { return tt.sysName, tt.sysEmail }
-
-			gotName, gotEmail := o.gitIdentity(core.NewPluginConfig(), query)
-
-			if gotName != tt.wantName {
-				t.Errorf("gitIdentity() name = %q, want %q", gotName, tt.wantName)
-			}
-			if gotEmail != tt.wantEmail {
-				t.Errorf("gitIdentity() email = %q, want %q", gotEmail, tt.wantEmail)
 			}
 		})
 	}

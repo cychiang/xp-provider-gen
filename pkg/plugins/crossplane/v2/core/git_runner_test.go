@@ -41,7 +41,7 @@ func TestGitCommandRunner_DelegatesToCommandRunner(t *testing.T) {
 }
 
 // TestGitCommandRunner_RunCommandWithOutput_TrimsWhitespace guards the
-// TrimSpace behavior callers (e.g. GetUserName) rely on.
+// TrimSpace behavior callers (e.g. GitOperations.gitConfig) rely on.
 func TestGitCommandRunner_RunCommandWithOutput_TrimsWhitespace(t *testing.T) {
 	g := NewGitCommandRunner("")
 	out, err := g.RunCommandWithOutput(context.Background(), "--version")

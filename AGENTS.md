@@ -77,7 +77,7 @@ reconsider.
 
 ## Repository layout
 
-- `cmd/xp-provider-gen/` — CLI entry point: a plain cobra root over the four commands
+- `cmd/xp-provider-gen/` — CLI entry point: a plain cobra root over the four scaffolding commands
 - `pkg/plugins/crossplane/v2/` — the `init`, `create api`, `update` and `create-test` commands, template engine, automation, validation
 - `pkg/templates/files/`, `pkg/templates/upjet/` — embedded `.tmpl` scaffolding, one root per flavor; `pkg/templates/generators/` — Go-rendered files neither tree can express (register.go, go.mod, `docs/ownership.md`)
 - `pkg/versions/`, `pkg/version/` — see Core concepts above

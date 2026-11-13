@@ -50,7 +50,7 @@ func TestProjectBytes(t *testing.T) {
 				t.Fatalf("newProjectStore: %v", err)
 			}
 			captureStdout(t, func() {
-				if _, err := writeInit(t.Context(), dst, st.Config(), tt.init); err != nil {
+				if _, err := writeInit(dst, st.Config(), tt.init); err != nil {
 					t.Fatalf("writeInit: %v", err)
 				}
 			})

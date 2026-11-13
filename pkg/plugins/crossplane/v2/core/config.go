@@ -30,8 +30,10 @@ type PluginConfig struct {
 
 type GitConfig struct {
 	BuildSubmoduleURL string
-	Author            string
-	Email             string
+	// Author and Email are init's --git-name and --git-email, empty when not
+	// given. They set only the generator's own commits.
+	Author string
+	Email  string
 }
 
 func NewPluginConfig() *PluginConfig {
@@ -40,8 +42,6 @@ func NewPluginConfig() *PluginConfig {
 
 		Git: GitConfig{
 			BuildSubmoduleURL: "https://github.com/crossplane/build",
-			Author:            "Crossplane Provider Generator",
-			Email:             "noreply@crossplane.io",
 		},
 	}
 }
