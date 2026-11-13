@@ -123,7 +123,7 @@ func (o initOptions) upjetSettings() (*core.UpjetSettings, error) {
 
 // makeBuildStep is init's next step for building the provider, the same for
 // both flavors.
-const makeBuildStep = "Run 'make build' to build the provider binary and image (needs Docker)"
+const makeBuildStep = "Run 'make build' to build the provider binary, image and package (needs Docker)"
 
 // runInit scaffolds a new provider into dst, which must be the tree rooted at
 // the working directory: git, make and go run there, not through dst. PROJECT
