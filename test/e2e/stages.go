@@ -211,7 +211,7 @@ func (e *Env) commit(msg string) error {
 	if _, err := e.git("add", "-A"); err != nil {
 		return err
 	}
-	_, err := e.git("commit", "-qm", msg)
+	_, err := e.git("-c", "user.name=e2e", "-c", "user.email=e2e@example.com", "commit", "-qm", msg)
 	return err
 }
 

@@ -42,12 +42,12 @@ const gitlinkMode = "160000"
 // avoids git's "nothing to commit" failure and an empty commit in history.
 const noChangesMessage = "No changes to commit; scaffold is already up to date."
 
-// FallbackAuthor and FallbackEmail are the identity of the generator's commits
+// fallbackAuthor and fallbackEmail are the identity of the generator's commits
 // when neither init's flags nor git's config name one. example.com is reserved
 // for documentation (RFC 2606), so the address can never reach a real inbox.
 const (
-	FallbackAuthor = "xp-provider-gen"
-	FallbackEmail  = "xp-provider-gen@example.com"
+	fallbackAuthor = "xp-provider-gen"
+	fallbackEmail  = "xp-provider-gen@example.com"
 )
 
 type GitOperations struct {
@@ -72,14 +72,15 @@ func (g *GitOperations) Init(ctx context.Context) error {
 	return g.runner.Init(ctx)
 }
 
-// identityArgs returns the -c overrides that set the identity of one of the
-// generator's commits. Each field comes from init's flags, then git's own
-// config, then the fallback, so a commit succeeds on a machine with no
-// identity configured. Passed per command, the values never reach the
-// repository's config.
+// identityArgs returns the -c overrides that set user.name and user.email for
+// one of the generator's commits. Each field comes from init's flags, then
+// git's own config, then the fallback, so a commit succeeds on a machine with
+// no identity configured. Passed per command, the values never reach the
+// repository's config. As with any user.* value, GIT_AUTHOR_*/GIT_COMMITTER_*
+// and author.*/committer.* still take precedence.
 func (g *GitOperations) identityArgs(ctx context.Context) []string {
-	name := firstSet(g.config.Git.Author, g.gitConfig(ctx, "user.name"), FallbackAuthor)
-	email := firstSet(g.config.Git.Email, g.gitConfig(ctx, "user.email"), FallbackEmail)
+	name := firstSet(g.config.Git.Author, g.gitConfig(ctx, "user.name"), fallbackAuthor)
+	email := firstSet(g.config.Git.Email, g.gitConfig(ctx, "user.email"), fallbackEmail)
 	return []string{"-c", "user.name=" + name, "-c", "user.email=" + email}
 }
 

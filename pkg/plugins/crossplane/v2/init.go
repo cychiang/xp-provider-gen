@@ -67,7 +67,7 @@ This command scaffolds a complete Crossplane provider project with:
   # Initialize in current directory (auto-detects name)
   %[1]s init --domain=example.com
 
-  # Initialize with specific git user configuration
+  # Commit the scaffold as a specific author
   %[1]s init --domain=example.com --repo=github.com/example/provider-aws \
     --git-name="Jane Doe" --git-email="jane@example.com"`, version.CommandName),
 		Args: cobra.NoArgs,
@@ -78,8 +78,8 @@ This command scaffolds a complete Crossplane provider project with:
 	fs := cmd.Flags()
 	fs.StringVar(&o.domain, "domain", "", "domain for API groups (required)")
 	fs.StringVar(&o.repo, "repo", "", "name to use for go module (e.g., github.com/user/repo)")
-	fs.StringVar(&o.gitName, "git-name", "", "author name for the generator's commits (defaults to git's user.name)")
-	fs.StringVar(&o.gitEmail, "git-email", "", "author email for the generator's commits (defaults to git's user.email)")
+	fs.StringVar(&o.gitName, "git-name", "", "user.name for init's commit (defaults to git's user.name)")
+	fs.StringVar(&o.gitEmail, "git-email", "", "user.email for init's commit (defaults to git's user.email)")
 
 	fs.BoolVar(&o.upjet, "upjet", false,
 		"scaffold an upjet provider: types and controllers are generated from a Terraform provider schema")
