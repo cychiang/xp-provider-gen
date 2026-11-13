@@ -111,6 +111,22 @@ func TestWriteInit_RequiresDomain(t *testing.T) {
 	}
 }
 
+// TestWriteInit_PassesTheGitFlagsToTheCommit pins that --git-name and
+// --git-email reach the identity of init's commit (#217).
+func TestWriteInit_PassesTheGitFlagsToTheCommit(t *testing.T) {
+	o := initOptions{domain: testDomain, repo: "github.com/example/provider-demo", gitName: "Jane Doe", gitEmail: "jane@example.com"}
+	var cfg *core.PluginConfig
+	captureStdout(t, func() {
+		var err error
+		if cfg, err = writeInit(afero.NewMemMapFs(), newInitConfig(t), o); err != nil {
+			t.Fatalf("writeInit() unexpected error: %v", err)
+		}
+	})
+	if cfg.Git.Author != o.gitName || cfg.Git.Email != o.gitEmail {
+		t.Errorf("commit identity = %q <%q>, want %q <%q>", cfg.Git.Author, cfg.Git.Email, o.gitName, o.gitEmail)
+	}
+}
+
 // TestWriteInit_WarnsOnUnconventionalRepoName pins that
 // init prints the naming-convention warning from its own success path
 // (the validator itself must never print, see

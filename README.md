@@ -102,9 +102,9 @@ amends.
 The commits `init` and `create api` make use your git identity. `init --git-name` and
 `--git-email` replace `user.name` and `user.email` for the commit `init` makes, also in a
 repository that already exists. A `create api` amend keeps that author and records your git
-identity as the committer. With no identity anywhere, they commit as
-`xp-provider-gen <xp-provider-gen@example.com>`. `init` writes no identity into the repository's
-`.git/config`, so your own commits keep yours.
+identity as the committer. A name or email that neither the flags nor git's `user.name` and
+`user.email` supply falls back to `xp-provider-gen <xp-provider-gen@example.com>`. `init` writes
+no identity into the repository's `.git/config`, so your own commits keep yours.
 
 ## Commands
 

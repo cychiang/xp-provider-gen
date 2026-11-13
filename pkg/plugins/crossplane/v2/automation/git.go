@@ -17,6 +17,7 @@ limitations under the License.
 package automation
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -79,8 +80,8 @@ func (g *GitOperations) Init(ctx context.Context) error {
 // repository's config. As with any user.* value, GIT_AUTHOR_*/GIT_COMMITTER_*
 // and author.*/committer.* still take precedence.
 func (g *GitOperations) identityArgs(ctx context.Context) []string {
-	name := firstSet(g.config.Git.Author, g.gitConfig(ctx, "user.name"), fallbackAuthor)
-	email := firstSet(g.config.Git.Email, g.gitConfig(ctx, "user.email"), fallbackEmail)
+	name := cmp.Or(g.config.Git.Author, g.gitConfig(ctx, "user.name"), fallbackAuthor)
+	email := cmp.Or(g.config.Git.Email, g.gitConfig(ctx, "user.email"), fallbackEmail)
 	return []string{"-c", "user.name=" + name, "-c", "user.email=" + email}
 }
 
@@ -92,15 +93,6 @@ func (g *GitOperations) gitConfig(ctx context.Context, key string) string {
 		return ""
 	}
 	return v
-}
-
-func firstSet(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 func (g *GitOperations) CreateCommit(ctx context.Context, message string) error {
