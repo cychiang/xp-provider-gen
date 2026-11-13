@@ -65,6 +65,7 @@ the pin. Install it with `go-version-file: go.mod`, or clear the variable before
 | Build the API client from credentials | `internal/provider/client.go` |
 | Add CLI flags, adjust controller options | `internal/provider/options.go` |
 | Add settings to the ProviderConfig | `apis/v1alpha1/types.go` |
+| Name the package's maintainer and description | `package/crossplane.yaml` |
 
 Everything else — the connector, ProviderConfig resolution, credential extraction,
 controller registration, `main.go` — is generated and maintained for you.
