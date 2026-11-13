@@ -31,7 +31,7 @@ its release notes say what to change. v0.4.0, for example, removed `update --ado
 
 ## Install
 
-Install with Go 1.26.10 or later:
+Install with Go 1.26.11 or later:
 
 ```bash
 go install github.com/cychiang/xp-provider-gen/cmd/xp-provider-gen@latest
