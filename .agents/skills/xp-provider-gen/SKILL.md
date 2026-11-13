@@ -192,8 +192,8 @@ an empty directory.
 
 - **`make generate`** — what: runs code generation (deepcopy, CRDs). when: after editing types.
   command: `make generate`. produces: regenerated `apis/**/zz_*` and `package/crds/`.
-- **`make build`** — what: builds the provider binary and image (from the `crossplane/build`
-  submodule). when: after generate. command: `make build`. produces:
+- **`make build`** — what (needs Docker): builds the provider binary, image and xpkg package
+  (from the `crossplane/build` submodule). when: after generate. command: `make build`. produces:
   `_output/bin/<os>_<arch>/provider` — not `bin/`, which is this generator's own output dir.
   The binary is always linux (`linux_arm64` on an Apple-silicon Mac), whatever your host.
 - **`make reviewable`** — what: `generate` + `lint` + `test`, from `crossplane/build`'s
@@ -225,10 +225,11 @@ an empty directory.
   runs upjet's code generation. when: after `create api` adds a resource. command:
   `make generate`. produces: types/controllers under `apis/{cluster,namespaced}/**` and
   `internal/controller/{cluster,namespaced}/**`.
-- **`make build`** — what (needs Docker): builds the provider binary and an image with Terraform itself and
-  the mirrored provider plugin baked in (no network needed at pod runtime). when: after
-  generate. command: `make build`. produces: image `<registry>/<provider>-<arch>`; the
-  container's `ENV` satisfies `cmd/provider`'s required flags with nothing extra to configure.
+- **`make build`** — what (needs Docker): builds the provider binary, the xpkg package, and an
+  image with Terraform itself and the mirrored provider plugin baked in (no network needed at
+  pod runtime). when: after generate. command: `make build`. produces: image
+  `<registry>/<provider>-<arch>`; the container's `ENV` satisfies `cmd/provider`'s required
+  flags with nothing extra to configure.
 - **`make local-deploy`** — what: builds, creates a dedicated kind cluster, installs
   Crossplane, deploys the provider package. when: first real run of an upjet provider. command:
   `make local-deploy`. produces: cluster `<provider>-e2e`; switches your `kubectl` context to it.

@@ -113,7 +113,7 @@ func runCreateAPI(ctx context.Context, dst afero.Fs, o createAPIOptions) error {
 	fmt.Printf("  1. Customize the %sParameters and %sObservation structs\n", res.Kind, res.Kind)
 	fmt.Printf("  2. Implement the external client logic\n")
 	fmt.Printf("  3. Update controller reconciliation logic\n")
-	fmt.Printf("  4. Run 'make generate' to generate CRDs\n")
+	fmt.Printf("  4. Rerun 'make generate' after editing the structs, to regenerate the CRDs\n")
 	fmt.Printf("  5. Check %s for usage examples\n", examplePath(*res))
 
 	return nil
