@@ -353,7 +353,6 @@ func TestGeneratorCommitIdentity(t *testing.T) {
 		repoName  = "Repo Name"
 		repoEmail = "repo@example.com"
 	)
-	fallback := FallbackAuthor + " <" + FallbackEmail + ">"
 	tests := []struct {
 		name         string
 		flags        core.GitConfig
@@ -361,61 +360,46 @@ func TestGeneratorCommitIdentity(t *testing.T) {
 		fold         bool
 		want         string
 	}{
-		{name: "flags win over the repository's identity", flags: core.GitConfig{Author: flagName, Email: flagEmail},
-			repoIdentity: true, want: flagName + " <" + flagEmail + ">"},
-		{name: "git's identity is used without flags", repoIdentity: true, want: repoName + " <" + repoEmail + ">"},
-		{name: "a missing field falls back to git's value", flags: core.GitConfig{Author: flagName},
-			repoIdentity: true, want: flagName + " <" + repoEmail + ">"},
-		{name: "no identity anywhere uses the fallback", want: fallback},
-		{name: "the fold amend uses the same identity", fold: true, want: fallback},
+		{
+			name:  "flags win over the repository's identity",
+			flags: core.GitConfig{Author: flagName, Email: flagEmail}, repoIdentity: true,
+			want: flagName + " <" + flagEmail + ">",
+		},
+		{
+			name: "git's identity is used without flags", repoIdentity: true,
+			want: repoName + " <" + repoEmail + ">",
+		},
+		{
+			name:  "a missing field falls back to git's value",
+			flags: core.GitConfig{Author: flagName}, repoIdentity: true,
+			want: flagName + " <" + repoEmail + ">",
+		},
+		{name: "no identity anywhere uses the fallback", want: FallbackAuthor + " <" + FallbackEmail + ">"},
+		{name: "the fold amend uses the same identity", fold: true, want: FallbackAuthor + " <" + FallbackEmail + ">"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			isolateGitConfig(t)
-			t.Chdir(t.TempDir())
-			ctx := context.Background()
-			g := core.NewGitCommandRunner("")
-			if err := g.RunCommand(ctx, "init", "-q"); err != nil {
-				t.Fatalf("git init: %v", err)
-			}
+			identity := map[string]string{}
 			if tt.repoIdentity {
-				for k, v := range map[string]string{"user.name": repoName, "user.email": repoEmail} {
-					if err := g.RunCommand(ctx, "config", k, v); err != nil {
-						t.Fatalf("git config %s: %v", k, err)
-					}
-				}
+				identity = map[string]string{"user.name": repoName, "user.email": repoEmail}
 			}
+			newIdentityTestRepo(t, identity)
 			localBefore := localUserConfig(t)
+			ctx := context.Background()
 
 			ops := NewGitOperations(&core.PluginConfig{Git: tt.flags})
 			if err := ops.Init(ctx); err != nil {
 				t.Fatalf("Init() on an existing repository = %v", err)
 			}
-			if tt.fold {
-				if err := os.WriteFile("a.txt", []byte("a\n"), 0o600); err != nil {
-					t.Fatal(err)
-				}
-				if err := ops.CreateCommit(ctx, "Initial commit\n\n"+ScaffoldCommitTrailer+"\n"); err != nil {
-					t.Fatalf("CreateCommit() = %v", err)
-				}
-			}
-			if err := os.WriteFile("b.txt", []byte("b\n"), 0o600); err != nil {
-				t.Fatal(err)
-			}
 			commit := ops.CreateCommit
 			if tt.fold {
+				writeAndCommit(t, "a.txt", "Initial commit\n\n"+ScaffoldCommitTrailer+"\n", ops.CreateCommit)
 				commit = ops.CommitOrAmendScaffold
 			}
-			if err := commit(ctx, "generator commit"); err != nil {
-				t.Fatalf("commit = %v", err)
-			}
+			writeAndCommit(t, "b.txt", "generator commit", commit)
 
 			for _, format := range []string{"%an <%ae>", "%cn <%ce>"} {
-				got, err := g.RunCommandWithOutput(ctx, "log", "-1", "--format="+format)
-				if err != nil {
-					t.Fatalf("git log: %v", err)
-				}
-				if got != tt.want {
+				if got := gitOut(t, "", "log", "-1", "--format="+format); got != tt.want {
 					t.Errorf("git log --format=%q = %q, want %q", format, got, tt.want)
 				}
 			}
@@ -423,6 +407,28 @@ func TestGeneratorCommitIdentity(t *testing.T) {
 				t.Errorf("repository user config changed from %q to %q, want it untouched", localBefore, got)
 			}
 		})
+	}
+}
+
+// newIdentityTestRepo chdirs the test into a new repository whose own config
+// sets identity, with the machine's git config hidden.
+func newIdentityTestRepo(t *testing.T, identity map[string]string) {
+	t.Helper()
+	isolateGitConfig(t)
+	t.Chdir(t.TempDir())
+	gitOut(t, "", "init", "-q")
+	for k, v := range identity {
+		gitOut(t, "", "config", k, v)
+	}
+}
+
+func writeAndCommit(t *testing.T, file, message string, commit func(context.Context, string) error) {
+	t.Helper()
+	if err := os.WriteFile(file, []byte(file+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := commit(context.Background(), message); err != nil {
+		t.Fatalf("committing %s: %v", file, err)
 	}
 }
 

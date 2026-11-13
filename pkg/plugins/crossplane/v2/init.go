@@ -1,7 +1,6 @@
 package v2
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -72,15 +71,15 @@ This command scaffolds a complete Crossplane provider project with:
   %[1]s init --domain=example.com --repo=github.com/example/provider-aws \
     --git-name="Jane Doe" --git-email="jane@example.com"`, version.CommandName),
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runInit(cmd.Context(), afero.NewOsFs(), o)
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runInit(afero.NewOsFs(), o)
 		},
 	}
 	fs := cmd.Flags()
 	fs.StringVar(&o.domain, "domain", "", "domain for API groups (required)")
 	fs.StringVar(&o.repo, "repo", "", "name to use for go module (e.g., github.com/user/repo)")
-	fs.StringVar(&o.gitName, "git-name", "", "author name for the generator's own commits (defaults to git's user.name)")
-	fs.StringVar(&o.gitEmail, "git-email", "", "author email for the generator's own commits (defaults to git's user.email)")
+	fs.StringVar(&o.gitName, "git-name", "", "author name for the generator's commits (defaults to git's user.name)")
+	fs.StringVar(&o.gitEmail, "git-email", "", "author email for the generator's commits (defaults to git's user.email)")
 
 	fs.BoolVar(&o.upjet, "upjet", false,
 		"scaffold an upjet provider: types and controllers are generated from a Terraform provider schema")
@@ -126,7 +125,7 @@ func (o initOptions) upjetSettings() (*core.UpjetSettings, error) {
 // is saved after the files are written and before the automation pipeline, so
 // a failed render leaves no PROJECT and a failed pipeline leaves one for the
 // commit step to stage.
-func runInit(ctx context.Context, dst afero.Fs, o initOptions) error {
+func runInit(dst afero.Fs, o initOptions) error {
 	st, err := newProjectStore(dst)
 	if err != nil {
 		return err
