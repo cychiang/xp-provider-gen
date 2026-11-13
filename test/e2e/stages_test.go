@@ -278,10 +278,15 @@ func TestUnstartedControllersNamesTheKindsNoStartLineMentions(t *testing.T) {
 func gitRepo(t *testing.T, files map[string]string) *Env {
 	t.Helper()
 	e := &Env{Ctx: t.Context(), Dir: t.TempDir(), log: io.Discard, F: upjetFlavor}
-	// Hiding the global and system config leaves no identity, so with
-	// useConfigOnly any commit that does not pass its own identity fails.
+	// Hiding the global and system config and the identity variables leaves no
+	// identity, so with useConfigOnly any commit that does not pass its own
+	// identity fails.
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "EMAIL"} {
+		t.Setenv(k, "")
+		os.Unsetenv(k)
+	}
 	for _, args := range [][]string{{cmdInit, "-q"}, {"config", "user.useConfigOnly", "true"}} {
 		if _, err := e.git(args...); err != nil {
 			t.Fatal(err)
