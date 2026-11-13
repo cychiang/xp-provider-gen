@@ -17,6 +17,7 @@ limitations under the License.
 package automation
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -42,6 +43,14 @@ const gitlinkMode = "160000"
 // avoids git's "nothing to commit" failure and an empty commit in history.
 const noChangesMessage = "No changes to commit; scaffold is already up to date."
 
+// fallbackAuthor and fallbackEmail are the identity of the generator's commits
+// when neither init's flags nor git's config name one. example.com is reserved
+// for documentation (RFC 2606), so the address can never reach a real inbox.
+const (
+	fallbackAuthor = "xp-provider-gen"
+	fallbackEmail  = "xp-provider-gen@example.com"
+)
+
 type GitOperations struct {
 	config *core.PluginConfig
 	runner *core.GitCommandRunner
@@ -54,32 +63,36 @@ func NewGitOperations(config *core.PluginConfig) *GitOperations {
 	}
 }
 
+// Init creates the repository unless one already exists. It writes no git
+// config: the identity of the generator's own commits travels with each commit
+// (see identityArgs), so the author's later commits keep their own identity.
 func (g *GitOperations) Init(ctx context.Context) error {
 	if _, err := os.Stat(".git"); err == nil {
 		return nil
 	}
-
-	if err := g.runner.Init(ctx); err != nil {
-		return err
-	}
-
-	return g.configureProjectGit(ctx)
+	return g.runner.Init(ctx)
 }
 
-// configureProjectGit sets git config in the project's .git/config.
-func (g *GitOperations) configureProjectGit(ctx context.Context) error {
-	name := g.config.Git.Author
-	email := g.config.Git.Email
+// identityArgs returns the -c overrides that set user.name and user.email for
+// one of the generator's commits. Each field comes from init's flags, then
+// git's own config, then the fallback, so a commit succeeds on a machine with
+// no identity configured. Passed per command, the values never reach the
+// repository's config. As with any user.* value, GIT_AUTHOR_*/GIT_COMMITTER_*
+// and author.*/committer.* still take precedence.
+func (g *GitOperations) identityArgs(ctx context.Context) []string {
+	name := cmp.Or(g.config.Git.Author, g.gitConfig(ctx, "user.name"), fallbackAuthor)
+	email := cmp.Or(g.config.Git.Email, g.gitConfig(ctx, "user.email"), fallbackEmail)
+	return []string{"-c", "user.name=" + name, "-c", "user.email=" + email}
+}
 
-	if name != "" && email != "" {
-		if err := g.runner.RunCommand(ctx, "config", "user.name", name); err != nil {
-			return err
-		}
-		if err := g.runner.RunCommand(ctx, "config", "user.email", email); err != nil {
-			return err
-		}
+// gitConfig returns key as git resolves it for the working directory, or ""
+// when it is unset.
+func (g *GitOperations) gitConfig(ctx context.Context, key string) string {
+	v, err := g.runner.RunCommandWithOutput(ctx, "config", "--get", key)
+	if err != nil {
+		return ""
 	}
-	return nil
+	return v
 }
 
 func (g *GitOperations) CreateCommit(ctx context.Context, message string) error {
@@ -90,9 +103,9 @@ func (g *GitOperations) CreateCommit(ctx context.Context, message string) error 
 	return g.commit(ctx, message)
 }
 
-// commit creates a commit using the project's local git config (set during Init).
 func (g *GitOperations) commit(ctx context.Context, message string) error {
-	return g.runner.CommitWithSystemAuthor(ctx, message)
+	args := append(g.identityArgs(ctx), "commit", "-F", "-")
+	return g.runner.RunCommandWithStdin(ctx, message, args...)
 }
 
 // CommitOrAmendScaffold folds the staged change into the existing scaffold commit
@@ -112,7 +125,8 @@ func (g *GitOperations) CommitOrAmendScaffold(ctx context.Context, message strin
 	}
 	if g.headIsScaffold(ctx) {
 		// Keep the Initial commit's message and author; just add the new files.
-		return g.runner.RunCommand(ctx, "commit", "--amend", "--no-edit")
+		args := append(g.identityArgs(ctx), "commit", "--amend", "--no-edit")
+		return g.runner.RunCommand(ctx, args...)
 	}
 	return g.commit(ctx, message)
 }

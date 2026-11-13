@@ -341,3 +341,154 @@ func TestBuildDrift_PrintedCommandMovesAShallowCloneToThePin(t *testing.T) {
 		t.Errorf("gitlink after the printed command = %s, want pin %s", got, older)
 	}
 }
+
+// TestGeneratorCommitIdentity pins #217: the identity of the generator's
+// commits comes from init's flags, then git's config, then the fallback, it
+// applies whether or not the repository already existed, and it is never
+// written into the repository's config.
+func TestGeneratorCommitIdentity(t *testing.T) {
+	const (
+		flagName  = "Flag Name"
+		flagEmail = "flag@example.com"
+		repoName  = "Repo Name"
+		repoEmail = "repo@example.com"
+	)
+	flags := core.GitConfig{Author: flagName, Email: flagEmail}
+	flagIdentity := flagName + " <" + flagEmail + ">"
+	repoIdentity := map[string]string{"user.name": repoName, "user.email": repoEmail}
+	fallback := fallbackAuthor + " <" + fallbackEmail + ">"
+	tests := []struct {
+		name string
+		// existing pre-creates the repository with identity in its config;
+		// otherwise Init creates it.
+		existing      bool
+		identity      map[string]string
+		flags         core.GitConfig
+		wantAuthor    string
+		wantCommitter string
+	}{
+		{
+			name: "flags win over the repository's identity", existing: true, identity: repoIdentity, flags: flags,
+			wantAuthor: flagIdentity, wantCommitter: flagIdentity,
+		},
+		{
+			name: "git's identity is used without flags", existing: true, identity: repoIdentity,
+			wantAuthor: repoName + " <" + repoEmail + ">", wantCommitter: repoName + " <" + repoEmail + ">",
+		},
+		{
+			name: "a missing field falls back to git's value", existing: true, identity: repoIdentity,
+			flags:      core.GitConfig{Author: flagName},
+			wantAuthor: flagName + " <" + repoEmail + ">", wantCommitter: flagName + " <" + repoEmail + ">",
+		},
+		{
+			name: "flags apply in an existing repository with no identity", existing: true, flags: flags,
+			wantAuthor: flagIdentity, wantCommitter: flagIdentity,
+		},
+		{
+			name: "the fallback applies per field", existing: true, flags: core.GitConfig{Author: flagName},
+			wantAuthor: flagName + " <" + fallbackEmail + ">", wantCommitter: flagName + " <" + fallbackEmail + ">",
+		},
+		{
+			name: "a repository Init creates gets no identity", flags: flags,
+			wantAuthor: flagIdentity, wantCommitter: flagIdentity,
+		},
+		{
+			name:       "no identity anywhere uses the fallback",
+			wantAuthor: fallback, wantCommitter: fallback,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newIdentityTestDir(t, tt.existing, tt.identity)
+			localBefore := localUserConfig(t)
+
+			ops := NewGitOperations(&core.PluginConfig{Git: tt.flags})
+			if err := ops.Init(context.Background()); err != nil {
+				t.Fatalf("Init() = %v", err)
+			}
+			writeAndCommit(t, "a.txt", "generator commit", ops.CreateCommit)
+
+			assertHeadIdentity(t, tt.wantAuthor, tt.wantCommitter)
+			if got := localUserConfig(t); got != localBefore {
+				t.Errorf("repository user config changed from %q to %q, want it untouched", localBefore, got)
+			}
+		})
+	}
+}
+
+// TestFoldAmendKeepsInitsAuthor pins what create api's fold amend does to
+// the identity: the author stays the one init committed as, and the
+// committer is create api's own identity, since create api has no flags.
+func TestFoldAmendKeepsInitsAuthor(t *testing.T) {
+	newIdentityTestDir(t, false, nil)
+	ctx := context.Background()
+	initOps := NewGitOperations(&core.PluginConfig{Git: core.GitConfig{Author: "Flag Name", Email: "flag@example.com"}})
+	if err := initOps.Init(ctx); err != nil {
+		t.Fatalf("Init() = %v", err)
+	}
+	writeAndCommit(t, "a.txt", "Initial commit\n\n"+ScaffoldCommitTrailer+"\n", initOps.CreateCommit)
+
+	createAPIOps := NewGitOperations(core.NewPluginConfig())
+	writeAndCommit(t, "b.txt", "fold commit", createAPIOps.CommitOrAmendScaffold)
+
+	if got := gitOut(t, "", "rev-list", "--count", "HEAD"); got != "1" {
+		t.Errorf("commit count = %s, want 1 (the amend folds into the initial commit)", got)
+	}
+	assertHeadIdentity(t, "Flag Name <flag@example.com>", fallbackAuthor+" <"+fallbackEmail+">")
+}
+
+func assertHeadIdentity(t *testing.T, wantAuthor, wantCommitter string) {
+	t.Helper()
+	if got := gitOut(t, "", "log", "-1", "--format=%an <%ae>"); got != wantAuthor {
+		t.Errorf("author = %q, want %q", got, wantAuthor)
+	}
+	if got := gitOut(t, "", "log", "-1", "--format=%cn <%ce>"); got != wantCommitter {
+		t.Errorf("committer = %q, want %q", got, wantCommitter)
+	}
+}
+
+// newIdentityTestDir chdirs the test into a new directory with the machine's
+// git config hidden. When existing is set, the directory is already a
+// repository whose own config sets identity.
+func newIdentityTestDir(t *testing.T, existing bool, identity map[string]string) {
+	t.Helper()
+	isolateGitConfig(t)
+	t.Chdir(t.TempDir())
+	if !existing {
+		return
+	}
+	gitOut(t, "", "init", "-q")
+	for k, v := range identity {
+		gitOut(t, "", "config", k, v)
+	}
+}
+
+func writeAndCommit(t *testing.T, file, message string, commit func(context.Context, string) error) {
+	t.Helper()
+	if err := os.WriteFile(file, []byte(file+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := commit(context.Background(), message); err != nil {
+		t.Fatalf("committing %s: %v", file, err)
+	}
+}
+
+// isolateGitConfig hides the machine's global and system git config, so the
+// test sees only the identity it configures itself.
+func isolateGitConfig(t *testing.T) {
+	t.Helper()
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(t.TempDir(), "gitconfig"))
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "EMAIL"} {
+		t.Setenv(k, "")
+		os.Unsetenv(k)
+	}
+}
+
+// localUserConfig returns the user.* entries of the repository's own config.
+func localUserConfig(t *testing.T) string {
+	t.Helper()
+	out, _ := core.NewGitCommandRunner("").RunCommandWithOutput(context.Background(),
+		"config", "--local", "--get-regexp", `^user\.`)
+	return out
+}

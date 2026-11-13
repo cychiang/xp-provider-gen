@@ -38,9 +38,10 @@ generated provider carries it.
    such as `docs: fix the upjet quick start in the README`. The
    [`pr-title.yml`](.github/workflows/pr-title.yml) workflow checks the type and the subject.
    It accepts `feat`, `fix`, `perf`, `deps`, `refactor`, `docs`, `test`, `ci`, `chore`, and
-   `build`, and a subject in printable ASCII. Mark a breaking change with `!`, as in
-   `feat!: remove a flag`, so the release notes list it under breaking changes. If the pull
-   request has a single commit, that commit's subject must match the title.
+   `build`, and a subject in printable ASCII plus dashes, curly quotes, and the ellipsis. Mark
+   a breaking change with `!`, as in `feat!: remove a flag`, so the release notes list it under
+   breaking changes. If the pull request has a single commit, that commit's subject must match
+   the title.
 
 The maintainer squash-merges pull requests, so the title becomes the commit subject on `main`.
 The release notes list the subjects of `feat`, `fix`, `perf`, and `deps` commits, and of every

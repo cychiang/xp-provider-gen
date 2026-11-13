@@ -211,7 +211,7 @@ func (e *Env) commit(msg string) error {
 	if _, err := e.git("add", "-A"); err != nil {
 		return err
 	}
-	_, err := e.git("commit", "-qm", msg)
+	_, err := e.git("-c", "user.name=e2e", "-c", "user.email=e2e@example.com", "commit", "-qm", msg)
 	return err
 }
 
@@ -411,7 +411,7 @@ func stageInit(e *Env) error {
 }
 
 // scaffold runs init and checks the stamp it wrote, the files it must create
-// and, for head, the pin of the build submodule.
+// and, for head, the commit's author and the pin of the build submodule.
 func (e *Env) scaffold(layout []string) error {
 	if _, err := e.gen(e.F.Init...); err != nil {
 		return err
@@ -425,7 +425,24 @@ func (e *Env) scaffold(layout []string) error {
 	if e.Case.Release() {
 		return nil
 	}
+	if err := e.assertInitAuthor(); err != nil {
+		return err
+	}
 	return e.assertBuildPinned()
+}
+
+// assertInitAuthor checks that init's --git-name and --git-email reached its
+// commit (#217).
+func (e *Env) assertInitAuthor() error {
+	const want = "e2e <e2e@example.com>"
+	out, err := e.git("log", "-1", "--format=%an <%ae>")
+	if err != nil {
+		return err
+	}
+	if out != want {
+		return fmt.Errorf("checking init's commit author: got %q, want %q", out, want)
+	}
+	return nil
 }
 
 func (e *Env) assertBuildPinned() error {

@@ -64,22 +64,6 @@ func (g *GitCommandRunner) Add(ctx context.Context, files ...string) error {
 	return g.RunCommand(ctx, args...)
 }
 
-// GetUserName retrieves the git user.name from system config.
-func (g *GitCommandRunner) GetUserName(ctx context.Context) (string, error) {
-	return g.RunCommandWithOutput(ctx, "config", "--get", "user.name")
-}
-
-// GetUserEmail retrieves the git user.email from system config.
-func (g *GitCommandRunner) GetUserEmail(ctx context.Context) (string, error) {
-	return g.RunCommandWithOutput(ctx, "config", "--get", "user.email")
-}
-
-// CommitWithSystemAuthor creates a commit using system git configuration.
-func (g *GitCommandRunner) CommitWithSystemAuthor(ctx context.Context, message string) error {
-	// Git will automatically use system config for author if not specified
-	return g.RunCommandWithStdin(ctx, message, "commit", "-F", "-")
-}
-
 // AddSubmodule adds a git submodule.
 func (g *GitCommandRunner) AddSubmodule(ctx context.Context, url, path string) error {
 	return g.RunCommand(ctx, "submodule", "add", url, path)

@@ -94,20 +94,21 @@ bumping the Terraform provider.
 `init` makes one commit, `Initial commit`. Each `create api` amends that commit
 (`git commit --amend`) until you make a commit of your own, so a new provider starts with one
 commit. Make your own first commit before you push. Otherwise the next `create api` amends a
-commit you already pushed, and you need a force-push. After that, each `create api` adds a new
-commit. Every `create api` stages the whole working tree (`git add .`). Commit or stash
-unrelated edits first, or they end up in the commit that `create api` makes or amends.
+commit you already pushed, and you need a force-push. After your first commit, each
+`create api` adds a new commit. Every `create api` stages the whole working tree (`git add .`).
+Commit or stash unrelated edits first, or they end up in the commit that `create api` makes or
+amends.
 
-Set your git identity (`git config --global user.name` and `user.email`) before `init`. If
-`init` creates the repository and git has no identity, `init` writes
-`Crossplane Provider Generator <noreply@crossplane.io>` into the repository's `.git/config`, and
-your own commits there use that identity too
-([#217](https://github.com/cychiang/xp-provider-gen/issues/217)). `init --git-name` and
-`--git-email` set the identity, but only when `init` creates the repository.
+The commits `init` and `create api` make use your git identity. `init --git-name` and
+`--git-email` replace `user.name` and `user.email` for the commit `init` makes, also in a
+repository that already exists. A `create api` amend keeps that author and records your git
+identity as the committer. A name or email that neither the flags nor git's `user.name` and
+`user.email` supply falls back to `xp-provider-gen <xp-provider-gen@example.com>`. `init` writes
+no identity into the repository's `.git/config`, so your own commits keep yours.
 
 ## Commands
 
-The CLI has four commands: `init`, `create api`, `create-test`, and `update`.
+The CLI has four scaffolding commands: `init`, `create api`, `create-test`, and `update`.
 `xp-provider-gen <command> --help` lists every flag.
 [docs/provider-guide.md](docs/provider-guide.md) describes what you edit in a native provider and
 how to upgrade it. [docs/upjet-provider.md](docs/upjet-provider.md) does the same for upjet. The

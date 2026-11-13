@@ -1,7 +1,6 @@
 package v2
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -68,19 +67,20 @@ This command scaffolds a complete Crossplane provider project with:
   # Initialize in current directory (auto-detects name)
   %[1]s init --domain=example.com
 
-  # Initialize with specific git user configuration
+  # Commit the scaffold as a specific author
   %[1]s init --domain=example.com --repo=github.com/example/provider-aws \
-    --git-name="Crossplane Provider Generator" --git-email="noreply@crossplane.io"`, version.CommandName),
+    --git-name="Jane Doe" --git-email="jane@example.com"`, version.CommandName),
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runInit(cmd.Context(), afero.NewOsFs(), o)
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runInit(afero.NewOsFs(), o)
 		},
 	}
 	fs := cmd.Flags()
 	fs.StringVar(&o.domain, "domain", "", "domain for API groups (required)")
 	fs.StringVar(&o.repo, "repo", "", "name to use for go module (e.g., github.com/user/repo)")
-	fs.StringVar(&o.gitName, "git-name", "", "git user name for commits (uses system config if not provided)")
-	fs.StringVar(&o.gitEmail, "git-email", "", "git user email for commits (uses system config if not provided)")
+	fs.StringVar(&o.gitName, "git-name", "", "user.name for init's commit (defaults to git's, then xp-provider-gen)")
+	fs.StringVar(&o.gitEmail, "git-email", "",
+		"user.email for init's commit (defaults to git's, then xp-provider-gen@example.com)")
 
 	fs.BoolVar(&o.upjet, "upjet", false,
 		"scaffold an upjet provider: types and controllers are generated from a Terraform provider schema")
@@ -126,12 +126,12 @@ func (o initOptions) upjetSettings() (*core.UpjetSettings, error) {
 // is saved after the files are written and before the automation pipeline, so
 // a failed render leaves no PROJECT and a failed pipeline leaves one for the
 // commit step to stage.
-func runInit(ctx context.Context, dst afero.Fs, o initOptions) error {
+func runInit(dst afero.Fs, o initOptions) error {
 	st, err := newProjectStore(dst)
 	if err != nil {
 		return err
 	}
-	pluginConfig, err := writeInit(ctx, dst, st.Config(), o)
+	pluginConfig, err := writeInit(dst, st.Config(), o)
 	if err != nil {
 		return err
 	}
@@ -168,11 +168,9 @@ func runInit(ctx context.Context, dst afero.Fs, o initOptions) error {
 
 // writeInit validates o, records the project in cfg and writes the scaffold
 // into dst. It returns the plugin configuration the automation pipeline uses.
-func writeInit(ctx context.Context, dst afero.Fs, cfg config.Config, o initOptions) (*core.PluginConfig, error) {
+func writeInit(dst afero.Fs, cfg config.Config, o initOptions) (*core.PluginConfig, error) {
 	pluginConfig := core.NewPluginConfig()
-	// Resolve git configuration in priority order: CLI flags > System config > Project defaults
-	pluginConfig.Git.Author, pluginConfig.Git.Email = o.gitIdentity(pluginConfig,
-		func() (string, string) { return systemGitConfig(ctx) })
+	pluginConfig.Git.Author, pluginConfig.Git.Email = o.gitName, o.gitEmail
 
 	flavor := o.flavor()
 	validator := validation.ValidatorFor(flavor)
@@ -239,46 +237,4 @@ func writeInit(ctx context.Context, dst afero.Fs, cfg config.Config, o initOptio
 	}
 	printKept(os.Stdout, result.Skipped)
 	return pluginConfig, nil
-}
-
-// gitIdentity resolves the git identity used for automation commits, in
-// priority order: CLI flags, then system git config (via query), then the
-// project defaults already in defaults.
-func (o initOptions) gitIdentity(defaults *core.PluginConfig, query func() (name, email string)) (string, string) {
-	name := defaults.Git.Author
-	email := defaults.Git.Email
-
-	if o.gitName == "" || o.gitEmail == "" {
-		sysName, sysEmail := query()
-		if sysName != "" {
-			name = sysName
-		}
-		if sysEmail != "" {
-			email = sysEmail
-		}
-	}
-
-	if o.gitName != "" {
-		name = o.gitName
-	}
-	if o.gitEmail != "" {
-		email = o.gitEmail
-	}
-
-	return name, email
-}
-
-// systemGitConfig reads user.name and user.email from git's own config
-// resolution for the current directory, returning "" for a value that is
-// unset or unreadable.
-func systemGitConfig(ctx context.Context) (string, string) {
-	var name, email string
-	runner := core.NewGitCommandRunner("")
-	if v, err := runner.GetUserName(ctx); err == nil {
-		name = v
-	}
-	if v, err := runner.GetUserEmail(ctx); err == nil {
-		email = v
-	}
-	return name, email
 }
