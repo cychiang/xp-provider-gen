@@ -277,9 +277,10 @@ Everything without the header is yours forever, and everything upjet itself
 generates (`zz_*`) is reproduced by `make generate` and should not be edited
 either.
 
-An upjet scaffold also ships `AGENTS.md`, `README.md`, `OWNERS.md` and a `test/`
-tree (`test/setup.sh`, `test/README.md`) — all yours, seeded once, same as the
-native flavor. `docs/ownership.md` lists the exact, always-accurate split.
+An upjet scaffold also ships `AGENTS.md`, `README.md`, `OWNERS.md`,
+`package/crossplane.yaml` and a `test/` tree (`test/setup.sh`, `test/README.md`)
+— all yours, seeded once, same as the native flavor. Replace the placeholder
+maintainer in `package/crossplane.yaml` before you publish. `docs/ownership.md` lists the exact, always-accurate split.
 
 ## Where to look next
 
